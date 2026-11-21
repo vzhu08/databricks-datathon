@@ -4,11 +4,11 @@ Developer C · `@andrewhgu` · Claude Code session `session_01LWLtujoz3kp3Vn9Yqd
 
 Task [#34](https://github.com/vzhu08/databricks-datathon/issues/34), branch `codex/acq-c-footprint-research`. Implementation tested at **`eb110d1fb40df5ab2d7f88b0ec61f1728f2191e1`**; this handoff is a later documentation-only commit, and the final head is recorded on the issue and PR. The remote board was reread at `df28bfb` before handoff. Changed paths: `research/geography/`, `tests/research/matching/test_coverage.py`, this file. No merge, deployment, board or shared-contract change was made.
 
-Status: **The contributor's public-source counts below are preliminary pending replay of the corrected Google comparison on the frozen 20-point sample.** The original run inspected each coordinate's centre cell. A radius extending across a cell boundary can require additional files. Version 1.1 records those cells and binds each accepted comparison to the sample and extract hashes. The real-campus audit remains open in [#5](https://github.com/vzhu08/databricks-datathon/issues/5).
+Status: **public-source study complete for one frozen 20-point sample, and replayed with the boundary-aware Google comparison (version 1.1).** The replay changed no count. No original facility row was used, no link to an original facility is asserted, and no clinical label is attached to any point. The real-campus audit remains open in [#5](https://github.com/vzhu08/databricks-datathon/issues/5).
 
-### Replay requested from Andrew
+### Replay with version 1.1 (November 21, 2026, 19:43 to 19:46 UTC)
 
-Run these commands with the updated geography code on the machine holding the frozen artifacts. They create a sibling output directory, retain the published Overture and imagery inputs, and rebuild the Google extraction with its original download budget. The original sample file SHA-256 is `91999ea77892483ea69ce601d959c3d485594bdcf835fddf282dd1c2be7c2a6d`.
+The integration lead changed the Google extraction in `ee5ddba` to read every level-6 cell that a point's padded search rectangle touches, and asked for a replay on the frozen sample. The replay ran at branch head `f9d5c94` in the session that holds the frozen artifacts, with the original `sample.json` (file SHA-256 `91999ea77892483ea69ce601d959c3d485594bdcf835fddf282dd1c2be7c2a6d`), Overture extract and imagery file copied unchanged into the sibling directory `data/local/geography/c02-v1.1/`. Nothing was re-frozen and no new frame, Overture read or imagery read was made. The Google files were downloaded again on this date.
 
 ```sh
 old=data/local/geography/c02
@@ -20,7 +20,13 @@ python -m research.geography.coverage measure --sample "$new/sample.json" --over
 python -m research.geography.coverage manifest --dir "$new"
 ```
 
-Report the new manifest hash, compared counts by stratum, points whose required cells were skipped, and any changes in independent-origin findings on #34. If the original files are unavailable, reconstruct the frame and verify the frozen cases hash before a new run. Label a new frame, extraction or acquisition date explicitly.
+- **Required cells:** each of the 20 padded rectangles (500 m radius plus the 100 m centre margin) lies inside one level-6 cell. No point needs a second file, so the 11 cells read are the same 11 as before: 3,885,652,392 bytes, 40,793,668 rows read, 75,589 kept.
+- **Skipped cells:** none. Points left out of the comparison: none.
+- **Compared points by stratum:** 5 of 5 in each of the four strata, 20 of 20 overall.
+- **Independent-origin findings:** unchanged. Other-origin outline 14, same-origin outline only 2, outlines nearby with the point outside 4, nothing within the radius 0. No point has an unknown reference origin, so the new finding `inside_footprint_reference_origin_unknown` does not occur.
+- **Bytes:** `google_buildings.ndjson` and `observations.json` are byte-identical to the first run. `summary.json` differs only in `coverage_version`. `google_manifest.json` now carries `extract_version` `open-buildings-extract-1.1.0` and the required cells per point.
+- **New manifest SHA-256:** `520f2effe641161fcd59cf520edfa74386ab843878dbb1dd3b16ad641c76815e`. The version 1.0 manifest was `dc3f54eab6aa15b0e6cab7c521f18eb1795c14e71d44313720075b014826ca41`.
+- All 80 tests in `tests/research/matching` pass at `f9d5c94` with the optional dependencies installed.
 
 [Workflow, rules and limits](../../research/geography/README.md)
 
@@ -119,18 +125,18 @@ No paid service, account or credential was used. The Google comparison is the on
 
 ## Local artifacts for A and D
 
-Under ignored `data/local/geography/c02/` in this session's checkout. The session's storage is temporary, so the files are reproducible from the commands above and are not a durable hand-over location. `manifest.json` lists each file with its hash and size.
+Under ignored `data/local/geography/c02-v1.1/` in this session's checkout; the hashes below are the version 1.1 replay, and the first run remains beside it in `c02/`. The session's storage is temporary, so the files are reproducible from the commands above and are not a durable hand-over location. `manifest.json` lists each file with its hash and size.
 
 | File | SHA-256 |
 | --- | --- |
 | `sample.json` | `91999ea77892483ea69ce601d959c3d485594bdcf835fddf282dd1c2be7c2a6d` |
 | `overture_buildings.ndjson` | `7aedb83d4fceeab4b426d07c086dbd49da688fd11028533f636868be6fb15ec1` |
 | `google_buildings.ndjson` | `448fc913fdd500120b37a16c8bdd9554c27f6410490dd8550469f0529d8abd76` |
-| `google_manifest.json` | `a55d045f05dc4a645615b0d87e6305c8fb297befe4807e24567a0059acade80e` |
+| `google_manifest.json` | `83340d5ab413c71e3ed955c639481acc68735e3815ba882f6a24711fb86b1f3c` |
 | `imagery.json` | `928218938921d848c9ab5d5c8273da6707cb30e54041209ef367e386e4d1ef12` |
 | `observations.json` | `e1ab8a4cf45c62c2f8063c237b0871eb563f71db6a12fd32269c34817cbfbee5` |
-| `summary.json` | `9acc4b7776217ab9b287ae9dfd583acf0195e205f5e57f3553d04e85fcfa6fc7` |
-| `manifest.json` | `dc3f54eab6aa15b0e6cab7c521f18eb1795c14e71d44313720075b014826ca41` |
+| `summary.json` | `72c9a6b781ba6dcd554efcc00ea4f25a7a73d232b1a03cd2f227069e8e4f6145` |
+| `manifest.json` | `520f2effe641161fcd59cf520edfa74386ab843878dbb1dd3b16ad641c76815e` |
 | `data/local/geography/overture/index-2026-11-18.0.json` | `186eb14d7058870d80652d09aaa73a282f8ccdbaeb92e7b728a86d0c8cbf8acb` |
 
 The files derive from OpenStreetMap (ODbL 1.0), Overture Maps, Google Open Buildings (CC BY 4.0 and ODbL 1.0 as recalled from its dataset page, which was not reachable from this session) and Copernicus Sentinel data. Overture labels all three upstream datasets in this extract `ODbL-1.0`. Confirm each source's terms before moving a file to another environment. Nothing from the run is in Git.
