@@ -42,7 +42,10 @@ STATE_VARIANTS = {
     "orissa": "odisha", "pondicherry": "puducherry", "uttaranchal": "uttarakhand",
     "nct of delhi": "delhi", "new delhi": "delhi", "national capital territory of delhi": "delhi",
     "jammu kashmir": "jammu and kashmir", "andaman nicobar islands": "andaman and nicobar islands",
-    "dadra nagar haveli": "dadra and nagar haveli",
+    # One union territory since 2020; sources use the old and the merged names.
+    "dadra nagar haveli": "dadra and nagar haveli and daman and diu",
+    "daman diu": "dadra and nagar haveli and daman and diu",
+    "dadra nagar haveli daman diu": "dadra and nagar haveli and daman and diu",
 }
 
 ADDRESS_GENERIC = frozenset("""
@@ -59,11 +62,26 @@ def _strip_punctuation(value):
     return "".join(ch if unicodedata.category(ch)[0] in "LMN" else " " for ch in value)
 
 
+def _strip_latin_marks(value):
+    """Drop accents on Latin letters ('Rājasthān' -> 'Rajasthan'). Marks on other
+    scripts stay: in Indic scripts they carry vowels and are part of the word."""
+    out, latin = [], False
+    for ch in unicodedata.normalize("NFD", value):
+        if unicodedata.combining(ch):
+            if latin:
+                continue
+        else:
+            latin = "a" <= ch <= "z" or "A" <= ch <= "Z"
+        out.append(ch)
+    return unicodedata.normalize("NFC", "".join(out))
+
+
 def fold(text):
-    """NFKC, casefold, '&' to 'and', punctuation to spaces, collapsed whitespace."""
+    """NFKC, casefold, Latin accents removed, '&' to 'and', punctuation to
+    spaces, collapsed whitespace."""
     if not isinstance(text, str):
         return None
-    value = unicodedata.normalize("NFKC", text).casefold().replace("&", " and ")
+    value = _strip_latin_marks(unicodedata.normalize("NFKC", text)).casefold().replace("&", " and ")
     value = _SPACE.sub(" ", _strip_punctuation(value)).strip()
     return value or None
 

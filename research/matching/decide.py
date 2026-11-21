@@ -131,11 +131,17 @@ def rationale(candidate, proof):
     return f"{head} {_phrase(s)}{tail}"
 
 
-def build(candidates, bases, externals, policy):
-    """Return (match rows, review rows, enriched candidates)."""
+def build(candidates, bases, externals, policy, identifier_base=None):
+    """Return (match rows, review rows, enriched candidates).
+
+    `identifier_base` is the full list of original base rows when `bases` is
+    only part of it. Identifier uniqueness is then counted across the whole
+    base, as D's validator counts it.
+    """
     base_rows = {b["id"]: b["row"] for b in bases}
     external_rows = {e["id"]: e["row"] for e in externals}
-    counts = identifier_counts(bases, externals, policy)
+    counted = bases if identifier_base is None else [{"row": row} for row in identifier_base]
+    counts = identifier_counts(counted, externals, policy)
     matches, reviews = [], []
     for c in candidates:
         proof, blocked = auto_confirmation(c, base_rows[c["facility_id"]], external_rows[c["external_facility_id"]],
