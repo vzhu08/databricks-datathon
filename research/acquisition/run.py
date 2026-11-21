@@ -7,7 +7,7 @@ from __future__ import annotations
 import argparse
 import copy
 from collections import defaultdict
-import fcntl
+import errno
 import json
 import os
 import tempfile
@@ -171,6 +171,22 @@ def coverage_for_report(coverage, batch):
     return coverage
 
 
+def acquire_writer_lock(lock):
+    """Take an exclusive nonblocking lock, released when the handle closes."""
+    try:
+        if os.name == "nt":
+            import msvcrt
+            lock.seek(0)
+            msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as exc:
+        if exc.errno in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+            raise AcquisitionError("output_directory_busy") from exc
+        raise
+
+
 def run(sources, output_dir, replay=None, fetcher=None):
     output = Path(output_dir).resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -181,11 +197,8 @@ def run(sources, output_dir, replay=None, fetcher=None):
     result = envelope()
     report = {"run_id": run_id, "started_at": fetcher.clock(), "contract_version": "1.0.0", "sources": {},
               "live_databricks": "not attempted by this collector", "submission": "not attempted"}
-    with (output / ".writer.lock").open("a") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise AcquisitionError("output_directory_busy") from exc
+    with (output / ".writer.lock").open("a+b") as lock:
+        acquire_writer_lock(lock)
         for source in sources:
             try:
                 batch, coverage, directory, details = acquire(source, output, entries[SOURCE_KEYS[source]], fetcher, replay)

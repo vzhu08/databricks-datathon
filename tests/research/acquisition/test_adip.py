@@ -1,8 +1,11 @@
 """Synthetic institutional-only PDF layout and audit gates."""
 import copy
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
-from research.acquisition.adip import exact_name_overlap, institutions, make_reference
+from research.acquisition.adip import exact_name_overlap, institutions, make_reference, publish_overlap, publish_reference
 from research.acquisition.common import AcquisitionError, canonical, digest
 from fixtures import snapshot
 
@@ -10,6 +13,29 @@ HEADER = ["Sr. No.", "State", "Name of Hospital", "Name of Doctor", "Contact Det
 
 
 class AdipTests(unittest.TestCase):
+    def test_reference_failure_leaves_output_available_for_retry(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "reference"
+            payloads = {"a.json": [1], "b.json": [2]}
+            with patch("research.acquisition.adip.write_json", side_effect=[None, OSError("disk full")]):
+                with self.assertRaises(OSError):
+                    publish_reference(output, payloads)
+            self.assertFalse(output.exists())
+            publish_reference(output, payloads)
+            publish_reference(output, payloads)
+            with self.assertRaises(AcquisitionError):
+                publish_reference(output, {"a.json": [3], "b.json": [2]})
+
+    def test_overlap_replay_and_preservation_of_existing_files(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "prior.json"
+            publish_overlap(path, {"accepted": True})
+            publish_overlap(path, {"accepted": True})
+            before = path.read_bytes()
+            with self.assertRaisesRegex(AcquisitionError, "existing_overlap"):
+                publish_overlap(path, {"different": True})
+            self.assertEqual(path.read_bytes(), before)
+
     def table(self):
         return [HEADER.copy(), ["1", "Rajasthan", "Example Very Long\nHospital and College\n1 Road, Example City", "PRIVATE_DOCTOR", "PRIVATE_PHONE", "PRIVATE_EMAIL"],
                 ["", "", "", "PRIVATE_CONTINUATION", "PRIVATE_PHONE", "PRIVATE_EMAIL"], HEADER.copy(),
