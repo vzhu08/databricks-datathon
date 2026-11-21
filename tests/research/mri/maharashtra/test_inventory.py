@@ -65,6 +65,37 @@ class InventoryTests(unittest.TestCase):
         undated = compile_inventory(*inputs(page.replace("Inventory as of: 2025-01-31","Other heading")))
         self.assertIsNone(undated["batch.json"]["facility_evidence"][0]["effective_date"])
 
+    def test_explicit_indian_and_written_inventory_dates(self):
+        for label, expected in [
+            ("MRI Inventory as on: 04/05/2025", "2025-05-04"),
+            ("As of 9 October 2025", "2025-10-09"),
+            ("Inventory date: 31st Jan. 2025", "2025-01-31"),
+            ("Inventory date: January 31, 2025", "2025-01-31"),
+            ("Inventory as of: 30-Sept-2025", "2025-09-30"),
+        ]:
+            with self.subTest(label=label):
+                page = table(["Hospital Name", "MRI"], [["Example", "1"]], caption=label)
+                result = compile_inventory(*inputs(page))
+                self.assertEqual(expected, result["report.json"]["inventory_as_of"])
+                self.assertEqual(expected, result["batch.json"]["facility_evidence"][0]["effective_date"])
+
+    def test_page_dates_do_not_date_the_inventory(self):
+        page = ('<meta property="article:published_time" content="2025-02-02T08:00:00Z">'
+                '<p>Website last updated as on 04/05/2025</p>') + table(
+            ["Hospital Name", "MRI"], [["Example", "1"]], caption="Report published 9 October 2025")
+        result = compile_inventory(*inputs(page))
+        self.assertEqual("2025-02-02", result["report.json"]["published_date"])
+        self.assertIsNone(result["report.json"]["inventory_as_of"])
+        self.assertEqual("undated", result["batch.json"]["facility_evidence"][0]["temporal_status"])
+
+    def test_unparseable_or_conflicting_labels_request_review(self):
+        inventory = table(["Hospital Name", "MRI"], [["Example", "1"]], caption="As on 31/01/2025")
+        for text in ("Inventory date: sometime in 2025", "Inventory date: 01/02/25",
+                     "Inventory date: 31/02/2025", "Inventory as of 2 June 2025 or 3 June 2025",
+                     "Inventory date: 1 February 2025"):
+            with self.subTest(text=text), self.assertRaisesRegex(ValueError, "Review labelled inventory date"):
+                compile_inventory(*inputs(f"<p>{text}</p>" + inventory))
+
     def test_ambiguous_headers_wrong_capture_and_repeat_headers(self):
         one = table(["Hospital Name","MRI Scan"], [["Example","0"]])
         for malformed in (one+one, one.replace("MRI Scan","CT Scan"), table(["Hospital Name","MRI","MRI Scan"],[])):

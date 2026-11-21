@@ -22,6 +22,11 @@ FAMILY = "maharashtra_dmer"
 NAME_HEADERS = {"hospital name", "name of hospital", "name of institution"}
 MRI_HEADERS = {"mri", "mri scan", "mri scan facility", "mri count"}
 GROUP = re.compile(r"\b(group|network|consortium|associated hospitals|hospitals)\b", re.I)
+DATE_LABEL = re.compile(r"(?:^\s*(?:as of|as on)\b|\binventory\s+(?:date|as of|as on)\b)\s*[:–-]?\s*", re.I)
+MONTHS = "January February March April May June July August September October November December".split()
+MONTH_NUMBER = {word.lower(): number for number, month in enumerate(MONTHS, 1)
+                for word in (month, month[:3])}
+MONTH_NUMBER["sept"] = 9
 
 
 def value(cell):
@@ -51,15 +56,41 @@ def find_inventory(soup):
     return matches[0]
 
 
+def labelled_date(text):
+    label = DATE_LABEL.search(text)
+    if not label:
+        return None
+    token = text[label.end():].strip().rstrip(".").strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", token):
+        year, month, day = map(int, token.split("-"))
+    elif re.fullmatch(r"\d{1,2}/\d{1,2}/\d{4}", token):
+        day, month, year = map(int, token.split("/"))
+    else:
+        words = token.casefold().replace("-", " ").replace(",", " ").split()
+        if len(words) != 3:
+            raise ValueError("Review labelled inventory date: unrecognised or ambiguous date")
+        first, second, year = words
+        month_first = first.rstrip(".") in MONTH_NUMBER
+        name, day = (first, second) if month_first else (second, first)
+        month = MONTH_NUMBER.get(name.rstrip("."))
+        day_match = re.fullmatch(r"(\d{1,2})(?:st|nd|rd|th)?", day)
+        if month is None or not day_match or not re.fullmatch(r"\d{4}", year):
+            raise ValueError("Review labelled inventory date: unrecognised or ambiguous date")
+        year, day = int(year), int(day_match[1])
+    try:
+        return date(year, month, day).isoformat()
+    except ValueError as exc:
+        raise ValueError("Review labelled inventory date: invalid calendar date") from exc
+
+
 def inventory_date(table):
     # Keep page publication/retrieval dates separate from an inventory's own date.
     caption = table.find("caption", recursive=False)
     prior = table.find_previous_sibling()
     texts = [value(tag) for tag in (caption, prior) if tag and tag.name in ("caption", "p")]
-    dates = {date.fromisoformat(s).isoformat() for text in texts for s in re.findall(
-        r"\b(?:as of|as on|inventory date)\s*[:–-]?\s*(\d{4}-\d{2}-\d{2})\b", text, re.I)}
+    dates = {stamp for text in texts if (stamp := labelled_date(text)) is not None}
     if len(dates) > 1:
-        raise ValueError("Conflicting inventory dates")
+        raise ValueError("Review labelled inventory dates: conflicting dates")
     return next(iter(dates), None)
 
 
