@@ -157,12 +157,48 @@ class FootprintTests(unittest.TestCase):
         self.cases = [
             {"case_id": f"case-{n}", "kind": "control" if n < 3 else "disputed",
              "external_facility_id": e["external_facility_id"],
-             "points": [{"label": "claimed", "latitude": e["latitude"], "longitude": e["longitude"],
-                         "coordinate_basis": "Synthetic base coordinate"}]}
+             "facility_id": self.base[n - 1]["facility_id"], "match_id": match_for(self.result, n, n)["match_id"],
+             "points": [{"label": "claimed" if n == 1 else "corroborated",
+                         "latitude": e["latitude"], "longitude": e["longitude"],
+                         "coordinate_basis": "Synthetic base coordinate" if n == 1 else "Synthetic external coordinate"}]}
             for n, e in enumerate(self.externals, 1)]
 
     def run_observe(self, **kwargs):
         return observe(self.cases, self.buildings, self.snapshot, self.matches, self.source, **kwargs)
+
+    def test_disputed_pair_cannot_inherit_another_campus_confirmation(self):
+        winner = match_for(self.result, 1, 1)
+        other = dict(winner, match_id="synthetic:competing-match", facility_id=self.base[1]["facility_id"],
+                     status="candidate")
+        self.matches["facility_matches"].append(other)
+        self.cases = [dict(self.cases[0], match_id=other["match_id"], facility_id=other["facility_id"])]
+        result = self.run_observe(reviewer=REVIEWER, reviewed_at=AT)
+        self.assertEqual(result["batch"]["facility_evidence"], [])
+        self.assertTrue(result["ledger"][0]["footprint_found"])
+        self.assertFalse(result["ledger"][0]["linked_to_confirmed_match"])
+
+    def test_unbound_claimed_point_remains_in_the_ledger(self):
+        case = dict(self.cases[0])
+        del case["match_id"], case["facility_id"]
+        self.cases = [case]
+        result = self.run_observe(reviewer=REVIEWER, reviewed_at=AT)
+        self.assertEqual([], result["batch"]["facility_evidence"])
+        self.assertTrue(result["ledger"][0]["footprint_found"])
+
+    def test_candidate_base_point_stays_in_ledger_until_confirmed(self):
+        self.cases = [self.cases[1]]
+        self.cases[0]["points"][0].update(label="claimed", coordinate_basis="Synthetic base coordinate")
+        result = self.run_observe(reviewer=REVIEWER, reviewed_at=AT)
+        self.assertEqual([], result["batch"]["facility_evidence"])
+        self.assertEqual("campus_pair_unresolved_or_disagrees", result["ledger"][0]["withheld_reason"])
+
+    def test_containment_with_unknown_lineage_is_inconclusive(self):
+        self.cases = [self.cases[0]]
+        for building in self.buildings:
+            building["sources"] = None
+        result = self.run_observe(reviewer=REVIEWER, reviewed_at=AT)
+        self.assertTrue(result["ledger"][0]["contained"])
+        self.assertEqual("inconclusive", result["batch"]["facility_evidence"][0]["polarity"])
 
     def test_loader_skips_unsupported_geometry_and_reads_ndjson(self):
         self.assertEqual(4, len(self.buildings))

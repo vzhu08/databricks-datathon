@@ -165,12 +165,19 @@ def observe(cases, buildings, snapshot, matches_batch, external_batch, reviewer=
     externals = {e["external_facility_id"]: e for e in external_batch["external_facilities"]}
     families = {s["snapshot_id"]: s["source_family"] for s in external_batch["source_snapshots"]}
     check_cases(cases, externals)
-    confirmed = {m["external_facility_id"]: m for m in matches_batch["facility_matches"] if m["status"] == "confirmed"}
+    matches = {m["match_id"]: m for m in matches_batch["facility_matches"]}
+    confirmed = {m["external_facility_id"]: m["match_id"] for m in matches.values() if m["status"] == "confirmed"}
     batch, ledger = empty(), []
     batch["source_snapshots"] = [snapshot]
     for case in sorted(cases, key=lambda c: c["case_id"]):
         external_id = case["external_facility_id"]
-        match = confirmed.get(external_id)
+        pair = matches.get(case.get("match_id"))
+        if "match_id" in case or "facility_id" in case:
+            require(pair is not None and pair["facility_id"] == case.get("facility_id")
+                    and pair["external_facility_id"] == external_id, "cases", "case must identify the supplied campus pair")
+        match = pair if pair and pair["status"] == "confirmed" else None
+        competing = external_id in confirmed and confirmed[external_id] != case.get("match_id")
+        disqualified = pair is not None and pair["status"] in ("rejected", "conflict")
         identity_family = families.get(externals[external_id]["snapshot_id"])
         for point in sorted(case["points"], key=lambda p: p["label"]):
             lat, lon = float(point["latitude"]), float(point["longitude"])
@@ -205,7 +212,7 @@ def observe(cases, buildings, snapshot, matches_batch, external_batch, reviewer=
             is_stale = capture is not None and stale is not None and date.fromisoformat(capture) < stale
             if is_stale:
                 limitations.append(f"Footprint captured before {stale.isoformat()}; treated as historical")
-            polarity = "supports" if contained and not shared and not is_stale else "inconclusive"
+            polarity = "supports" if contained and shared is False and not is_stale else "inconclusive"
             where = "inside" if contained else f"{round(distance, 1)} m from"
             evidence_id = stable_id(EVIDENCE_NS, external_id, snapshot["snapshot_id"], building["id"],
                                     point["label"], lat, lon)
@@ -218,7 +225,10 @@ def observe(cases, buildings, snapshot, matches_batch, external_batch, reviewer=
                     "footprint_shared_origin" if shared else "footprint_stale", case, point, external_id, match,
                     "The footprint cannot corroborate this location independently. Look for a second, unrelated source."
                     if shared else "The footprint is old. Check a newer source before relying on it."))
-            if reviewer is not None:
+            ledger_only = competing or disqualified or (match is None and point["label"] == "claimed")
+            if ledger_only:
+                entry["withheld_reason"] = "campus_pair_unresolved_or_disagrees"
+            if reviewer is not None and not ledger_only:
                 batch["facility_evidence"].append({
                     "evidence_id": evidence_id, "external_facility_id": external_id,
                     "snapshot_id": snapshot["snapshot_id"],

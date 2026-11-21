@@ -253,6 +253,15 @@ class IdentifierTests(unittest.TestCase):
         plan = plan_merge([envelope([snapshot()], externals), result["batch"]], base, identity_policy=self.POLICY)
         self.assertEqual(1, sum(m["status"] == "confirmed" for m in plan["batch"]["facility_matches"]))
 
+    def test_rationale_names_the_namespace_used_for_proof(self):
+        policy = {"early_namespace": {"base_field": "source_row.numeric_id", "external_field": "record_locator",
+                                      "source_keys": ["synthetic_directory"]}, **self.POLICY}
+        base = [base_row(1, name="Larkspur Hospital", numeric_id=7, registry_id="R-1")]
+        external = ext(1, "Larkspur Hospital", snapshot(), record_locator="7", source_record_id="R-1")
+        row = match_for(run(base, [external], policy=policy), 1, 1)
+        self.assertEqual("synthetic_registry", row["shared_identifier"]["namespace"])
+        self.assertIn("namespace 'synthetic_registry'", row["rationale"])
+
     def test_without_policy_an_identifier_is_ignored(self):
         base = self.base()
         result = run(base, [ext(1, "Unrelated Name", snapshot(), source_record_id="R-1")])

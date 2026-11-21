@@ -117,10 +117,10 @@ def _phrase(signals):
             f"address {signals['address']}; distance {distance}.")
 
 
-def rationale(candidate, confirmed):
+def rationale(candidate, proof):
     s = candidate["signals"]
-    if confirmed:
-        head = (f"Automatic confirmation: identifier in inspected namespace '{s['identifiers'][0]}' is exact, "
+    if proof:
+        head = (f"Automatic confirmation: identifier in inspected namespace '{proof['namespace']}' is exact, "
                 "unique on both sides, with no geography conflict and no competing campus candidate.")
     else:
         head = ("Retrieval candidate only; not an identity decision. "
@@ -148,7 +148,7 @@ def build(candidates, bases, externals, policy):
             "external_facility_id": c["external_facility_id"],
             "status": "confirmed" if proof else "candidate",
             "method": "shared_identifier" if proof else "candidate_generation",
-            "rationale": rationale(c, proof is not None), "shared_identifier": proof,
+            "rationale": rationale(c, proof), "shared_identifier": proof,
             "reviewer": None, "reviewed_at": None,
         })
         reason = None if proof else primary_reason(c, blocked)
