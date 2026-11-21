@@ -32,6 +32,8 @@ Oliver’s orchestrator chat owns repository triage, follow-up tasks, merges, an
 
 Every five minutes the integration lead checks which owners are available, assigns the next concrete dependency, and assesses whether the team can use a real-facility pilot. The public reference layer is ready. The pilot checkpoint requires an observed Marketplace schema and base counts, preserved original IDs and rows, reviewed campus matches with evidence traceable to source locators and dates, and a reproducible run with coverage, conflicts and unknowns reported. An authorized local export can demonstrate pilot readiness. Record live Databricks publication separately. Notify Oliver when the pilot reaches this checkpoint with the run, scope and remaining limitations.
 
+Ayuush completed the [Marketplace access check](https://github.com/vzhu08/databricks-datathon/issues/23) and linked the outcome in [D’s live task](https://github.com/vzhu08/databricks-datathon/issues/6). The signed-in listing directed automated sessions to manual access or Genie One MCP. Table names, base rows and the permitted Volume still require an authorized manual or connected workspace session. A and D are working on #21 and #22 while that dependency is open.
+
 ## Active assignments
 
 | ID | Executor | Branch | Exclusive write scope | First action | State |
@@ -44,9 +46,9 @@ Every five minutes the integration lead checks which owners are available, assig
 | [ACQ-E02 · #14](https://github.com/vzhu08/databricks-datathon/issues/14) | Developer E · Ayuush | Issue only | Comment on #14 | Recheck the three unavailable links in an ordinary browser | Verified |
 | [ACQ-E03 · #15](https://github.com/vzhu08/databricks-datathon/issues/15) | Developer E · Ayuush | Issue only | Comment on #15 | Copy three demo searches and their expected results from the synthetic fixture | Verified |
 | [ACQ-E04 · #16](https://github.com/vzhu08/databricks-datathon/issues/16) | Developer E · Ayuush | Issue only | Comment on #16 | Write two source credits using A’s acquisition handoff | Verified |
-| [ACQ-A02 · #21](https://github.com/vzhu08/databricks-datathon/issues/21) | Developer A · Codex | `codex/acq-a-rajasthan-extract` | `research/acquisition/`, `tests/research/acquisition/`, `docs/handoffs/ACQ-A02.md` | Produce a reproducible Rajasthan candidate extract for C | Ready |
-| [ACQ-D02 · #22](https://github.com/vzhu08/databricks-datathon/issues/22) | Developer D · Codex | `codex/acq-d-export-adapter` | `databricks/enrichment/`, `tests/databricks/enrichment/`, `docs/handoffs/ACQ-D02.md` | Adapt the existing mapper for an authorized local export | Ready |
-| [ACQ-E05 · #23](https://github.com/vzhu08/databricks-datathon/issues/23) | Developer E · Ayuush | Issue only | Comment on #23 and link from #6 | Check whether the team’s source tables are visible in Catalog Explorer | Ready |
+| [ACQ-A02 · #21](https://github.com/vzhu08/databricks-datathon/issues/21) | Developer A · Codex | `codex/acq-a-rajasthan-extract` | `research/acquisition/`, `tests/research/acquisition/`, `docs/handoffs/ACQ-A02.md` | Produce a reproducible Rajasthan candidate extract for C | In progress |
+| [ACQ-D02 · #22](https://github.com/vzhu08/databricks-datathon/issues/22) | Developer D · Codex | `codex/acq-d-export-adapter` | `databricks/enrichment/`, `tests/databricks/enrichment/`, `docs/handoffs/ACQ-D02.md` | Adapt the existing mapper for an authorized local export | In progress |
+| [ACQ-E05 · #23](https://github.com/vzhu08/databricks-datathon/issues/23) | Developer E · Ayuush | Issue only | Comment on #23 and link from #6 | Check whether the team’s source tables are visible in Catalog Explorer | Verified · access limitation recorded |
 
 Detailed task cards include the issue, deliverables, acceptance cases, commands, and handoff requirements. `Ready` means the independent first stage is ready; it does not assert live credentials or upstream data exist.
 
