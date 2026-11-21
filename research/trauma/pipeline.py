@@ -113,13 +113,18 @@ def build(input_dir, *, partial=False):
     validator = Draft202012Validator(load_json(SCHEMA), format_checker=FORMATS)
     tables = {table: {} for table in TABLES}
     producers = {}
-    for lane in LANES:
+    audit_queue_targets = set()
+    for lane in (*LANES, "B5"):
         path = input_dir / lane / "batch.json"
-        if partial and not path.exists():
+        if (partial or lane == "B5") and not path.exists():
             continue
         raw = path.read_bytes()
         batch = load_json(path, raw)
         check_envelope(batch, validator)
+        if lane == "B5":
+            if any(batch[k] for k in TABLES if k != "review_queue"):
+                raise ValueError("The independent audit batch may emit only review items")
+            audit_queue_targets = {item["evidence_id"] for item in batch["review_queue"] if item["status"] == "open"}
         producers[lane] = hashlib.sha256(raw).hexdigest()
         for table, primary_key in TABLES.items():
             for row in batch[table]:
@@ -138,9 +143,9 @@ def build(input_dir, *, partial=False):
     if not partial:
         if not audit_path.is_file():
             raise ValueError("Final release requires B5/audit.json")
-        service_ids = {key for key, row in evidence.items() if row["claim_type"] == "service"}
-        if len(service_ids.intersection(decisions)) < min(30, len(service_ids)):
-            raise ValueError("B5 service-claim sample is incomplete")
+        eligible = {key for key, row in evidence.items() if row["claim_type"] in ("service", "accreditation")}
+        if len(eligible.intersection(decisions)) < min(30, len(eligible)):
+            raise ValueError("B5 service and accreditation scope sample is incomplete")
 
     ledger = []
     original_queue = [row.copy() for row in tables["review_queue"].values()]
@@ -164,6 +169,8 @@ def build(input_dir, *, partial=False):
                         item, review_id=replacement, evidence_id=None,
                         next_action=item["next_action"] + f" See local ledger {key}.",
                     )
+            if key in audit_queue_targets:
+                continue
             queue_key = "b5-review:" + hashlib.sha256(key.encode()).hexdigest()
             if queue_key in tables["review_queue"]:
                 raise ValueError(f"Reserved audit queue ID collision for {key}")
@@ -183,6 +190,7 @@ def build(input_dir, *, partial=False):
         "claim_types_before_audit": dict(original_counts),
         "temporal_status_before_audit": dict(Counter(item["claim"]["temporal_status"] for item in ledger)),
         "review_outcomes": dict(Counter(item["outcome"] for item in ledger)),
+        "audited_claim_types": dict(Counter(item["claim"]["claim_type"] for item in ledger if item["decision"])),
         "raw_snapshot_hashes_verified": verified_raw,
         "claims_by_source_family": dict(Counter(
             tables["source_snapshots"][item["claim"]["snapshot_id"]]["source_family"] for item in ledger
