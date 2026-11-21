@@ -11,8 +11,8 @@ from pathlib import Path
 from matching_fixtures import ROOT
 
 from research.matching.common import MatchingError
-from research.matching.pmndp.extract import clean
-from research.matching.pmndp.roster import build, ingest
+from research.matching.pmndp.extract import clean, lines_above
+from research.matching.pmndp.roster import build, centre_key, ingest, remark
 
 sys.path.insert(0, str(ROOT / "databricks/enrichment"))
 from validation import semantic_check  # noqa: E402  (D's validator, read-only)
@@ -188,6 +188,69 @@ class RosterTests(unittest.TestCase):
         self.assertEqual({"undated"}, statuses)
         self.assertEqual("Old Town Road", clean("  Old   Town\nRoad "))
         self.assertIsNone(clean("   "))
+
+    def test_abbreviated_and_run_together_names_are_one_centre(self):
+        """One annex abbreviates and the other spells out; PDF text often loses its spaces."""
+        for names in (("CHC-Larkspur", "C.H.C. Larkspur", "CommunityHealthCenterLarkspur", "COMMUNITYHEALTHCENTRELARKSPUR"),
+                      ("A.H.Marigold", "AHMarigold", "Area Govt Hospital Marigold", "Area Hosipital Marigold"),
+                      ("D.H.Juniper", "DISTIRICTHOSPITALJUNIPER", "District Hospital Juniper"),
+                      ("GGHQuillon", "Government General Hospital Quillon")):
+            self.assertEqual(1, len({centre_key(n) for n in names}), names)
+        self.assertNotEqual(centre_key("A.H.Marigold"), centre_key("D.H.Marigold"))        # another kind of facility
+        self.assertEqual(centre_key("CHC-Larkspur"), centre_key("CHC-Larkspur (Established under the programme)"))
+        self.assertEqual("Established under the programme", remark("CHC-Larkspur (Established under the programme)"))
+        self.assertIsNone(remark("CHC-Larkspur"))
+
+    def test_real_layout_pages_missing_district_and_near_matches(self):
+        est = document("ap_est", "establishment", {"serial": 0, "name": 1, "district": 2, "established": 3})
+        est["profile"]["pages"] = [2]
+        reg = document("ap_reg", "registrations", {"serial": 0, "name": 1, "registrations": {"FY-A": 2}},
+                       count_label="new patients registered")
+        tables = {"ap_est": [{"page": 1, "table": 1, "row": 1, "cells": ["1", "Some State", "12.5", "9.0"]},
+                             *[dict(r, page=2) for r in rows(("S.No.", "FacilityName", "DistrictName", "EstablishedDate"),
+                                                             ("1", "CHC-Larkspur (Now under another scheme)", "North District", "05-03-2018"),
+                                                             ("2", "A.H.Marigold", "South District", "17-08-2019"),
+                                                             ("3", "A.H.Saffronpur", "South District", "17-08-2019"),
+                                                             ("4", "D.H.Tamarind", "East District", "17-08-2019"))]],
+                  "ap_reg": [dict(r, **({"recovered": "text_above_table"} if r["row"] == 2 else {}))
+                             for r in rows(("S.No", "NameoftheDialysisFacility", "NoofNewPatientsRegistered"),
+                                           ("1", "CommunityHealthCenterLarkspur", "12"),
+                                           ("2", "Area Hospital Saffronpuram", "0"),
+                                           ("3", "Area Hospital Tamarind", "4"),
+                                           ("4", "Area Hospital Quillon", "7"))]}
+        result = run({"documents": [est, reg]}, tables)
+        report = result["report"]
+        self.assertEqual((1, 4), (report["documents"]["ap_est"]["rows_on_other_pages"], report["documents"]["ap_est"]["programme_rows"]))
+        by_key = {c["centre_key"]: c for c in result["campus_candidates"]}
+        self.assertEqual(7, len(by_key))
+        shared = by_key["chc:larkspur"]                              # exact key: one campus, district taken from the other annex
+        self.assertEqual((["ap_est", "ap_reg"], "North District", ["district_from_other_document"]),
+                         (shared["documents"], shared["district_original"], shared["flags"]))
+        reg_row = [r for r in result["raw_rows"] if r["document"] == "ap_reg" and r["serial"] == 1][0]
+        self.assertIsNone(reg_row["district_original"])              # the row itself stays as printed
+        self.assertEqual("Now under another scheme", result["raw_rows"][0]["remark_original"])
+        # A similar place name, or the same place with another kind of facility, is flagged and never merged.
+        self.assertEqual({"ah:saffronpur": ["ah:saffronpuram"], "ah:saffronpuram": ["ah:saffronpur"],
+                          "dh:tamarind": ["ah:tamarind"], "ah:tamarind": ["dh:tamarind"]},
+                         {k: [x["centre_key"] for x in result["campus_candidates"] if x["campus_id"] in c["possible_overlap_with"]]
+                          for k, c in by_key.items() if c["possible_overlap_with"]})
+        self.assertEqual(["district_not_printed"], by_key["ah:quillon"]["flags"])
+        self.assertEqual(4, sum(r["reason_code"] == "pmndp_possible_overlap_unreconciled" for r in result["batch"]["review_queue"]))
+        self.assertEqual({"recovered_from_text_above_table": 1}, report["row_flag_counts"])
+        self.assertTrue(any("0 new patients registered" in c["assertion"] for c in result["claims"]))
+        semantic_check(result["batch"], [])
+        with self.assertRaisesRegex(MatchingError, "list of page numbers"):
+            broken = copy.deepcopy(est)
+            broken["profile"]["pages"] = "2"
+            run({"documents": [broken, reg]}, tables)
+
+    def test_a_row_printed_above_a_continued_table_is_recovered(self):
+        columns = [(50, 80), (80, 300), (300, 360)]
+        word = lambda text, x0, top: {"text": text, "x0": x0, "x1": x0 + 6 * len(text), "top": top}
+        words = [word("Annexure", 150, 40), word("9", 55, 70.2), word("Area", 85, 70.0), word("Hospital", 115, 70.4),
+                 word("Larkspur", 170, 70.1), word("12", 310, 70.3), word("10", 55, 120), word("Later", 85, 120), word("3", 310, 120)]
+        self.assertEqual([["9", "Area Hospital Larkspur", "12"]], lines_above(words, columns, 0, 100))
+        self.assertEqual([], lines_above(words, columns, 0, 60))        # a heading alone is not a row
 
     def test_cli_writes_reproducible_private_outputs(self):
         manifest, tables = fixture()

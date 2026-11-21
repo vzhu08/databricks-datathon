@@ -52,6 +52,8 @@ fixtures belong in Git.
   refused.
 - `source_date` is the date the document's content refers to. Evidence is
   `historical` with that date, or `undated` when it is null.
+- `profile.pages` lists the pages that hold the roster table. Rows on other pages, such as a state-level funding table in the same reply, are counted as `rows_on_other_pages` and not read.
+- `count_label` is the document's own wording for the registration figure, for example `new patients registered`.
 - `profile.skip` holds patterns for header rows, `profile.aggregate` overrides
   the pattern for total rows, `profile.date_formats` replaces the default date layouts, and
   `profile.carry` names columns that inherit the previous row's value when a
@@ -78,11 +80,15 @@ Rules worth knowing:
   row is never imported and always gets a review item naming its locator.
 - **Totals** printed in a document are kept as context and never become a
   facility or a claim.
-- **Campus identity** is family, state, district and centre name. A name that
+- **Centre names.** Rosters abbreviate facility kinds and extracted PDF text often loses its spaces, so `CHC-Palasa`, `C.H.C. Palasa` and `CommunityHealthCenterPalasa` share one centre key: the kind of facility (`chc`, `ah`, `dh`, `ggh`, `phc`, `sdh`) plus the place words. A bracketed remark is not part of the key; it stays in `name_original` and is copied to `remark_original`, so a document's own programme wording is preserved.
+- **Campus identity** is family, state, district and centre key. A name that
   appears once per district in each document merges across documents. The same
   name in another district is another campus. Several centres with one name in
   one district stay apart and merge only on an identical address; a row that
   cannot be assigned to a branch is flagged `same_name_branch_unreconciled`.
+- **A document with no district column** takes the district another document of the same family prints for the same centre, when exactly one is printed (`district_from_other_document`). The row itself keeps its district empty. Otherwise the campus is flagged `district_not_printed`.
+- **Near matches are never merged.** Across documents of one family, a similar place name, or the same place with another kind of facility, is flagged `possible_overlap_unreconciled` on both candidates with a review item each. A town can have both an area hospital and a community health centre, and a facility can be renamed or upgraded between two documents; a person decides.
+- **Recovered rows.** A table that continues on a new page can lose its first row when the page has no rule above it. The extractor recovers a line printed directly above a table when its words sit in the table's columns, marks it `recovered`, and the importer flags the row `recovered_from_text_above_table`.
 - **Zero registrations** is a recorded value of 0 for that period, not a missing
   one. A blank or unreadable count is flagged and produces no claim.
 - **One external per campus and document**, so evidence always cites the

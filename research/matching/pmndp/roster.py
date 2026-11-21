@@ -16,6 +16,7 @@ import re
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from research.matching.common import (MatchingError, canonical, digest, empty, file_digest, load, require,
@@ -32,6 +33,50 @@ DOCUMENT_FIELDS = ("key", "kind", "state", "publisher", "family", "url", "sha256
 OUTPUTS = ("batch", "raw_rows", "campus_candidates", "claims", "rejects", "report")
 _PIN = re.compile(r"(?<!\d)(\d{6})(?!\d)")
 _DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+_REMARK = re.compile(r"\(([^)]*)\)?")
+_GLUE = (re.compile(r"(?<=[a-z])(?=[A-Z])"), re.compile(r"(?<=[A-Z])(?=[A-Z][a-z])"))
+_WORDS = re.compile(r"(AREA|HOSPITAL|COMMUNITY|HEALTH|CENTRE|CENTER|DISTRICT|GOVERNMENT|GENERAL|PRIMARY)")
+GENERIC = frozenset({"hospital", "hosp", "govt", "government", "centre", "center", "health", "the", "of"})
+CENTRE_KINDS = (("chc", ({"chc"}, {"community"})), ("ah", ({"ah"}, {"area"})), ("dh", ({"dh"}, {"district"})),
+         ("ggh", ({"ggh"}, {"general"})), ("phc", ({"phc"}, {"primary"})), ("sdh", ({"sdh"}, {"sub", "divisional"})))
+MISSPELT = ("hospital", "district", "community", "government", "general")   # long words only
+ABBREVIATIONS = ("chc", "phc", "ggh", "sdh", "dh", "ah")
+KIND_WORDS = frozenset().union(*[words for _, sets in CENTRE_KINDS for words in sets])
+
+
+def centre_key(name):
+    """(kind, place) for a printed centre name, so 'CHC-Palasa', 'C.H.C. Palasa'
+    and 'CommunityHealthCenterPalasa' agree. Rosters abbreviate facility kinds
+    and extracted PDF text often loses its spaces. A bracketed remark is not
+    part of the name. Only an exact key merges rows; near matches are flagged."""
+    text = _REMARK.sub(" ", name)
+    for pattern in _GLUE:
+        text = pattern.sub(" ", text)
+    text = " ".join(_WORDS.sub(r" \1 ", word) if word.isupper() else word for word in text.split())
+    parts, letters = [], []
+    for token in tokens(text) + [""]:
+        if len(token) == 1 and token.isalpha():
+            letters.append(token)
+            continue
+        if letters:
+            run = "".join(letters)
+            short = next((a for a in ABBREVIATIONS if run.startswith(a)), None)
+            parts += [short, *run[len(short):]] if short else letters
+            letters = []
+        if token:
+            parts.append(token)
+    parts = [next((word for word in MISSPELT if SequenceMatcher(None, t, word).ratio() >= 0.8), t) for t in parts]
+    have = set(parts)
+    kind = next((k for k, sets in CENTRE_KINDS if any(words <= have for words in sets)), "")
+    place = " ".join(t for t in parts if t not in GENERIC and t not in KIND_WORDS)
+    return kind, place
+
+
+def remark(name):
+    found = [m.group(1).strip() for m in _REMARK.finditer(name) if m.group(1).strip()]
+    return "; ".join(found) or None
 
 
 def check_document(document, position):
@@ -51,6 +96,9 @@ def check_document(document, position):
     require(isinstance(profile, dict) and isinstance(profile.get("columns"), dict), f"{path}.profile",
             "needs a columns object")
     columns = profile["columns"]
+    require("pages" not in profile or (isinstance(profile["pages"], list) and profile["pages"]
+                                       and all(isinstance(n, int) for n in profile["pages"])),
+            f"{path}.profile.pages", "list of page numbers that hold the roster table")
     require(isinstance(columns.get("name"), int), f"{path}.profile.columns.name", "column index required")
     for role, index in columns.items():
         if role == "registrations":
@@ -98,11 +146,16 @@ def ingest(document, table_rows):
     formats = tuple(profile.get("date_formats", DATE_FORMATS))
     carry = set(profile.get("carry", []))
     periods = columns.get("registrations", {})
+    pages = profile.get("pages")
+    outside = 0
     needed = max([v for v in columns.values() if isinstance(v, int)] + list(periods.values())) + 1
     raw, aggregates, rejects, headers, last = [], [], [], 0, {}
     for item in table_rows:
         require(isinstance(item, dict) and all(isinstance(item.get(k), int) for k in ("page", "table", "row"))
                 and isinstance(item.get("cells"), list), f"{document['key']}.rows", "each row needs page, table, row, cells")
+        if pages is not None and item["page"] not in pages:
+            outside += 1
+            continue
         cells = item["cells"]
         printed = [c.strip() for c in cells if isinstance(c, str) and c.strip()]
         where = {"document": document["key"], "page": item["page"], "table": item["table"], "row": item["row"]}
@@ -121,7 +174,7 @@ def ingest(document, table_rows):
         if "serial" in columns and (serial_text is None or _count(serial_text.rstrip(".")) is None):
             rejects.append({**where, "reason": "serial_unreadable", "excerpt": excerpt})
             continue
-        flags = []
+        flags = ["recovered_from_text_above_table"] if item.get("recovered") else []
         district = _cell(cells, columns.get("district"))
         if district is None and "district" in carry and last.get("district"):
             district, flags = last["district"], flags + ["district_inherited_from_previous_row"]
@@ -142,7 +195,7 @@ def ingest(document, table_rows):
         raw.append({
             "raw_row_id": stable_id("pmndp-row", document["sha256"], item["page"], item["table"], item["row"]),
             **where, "serial": _count(serial_text.rstrip(".")) if serial_text else None,
-            "district_original": district, "name_original": name,
+            "district_original": district, "name_original": name, "remark_original": remark(name),
             "address_original": _cell(cells, columns.get("address")),
             "established_original": established_text, "established_date": established,
             "registrations": registrations, "flags": flags, "excerpt": excerpt,
@@ -150,20 +203,29 @@ def ingest(document, table_rows):
     serials = [r["serial"] for r in raw if r["serial"] is not None]
     counted = Counter(serials)
     expected = set(range(1, max(serials) + 1)) if serials else set()
-    summary = {"rows_read": len(table_rows), "header_or_blank_rows": headers, "aggregate_rows": len(aggregates),
+    summary = {"rows_read": len(table_rows), "rows_on_other_pages": outside, "header_or_blank_rows": headers, "aggregate_rows": len(aggregates),
                "programme_rows": len(raw), "rejected_rows": len(rejects),
                "rejected_by_reason": dict(sorted(Counter(r["reason"] for r in rejects).items())),
                "serial_missing": sorted(expected - set(serials)),
                "serial_repeated": sorted(s for s, n in counted.items() if n > 1)}
-    require(summary["rows_read"] == headers + len(aggregates) + len(raw) + len(rejects), document["key"],
+    require(summary["rows_read"] == outside + headers + len(aggregates) + len(raw) + len(rejects), document["key"],
             "row accounting does not add up")
     return raw, aggregates, rejects, summary
 
 
-def _keys(row):
+def _keys(row, district=None):
     address = row["address_original"]
-    return (place_key(row["district_original"]) or "", " ".join(tokens(row["name_original"])),
+    kind, place = centre_key(row["name_original"])
+    centre = f"{kind}:{place}" if kind or place else " ".join(tokens(row["name_original"]))
+    return (place_key(row["district_original"]) or district or "", centre,
             " ".join(sorted(address_tokens(address))) if address else None)
+
+
+def _similar_place(one, two):
+    a, b = one.split(":", 1)[-1], two.split(":", 1)[-1]
+    if not a or not b:
+        return False
+    return SequenceMatcher(None, a, b).ratio() >= 0.8 or set(a.split()) <= set(b.split()) or set(b.split()) <= set(a.split())
 
 
 def campuses(documents, rows_by_document):
@@ -174,17 +236,30 @@ def campuses(documents, rows_by_document):
     centres with the same name in one district, they are branches: they stay
     apart and merge across documents only on an identical address.
     """
+    # A document without a district column takes the district another document of
+    # the family prints for the same centre, when exactly one district is printed.
+    printed = defaultdict(set)
+    for document in documents:
+        for row in rows_by_document[document["key"]]:
+            district, centre, _ = _keys(row)
+            if district:
+                printed[(document["family"], state_key(document["state"]), centre)].add(district)
+
+    def keys(document, row):
+        known = printed[(document["family"], state_key(document["state"]), _keys(row)[1])]
+        return _keys(row, next(iter(known)) if len(known) == 1 else None)
+
     branched = set()
     for document in documents:
         seen = defaultdict(set)
         for row in rows_by_document[document["key"]]:
-            district, name, address = _keys(row)
+            district, name, address = keys(document, row)
             seen[(document["family"], state_key(document["state"]), district, name)].add(address)
         branched.update(key for key, addresses in seen.items() if len(addresses) > 1)
     grouped = defaultdict(list)
     for document in documents:
         for row in rows_by_document[document["key"]]:
-            district, name, address = _keys(row)
+            district, name, address = keys(document, row)
             scope = (document["family"], state_key(document["state"]), district, name)
             grouped[scope + ((address,) if scope in branched else (None,))].append((document, row))
     result = []
@@ -199,17 +274,39 @@ def campuses(documents, rows_by_document):
                 flags.append("same_name_branch_unreconciled")
         if any(len([1 for d, _ in members if d["key"] == k]) > 1 for k in keys):
             flags.append("repeated_row_in_document")
+        if district and any(r["district_original"] is None for _, r in members):
+            flags.append("district_from_other_document")
+        if not district:
+            flags.append("district_not_printed")
         first = min(members, key=lambda m: (m[0]["key"], m[1]["page"], m[1]["table"], m[1]["row"]))[1]
         addresses = sorted({r["address_original"] for _, r in members if r["address_original"]})
         result.append({
             "campus_id": stable_id("pmndp-campus", family, state, district, name, branch),
-            "family": family, "state": members[0][0]["state"], "district_original": first["district_original"],
+            "centre_key": name, "possible_overlap_with": [],
+            "family": family, "state": members[0][0]["state"], "district_original": next((r["district_original"] for _, r in sorted(
+                members, key=lambda m: (m[0]["key"], m[1]["page"], m[1]["table"], m[1]["row"]))
+                if r["district_original"]), None),
             "name_original": first["name_original"],
             "names_seen": sorted({r["name_original"] for _, r in members}),
             "address_original": addresses[0] if addresses else None,
             "documents": keys, "shared_origin_overlap": len(keys) > 1,
             "raw_row_ids": sorted(r["raw_row_id"] for _, r in members), "flags": flags,
         })
+    # Near matches across documents of one family are reported and never merged.
+    for one in result:
+        for two in result:
+            if (one["campus_id"] < two["campus_id"] and one["family"] == two["family"]
+                    and state_key(one["state"]) == state_key(two["state"])
+                    and not set(one["documents"]) & set(two["documents"])
+                    and (not place_key(one["district_original"]) or not place_key(two["district_original"])
+                         or place_key(one["district_original"]) == place_key(two["district_original"]))
+                    and _similar_place(one["centre_key"], two["centre_key"])):
+                one["possible_overlap_with"].append(two["campus_id"])
+                two["possible_overlap_with"].append(one["campus_id"])
+    for campus in result:
+        campus["possible_overlap_with"].sort()
+        if campus["possible_overlap_with"]:
+            campus["flags"].append("possible_overlap_unreconciled")
     return result
 
 
@@ -231,7 +328,8 @@ def _claims(document, row, campus_id):
     for period, count in sorted(row["registrations"].items()):
         out.append({**base, "kind": "historical_registrations", "value": {"period": period, "patients": count},
                     "effective_date": document["source_date"],
-                    "assertion": f"The roster records {count} patients registered at this {programme} dialysis centre "
+                    "assertion": f"The roster records {count} {document.get('count_label', 'patients registered')} "
+                                 f"at this {programme} dialysis centre "
                                  f"for {period}. It is a historical count.{tail}"})
     return out
 
@@ -283,7 +381,9 @@ def build(manifest, rows_for):
                 "address_original": row["address_original"], "facility_type": "dialysis_centre",
                 "city": None, "state": document["state"], "pin": pins.pop() if len(pins) == 1 else None,
                 "latitude": None, "longitude": None, "coordinate_method": None,
-                "quality_flags": sorted({"unlinked_source_identity", "coordinates_missing", *campus["flags"],
+                "quality_flags": sorted({"unlinked_source_identity", "coordinates_missing",
+                                         *(f for f in campus["flags"] if f != "district_from_other_document"
+                                           or row["district_original"] is None),
                                          *(["shared_origin_overlap"] if campus["shared_origin_overlap"] else [])})})
             for claim in _claims(document, row, campus["campus_id"]):
                 record = {"external_facility_id": eid, "snapshot_id": sid, "facility_id": None, "match_id": None,
@@ -320,6 +420,10 @@ def build(manifest, rows_for):
             queue("pmndp_same_name_branch_unreconciled", "medium",
                   "Another document lists several centres with this name in this district and this row has no "
                   "address. Decide which branch it is before using it.", campus["campus_id"])
+        if "possible_overlap_unreconciled" in campus["flags"]:
+            queue("pmndp_possible_overlap_unreconciled", "medium",
+                  "A centre with a similar place name is listed in another document of the same source family. "
+                  "Decide whether they are one campus; they are kept apart until then.", campus["campus_id"])
     batch["external_facilities"] = sorted(externals.values(), key=lambda r: r["external_facility_id"])
     batch["facility_evidence"] = sorted(evidence.values(), key=lambda r: r["evidence_id"])
     batch["review_queue"] = sorted(reviews.values(), key=lambda r: r["review_id"])
