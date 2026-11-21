@@ -1,5 +1,26 @@
 # MoHFW trauma programme brief
 
+## Replay the nationwide extension
+
+Use Python 3.12 with the dependencies below. The original acquisition manifest and visual review live in the B3 worktree. The national reader checks the previous Rajasthan release's batch and adjudicated claim ledger, preserves the established snapshot and row payloads, and keeps the held evidence out of the new import. State and stage come from the corresponding PDF cells and headings. The claim ledger also records each programme row's level, wording, source locator and any unavailable dates.
+
+```powershell
+# Run from the root of the B3 task checkout.
+$project = 'C:/Users/vzhu0/PycharmProjects/databricks-datathon'
+$b3 = 'C:/Users/vzhu0/.codex/worktrees/cd1a/databricks-datathon/data/local/trauma/acq-b01/B3'
+$prior = "$project/data/local/trauma/acq-b01/lead/release-01"
+$out = "$project/data/local/nationwide/trauma-65/release-v1"
+$emptyBase = "$project/data/local/trauma/orchestration/empty-base.json"
+python -m unittest discover -s tests/research/trauma -p 'test_*.py' -v
+python -m research.trauma.national --all-states --manifest "$b3/acquisition.json" --visual-review "$b3/visual_review.json" --prior-release $prior --output-dir $out
+python databricks/enrichment/validate_batch.py --base $emptyBase --batch "$out/batch.json" --batch "$out/batch.json" --as-of 2026-11-21
+python databricks/enrichment/validate_batch.py --base $emptyBase --batch "$prior/batch.json" --batch "$out/batch.json" --as-of 2026-11-21
+```
+
+Use a separate directory for each national release. Publication is atomic, and rerunning with identical local inputs verifies existing bytes. The national receipt in `coverage.json` gives the printed-to-emitted counts, state labels, claim categories and prior audit outcomes. The ledger retains original evidence IDs for held claims so reviewers can follow earlier decisions. [Results and hashes](../handoffs/B3.md)
+
+## Replay the Rajasthan producer
+
 The B3 reader extracts the ruled tables from the registered NPPMTBI PDFs and emits a v1.0.0 producer batch. It keeps the programme level, printed functionality and construction or support stage distinct. The records describe historical programme observations. Every service observation is inconclusive for clinical use, and every base link is unresolved.
 
 ## Reproduce the B3 build
