@@ -65,6 +65,28 @@ class SearchTests(unittest.TestCase):
             self.assertEqual(response["status"], "unresolved_location")
             self.assertTrue(response["message"])
 
+    def test_onsite_mri_evidence_in_search_results(self):
+        for phrase in (
+            "The clinic offers MRI off-site only.",
+            "MRI is only available offsite.",
+            "Our clinic will begin offering MRI next month.",
+            "We receive referrals but MRI is provided off-site only.",
+        ):
+            with self.subTest(phrase=phrase):
+                result = search_facilities("mri", {"pin": "001234"},
+                                           facilities=[campus(procedures=phrase)])
+                self.assertEqual(result["status"], "no_match")
+
+        for phrase, expected_excerpt in (
+            ("We accept incoming referrals for MRI.", "We accept incoming referrals for MRI."),
+            ("Dialysis is off-site only, but MRI is available onsite.", "MRI is available onsite."),
+        ):
+            with self.subTest(phrase=phrase):
+                result = search_facilities("mri", {"pin": "001234"},
+                                           facilities=[campus(procedures=phrase)])
+                self.assertEqual(result["status"], "ok")
+                self.assertEqual(result["direct_results"][0]["evidence_excerpt"], expected_excerpt)
+
     def test_invalid_requests(self):
         origin = {"latitude": 0, "longitude": 0}
         for values in [

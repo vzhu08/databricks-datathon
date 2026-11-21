@@ -16,6 +16,13 @@ This board on `origin/main` is authoritative. Oliver's orchestrator maintains th
 | Nov 21 · contract published | Oliver / orchestrator | Everyone | [PR #8](https://github.com/vzhu08/databricks-datathon/pull/8) merged. JSON Schema, synthetic batch formats/references, and documentation links checked. Live Marketplace rows and Databricks publication remain unverified. B/C await human claims; E is assigned to Ayuush. |
 | Nov 21 · independent start | Oliver / orchestrator | Everyone | Public collection and fixture-based work can start immediately. Missing Marketplace access blocks live checks only. Report fixture/public/live evidence separately. No new recurring timer is required. |
 
+## Integration desk
+
+Oliver’s orchestrator chat owns repository triage, follow-up tasks, merges, and branch maintenance. It checks the repo every 15 minutes. Each open PR keeps its own review history. The coordinator tests the proposed merge against current main, records live verification separately, and preserves branches with unmerged or active work.
+
+- [INT-01](https://github.com/vzhu08/databricks-datathon/issues/10) · Oliver · `codex/integrate-search-baseline`. Integrate Vincent’s [search baseline](https://github.com/vzhu08/databricks-datathon/pull/1) at `8f069c5` with the corrections for off-site, planned and incoming-referral wording. The integration checkout passed 18 offline tests. Live warehouse verification awaits D’s prepared-table mapping.
+- Ayuush’s [earlier ingestion draft](https://github.com/vzhu08/databricks-datathon/pull/2) remains available to D for its mapping and campus checks. The draft hashes existing source IDs and permits a caller-selected overwrite destination. D owns the live mapping under [#6](https://github.com/vzhu08/databricks-datathon/issues/6). Ayuush’s active assignment is [#7](https://github.com/vzhu08/databricks-datathon/issues/7).
+
 ## Active assignments
 
 | ID | Executor | Branch | Exclusive write scope | First action | State |

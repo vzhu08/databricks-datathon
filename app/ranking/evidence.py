@@ -39,12 +39,14 @@ INDEPENDENT_VERB = re.compile(
 EXCLUDED = re.compile(
     r"\b(?:unavailable|not\s+(?!(?:only|required|needed)\b)|no\s+(?!(?:appointment|referral|charge|fee)\b)|"
     r"without|lack(?:s|ing)?|discontinued|suspended|closed|retired|paused|on\s+hold|"
+    r"off[\s-]?site\s+only|only\s+(?:available\s+)?off[\s-]?site|"
     r"non[\s-]+operational|out\s+of\s+service|"
     r"out\s+of\s+order|broken|(?:does|do|did|is|are|was|were|can|has|have)n['’]t|cannot|"
     r"planned|planning|plans|propos(?:ed|ing|al)|future|upcoming|coming\s+soon|"
     r"under\s+(?:construction|installation|repair|maintenance)|pending\s+installation|"
     r"expected\s+(?:next|to\s+be)|"
     r"to\s+be\s+(?:installed|opened|commissioned)|scheduled\s+for\s+installation|"
+    r"will\s+(?:begin|start)\s+(?:offering|providing|performing)|"
     r"will\s+(?:offer|provide|open|install|be\s+(?:available|offered|provided|installed)))\b",
     re.I,
 )
@@ -53,7 +55,7 @@ REFERRAL_OUT = re.compile(
     r"(?:sent|transferred)\s+(?:elsewhere|to\s+(?:another|an?\s+outside)))\b", re.I,
 )
 INBOUND_REFERRAL = re.compile(
-    r"\b(?:accepts?|receives?)\s+referrals?\b|\breferred\s+(?:here|to\s+(?:us|our|this)\b)", re.I,
+    r"\b(?:accepts?|receives?)\s+(?:incoming\s+)?referrals?\b|\breferred\s+(?:here|to\s+(?:us|our|this)\b)", re.I,
 )
 OUTBOUND_DESTINATION = re.compile(r"\b(?:elsewhere|off[\s-]?site|outside|another)\b", re.I)
 
