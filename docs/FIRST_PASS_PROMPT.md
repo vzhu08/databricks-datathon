@@ -1,3 +1,5 @@
+> Historical first-pass brief. Its work assignments are superseded by the current acquisition plan and board. Retain it as baseline app context; do not launch its old tasks or timers.
+
 # First-pass prompt for Oliver’s orchestrator
 
 Paste everything below into the lead conversation.

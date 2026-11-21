@@ -1,0 +1,115 @@
+{
+  "registry_version": "1.0.0",
+  "inspected_context_date": "2026-11-21",
+  "notice": "Research entry points, not validated data claims. Verify current access, actual dates, source lineage, license and redistribution restrictions before use. Keep real records outside Git.",
+  "sources": [
+    {
+      "source_key": "hot_osm_health",
+      "owner": "A",
+      "publisher_hint": "OpenStreetMap contributors / HOT",
+      "source_family_hint": "osm",
+      "entry_url": "https://production-raw-data-api.s3.amazonaws.com/ISO3/IND/health_facilities/hotosm_ind_health_facilities_report.html",
+      "related_urls": {
+        "download": "https://production-raw-data-api.s3.amazonaws.com/ISO3/IND/health_facilities/hotosm_ind_health_facilities_osm_geojson.zip",
+        "metadata": "https://production-raw-data-api.s3.amazonaws.com/ISO3/IND/health_facilities/hotosm_ind_health_facilities_osm_item.json"
+      },
+      "intended_use": "Identity/location; preserve healthcare feature types and repeated IDs. OSM-derived sources share origin.",
+      "inspection_note": "Previously inspected 2026-10-09 snapshot: 139664 features / 136004 distinct IDs; reconcile current snapshot, do not hard-code.",
+      "license_status": "Verify source-specific license and attribution; do not infer from public access."
+    },
+    {
+      "source_key": "nhp_hospitals_mirror",
+      "owner": "A",
+      "publisher_hint": "Bharatlas mirror / National Health Portal",
+      "source_family_hint": "nhp",
+      "entry_url": "https://bharatlas.com/view/nhp_hospitals",
+      "related_urls": {},
+      "intended_use": "Resolve actual download link from landing page; retain upstream provenance. Mirror is not independent confirmation.",
+      "inspection_note": "Previously reported 10843 records; upstream freshness and coordinate anomalies require checking.",
+      "license_status": "Verify source-specific license and attribution; do not infer from public access."
+    },
+    {
+      "source_key": "rajasthan_trauma",
+      "owner": "B1",
+      "publisher_hint": "Rajasthan Road Safety Cell",
+      "source_family_hint": "rajasthan_road_safety",
+      "entry_url": "https://roadsafetycell.rkcl.in/pageView/token=d3doM0tvbjVvNmVEbkJRM2YycHVUdz09",
+      "related_urls": {},
+      "intended_use": "Dated or undated trauma-designation evidence, not live availability. Preserve ambulance columns without interpreting current status.",
+      "inspection_note": "Previously observed 57 table entries; reconcile observed count and dates.",
+      "license_status": "Verify source-specific license and attribution; do not infer from public access."
+    },
+    {
+      "source_key": "rghs_government_hospitals",
+      "owner": "B2",
+      "publisher_hint": "Rajasthan Government Health Scheme",
+      "source_family_hint": "rghs",
+      "entry_url": "https://rghs.rajasthan.gov.in/GovernmentHospitalList.pdf",
+      "related_urls": {},
+      "intended_use": "Campus identity and scheme-listing context, not clinical capability.",
+      "inspection_note": "Access/layout/publication date require inspection.",
+      "license_status": "Verify source-specific license and attribution; do not infer from public access."
+    },
+    {
+      "source_key": "mohfw_trauma_program",
+      "owner": "B3",
+      "publisher_hint": "Ministry of Health and Family Welfare",
+      "source_family_hint": "mohfw_trauma_program",
+      "entry_url": "https://www.mohfw-dohfw.gov.in/static/uploads/2025/11/444e913a7f93a8a4ac9aeaa8658abd62.pdf",
+      "related_urls": {
+        "older_copy": "https://www.mohfw.gov.in/sites/default/files/Prog%20brief%20Trauma%20component%20.pdf"
+      },
+      "intended_use": "Historical program levels/status; inspect internal dates. Older and newer URLs may be the same source.",
+      "inspection_note": "Do not infer publication/as-of date from upload path.",
+      "license_status": "Verify source-specific license and attribution; do not infer from public access."
+    },
+    {
+      "source_key": "nabh_directory",
+      "owner": "B4",
+      "publisher_hint": "National Accreditation Board for Hospitals & Healthcare Providers",
+      "source_family_hint": "nabh",
+      "entry_url": "https://nabh.co/find-a-healthcare-organisation/",
+      "related_urls": {},
+      "intended_use": "Campus-specific scopes and stated certificate dates; preserve unknown suspension/current status.",
+      "inspection_note": "No located certificate is unknown, not a clinical failure.",
+      "license_status": "Verify source-specific license and attribution; do not infer from public access."
+    },
+    {
+      "source_key": "overture_buildings",
+      "owner": "C",
+      "publisher_hint": "Overture Maps Foundation / upstream contributors",
+      "source_family_hint": "overture_buildings",
+      "entry_url": "https://docs.overturemaps.org/getting-data/",
+      "related_urls": {
+        "duckdb": "https://docs.overturemaps.org/getting-data/duckdb/",
+        "buildings": "https://docs.overturemaps.org/guides/buildings/",
+        "release_prefix": "s3://overturemaps-us-west-2/release/2026-11-18.0/theme=buildings/type=building/"
+      },
+      "intended_use": "Pin inspected release; use 500m bounded subsets for up to 20 cases. Preserve OSM/Google/Microsoft lineage and unknown capture date.",
+      "inspection_note": "Location plausibility only; source feature date and release availability must be verified.",
+      "license_status": "Verify source-specific license and attribution; do not infer from public access."
+    },
+    {
+      "source_key": "india_post_pincodes",
+      "owner": "C/D",
+      "publisher_hint": "India Post / Open Government Data Platform India",
+      "source_family_hint": "india_post",
+      "entry_url": "https://www.data.gov.in/resource/all-india-pincode-directory-till-last-month",
+      "related_urls": {},
+      "intended_use": "Postal context; many post offices share one PIN. Aggregate before joining, preserve base row count.",
+      "inspection_note": "Inspect supplied Marketplace copy if available; no guessed schema.",
+      "license_status": "Verify source-specific license and attribution; do not infer from public access."
+    },
+    {
+      "source_key": "virtue_foundation_marketplace",
+      "owner": "D",
+      "publisher_hint": "Virtue Foundation / Databricks Marketplace",
+      "source_family_hint": "virtue_foundation",
+      "entry_url": "https://login.databricks.com/signin?intent=SIGN_IN&auto_login=true&destination_url=%2Fmarketplace%2Fconsumer%2Flistings%2F19326b3d-db63-4627-abc0-cf4e8131a305",
+      "related_urls": {},
+      "intended_use": "Original base input; inspect actual schema through authorized access. Do not commit raw records.",
+      "inspection_note": "Actual rows, table names, live access and schema have not been verified.",
+      "license_status": "Verify source-specific license and attribution; do not infer from public access."
+    }
+  ]
+}

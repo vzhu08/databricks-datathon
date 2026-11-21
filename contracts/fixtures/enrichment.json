@@ -1,0 +1,237 @@
+{
+  "contract_version": "1.0.0",
+  "source_snapshots": [
+    {
+      "snapshot_id": "synthetic:directory:430aecf9171c7ed9de49e30109a99022ff93cc26a63682d21450c0cb86fbc892",
+      "source_key": "synthetic_directory",
+      "publisher": "Synthetic fixture publisher",
+      "source_family": "synthetic_directory",
+      "url": "https://example.invalid/directory",
+      "retrieved_at": "2026-11-21T17:00:00Z",
+      "published_date": null,
+      "license": "Synthetic fixture; no real source content",
+      "attribution": "Entirely synthetic example",
+      "sha256": "430aecf9171c7ed9de49e30109a99022ff93cc26a63682d21450c0cb86fbc892",
+      "artifact_uri": "synthetic://directory",
+      "parser_version": "fixture-1.0.0",
+      "independence_status": "unassessed"
+    },
+    {
+      "snapshot_id": "synthetic:program:f296582b770dee757db07bd6992fd837c5324636f9297002245a7e81be6763a5",
+      "source_key": "synthetic_program",
+      "publisher": "Synthetic fixture publisher",
+      "source_family": "synthetic_program",
+      "url": "https://example.invalid/program",
+      "retrieved_at": "2026-11-21T17:00:00Z",
+      "published_date": "2018-01-01",
+      "license": "Synthetic fixture; no real source content",
+      "attribution": "Entirely synthetic example",
+      "sha256": "f296582b770dee757db07bd6992fd837c5324636f9297002245a7e81be6763a5",
+      "artifact_uri": "synthetic://program",
+      "parser_version": "fixture-1.0.0",
+      "independence_status": "unassessed"
+    },
+    {
+      "snapshot_id": "synthetic:buildings:b974d3d93b325b4b1ac8c3ce39d890a4a69867eafad6029fb7e48bc11f29346b",
+      "source_key": "synthetic_buildings",
+      "publisher": "Synthetic fixture publisher",
+      "source_family": "synthetic_buildings",
+      "url": "https://example.invalid/buildings",
+      "retrieved_at": "2026-11-21T17:00:00Z",
+      "published_date": null,
+      "license": "Synthetic fixture; no real source content",
+      "attribution": "Entirely synthetic example",
+      "sha256": "b974d3d93b325b4b1ac8c3ce39d890a4a69867eafad6029fb7e48bc11f29346b",
+      "artifact_uri": "synthetic://buildings",
+      "parser_version": "fixture-1.0.0",
+      "independence_status": "unassessed"
+    }
+  ],
+  "external_facilities": [
+    {
+      "external_facility_id": "synthetic:external:001",
+      "snapshot_id": "synthetic:directory:430aecf9171c7ed9de49e30109a99022ff93cc26a63682d21450c0cb86fbc892",
+      "source_record_id": "EX-001",
+      "record_locator": "synthetic row 1",
+      "name_original": "Example Health Centre",
+      "name_normalized": "example health centre",
+      "address_original": "1 Example Road, Sample City",
+      "facility_type": "hospital",
+      "city": "Sample City",
+      "state": "Synthetic State",
+      "pin": null,
+      "latitude": null,
+      "longitude": null,
+      "coordinate_method": null,
+      "quality_flags": [
+        "synthetic_only",
+        "coordinates_missing"
+      ]
+    },
+    {
+      "external_facility_id": "synthetic:external:002",
+      "snapshot_id": "synthetic:directory:430aecf9171c7ed9de49e30109a99022ff93cc26a63682d21450c0cb86fbc892",
+      "source_record_id": "EX-002",
+      "record_locator": "synthetic row 2",
+      "name_original": "Example Health Centre",
+      "name_normalized": "example health centre",
+      "address_original": "2 Example Road, Different City",
+      "facility_type": "hospital",
+      "city": "Different City",
+      "state": "Synthetic State",
+      "pin": null,
+      "latitude": null,
+      "longitude": null,
+      "coordinate_method": null,
+      "quality_flags": [
+        "synthetic_only",
+        "coordinates_missing"
+      ]
+    },
+    {
+      "external_facility_id": "synthetic:external:003",
+      "snapshot_id": "synthetic:directory:430aecf9171c7ed9de49e30109a99022ff93cc26a63682d21450c0cb86fbc892",
+      "source_record_id": "EX-003",
+      "record_locator": "synthetic row 3",
+      "name_original": "Example Health Centre",
+      "name_normalized": "example health centre",
+      "address_original": "3 Example Road, Unresolved City",
+      "facility_type": "hospital",
+      "city": "Unresolved City",
+      "state": "Synthetic State",
+      "pin": null,
+      "latitude": null,
+      "longitude": null,
+      "coordinate_method": null,
+      "quality_flags": [
+        "synthetic_only",
+        "coordinates_missing"
+      ]
+    }
+  ],
+  "facility_matches": [
+    {
+      "match_id": "synthetic:match:001",
+      "facility_id": "synthetic:base:001",
+      "external_facility_id": "synthetic:external:001",
+      "status": "confirmed",
+      "method": "manual_review",
+      "rationale": "Synthetic address review supports same campus.",
+      "shared_identifier": null,
+      "reviewer": "synthetic-reviewer",
+      "reviewed_at": "2026-11-21T17:00:00Z"
+    },
+    {
+      "match_id": "synthetic:match:002",
+      "facility_id": "synthetic:base:002",
+      "external_facility_id": "synthetic:external:002",
+      "status": "candidate",
+      "method": "candidate_generation",
+      "rationale": "Same name alone cannot establish same campus.",
+      "shared_identifier": null,
+      "reviewer": null,
+      "reviewed_at": null
+    },
+    {
+      "match_id": "synthetic:match:003",
+      "facility_id": "synthetic:base:001",
+      "external_facility_id": "synthetic:external:003",
+      "status": "rejected",
+      "method": "manual_review",
+      "rationale": "Same name alone cannot establish same campus.",
+      "shared_identifier": null,
+      "reviewer": "synthetic-reviewer",
+      "reviewed_at": "2026-11-21T17:00:00Z"
+    }
+  ],
+  "facility_evidence": [
+    {
+      "evidence_id": "synthetic:evidence:001",
+      "external_facility_id": "synthetic:external:001",
+      "snapshot_id": "synthetic:program:f296582b770dee757db07bd6992fd837c5324636f9297002245a7e81be6763a5",
+      "facility_id": "synthetic:base:001",
+      "match_id": "synthetic:match:001",
+      "claim_type": "service",
+      "service": "trauma_care",
+      "polarity": "supports",
+      "assertion": "Synthetic program listed a trauma centre in 2018; current availability unknown.",
+      "excerpt": "Example Health Centre, 1 Example Road: trauma centre, 2018.",
+      "observation": null,
+      "locator": "synthetic page 1, row 1",
+      "source_url": "https://example.invalid/program",
+      "effective_date": "2018-01-01",
+      "valid_until": null,
+      "temporal_status": "historical",
+      "reviewer": "synthetic-reviewer",
+      "reviewed_at": "2026-11-21T17:00:00Z"
+    },
+    {
+      "evidence_id": "synthetic:evidence:002",
+      "external_facility_id": "synthetic:external:002",
+      "snapshot_id": "synthetic:directory:430aecf9171c7ed9de49e30109a99022ff93cc26a63682d21450c0cb86fbc892",
+      "facility_id": null,
+      "match_id": null,
+      "claim_type": "service",
+      "service": "trauma_care",
+      "polarity": "inconclusive",
+      "assertion": "Synthetic emergency mention does not establish trauma capability.",
+      "excerpt": "Example Health Centre, 2 Example Road: general emergency services.",
+      "observation": null,
+      "locator": "synthetic page 1, row 2",
+      "source_url": "https://example.invalid/directory",
+      "effective_date": null,
+      "valid_until": null,
+      "temporal_status": "undated",
+      "reviewer": null,
+      "reviewed_at": null
+    },
+    {
+      "evidence_id": "synthetic:evidence:003",
+      "external_facility_id": "synthetic:external:001",
+      "snapshot_id": "synthetic:buildings:b974d3d93b325b4b1ac8c3ce39d890a4a69867eafad6029fb7e48bc11f29346b",
+      "facility_id": "synthetic:base:001",
+      "match_id": "synthetic:match:001",
+      "claim_type": "location",
+      "service": null,
+      "polarity": "inconclusive",
+      "assertion": "Synthetic footprint proximity observation; no clinical interpretation.",
+      "excerpt": null,
+      "observation": {
+        "method": "synthetic point-to-building boundary distance",
+        "source_feature_id": "synthetic-building-001",
+        "distance_m": 25.0,
+        "units": "metres",
+        "latitude": 26.0,
+        "longitude": 75.0,
+        "coordinate_basis": "Synthetic review point; not measured source coordinates",
+        "capture_date": null,
+        "limitations": [
+          "Synthetic only",
+          "Building footprint does not establish healthcare activity or care quality",
+          "Capture date unknown"
+        ]
+      },
+      "locator": "synthetic building feature 001",
+      "source_url": "https://example.invalid/buildings",
+      "effective_date": null,
+      "valid_until": null,
+      "temporal_status": "undated",
+      "reviewer": "synthetic-reviewer",
+      "reviewed_at": "2026-11-21T17:00:00Z"
+    }
+  ],
+  "review_queue": [
+    {
+      "review_id": "synthetic:review:001",
+      "facility_id": "synthetic:base:002",
+      "external_facility_id": "synthetic:external:002",
+      "evidence_id": "synthetic:evidence:002",
+      "match_id": "synthetic:match:002",
+      "reason_code": "ambiguous_campus",
+      "severity": "medium",
+      "status": "open",
+      "next_action": "Review address and independent campus evidence before linking.",
+      "resolution": null
+    }
+  ]
+}

@@ -12,3 +12,5 @@ data/local/
 data/snapshots/
 *.parquet
 *.delta/
+data/external/
+.workspaces/

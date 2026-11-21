@@ -1,65 +1,37 @@
-# Kickoff prompts for four developers
+# Acquisition developer kickoff prompts
 
-Open the repo in your coding chat and follow the instructions for your role. Each timer wakes that same chat to read the [message and task board on main](https://github.com/vzhu08/databricks-datathon/blob/main/docs/implementation/OWNERSHIP.md) and start assigned work when the chat is free.
+The current [board on main](https://github.com/vzhu08/databricks-datathon/blob/main/docs/implementation/OWNERSHIP.md) supersedes the old first-pass assignments. A and D run in separate Codex chats; B and C are human roles. No named-account mapping is assumed. Read AGENTS.md, the current plan, acquisition contract, and your task card. One executor per task; use an isolated clone and your assigned branch.
 
-Vincent, Ayush, and Oliver use a scheduled follow-up in their own Codex desktop coding chats. Andrew uses `/loop 5m` in his Claude Code session. Keep the desktop app or Claude Code session running with access to the checkout and GitHub. End the timers when the team submits or the event ends. [Codex scheduled tasks inside a chat](https://learn.chatgpt.com/docs/automations#schedule-a-task-inside-a-chat) · [Claude Code session scheduling](https://code.claude.com/docs/en/scheduled-tasks)
+## Every developer
 
-## What happens on each check
+Read the remote board at kickoff and before handoff. If it cannot be read, report that blocker before starting a new assignment. Work within your path scope. Propose shared contract changes to Oliver. Do not overwrite another branch, modify kit/, merge PRs, deploy, or commit real data. No recurring automation is required for this finite sprint. Report exact checks and distinguish fixtures, public data, and live Databricks.
 
-1. Read the latest `docs/implementation/OWNERSHIP.md` directly from GitHub `main` or fetch `origin/main` and read the file from that ref. If the read fails, surface the blocker without acting on a stale board.
-2. Check updates for your GitHub login. If you have unfinished work, continue it within its existing scope. If you are free, take the first `Ready` task assigned to you whose dependencies are met and whose task ID you have not already started or finished. Record the ID in your chat and **start the work in this turn** within the listed branch and paths.
-3. Use one coding session per task. If another session or kit worker is already handling it, leave the task with that session. Report started tasks, changed assignments, and blockers. End the check quietly when nothing has changed and no task is available.
-
-## Ayush · Data preparation
+## Developer A · Codex
 
 ```text
-Help Ayush (`ayushrgupta906`) complete DATA-01 in Codex. Read AGENTS.md, docs/implementation/PLAN.md, docs/implementation/SEARCH_CONTRACT.md, and docs/RESEARCH.md.
-
-Create a scheduled follow-up in this same Codex desktop chat every five minutes through the Datathon, ending Sunday, November 22 at 12:30 p.m. ET or when I stop it. Use this as the scheduled prompt: “Apply ‘What happens on each check’ in docs/KICKOFF_PROMPTS.md for ayushrgupta906. Start the next eligible task in this chat when free.” Verify the schedule and do the first board check now.
-
-Start from main on work/data. Own databricks/ingest/ and data/source-manifests/. Inspect the configured Virtue Foundation Marketplace table in Databricks Free Edition. Record its actual schema and profile missingness, duplicate records, and invalid coordinates. Build a repeatable prep notebook with a configurable source table. Retain evidence wording, original field mapping, record URLs, city, state, PIN, and campus identity. Check that same-name campuses remain distinct. Use only Virtue Foundation for the first pass.
-
-Hand Vincent the prepared table name, column mapping, and campus checks. Tell Oliver what is verified and flag any Marketplace or workspace blocker. Use synthetic fixtures while workspace access is being arranged. Ask Oliver to review shared contract edits.
+Implement ACQ-A01 in this checkout. Read its complete task card and contract v1.0.0, then start the work rather than returning a plan. Own only research/acquisition/, tests/research/acquisition/, and docs/handoffs/ACQ-A01.md on codex/acq-a-collectors. Produce working OSM/NHP collectors and normalized batches with reproducible provenance. Run all acceptance cases, attempt the real public-source acquisitions, record actual outcomes, and open a PR. Keep working through recoverable problems; surface exact external blockers. Do not merge or change shared contracts. Post the handoff on your task issue.
 ```
 
-## Vincent · Core search and ranking
+## Developer B · human research lead
+
+Open your own coding chat in Plan mode and paste the planning kickoff from [ACQ-B01](tasks/ACQ-B01.md). After approving its plan, switch out of Plan mode and paste the explicit completion-goal kickoff. Launch the five research chats described there in your own account, each in a separate checkout and non-overlapping scope. You own synthesis and acceptance; do not declare done merely because the five chats finished.
+
+## Developer C · human identity/geography owner
 
 ```text
-Help Vincent (`vzhu08`) complete RANK-01 in Codex. Read AGENTS.md, docs/implementation/PLAN.md, docs/implementation/SEARCH_CONTRACT.md, and contracts/fixtures/search.json.
-
-Create a scheduled follow-up in this same Codex desktop chat every five minutes through the Datathon, ending Sunday, November 22 at 12:30 p.m. ET or when I stop it. Use this as the scheduled prompt: “Apply ‘What happens on each check’ in docs/KICKOFF_PROMPTS.md for vzhu08. Start the next eligible task in this chat when free.” Verify the schedule and do the first board check now.
-
-Start from main on work/ranking. Own app/ranking/, app/data_access/, tests/ranking/, and tests/data_access/. Build deterministic matchers for dialysis, MRI, and trauma care. Preserve the best verbatim evidence excerpt and source field. Exclude planned, unavailable, and referred-out claims. Resolve city and state, PIN, or coordinates from the dataset and return choices for ambiguous cities. Use Haversine within a 50 km default radius and sort direct matches by distance. Return indirect leads only when direct matches are empty. Build the parameterized warehouse adapter against Ayush’s prepared table. Keep core logic and the data adapter testable outside Streamlit.
-
-Hand Andrew the search callable, warehouse environment names and dependency requirements, and example responses for each UI state. Hand Oliver regression results and the tested revision. Route shared contract changes through Oliver.
+Claim ACQ-C01 in its issue with your handle/session. Read its full task card and the current main board. Implement conservative identity matching and geographic review on codex/acq-c-matching, within the listed paths. Start with the synthetic fixtures while A/B/D prepare real handoffs. Do not auto-confirm name-only or proximity-only matches. Test all required adversarial cases, then audit real candidates when available. Keep original coordinates and record footprint uncertainty. Open a PR and provide exact results and live blockers; do not merge.
 ```
 
-## Andrew · UI and UX
-
-Run this once in Andrew’s Claude Code chat, then paste the kickoff prompt below in the same chat.
+## Developer D · Codex
 
 ```text
-/loop 5m Apply “What happens on each check” in docs/KICKOFF_PROMPTS.md for andrewhgu. Start the next eligible UI/UX task in this chat when free. Stop this loop when the team submits or by Sunday, November 22 at 12:30 p.m. ET.
+Implement ACQ-D01. Read the complete task card and contract v1.0.0. Own databricks/enrichment/, tests/databricks/enrichment/, and docs/handoffs/ACQ-D01.md on codex/acq-d-databricks. Start with a strict schema/referential validator and local fixture tests, then parameterized staged Delta ingestion and source profiling. Inspect authorized Databricks access if available; do not invent a table, credentials, or successful live run. Complete every unblocked local component and provide the exact remaining user action for any live access blocker. Open a PR with evidence; do not merge or change shared contracts.
 ```
 
-```text
-Help Andrew (`andrewhgu`) complete APP-01 in his Claude Max session. Read AGENTS.md, docs/implementation/PLAN.md, docs/implementation/SEARCH_CONTRACT.md, and contracts/fixtures/search.json. Coordinate with Oliver through the shared board and PRs.
+## Orchestrator
 
-Use the five-minute /loop in this Claude Code session. Apply “What happens on each check” for andrewhgu and do the first board check now.
+Keep the main board and shared contract current, inspect task progress, review scope/quality, and integrate accepted PRs in dependency order. Record exact branch heads and results. Never translate a fixture pass into a live-data or deployed-app claim. B/C claim their roles; A/D chat IDs belong in their issue/board records once created.
 
-Start from main on work/search-ui. Own app/app.py, app/ui/, app/app.yaml, app/requirements.txt, and tests/app/. Own the entire Streamlit UI and UX for a community health worker, including the layout, input labels and validation, ambiguity flow, results, empty states, and errors. Render all three service choices, city/state or PIN or coordinates, a 50 km default with radius expansion, and direct or “Needs confirmation” results. Show verbatim evidence and its field, approximate distance where relevant, record-source links, and unknown availability. Build against synthetic responses, then wire in Vincent’s callable and exercise the app from a fresh session with Oliver.
+## Developer E · Ayuush
 
-Hand Oliver the UI verification results, exact demo input, app startup notes, and any access blocker. Label synthetic output during development.
-```
-
-## Oliver · Orchestration and integration
-
-```text
-Help Oliver (`oliverchennn`) lead orchestration and complete EVAL-01. Open docs/FIRST_PASS_PROMPT.md in the lead conversation. Read AGENTS.md, docs/implementation/PLAN.md, docs/implementation/OWNERSHIP.md, docs/implementation/SEARCH_CONTRACT.md, and docs/RESEARCH.md.
-
-In your Codex desktop integration chat, create a scheduled follow-up that returns to that same chat every five minutes through the Datathon, ending Sunday, November 22 at 12:30 p.m. ET or when I stop it. Use this as the scheduled prompt: “Apply ‘What happens on each check’ in docs/KICKOFF_PROMPTS.md for oliverchennn. Start the next eligible integration task in this chat when free.” Verify the schedule and do the first board check now. Keep the GitHub board current so the other chats can pick up approved assignments on their next check.
-
-Coordinate Vincent’s and Ayush’s Codex tasks and Andrew’s Claude Max work. Use GitHub PRs and the board for handoffs. Use a separate coding session on work/evaluation for databricks/demo/, evaluation/, and docs/submission/. Steward the shared contract and fixtures. Run dialysis near Jaipur with the real dataset when access is available and inspect the exact excerpts. Verify direct before indirect, ambiguous cities, invalid coordinates, no direct matches, and same-name campuses. Have Ayush review provenance, Vincent review ranking and warehouse integration, and Andrew review the user flow before merging. Verify the deployed app when configured, then prepare code, analysis, video, and credits with the team before the submission buffer.
-
-Record actual fixture checks and live checks as they happen. Confirm the organizer deadline, judge access, and deliverables. Record the final commit and submission receipt once confirmed.
-```
+> You are Developer E, Ayuush (`ayushrgupta906`). Read the board and `docs/tasks/ACQ-E01.md`, claim the task issue, and complete the small eight-link check plus three-sentence demo reference. Use branch `codex/acq-e-source-links`; edit only your two listed documentation files. Report actual failures and open one scoped PR. No pipeline code or extra chats are needed.

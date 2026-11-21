@@ -1,0 +1,808 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/datathon/enrichment/1.0.0/schema.json",
+  "title": "Healthcare evidence acquisition batch v1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": "1.0.0"
+    },
+    "source_snapshots": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source_snapshot"
+      }
+    },
+    "external_facilities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/external_facility"
+      }
+    },
+    "facility_matches": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/facility_match"
+      }
+    },
+    "facility_evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/facility_evidence"
+      }
+    },
+    "review_queue": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/review_item"
+      }
+    }
+  },
+  "required": [
+    "contract_version",
+    "source_snapshots",
+    "external_facilities",
+    "facility_matches",
+    "facility_evidence",
+    "review_queue"
+  ],
+  "$defs": {
+    "source_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "snapshot_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.-]+:.+$"
+        },
+        "source_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "publisher": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_family": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "retrieved_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "published_date": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "license": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attribution": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "artifact_uri": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parser_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "independence_status": {
+          "enum": [
+            "independent",
+            "shared_origin",
+            "unassessed"
+          ]
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "source_key",
+        "publisher",
+        "source_family",
+        "url",
+        "retrieved_at",
+        "published_date",
+        "license",
+        "attribution",
+        "sha256",
+        "artifact_uri",
+        "parser_version",
+        "independence_status"
+      ]
+    },
+    "external_facility": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "external_facility_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.-]+:.+$"
+        },
+        "snapshot_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.-]+:.+$"
+        },
+        "source_record_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "record_locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name_original": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name_normalized": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "address_original": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "facility_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "city": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pin": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]{6}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "latitude": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "longitude": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "coordinate_method": {
+          "anyOf": [
+            {
+              "enum": [
+                "source_point",
+                "polygon_centroid",
+                "polygon_representative_point",
+                "multipolygon_centroid",
+                "geocoded",
+                "unknown"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quality_flags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "external_facility_id",
+        "snapshot_id",
+        "source_record_id",
+        "record_locator",
+        "name_original",
+        "name_normalized",
+        "address_original",
+        "facility_type",
+        "city",
+        "state",
+        "pin",
+        "latitude",
+        "longitude",
+        "coordinate_method",
+        "quality_flags"
+      ]
+    },
+    "facility_match": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "match_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.-]+:.+$"
+        },
+        "facility_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "external_facility_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.-]+:.+$"
+        },
+        "status": {
+          "enum": [
+            "candidate",
+            "confirmed",
+            "rejected",
+            "conflict"
+          ]
+        },
+        "method": {
+          "enum": [
+            "shared_identifier",
+            "manual_review",
+            "candidate_generation"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "shared_identifier": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "namespace": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "base_field": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "external_field": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "namespace",
+                "value",
+                "base_field",
+                "external_field"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reviewer": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reviewed_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "match_id",
+        "facility_id",
+        "external_facility_id",
+        "status",
+        "method",
+        "rationale",
+        "shared_identifier",
+        "reviewer",
+        "reviewed_at"
+      ]
+    },
+    "facility_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "evidence_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.-]+:.+$"
+        },
+        "external_facility_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.-]+:.+$"
+        },
+        "snapshot_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.-]+:.+$"
+        },
+        "facility_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "match_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_.-]+:.+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "claim_type": {
+          "enum": [
+            "identity",
+            "service",
+            "location",
+            "accreditation",
+            "scheme_status"
+          ]
+        },
+        "service": {
+          "enum": [
+            "trauma_care",
+            "dialysis",
+            "mri",
+            null
+          ]
+        },
+        "polarity": {
+          "enum": [
+            "supports",
+            "contradicts",
+            "inconclusive"
+          ]
+        },
+        "assertion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "excerpt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/observation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "effective_date": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "valid_until": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "temporal_status": {
+          "enum": [
+            "dated",
+            "undated",
+            "historical",
+            "expired"
+          ]
+        },
+        "reviewer": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reviewed_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "evidence_id",
+        "external_facility_id",
+        "snapshot_id",
+        "facility_id",
+        "match_id",
+        "claim_type",
+        "service",
+        "polarity",
+        "assertion",
+        "excerpt",
+        "observation",
+        "locator",
+        "source_url",
+        "effective_date",
+        "valid_until",
+        "temporal_status",
+        "reviewer",
+        "reviewed_at"
+      ],
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "properties": {
+                "excerpt": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            {
+              "properties": {
+                "observation": {
+                  "$ref": "#/$defs/observation"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "if": {
+            "properties": {
+              "observation": {
+                "type": "object"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "claim_type": {
+                "const": "location"
+              },
+              "service": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_feature_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "distance_m": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "units": {
+          "const": "metres"
+        },
+        "latitude": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "longitude": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "coordinate_basis": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capture_date": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "method",
+        "source_feature_id",
+        "distance_m",
+        "units",
+        "latitude",
+        "longitude",
+        "coordinate_basis",
+        "capture_date",
+        "limitations"
+      ]
+    },
+    "review_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "review_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.-]+:.+$"
+        },
+        "facility_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "external_facility_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_.-]+:.+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_.-]+:.+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "match_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_.-]+:.+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "status": {
+          "enum": [
+            "open",
+            "resolved"
+          ]
+        },
+        "next_action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resolution": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "review_id",
+        "facility_id",
+        "external_facility_id",
+        "evidence_id",
+        "match_id",
+        "reason_code",
+        "severity",
+        "status",
+        "next_action",
+        "resolution"
+      ]
+    }
+  }
+}
