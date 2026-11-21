@@ -27,7 +27,7 @@ from .common import (MatchingError, base_check, canonical, digest, field_value, 
 from .normalize import state_key
 from .run import execute
 
-NATIONAL_VERSION = "national-matching-1.1.0"
+NATIONAL_VERSION = "national-matching-1.2.0"
 OUTCOMES = ("confirmed", "ambiguous", "candidate_only", "unmatched")
 NO_STATE = "(no state label)"
 NOT_A_STATE = "(label is not a state or union territory)"
@@ -48,8 +48,9 @@ def state_bucket(key):
         return NO_STATE
     return key if key in STATES else NOT_A_STATE
 LABEL_STATUS = ("state", "not_a_state", "missing")
-PIN_STATUS = ("exact", "pin_spans_states", "pin_state_not_recognised", "pin_not_in_postal_directory",
-              "pin_missing_or_invalid", "no_postal_reference")
+PIN_STATUS = ("exact", "pin_spans_states", "pin_state_incomplete", "pin_state_not_recognised",
+              "pin_state_missing_in_directory", "pin_not_in_postal_directory", "pin_missing_or_invalid",
+              "no_postal_reference")
 
 
 def label_status(view):
@@ -60,19 +61,23 @@ def label_status(view):
 
 def state_from_pin(view, postal_table):
     """(state, status). Exact means the row's PIN is in the postal reference and
-    every post office with that PIN is in one recognised state. The value is
-    reported beside the label and is never used as the row's state for matching."""
+    every post office with that PIN names the same recognised state. An office
+    with no state, or with a label that is not a recognised state, establishes
+    neither a second state nor an exact one. The value is reported beside the
+    label and is never used as the row's state for matching."""
     if postal_table is None:
         return None, "no_postal_reference"
     if view["pin"] is None:
         return None, "pin_missing_or_invalid"
     entry = postal_table.get(view["pin"])
-    if entry is None or not entry["states"]:
+    if entry is None:
         return None, "pin_not_in_postal_directory"
     if len(entry["states"]) > 1:
         return None, "pin_spans_states"
-    if entry["states"][0] not in STATES:
-        return None, "pin_state_not_recognised"
+    if not entry["states"]:
+        return None, "pin_state_not_recognised" if entry["states_unrecognised"] else "pin_state_missing_in_directory"
+    if not entry["state_complete"]:
+        return None, "pin_state_incomplete"
     return entry["states"][0], "exact"
 
 
@@ -335,7 +340,7 @@ def execute_national(base, external_batches, mapping=None, attributes=None, poli
             problems[view["id"]].add("coordinates_missing")
         if label_status(view) != "state":
             problems[view["id"]].add("state_label_" + label_status(view))
-    postal_table = aggregate(postal, postal_mapping)[0] if postal is not None else None
+    postal_table = aggregate(postal, postal_mapping, STATES)[0] if postal is not None else None
 
     rows = []
     for row in in_scope:

@@ -107,7 +107,20 @@ Campus conflicts are also counted separately, overall and by state, and overlap 
 - `state_for_matching`: the label when it names a state or union territory, otherwise null.
 - `state_from_pin`: the state of the row's PIN when the postal reference lists that PIN in exactly one recognised state, otherwise null. It is reported for comparison and is never used as the row's state for matching.
 
-`state_provenance` says where each came from: `label` is `state`, `not_a_state` or `missing`, and `pin` is `exact`, `pin_spans_states`, `pin_state_not_recognised`, `pin_not_in_postal_directory`, `pin_missing_or_invalid` or `no_postal_reference`. Rows with an unusable label carry the input problem `state_label_not_a_state` or `state_label_missing`. That is a problem with the row's own label, and is separate from `base_geography_disagreement` (a real state that the row's PIN contradicts) and from conflicts with a candidate. `national_report.json` counts all of this under `state_resolution`.
+`state_provenance` says where each came from. `label` is `state`, `not_a_state` or `missing`. `pin` is one of:
+
+| Value | Meaning |
+|---|---|
+| `exact` | Every post office with the PIN names the same recognised state |
+| `pin_spans_states` | The post offices name two or more recognised states |
+| `pin_state_incomplete` | One recognised state, plus an office with no state or with a label that is not a state. Neither a second state nor an exact one is established |
+| `pin_state_not_recognised` | The PIN is in the directory and no office names a recognised state; at least one has another label |
+| `pin_state_missing_in_directory` | The PIN is in the directory and no office has a state |
+| `pin_not_in_postal_directory` | The PIN is absent from the directory |
+| `pin_missing_or_invalid` | The row has no usable PIN |
+| `no_postal_reference` | No postal reference was supplied |
+
+A row's state is said to disagree with its PIN (`state_disagrees_with_pin`, and so `base_geography_disagreement`) only when every office of that PIN names a recognised state and none is the row's state. When the directory's state for the PIN is incomplete, the row carries the input problem `pin_state_evidence_incomplete` instead. Rows with an unusable label carry the input problem `state_label_not_a_state` or `state_label_missing`. That is a problem with the row's own label, and is separate from `base_geography_disagreement` (a real state that the row's PIN contradicts) and from conflicts with a candidate. `national_report.json` counts all of this under `state_resolution`.
 
 | Conflict | Meaning |
 | --- | --- |

@@ -240,6 +240,39 @@ class NationalRunTests(unittest.TestCase):
         self.assertEqual((None, {"label": "not_a_state", "pin": "no_postal_reference"}),
                          (without["state_from_pin"], without["state_provenance"]))
 
+    def test_postal_state_evidence_must_be_complete_to_establish_anything(self):
+        """An office with no state, or with a label that is not a state, proves neither
+        a second state nor an exact one, and never a disagreement with the row."""
+        postal = [{"pin": "100001", "statename": "Atlantis"},                                   # only an unrecognised label
+                  {"pin": "100002", "statename": STATE}, {"pin": "100002", "statename": "NA"},   # recognised + unrecognised
+                  {"pin": "100003", "statename": STATE}, {"pin": "100003", "statename": None},   # recognised + blank office
+                  {"pin": "100004", "statename": None}, {"pin": "100004", "statename": " "},     # present, no state at all
+                  {"pin": "100005", "statename": STATE},                                         # genuine other state
+                  {"pin": "100006", "statename": STATE}, {"pin": "100006", "statename": OTHER},  # genuinely two states
+                  {"pin": "100008", "statename": "The Dadra and Nagar Haveli and Daman and Diu"}]
+        base = [base_row(n, name=f"Clinic {n}", city="East Town", state=OTHER, pin=f"10000{n}") for n in range(1, 8)]
+        base.append(base_row(8, name="Clinic 8", city="East Town", state="Daman and Diu", pin="100008"))
+        result = run(base, envelope([snapshot()], [ext(1, "Unrelated Hospital", snapshot(), state=STATE)]),
+                     postal=postal, postal_mapping={"pin": "pin", "state": "statename"})
+        rows = {r["facility_id"][-1]: r for r in result["base_rows"]}
+        self.assertEqual({"1": (None, "pin_state_not_recognised"), "2": (None, "pin_state_incomplete"),
+                          "3": (None, "pin_state_incomplete"), "4": (None, "pin_state_missing_in_directory"),
+                          "5": ("rajasthan", "exact"), "6": (None, "pin_spans_states"),
+                          "7": (None, "pin_not_in_postal_directory"),
+                          "8": ("dadra and nagar haveli and daman and diu", "exact")},
+                         {n: (r["state_from_pin"], r["state_provenance"]["pin"]) for n, r in rows.items()})
+        self.assertEqual(["5"], [n for n, r in rows.items() if "base_geography_disagreement" in r["conflicts"]])
+        self.assertEqual(["5"], [n for n, r in rows.items() if "state_disagrees_with_pin" in r["input_problems"]])
+        self.assertEqual(["1", "2", "3", "4"], [n for n, r in rows.items() if "pin_state_evidence_incomplete" in r["input_problems"]])
+        resolution = result["national_report"]["state_resolution"]
+        self.assertEqual({"agree": 1, "disagree": 1}, resolution["label_is_a_state_and_pin_is_exact"])
+        self.assertEqual((2, 1, 2, 1, 1, 1), tuple(resolution["by_label"]["state"][k] for k in (
+            "exact", "pin_spans_states", "pin_state_incomplete", "pin_state_not_recognised",
+            "pin_state_missing_in_directory", "pin_not_in_postal_directory")))
+        profile = result["geography_report"]["postal_profile"]
+        self.assertEqual((2, 2, 1), (profile["pins_with_unrecognised_state_label"], profile["pins_with_office_without_state"],
+                                     profile["pins_with_multiple_states"]))
+
     def test_missed_sample_is_repeatable_and_never_lists_a_copy_twice(self):
         base, batch = data()
         extra = base_row(6, name="Quillon Sanatorium", city="West Town", state=STATE)

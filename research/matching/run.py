@@ -75,7 +75,7 @@ def execute(base, external_batches, mapping=None, attributes=None, policy=None, 
     postal_table = postal_profile = None
     if postal is not None:
         require(postal_mapping is not None, "postal_mapping", "required with --postal; use the observed postal columns")
-        postal_table, postal_profile = aggregate(postal, postal_mapping)
+        postal_table, postal_profile = aggregate(postal, postal_mapping, known_states)
 
     candidates = generate(bases, externals, policy, config)
     matches, reviews, candidates = build(candidates, bases, externals, policy, identifier_base)
