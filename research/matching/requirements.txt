@@ -1,0 +1,2 @@
+# Python 3.9+; the same validator pin as the other producers. Matching itself is stdlib-only.
+jsonschema[format]==4.23.0
