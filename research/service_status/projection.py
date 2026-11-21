@@ -125,14 +125,21 @@ def decision(claims):
     opinions = defaultdict(list)
     for c in active:
         ref = c["provenance"]
-        locator = ((ref["occurrence_key"], ref["field"], ref["start"], ref["end"]) if ref["kind"] == "original"
+        locator = ((ref["occurrence_key"], ref["field"]) if ref["kind"] == "original"
                    else (ref["evidence_id"],))
         if c["in_period"]:
             opinions[locator].append(c)
     disputed = set()
     for group in opinions.values():
-        if any(c["decision"] for c in group) and any(c["decision"] is None for c in group):
-            disputed.update(c["review_id"] for c in group)
+        unresolved = [c["provenance"] for c in group if c["decision"] is None]
+        for claim in group:
+            if claim["decision"] is None:
+                continue
+            ref = claim["provenance"]
+            if any(ref["kind"] == "external" or
+                   (ref["start"] < other["end"] and other["start"] < ref["end"])
+                   for other in unresolved):
+                disputed.add(claim["review_id"])
     eligible = [c for c in active if c["decision"] and c["review_id"] not in disputed]
     outcomes = {c["decision"] for c in eligible}
     if any(c["finding"] == "campus_conflict" and c["in_period"] for c in active):

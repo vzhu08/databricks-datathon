@@ -181,6 +181,30 @@ class ProjectionTests(unittest.TestCase):
         different["source"].update(start=0, end=29, excerpt="MRI scans are performed here.")
         self.assertEqual(lookup(self.run_projection([yes, other_campus, different]), FID)["services"]["mri"]["status"], "yes")
 
+    def test_overlapping_reviews_preserve_disputes_and_disjoint_support(self):
+        first = "Example Campus offers onsite MRI."
+        second = "This site also operates an MRI clinic."
+        field = first + " " + second
+        self.base[0]["source_row"]["description"] = field
+        yes = original()
+        for start, end in ((0, len(first) - 1), (0, len(field)), (8, len(first) + 3)):
+            with self.subTest(span=(start, end)):
+                other = original(finding="other_campus")
+                other["review_id"] = "r2"
+                other["source"].update(start=start, end=end, excerpt=field[start:end])
+                result = self.run_projection([yes, other])
+                self.assertEqual(lookup(result, FID)["services"]["mri"]["reason_code"], "disputed_claim")
+                self.assertEqual(patient_lookup(result, FID)["services"]["mri"]["status"], "unconfirmed")
+
+        # Half-open spans can touch without disputing the neighbouring statement.
+        other["source"].update(start=0, end=len(first) + 1, excerpt=field[:len(first) + 1])
+        independent = copy.deepcopy(yes)
+        independent["review_id"] = "r3"
+        independent["source"].update(start=len(first) + 1, end=len(field), excerpt=second)
+        result = self.run_projection([other, independent, yes])
+        self.assertEqual(patient_lookup(result, FID)["services"]["mri"]["status"], "yes")
+        self.assertEqual(len(lookup(result, FID)["services"]["mri"]["reviews"]), 3)
+
 
 if __name__ == "__main__":
     unittest.main()
