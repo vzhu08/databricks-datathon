@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from research.acquisition.adip import exact_name_overlap, institutions, make_reference, publish_overlap, publish_reference
-from research.acquisition.common import AcquisitionError, canonical, digest
+from research.acquisition.adip import exact_name_overlap, institutions, make_reference, publish_overlap
+from research.acquisition.common import AcquisitionError, canonical, digest, publish_json_directory
 from fixtures import snapshot
 
 HEADER = ["Sr. No.", "State", "Name of Hospital", "Name of Doctor", "Contact Details", "Email Id"]
@@ -17,14 +17,14 @@ class AdipTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "reference"
             payloads = {"a.json": [1], "b.json": [2]}
-            with patch("research.acquisition.adip.write_json", side_effect=[None, OSError("disk full")]):
+            with patch("research.acquisition.common.write_json", side_effect=[None, OSError("disk full")]):
                 with self.assertRaises(OSError):
-                    publish_reference(output, payloads)
+                    publish_json_directory(output, payloads, "conflict")
             self.assertFalse(output.exists())
-            publish_reference(output, payloads)
-            publish_reference(output, payloads)
+            publish_json_directory(output, payloads, "conflict")
+            publish_json_directory(output, payloads, "conflict")
             with self.assertRaises(AcquisitionError):
-                publish_reference(output, {"a.json": [3], "b.json": [2]})
+                publish_json_directory(output, {"a.json": [3], "b.json": [2]}, "conflict")
 
     def test_overlap_replay_and_preservation_of_existing_files(self):
         with tempfile.TemporaryDirectory() as temp:
