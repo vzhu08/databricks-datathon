@@ -25,6 +25,8 @@ research/certification/.venv/bin/python -m unittest discover -s tests/research/c
 
 Acquisition uses verified TLS, bounded public GETs and observed pagination, with the D03 transport's response/retry limits. `--max-pages` caps each view at 100 by default and records partial coverage if reached. An existing run directory is never overwritten. Raw source data stays under ignored `data/local/`; Git contains only code, synthetic tests and aggregate results. Preserve source attribution and the NHSRC copyright policy's third-party exception; no blanket open-data license is inferred.
 
+The cutoff must be an exact `YYYY-MM-DD` calendar date. Compact dates such as `20261121` and ISO week dates are rejected before acquisition makes requests or writes files, and before classification or projection. This avoids Python-version-dependent parsing of a cutoff that would compare incorrectly with canonical source dates.
+
 For an already acquired `national_capture.json`, `recheck --run-dir ... --as-of ...` re-fetches pages implicated by cross-view discrepancies, and `finalize --run-dir ... --as-of ...` derives the outputs. These commands refuse existing recheck/output files. Rechecks preserve the original capture and record new retrieval metadata and hashes; changed content is retained as another raw file. Finalization writes `national_run_manifest.json` last. An interrupted derivation has no completed manifest; use a fresh destination or deliberately recover the local run before retrying. `complete_with_source_limitations` describes a finished local derivation with unresolved source problems, not complete/current programme coverage.
 
 ## Outputs and interpretation

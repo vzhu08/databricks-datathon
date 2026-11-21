@@ -1,13 +1,12 @@
 """Acquire, finalize or replay a separate held-out national-register run."""
 import argparse
-from datetime import date
 import json
 from pathlib import Path
 import sys
 
 from .common import SourceError, canonical, read, require, save, sha
 from .fetch import Fetcher
-from .national_build import build
+from .national_build import build, validate_cutoff
 from .national_capture import VERSION, capture
 from .run import local_path
 
@@ -15,6 +14,7 @@ OUTPUTS = ("batch", "ledger", "occurrences", "unresolved_groups", "discrepancies
 
 
 def recheck(root, as_of, fetcher=None):
+    validate_cutoff(as_of)
     root = local_path(root)
     require(not (root / "national_recheck.json").exists(), "national_recheck_already_exists")
     data = build(root, as_of)
@@ -35,8 +35,8 @@ def recheck(root, as_of, fetcher=None):
 
 
 def finalize(root, as_of):
+    validate_cutoff(as_of)
     root = local_path(root)
-    date.fromisoformat(as_of)
     filenames = [k + ".json" for k in OUTPUTS]
     require(all(not (root / name).exists() for name in filenames + ["national_run_manifest.json"]), "national_outputs_already_exist")
     data = build(root, as_of)
@@ -57,8 +57,8 @@ def finalize(root, as_of):
 
 
 def acquire(root, as_of, max_pages=100):
+    validate_cutoff(as_of)
     root = local_path(root)
-    date.fromisoformat(as_of)
     require(not root.exists(), "national_output_already_exists")
     root.mkdir(parents=True)
     capture(root, max_pages)
@@ -91,7 +91,7 @@ def main(argv=None):
         c = sub.add_parser(name)
         c.add_argument("--run-dir", required=True)
         if name != "replay":
-            c.add_argument("--as-of", required=True)
+            c.add_argument("--as-of", required=True, help="Assessment cutoff in YYYY-MM-DD form.")
         if name == "acquire":
             c.add_argument("--max-pages", type=int, default=100)
     args = p.parse_args(argv)

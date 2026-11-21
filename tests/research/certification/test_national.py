@@ -11,7 +11,7 @@ from research.certification.common import ROOT, SourceError, read, save, sha
 from research.certification.fetch import Fetcher
 from research.certification.national_build import build, challenge_sample, date_class
 from research.certification.national_capture import capture
-from research.certification.national_run import finalize, recheck, replay
+from research.certification.national_run import acquire, finalize, recheck, replay
 from research.certification.national_tables import HEADERS, LANDING, MAP, MAP_HEADERS, controls, filtered_url, map_summary, page
 from research.certification.episodes import parse_date
 from research.certification.tables import POLICY, TERMS
@@ -119,6 +119,8 @@ class Tables(unittest.TestCase):
         self.assertEqual(date_class(parse_date('11/12/2026'),'2026-11-21'),'ambiguous_at_cutoff')
         self.assertEqual(date_class(parse_date('21/11/2026'),'2026-11-21'),'end_on_cutoff')
         self.assertEqual(date_class(parse_date('invalid'),'2026-11-21'),'unknown')
+        with self.assertRaisesRegex(SourceError, 'cutoff_must_be_YYYY_MM_DD'):
+            date_class(parse_date('24/12/2026'), '20261121')
 
 
 class Pipeline(unittest.TestCase):
@@ -143,6 +145,52 @@ class Pipeline(unittest.TestCase):
         self.assertIsNone(e['effective_date'])
         self.assertEqual(r['report']['evidence_withheld_for_v1_temporal_limits'],2)
         self.assertEqual(r['report']['verified_campuses'],0)
+
+    def december_capture(self):
+        rows = [['1', 'Synthetic December', 'Certified', '24/12/2026']]
+        self.mapping[url()] = fixture(rows=rows)
+        self.mapping[url('Certified')] = fixture('Certified', rows=rows)
+        self.mapping[url('Conditionality')] = fixture('Conditionality', rows=[])
+        self.capture()
+
+    def test_compact_cutoff_rejected_before_projection_or_output(self):
+        self.december_capture()
+        with self.assertRaisesRegex(SourceError, 'cutoff_must_be_YYYY_MM_DD'):
+            build(self.root, '20261121')
+        before = {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+        with patch('research.certification.national_run.local_path', side_effect=lambda p: Path(p).resolve()):
+            for operation in (recheck, finalize):
+                with self.subTest(operation=operation.__name__):
+                    with self.assertRaisesRegex(SourceError, 'cutoff_must_be_YYYY_MM_DD'):
+                        operation(self.root, '20261121')
+        self.assertEqual(before, {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob('*') if p.is_file()})
+
+    def test_canonical_cutoff_keeps_december_end_out_of_expired_projection(self):
+        self.december_capture()
+        result = build(self.root, '2026-11-21')
+        self.assertEqual(result['ledger'][0]['date_class'], 'end_in_future_under_all_parses')
+        self.assertIsNone(result['ledger'][0]['evidence_id'])
+        self.assertEqual(result['batch']['facility_evidence'], [])
+        self.assertEqual(len(result['batch']['review_queue']), 1)
+        with patch('research.certification.national_run.local_path', side_effect=lambda p: Path(p).resolve()):
+            finalize(self.root, '2026-11-21')
+            self.assertEqual(replay(self.root)['status'], 'byte_identical_replay')
+        self.assertEqual(read(self.root / 'batch.json')['facility_evidence'], [])
+        checked = subprocess.run([sys.executable, str(ROOT / 'databricks/enrichment/validate_batch.py'),
+                                  '--batch', str(self.root / 'batch.json'), '--base', str(self.root / 'empty_base.json'),
+                                  '--as-of', '2026-11-21'], capture_output=True, text=True)
+        self.assertEqual(checked.returncode, 0, checked.stderr)
+
+    def test_acquisition_rejects_noncanonical_cutoffs_before_any_write(self):
+        target = self.root / 'new-run'
+        with patch('research.certification.national_run.local_path', side_effect=lambda p: Path(p).resolve()), \
+                patch('research.certification.national_run.capture') as capture_call:
+            for cutoff in ('20261121', '2026-W47-6', '2026-11-21\n'):
+                with self.subTest(cutoff=cutoff):
+                    with self.assertRaisesRegex(SourceError, 'cutoff_must_be_YYYY_MM_DD'):
+                        acquire(target, cutoff)
+                    self.assertFalse(target.exists())
+            capture_call.assert_not_called()
 
     def test_pagination_total_reconciliation(self):
         self.mapping[url()]=fixture(rows=ROWS[:2],total=3,next_page=1)

@@ -2,6 +2,7 @@
 from collections import Counter, defaultdict
 from datetime import date
 from pathlib import Path
+import re
 
 from .build import TABLES, checked_raw
 from .common import FAMILY, SourceError, canonical, identity, read, require, sha
@@ -11,7 +12,16 @@ from .national_tables import map_summary, page
 from .tables import POLICY
 
 
+def validate_cutoff(as_of):
+    # Newer Python versions also accept compact and week-date ISO forms.
+    # String comparisons with the canonical source dates require this exact form.
+    require(isinstance(as_of, str) and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", as_of) is not None,
+            "national_cutoff_must_be_YYYY_MM_DD")
+    date.fromisoformat(as_of)
+
+
 def date_class(parsed, as_of):
+    validate_cutoff(as_of)
     values = parsed["candidates"]
     if not values:
         return "unknown"
@@ -42,7 +52,7 @@ def challenge_sample(records, limit=20):
 
 
 def build(root, as_of):
-    date.fromisoformat(as_of)
+    validate_cutoff(as_of)
     root = Path(root)
     capture = read(root / "national_capture.json")
     require(capture["capture_version"] == VERSION, "unknown_national_capture_version")
