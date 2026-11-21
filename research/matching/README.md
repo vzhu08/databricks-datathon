@@ -99,7 +99,7 @@ Outputs are the six files of the matching run, computed on one row per distinct 
 
 Input problems are counted separately and overlap the outcomes: `name_missing`, `coordinates_missing`, and the base geography findings (`coordinates_incomplete`, `possible_swapped_axes`, `state_disagrees_with_pin` and the others listed under Geographic checks). In the by-source table, a row is `unmatched` for a source when that source returned no candidate for it, so every source row adds up to the same denominator.
 
-Campus conflicts are also counted separately, overall and by state, and overlap the outcomes and each other. Rows without a recognised state label are counted under `(no state label)`.
+Campus conflicts are also counted separately, overall and by state, and overlap the outcomes and each other. Rows with an empty state column are counted under `(no state label)`. Rows whose state column holds something else, such as a city, a district or stray text, are counted together under `(label is not a state or union territory)`, so that text never reaches a report.
 
 | Conflict | Meaning |
 | --- | --- |
