@@ -4,9 +4,9 @@ Build a facility finder for community health workers in India. The first pass us
 
 ## Start here
 
-1. Oliver starts the lead conversation with the [first-pass prompt](docs/FIRST_PASS_PROMPT.md). Vincent owns core search, Ayush owns data preparation, and Andrew owns UI and UX in Claude Max. Oliver coordinates handoffs, integration, and verification.
-2. Read the [implementation plan](docs/implementation/PLAN.md) and check your assignment on the [message and task board](docs/implementation/OWNERSHIP.md). Use your [developer kickoff prompt](docs/KICKOFF_PROMPTS.md) to schedule a five-minute board check that returns to your coding chat and starts eligible assignments.
-3. Build against the [search contract](docs/implementation/SEARCH_CONTRACT.md) and [synthetic fixtures](contracts/fixtures/search.json). The [research handoff](docs/RESEARCH.md) preserves ideas for later corroboration.
+1. Oliver's orchestrator leads the approved **evidence-acquisition sprint**: national identity/location corroboration, deeper Rajasthan trauma evidence, and a small footprint check. The original work assignments are superseded; existing app/search work is preserved.
+2. Read the [plan](docs/implementation/PLAN.md), [message and task board](docs/implementation/OWNERSHIP.md), and [acquisition contract](docs/implementation/ACQUISITION_CONTRACT.md). Developer A and D have separate Codex chats; B is the human research lead with five scoped chats, C owns matching/geography, and Ayuush is Developer E for a small source-link check. [Kickoff prompts](docs/KICKOFF_PROMPTS.md)
+3. The [search contract](docs/implementation/SEARCH_CONTRACT.md) and its synthetic fixtures remain the baseline app interface. The acquisition sprint adds five evidence tables without silently changing ranking or the UI. Real source snapshots and Marketplace rows stay outside Git.
 
 The launch target is a Streamlit app on Databricks Free Edition. The organizer lists Sunday, November 22 at **12:30 p.m. ET** as the tentative deadline for code, analysis, and video. The team's target is **11:45 a.m. ET**. [Event schedule](https://cmudsc.com/datathon-fall2026/) · [Challenge brief](https://docs.google.com/document/d/e/2PACX-1vQxhDNQmgZhPgjG0M6LCb_UXNV8CJryqBNQQuqWfIg_dm40ZU1AYAXzZKViC6haFoCmLNiRVfUSBMjf/pub)
 

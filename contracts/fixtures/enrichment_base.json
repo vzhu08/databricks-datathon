@@ -1,0 +1,14 @@
+[
+  {
+    "facility_id": "synthetic:base:001",
+    "name": "Example Health Centre",
+    "address": "1 Example Road, Sample City",
+    "original_evidence": "Synthetic base text: emergency service mentioned; current availability unknown."
+  },
+  {
+    "facility_id": "synthetic:base:002",
+    "name": "Example Health Centre",
+    "address": "2 Example Road, Different City",
+    "original_evidence": "Synthetic different campus; no verified service claim."
+  }
+]

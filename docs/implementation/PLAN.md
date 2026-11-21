@@ -1,22 +1,34 @@
-# Implementation plan
+# Implementation plan · evidence acquisition sprint
 
-The [first-pass prompt](../FIRST_PASS_PROMPT.md) is the brief. A community health worker selects dialysis, MRI, or trauma care and enters a city and state, PIN, or coordinates. Search the full Virtue Foundation India dataset. Return up to three direct matches within the chosen radius, with the exact evidence and its field. Show indirect leads under “Needs confirmation” when there are zero direct matches.
+## Outcome
 
-| When (ET) | Owners | Checkpoint |
-| --- | --- | --- |
-| First 30 minutes | All four | Schedule five-minute checks in the coding chats and agree on the prepared row shape and search responses. Ayush checks Marketplace access. Oliver and Vincent check Apps and warehouse access. Andrew starts the UI with synthetic responses. |
-| Saturday 3:00 p.m. | Ayush and Vincent | Inspect real schema and sample rows if accessible. Produce a repeatable preparation notebook and verify independent location and matching logic against synthetic cases. |
-| Saturday 6:00 p.m. | Vincent, Andrew, and Oliver | Integrate the app end to end. Run “dialysis near Jaipur” on the real table and inspect the exact excerpts if available. Exercise all failure cases with a clearly labeled fixture. Record any workspace blocker precisely. |
-| Saturday 9:00 p.m. | All four | Freeze scope. Verify the ranking rules and capture one success and one uncertainty case. Confirm organizer deadline, submission form, judge access, and reusable-kit rules. |
-| Sunday 9:30 a.m. | Oliver and reviewers | Run acceptance checks from a fresh session. Verify the deployed app if configured and record the tested revision and any environment limits. |
-| Sunday 11:00 a.m. | Andrew and Oliver | Record the video and collect code, analysis, tested app instructions, and kit/data credits. Verify judge access and shared links. |
-| Sunday 11:45 a.m. | Oliver | Submit code, analysis, and video and record receipt. The published deadline is tentatively 12:30 p.m. ET. [Event schedule](https://cmudsc.com/datathon-fall2026/) |
+Deliver nationwide identity/location corroboration and a Rajasthan trauma pilot as reproducible collection code, source snapshots outside Git, reviewed links, five Databricks Delta tables, and a coverage report. Building footprints are a secondary location check. [Board](OWNERSHIP.md) · [Contract](ACQUISITION_CONTRACT.md)
 
-## Dependencies and handoffs
+The human superseded the original first-pass assignments. Retain their useful practices: exact excerpts, campus preservation, synthetic fixtures, isolated write scopes, bound SQL parameters, and distinct local/live verification. Keep the existing search contract unchanged. App ranking, UI, deployment, and numerical authenticity-score calibration are downstream work, not silently included here.
 
-1. **Ayush prepares the data.** Inspect the actual Marketplace table before defining the mapping. Build a parameterized Spark notebook that prepares a Unity Catalog Delta table with original evidence, record links, and campus identity. Profile missing and malformed data and demonstrate preservation of distinct same-name campuses. Give Vincent the fully qualified table name, resolved mapping, and permitted sample profile.
-2. **Vincent owns core search.** Implement direct and indirect service matching, exclusions for unavailable, planned, and referred services, dataset-based location resolution, and Haversine ranking. Build the SQL adapter with bound parameters to read Ayush’s prepared table through the app’s Databricks warehouse resource. Share the callable and response examples with Andrew. [Search contract](SEARCH_CONTRACT.md)
-3. **Andrew owns UI and UX.** Build Streamlit in his Claude Max session. Own service selection, validated location, ambiguity choice, the 50 km default and radius expansion, results, exact evidence, source links, availability, and empty or error states. Start with fixtures and use Vincent’s callable for integration. Work with Oliver to verify the Databricks app and judge access. [Streamlit tutorial](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/tutorial-streamlit) · [Free Edition limits](https://docs.databricks.com/aws/en/getting-started/free-edition-limitations)
-4. **Oliver runs orchestration and integration.** Own the board and the shared contract, coordinate Vincent and Ayush in Codex and Andrew in Claude Max, and review merges. Run the acceptance checks from the first-pass prompt on fixtures and real data as access allows. Document deployment, verify the judging flow, and own the submission.
+## Acquisition and parallel execution
 
-Ayush can inspect the workspace while Vincent and Andrew build against synthetic fixtures and Oliver prepares the verification checklist. The app consumes the prepared table and search callable when both are integrated. The [research handoff](../RESEARCH.md) retains corroboration ideas for later work. Everything in the first pass comes from Virtue Foundation rows.
+1. **D inspects the original data.** Use the authorized Marketplace table and included postal directory. Preserve original IDs, text, URLs, and campus distinctions. Record actual schema and missingness. Use a documented stable surrogate only if the source lacks an ID. No guessed live table names or fixture schema presented as real.
+2. **A collects national identity references.** Download/reuse HOT OSM healthcare features and the NHP hospital-directory mirror. Capture provenance, dates, raw hashes, attribution, type coverage, duplicates, invalid coordinates, and normalized records. A mirror is not an additional independent source.
+3. **B leads deep Rajasthan research through five chats.** Collect state trauma listings, RGHS identities, national trauma-program records, targeted NABH scopes/official hospital pages, and an independent audit. See B's task for planning, goal, subtask isolation, and evidence requirements.
+4. **C resolves identities and geography.** Propose candidates against D's base IDs. Confirm only unambiguous same-namespace identifiers without conflicts automatically; other pilot links require review. Check postal context without row multiplication. Obtain small building extracts around ten disputed sites and ten clear controls when available.
+5. **D publishes additive enrichment.** Validate and stage `source_snapshots`, `external_facilities`, `facility_matches`, `facility_evidence`, and `review_queue`, then publish a completed run after checks. Preserve the original facility table.
+
+6. **E handles a small support task.** Ayuush checks eight source links and prepares a brief demo reference. This does not block acquisition or integration.
+
+A/B public work and C/D fixture work start independently. Actual matching needs A/B batches plus D's base mapping; live publication needs workspace access. Download public snapshots locally and import them to a permitted Volume so execution does not depend on unrestricted outbound access from Free Edition.
+
+Use public/free sources. Do not add paid imagery, patient data, hospital outreach, or portal automation that bypasses access controls. HFR/PM-JAY bulk integration is deferred; access failures must be documented, not hidden with synthetic substitutions.
+
+## Quality and release gates
+
+- Preserve original row IDs, count, and evidence wording; external/postal joins must not multiply base rows.
+- Every external row/evidence item resolves to a source snapshot and locator. Confirmed links include method/rationale and required reviewer/timestamp.
+- Deduplicate identical records deterministically; retain conflicting variants under repeated IDs and queue them. Replaying identical inputs creates no duplicates or conflicting replacements.
+- Missing registry entries, dates, certificates, coordinates, or footprints remain unknown. Scheme suspension does not establish closure; appearance does not establish clinical quality. General emergency care does not establish a trauma level.
+- Separate publication, retrieval, effective, and expiry dates. Old functional status remains historical; never label it current because the PDF was downloaded today.
+- Audit up to 50 identity candidates and 30 trauma claims, or all available if fewer. Include same-name campuses, weak matches, conflicting coordinates, and undated evidence. Report denominators and actual coverage without manufacturing matches to meet targets.
+- Run contract, referential, idempotency, failure-handling, raw-data exclusion, and attribution checks before publishing. Report public-source results and live Databricks results separately from fixture tests.
+- Footprint sampling follows usable identity/service evidence; unavailable footprint checks do not block the core five-table handoff.
+
+The pre-existing team target is November 22 at 11:45 a.m. ET, before the organizer's tentative 12:30 p.m. ET deadline. The orchestrator must reconfirm before submission. Acquisition completion does not imply app deployment or submission.
