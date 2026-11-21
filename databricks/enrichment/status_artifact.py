@@ -4,6 +4,7 @@ These checks establish input lineage and complete coverage, not clinical accurac
 or release approval. The caller supplies independently accepted file hashes.
 """
 from collections import Counter
+from datetime import date
 import hashlib
 import json
 from pathlib import Path
@@ -21,6 +22,40 @@ def _hash(value):
     return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
 
 
+def _text(value):
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _day(value):
+    if value is None:
+        return True
+    try:
+        return isinstance(value, str) and date.fromisoformat(value).isoformat() == value
+    except ValueError:
+        return False
+
+
+def _consumer_decision(decision):
+    """Validate the fields read by the private and patient lookup consumers."""
+    require(isinstance(decision, dict), "service_status.decision", "expected decision object")
+    require(_text(decision.get("reason")) and _text(decision.get("reason_code")),
+            "service_status.reason", "reason and reason code required")
+    reviews = decision.get("reviews")
+    require(isinstance(reviews, list), "service_status.reviews", "review list required")
+    for review in reviews:
+        require(isinstance(review, dict) and "superseded_by" in review
+                and (review["superseded_by"] is None or _text(review["superseded_by"])),
+                "service_status.review", "review and nullable supersession field required")
+        ref = review.get("provenance")
+        require(isinstance(ref, dict) and ref.get("kind") in ("original", "external"),
+                "service_status.provenance", "known provenance kind required")
+        require("source_date" in ref and _day(ref["source_date"])
+                and _day(ref.get("valid_from")) and _day(ref.get("valid_until")),
+                "service_status.provenance", "nullable ISO source/effective dates required")
+        field = "field" if ref["kind"] == "original" else "publisher"
+        require(_text(ref.get(field)), "service_status.provenance." + field, "citation field required")
+
+
 def bind_status_artifact(spec, base, as_of):
     """Read once, verify pins and every occurrence/service, return reference/data."""
     path = volume_path(spec["path"])
@@ -31,6 +66,10 @@ def bind_status_artifact(spec, base, as_of):
     require(hashlib.sha256(raw).hexdigest() == spec["sha256"], "service_status", "artifact file hash mismatch")
     artifact = json.loads(raw, object_pairs_hook=_object)
     finite(artifact)
+    require(isinstance(artifact, dict), "service_status", "artifact object required")
+    checked_sources = artifact.get("checked_sources")
+    require(isinstance(checked_sources, list) and all(_text(s) for s in checked_sources),
+            "service_status.checked_sources", "checked source list required")
     metadata = spec["input_metadata"]
     verify_base_export(base, metadata)
     require(artifact.get("policy") == "onsite-service-review-v1", "service_status", "unsupported policy")
@@ -50,6 +89,7 @@ def bind_status_artifact(spec, base, as_of):
     states = {}
     for row in base:
         entry = facilities[row["facility_id"]]
+        require(isinstance(entry, dict), "service_status.facility", "facility object required")
         require(canonical(entry.get("source_id")) == canonical(row["source_row"][metadata["mapping"]["id"]]),
                 "service_status.source_id", "original source ID changed")
         services = entry.get("services")
@@ -59,6 +99,7 @@ def bind_status_artifact(spec, base, as_of):
         require(isinstance(state, str) and bool(state.strip()), "service_status.state", "missing state bucket")
         counts = states.setdefault(state, {s: Counter() for s in SERVICES})
         for service, decision in services.items():
+            _consumer_decision(decision)
             status = decision.get("status")
             require(status in STATUSES, "service_status.status", "unknown status")
             coverage[service][status] += 1
