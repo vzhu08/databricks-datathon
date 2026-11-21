@@ -20,13 +20,14 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from . import MATCHER_VERSION
+from research.geography.postal import aggregate
 from .base_adapter import base_views, check_mapping, default_mapping, mapping_from_source_metadata
 from .common import (MatchingError, base_check, canonical, digest, field_value, file_digest, load,
                      require, write_json)
 from .normalize import state_key
 from .run import execute
 
-NATIONAL_VERSION = "national-matching-1.0.0"
+NATIONAL_VERSION = "national-matching-1.2.0"
 OUTCOMES = ("confirmed", "ambiguous", "candidate_only", "unmatched")
 NO_STATE = "(no state label)"
 NOT_A_STATE = "(label is not a state or union territory)"
@@ -46,6 +47,40 @@ def state_bucket(key):
     if key is None:
         return NO_STATE
     return key if key in STATES else NOT_A_STATE
+LABEL_STATUS = ("state", "not_a_state", "missing")
+PIN_STATUS = ("exact", "pin_spans_states", "pin_state_incomplete", "pin_state_not_recognised",
+              "pin_state_missing_in_directory", "pin_not_in_postal_directory", "pin_missing_or_invalid",
+              "no_postal_reference")
+
+
+def label_status(view):
+    if view["state_label"] is None:
+        return "missing"
+    return "state" if view["state_label"] in STATES else "not_a_state"
+
+
+def state_from_pin(view, postal_table):
+    """(state, status). Exact means the row's PIN is in the postal reference and
+    every post office with that PIN names the same recognised state. An office
+    with no state, or with a label that is not a recognised state, establishes
+    neither a second state nor an exact one. The value is reported beside the
+    label and is never used as the row's state for matching."""
+    if postal_table is None:
+        return None, "no_postal_reference"
+    if view["pin"] is None:
+        return None, "pin_missing_or_invalid"
+    entry = postal_table.get(view["pin"])
+    if entry is None:
+        return None, "pin_not_in_postal_directory"
+    if len(entry["states"]) > 1:
+        return None, "pin_spans_states"
+    if not entry["states"]:
+        return None, "pin_state_not_recognised" if entry["states_unrecognised"] else "pin_state_missing_in_directory"
+    if not entry["state_complete"]:
+        return None, "pin_state_incomplete"
+    return entry["states"][0], "exact"
+
+
 AMBIGUOUS_REASONS = {"ambiguous_campus", "identifier_not_unique", "identifier_campus_conflict",
                      "identifier_conflict"}
 ID_KEYS = ("original_unique_id", "original_id")
@@ -200,6 +235,25 @@ def _tally(rows, key):
     return dict(sorted(table.items()))
 
 
+def _state_resolution(rows):
+    """How each row's state was established. The label is used for matching only
+    when it names a state or union territory; otherwise the state is unknown."""
+    table = {label: {"original_rows": 0, **{status: 0 for status in PIN_STATUS}} for label in LABEL_STATUS}
+    agree = disagree = 0
+    for row in rows:
+        entry = table[row["state_provenance"]["label"]]
+        entry["original_rows"] += 1
+        entry[row["state_provenance"]["pin"]] += 1
+        if row["state_for_matching"] is not None and row["state_from_pin"] is not None:
+            agree += row["state_for_matching"] == row["state_from_pin"]
+            disagree += row["state_for_matching"] != row["state_from_pin"]
+    return {"unit": "original rows by state label, then by what the row's PIN says",
+            "rule": "A label that is not a state or union territory, or is missing, is treated as unknown for "
+                    "matching. The state of an exact PIN is reported separately and is not used for matching.",
+            "by_label": table,
+            "label_is_a_state_and_pin_is_exact": {"agree": agree, "disagree": disagree}}
+
+
 def _missed_sample(rows, limit):
     """Up to `limit` unmatched rows, round-robin across states. Order inside a
     state is the SHA-256 of the row handle: arbitrary and repeatable."""
@@ -252,7 +306,7 @@ def execute_national(base, external_batches, mapping=None, attributes=None, poli
                 f"found {len(groups)} identical-payload groups, expected {expect_duplicate_groups}")
     group_of = {member: group for group in groups for member in group["members"]}
 
-    views = {view["id"]: view for view in base_views(base, mapping)}
+    views = {view["id"]: view for view in base_views(base, mapping, STATES)}
     scope = {"state": None, "unit": "all original base rows"}
     in_scope = base
     if state is not None:
@@ -267,7 +321,7 @@ def execute_national(base, external_batches, mapping=None, attributes=None, poli
     # Identifier uniqueness is counted over every original row, copies and out-of-scope rows
     # included, so nothing confirms here that D's validator would reject on the full base.
     result = execute(unique_rows, external_batches, mapping, attributes, policy, postal, postal_mapping,
-                     config, sample_size, identifier_base=base)
+                     config, sample_size, identifier_base=base, known_states=STATES)
     require(digest(base) == before and len(base) == len(index), "base", "base changed during the run")
 
     source_of = _source_keys(external_batches)
@@ -284,6 +338,9 @@ def execute_national(base, external_batches, mapping=None, attributes=None, poli
             problems[view["id"]].add("name_missing")
         if "coordinates_missing" in view["coord"]["flags"]:
             problems[view["id"]].add("coordinates_missing")
+        if label_status(view) != "state":
+            problems[view["id"]].add("state_label_" + label_status(view))
+    postal_table = aggregate(postal, postal_mapping, STATES)[0] if postal is not None else None
 
     rows = []
     for row in in_scope:
@@ -298,7 +355,10 @@ def execute_national(base, external_batches, mapping=None, attributes=None, poli
             "facility_id": fid, "matched_as": matched_as,
             "duplicate_group": group["group_id"] if group else None,
             "duplicate_multiplicity": group["multiplicity"] if group else 1,
-            "state": state_bucket(views[fid]["state"]),
+            "state": state_bucket(views[fid]["state_label"]),
+            "state_for_matching": views[fid]["state"],
+            "state_from_pin": state_from_pin(views[fid], postal_table)[0],
+            "state_provenance": {"label": label_status(views[fid]), "pin": state_from_pin(views[fid], postal_table)[1]},
             "outcome": _outcome(found), "candidate_count": len(found),
             "outcome_by_source": per_source,
             "confirmed_external_facility_ids": sorted(c["external_facility_id"] for c in found if c["auto_confirmed"]),
@@ -353,6 +413,7 @@ def execute_national(base, external_batches, mapping=None, attributes=None, poli
                                   "base_geography_disagreement": "the row's own state, district or address PIN "
                                                                  "disagrees with its PIN field or the postal directory"}},
         "by_state": _tally(rows, lambda r: [r["state"]]),
+        "state_resolution": _state_resolution(rows),
         "by_source": by_source,
         "source_overlap": {"unit": "original rows by number of sources that returned a candidate",
                            **{str(n): overlap[n] for n in sorted(overlap)}},

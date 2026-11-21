@@ -46,6 +46,7 @@ STATE_VARIANTS = {
     "dadra nagar haveli": "dadra and nagar haveli and daman and diu",
     "daman diu": "dadra and nagar haveli and daman and diu",
     "dadra nagar haveli daman diu": "dadra and nagar haveli and daman and diu",
+    "the dadra nagar haveli daman diu": "dadra and nagar haveli and daman and diu",
 }
 
 ADDRESS_GENERIC = frozenset("""
