@@ -1,6 +1,6 @@
 # Search contract · v0
 
-Dev 4 coordinates shared contract changes with Devs 1–3. The [first-pass brief](../FIRST_PASS_PROMPT.md) governs behavior. Use [synthetic fixtures](../../contracts/fixtures/search.json) while workspace access and the real schema are being verified.
+Oliver coordinates shared contract changes with Ayush, Vincent, and Andrew. The [first-pass brief](../FIRST_PASS_PROMPT.md) governs behavior. Use [synthetic fixtures](../../contracts/fixtures/search.json) while workspace access and the real schema are being verified.
 
 ## Prepared table
 

@@ -4,7 +4,7 @@ Paste everything below into the lead conversation.
 
 ---
 
-Split this first pass among four developers with separate write scopes and explicit handoffs. Use the three orchestration worker slots for Devs 1–3 and have Dev 4 work in their own coding session on evaluation, integration, and submission. Have all four developers start `python tools/watch_board.py` and read the shared message board every five minutes for updates and new tasks.
+Coordinate this first pass across four named developers with separate write scopes and explicit handoffs. Oliver (`oliverchennn`) is the orchestrator and owns integration, acceptance checks, and submission. Vincent (`vzhu08`) owns the core matcher, location resolver, ranking, and warehouse data adapter. Ayush (`ayushrgupta906`) owns the Marketplace inspection and preparation notebook. Andrew (`andrewhgu`) owns the complete UI and UX in his own Claude Max session. Assign eligible Codex worker tasks to Vincent and Ayush and coordinate Andrew’s handoffs through the shared board and PRs. Have all four developers start `python tools/watch_board.py` and read the shared message board every five minutes for updates and new tasks. Use the scopes in `docs/implementation/OWNERSHIP.md` and the role prompts in `docs/KICKOFF_PROMPTS.md`.
 
 Implement the first working version of our Fall 2026 CMU Datathon project. Start by reading AGENTS.md and inspecting the existing repo. Reuse the repo’s structure and working code. Carry the implementation through to a runnable app and test the full search flow.
 

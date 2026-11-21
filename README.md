@@ -4,8 +4,8 @@ Build a facility finder for community health workers in India. The first pass us
 
 ## Start here
 
-1. Paste the [first-pass prompt](docs/FIRST_PASS_PROMPT.md) into Oliver’s orchestrator. Its three worker slots cover data, search, and UI. A fourth developer handles evaluation and integration in a separate coding session.
-2. Read the [implementation plan](docs/implementation/PLAN.md) and claim a role on the [message and task board](docs/implementation/OWNERSHIP.md). Start your [developer kickoff prompt](docs/KICKOFF_PROMPTS.md) with the five-minute board checker.
+1. Oliver starts the lead conversation with the [first-pass prompt](docs/FIRST_PASS_PROMPT.md). Vincent owns core search, Ayush owns data preparation, and Andrew owns UI and UX in Claude Max. Oliver coordinates handoffs, integration, and verification.
+2. Read the [implementation plan](docs/implementation/PLAN.md) and check your assignment on the [message and task board](docs/implementation/OWNERSHIP.md). Start your [developer kickoff prompt](docs/KICKOFF_PROMPTS.md) with the five-minute board checker.
 3. Build against the [search contract](docs/implementation/SEARCH_CONTRACT.md) and [synthetic fixtures](contracts/fixtures/search.json). The [research handoff](docs/RESEARCH.md) preserves ideas for later corroboration.
 
 The launch target is a Streamlit app on Databricks Free Edition. The organizer lists Sunday, November 22 at **12:30 p.m. ET** as the tentative deadline for code, analysis, and video. The team's target is **11:45 a.m. ET**. [Event schedule](https://cmudsc.com/datathon-fall2026/) · [Challenge brief](https://docs.google.com/document/d/e/2PACX-1vQxhDNQmgZhPgjG0M6LCb_UXNV8CJryqBNQQuqWfIg_dm40ZU1AYAXzZKViC6haFoCmLNiRVfUSBMjf/pub)
