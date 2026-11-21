@@ -1,0 +1,882 @@
+{
+  "schema_version": "storm-replay-v1",
+  "synthetic": true,
+  "scenario": "storm",
+  "seed": 17,
+  "area": "Jaipur area, India",
+  "label": "Fictional campuses, origins, requests, staffed slots and travel times.",
+  "window": "One shift of shared staffed appointments. Each assignment consumes one slot.",
+  "travel_basis": "Illustrative origin-to-campus travel minutes",
+  "policy_version": "online-allocation-v1",
+  "detour_minutes": 10,
+  "highest_urgency_detour_minutes": 0,
+  "protected_profiles": [
+    {
+      "service": "dialysis",
+      "required_tools": [
+        "monitored"
+      ],
+      "catchment_minutes": 20
+    }
+  ],
+  "campuses": [
+    {
+      "id": "A",
+      "latitude": 26.949,
+      "longitude": 75.791,
+      "resources": [
+        {
+          "id": "A-dialysis",
+          "service": "dialysis",
+          "tools": [
+            "monitored"
+          ],
+          "slots": 1,
+          "capacity_status": "known"
+        },
+        {
+          "id": "A-mri",
+          "service": "mri",
+          "tools": [],
+          "slots": 1,
+          "capacity_status": "known"
+        }
+      ]
+    },
+    {
+      "id": "B",
+      "latitude": 26.932,
+      "longitude": 75.842,
+      "resources": [
+        {
+          "id": "B-dialysis",
+          "service": "dialysis",
+          "tools": [],
+          "slots": 2,
+          "capacity_status": "known"
+        }
+      ]
+    },
+    {
+      "id": "C",
+      "latitude": 26.899,
+      "longitude": 75.81,
+      "resources": [
+        {
+          "id": "C-dialysis",
+          "service": "dialysis",
+          "tools": [],
+          "slots": 1,
+          "capacity_status": "known"
+        },
+        {
+          "id": "C-trauma",
+          "service": "trauma_care",
+          "tools": [],
+          "slots": 1,
+          "capacity_status": "known"
+        }
+      ]
+    },
+    {
+      "id": "D",
+      "latitude": 26.972,
+      "longitude": 75.853,
+      "resources": [
+        {
+          "id": "D-mri",
+          "service": "mri",
+          "tools": [],
+          "slots": 2,
+          "capacity_status": "known"
+        }
+      ]
+    },
+    {
+      "id": "E",
+      "latitude": 26.878,
+      "longitude": 75.764,
+      "resources": [
+        {
+          "id": "E-dialysis",
+          "service": "dialysis",
+          "tools": [],
+          "slots": null,
+          "capacity_status": "unknown"
+        },
+        {
+          "id": "E-trauma",
+          "service": "trauma_care",
+          "tools": [],
+          "slots": 2,
+          "capacity_status": "stale"
+        }
+      ]
+    },
+    {
+      "id": "F",
+      "latitude": 26.977,
+      "longitude": 75.707,
+      "resources": [
+        {
+          "id": "F-dialysis",
+          "service": "dialysis",
+          "tools": [
+            "monitored"
+          ],
+          "slots": 1,
+          "capacity_status": "known"
+        },
+        {
+          "id": "F-trauma",
+          "service": "trauma_care",
+          "tools": [],
+          "slots": 2,
+          "capacity_status": "known"
+        }
+      ]
+    }
+  ],
+  "origins": [
+    {
+      "id": "central",
+      "latitude": 26.936,
+      "longitude": 75.8,
+      "travel_minutes": {
+        "A": 8,
+        "B": 12,
+        "C": 14,
+        "D": 18,
+        "E": 20,
+        "F": 30
+      }
+    },
+    {
+      "id": "east",
+      "latitude": 26.937,
+      "longitude": 75.858,
+      "travel_minutes": {
+        "A": 16,
+        "B": 7,
+        "C": 15,
+        "D": 9,
+        "E": 22,
+        "F": 36
+      }
+    },
+    {
+      "id": "south",
+      "latitude": 26.886,
+      "longitude": 75.802,
+      "travel_minutes": {
+        "A": 21,
+        "B": 16,
+        "C": 6,
+        "D": 22,
+        "E": 8,
+        "F": 37
+      }
+    },
+    {
+      "id": "west",
+      "latitude": 26.955,
+      "longitude": 75.73,
+      "travel_minutes": {
+        "A": 14,
+        "B": 24,
+        "C": 25,
+        "D": 28,
+        "E": 20,
+        "F": 10
+      }
+    }
+  ],
+  "requests": [
+    {
+      "id": "r01",
+      "arrival_minute": 0,
+      "origin_id": "central",
+      "service": "dialysis",
+      "urgency": "routine",
+      "required_tools": [],
+      "max_travel_minutes": 25
+    },
+    {
+      "id": "r02",
+      "arrival_minute": 5,
+      "origin_id": "central",
+      "service": "dialysis",
+      "urgency": "highest",
+      "required_tools": [
+        "monitored"
+      ],
+      "max_travel_minutes": 20
+    },
+    {
+      "id": "r03",
+      "arrival_minute": 12,
+      "origin_id": "east",
+      "service": "mri",
+      "urgency": "routine",
+      "required_tools": [],
+      "max_travel_minutes": 30
+    },
+    {
+      "id": "r04",
+      "arrival_minute": 12,
+      "origin_id": "south",
+      "service": "mri",
+      "urgency": "routine",
+      "required_tools": [],
+      "max_travel_minutes": 30
+    },
+    {
+      "id": "r05",
+      "arrival_minute": 16,
+      "origin_id": "central",
+      "service": "trauma_care",
+      "urgency": "time_sensitive",
+      "required_tools": [],
+      "max_travel_minutes": 30
+    },
+    {
+      "id": "r06",
+      "arrival_minute": 16,
+      "origin_id": "central",
+      "service": "dialysis",
+      "urgency": "time_sensitive",
+      "required_tools": [],
+      "max_travel_minutes": 30
+    },
+    {
+      "id": "r07",
+      "arrival_minute": 20,
+      "origin_id": "east",
+      "service": "mri",
+      "urgency": "highest",
+      "required_tools": [],
+      "max_travel_minutes": 30
+    },
+    {
+      "id": "r08",
+      "arrival_minute": 20,
+      "origin_id": "west",
+      "service": "trauma_care",
+      "urgency": "routine",
+      "required_tools": [],
+      "max_travel_minutes": 30
+    }
+  ],
+  "capacity_changes": [],
+  "policies": {
+    "nearest_first": {
+      "events": [
+        {
+          "request_id": "r01",
+          "minute": 0,
+          "origin_id": "central",
+          "service": "dialysis",
+          "urgency": "routine",
+          "excluded_pool_counts": {
+            "required_service_or_tool_unavailable": 5,
+            "unknown_or_stale_capacity": 1,
+            "outside_travel_window": 1
+          },
+          "status": "assigned",
+          "eligible_campuses": [
+            "A",
+            "B",
+            "C"
+          ],
+          "campus_id": "A",
+          "resource_id": "A-dialysis",
+          "travel_minutes": 8,
+          "nearest_feasible_minutes": 8,
+          "extra_travel_minutes": 0,
+          "nearest_campus_id": "A",
+          "resource_before": {
+            "used": 0,
+            "free": 1
+          },
+          "resource_after": {
+            "used": 1,
+            "free": 0
+          },
+          "preserved_profiles": [],
+          "reason": "nearest_feasible"
+        },
+        {
+          "request_id": "r02",
+          "minute": 5,
+          "origin_id": "central",
+          "service": "dialysis",
+          "urgency": "highest",
+          "excluded_pool_counts": {
+            "no_staffed_slot_left": 1,
+            "required_service_or_tool_unavailable": 8,
+            "outside_travel_window": 1
+          },
+          "status": "unassigned",
+          "eligible_campuses": [],
+          "campus_id": null,
+          "resource_id": null,
+          "travel_minutes": null,
+          "nearest_feasible_minutes": null,
+          "extra_travel_minutes": null,
+          "nearest_campus_id": null,
+          "resource_before": null,
+          "resource_after": null,
+          "preserved_profiles": [],
+          "reason": "no_staffed_slot_left"
+        },
+        {
+          "request_id": "r03",
+          "minute": 12,
+          "origin_id": "east",
+          "service": "mri",
+          "urgency": "routine",
+          "excluded_pool_counts": {
+            "required_service_or_tool_unavailable": 8
+          },
+          "status": "assigned",
+          "eligible_campuses": [
+            "D",
+            "A"
+          ],
+          "campus_id": "D",
+          "resource_id": "D-mri",
+          "travel_minutes": 9,
+          "nearest_feasible_minutes": 9,
+          "extra_travel_minutes": 0,
+          "nearest_campus_id": "D",
+          "resource_before": {
+            "used": 0,
+            "free": 2
+          },
+          "resource_after": {
+            "used": 1,
+            "free": 1
+          },
+          "preserved_profiles": [],
+          "reason": "nearest_feasible"
+        },
+        {
+          "request_id": "r04",
+          "minute": 12,
+          "origin_id": "south",
+          "service": "mri",
+          "urgency": "routine",
+          "excluded_pool_counts": {
+            "required_service_or_tool_unavailable": 8
+          },
+          "status": "assigned",
+          "eligible_campuses": [
+            "A",
+            "D"
+          ],
+          "campus_id": "A",
+          "resource_id": "A-mri",
+          "travel_minutes": 21,
+          "nearest_feasible_minutes": 21,
+          "extra_travel_minutes": 0,
+          "nearest_campus_id": "A",
+          "resource_before": {
+            "used": 0,
+            "free": 1
+          },
+          "resource_after": {
+            "used": 1,
+            "free": 0
+          },
+          "preserved_profiles": [],
+          "reason": "nearest_feasible"
+        },
+        {
+          "request_id": "r05",
+          "minute": 16,
+          "origin_id": "central",
+          "service": "trauma_care",
+          "urgency": "time_sensitive",
+          "excluded_pool_counts": {
+            "required_service_or_tool_unavailable": 7,
+            "unknown_or_stale_capacity": 1
+          },
+          "status": "assigned",
+          "eligible_campuses": [
+            "C",
+            "F"
+          ],
+          "campus_id": "C",
+          "resource_id": "C-trauma",
+          "travel_minutes": 14,
+          "nearest_feasible_minutes": 14,
+          "extra_travel_minutes": 0,
+          "nearest_campus_id": "C",
+          "resource_before": {
+            "used": 0,
+            "free": 1
+          },
+          "resource_after": {
+            "used": 1,
+            "free": 0
+          },
+          "preserved_profiles": [],
+          "reason": "nearest_feasible"
+        },
+        {
+          "request_id": "r06",
+          "minute": 16,
+          "origin_id": "central",
+          "service": "dialysis",
+          "urgency": "time_sensitive",
+          "excluded_pool_counts": {
+            "no_staffed_slot_left": 1,
+            "required_service_or_tool_unavailable": 5,
+            "unknown_or_stale_capacity": 1
+          },
+          "status": "assigned",
+          "eligible_campuses": [
+            "B",
+            "C",
+            "F"
+          ],
+          "campus_id": "B",
+          "resource_id": "B-dialysis",
+          "travel_minutes": 12,
+          "nearest_feasible_minutes": 12,
+          "extra_travel_minutes": 0,
+          "nearest_campus_id": "B",
+          "resource_before": {
+            "used": 0,
+            "free": 2
+          },
+          "resource_after": {
+            "used": 1,
+            "free": 1
+          },
+          "preserved_profiles": [],
+          "reason": "nearest_feasible"
+        },
+        {
+          "request_id": "r07",
+          "minute": 20,
+          "origin_id": "east",
+          "service": "mri",
+          "urgency": "highest",
+          "excluded_pool_counts": {
+            "required_service_or_tool_unavailable": 8,
+            "no_staffed_slot_left": 1
+          },
+          "status": "assigned",
+          "eligible_campuses": [
+            "D"
+          ],
+          "campus_id": "D",
+          "resource_id": "D-mri",
+          "travel_minutes": 9,
+          "nearest_feasible_minutes": 9,
+          "extra_travel_minutes": 0,
+          "nearest_campus_id": "D",
+          "resource_before": {
+            "used": 1,
+            "free": 1
+          },
+          "resource_after": {
+            "used": 2,
+            "free": 0
+          },
+          "preserved_profiles": [],
+          "reason": "nearest_feasible"
+        },
+        {
+          "request_id": "r08",
+          "minute": 20,
+          "origin_id": "west",
+          "service": "trauma_care",
+          "urgency": "routine",
+          "excluded_pool_counts": {
+            "required_service_or_tool_unavailable": 7,
+            "no_staffed_slot_left": 1,
+            "unknown_or_stale_capacity": 1
+          },
+          "status": "assigned",
+          "eligible_campuses": [
+            "F"
+          ],
+          "campus_id": "F",
+          "resource_id": "F-trauma",
+          "travel_minutes": 10,
+          "nearest_feasible_minutes": 10,
+          "extra_travel_minutes": 0,
+          "nearest_campus_id": "F",
+          "resource_before": {
+            "used": 0,
+            "free": 2
+          },
+          "resource_after": {
+            "used": 1,
+            "free": 1
+          },
+          "preserved_profiles": [],
+          "reason": "nearest_feasible"
+        }
+      ],
+      "capacity_events": [],
+      "metrics": {
+        "requested": 8,
+        "assigned": 7,
+        "unassigned": 1,
+        "extra_travel_minutes": 0,
+        "p90_extra_travel_minutes": 0,
+        "by_urgency": {
+          "highest": {
+            "requested": 2,
+            "assigned": 1,
+            "unassigned": 1,
+            "extra_travel_minutes": 0,
+            "p90_extra_travel_minutes": 0
+          },
+          "time_sensitive": {
+            "requested": 2,
+            "assigned": 2,
+            "unassigned": 0,
+            "extra_travel_minutes": 0,
+            "p90_extra_travel_minutes": 0
+          },
+          "routine": {
+            "requested": 4,
+            "assigned": 4,
+            "unassigned": 0,
+            "extra_travel_minutes": 0,
+            "p90_extra_travel_minutes": 0
+          }
+        },
+        "within_window": 7,
+        "unassigned_reasons": {
+          "no_staffed_slot_left": 1
+        },
+        "capacity_violations": 0
+      },
+      "final_free_slots": {
+        "A-dialysis": 0,
+        "A-mri": 0,
+        "B-dialysis": 1,
+        "C-dialysis": 1,
+        "C-trauma": 0,
+        "D-mri": 0,
+        "E-dialysis": null,
+        "E-trauma": null,
+        "F-dialysis": 1,
+        "F-trauma": 1
+      }
+    },
+    "scarcity_aware": {
+      "events": [
+        {
+          "request_id": "r01",
+          "minute": 0,
+          "origin_id": "central",
+          "service": "dialysis",
+          "urgency": "routine",
+          "excluded_pool_counts": {
+            "required_service_or_tool_unavailable": 5,
+            "unknown_or_stale_capacity": 1,
+            "outside_travel_window": 1
+          },
+          "status": "assigned",
+          "eligible_campuses": [
+            "A",
+            "B",
+            "C"
+          ],
+          "campus_id": "B",
+          "resource_id": "B-dialysis",
+          "travel_minutes": 12,
+          "nearest_feasible_minutes": 8,
+          "extra_travel_minutes": 4,
+          "nearest_campus_id": "A",
+          "resource_before": {
+            "used": 0,
+            "free": 2
+          },
+          "resource_after": {
+            "used": 1,
+            "free": 1
+          },
+          "preserved_profiles": [
+            "dialysis/monitored"
+          ],
+          "reason": "preserve_reachable_specialist_slot"
+        },
+        {
+          "request_id": "r02",
+          "minute": 5,
+          "origin_id": "central",
+          "service": "dialysis",
+          "urgency": "highest",
+          "excluded_pool_counts": {
+            "required_service_or_tool_unavailable": 8,
+            "outside_travel_window": 1
+          },
+          "status": "assigned",
+          "eligible_campuses": [
+            "A"
+          ],
+          "campus_id": "A",
+          "resource_id": "A-dialysis",
+          "travel_minutes": 8,
+          "nearest_feasible_minutes": 8,
+          "extra_travel_minutes": 0,
+          "nearest_campus_id": "A",
+          "resource_before": {
+            "used": 0,
+            "free": 1
+          },
+          "resource_after": {
+            "used": 1,
+            "free": 0
+          },
+          "preserved_profiles": [],
+          "reason": "nearest_feasible"
+        },
+        {
+          "request_id": "r03",
+          "minute": 12,
+          "origin_id": "east",
+          "service": "mri",
+          "urgency": "routine",
+          "excluded_pool_counts": {
+            "required_service_or_tool_unavailable": 8
+          },
+          "status": "assigned",
+          "eligible_campuses": [
+            "D",
+            "A"
+          ],
+          "campus_id": "D",
+          "resource_id": "D-mri",
+          "travel_minutes": 9,
+          "nearest_feasible_minutes": 9,
+          "extra_travel_minutes": 0,
+          "nearest_campus_id": "D",
+          "resource_before": {
+            "used": 0,
+            "free": 2
+          },
+          "resource_after": {
+            "used": 1,
+            "free": 1
+          },
+          "preserved_profiles": [],
+          "reason": "nearest_feasible"
+        },
+        {
+          "request_id": "r04",
+          "minute": 12,
+          "origin_id": "south",
+          "service": "mri",
+          "urgency": "routine",
+          "excluded_pool_counts": {
+            "required_service_or_tool_unavailable": 8
+          },
+          "status": "assigned",
+          "eligible_campuses": [
+            "A",
+            "D"
+          ],
+          "campus_id": "A",
+          "resource_id": "A-mri",
+          "travel_minutes": 21,
+          "nearest_feasible_minutes": 21,
+          "extra_travel_minutes": 0,
+          "nearest_campus_id": "A",
+          "resource_before": {
+            "used": 0,
+            "free": 1
+          },
+          "resource_after": {
+            "used": 1,
+            "free": 0
+          },
+          "preserved_profiles": [],
+          "reason": "nearest_feasible"
+        },
+        {
+          "request_id": "r05",
+          "minute": 16,
+          "origin_id": "central",
+          "service": "trauma_care",
+          "urgency": "time_sensitive",
+          "excluded_pool_counts": {
+            "required_service_or_tool_unavailable": 7,
+            "unknown_or_stale_capacity": 1
+          },
+          "status": "assigned",
+          "eligible_campuses": [
+            "C",
+            "F"
+          ],
+          "campus_id": "C",
+          "resource_id": "C-trauma",
+          "travel_minutes": 14,
+          "nearest_feasible_minutes": 14,
+          "extra_travel_minutes": 0,
+          "nearest_campus_id": "C",
+          "resource_before": {
+            "used": 0,
+            "free": 1
+          },
+          "resource_after": {
+            "used": 1,
+            "free": 0
+          },
+          "preserved_profiles": [],
+          "reason": "nearest_feasible"
+        },
+        {
+          "request_id": "r06",
+          "minute": 16,
+          "origin_id": "central",
+          "service": "dialysis",
+          "urgency": "time_sensitive",
+          "excluded_pool_counts": {
+            "no_staffed_slot_left": 1,
+            "required_service_or_tool_unavailable": 5,
+            "unknown_or_stale_capacity": 1
+          },
+          "status": "assigned",
+          "eligible_campuses": [
+            "B",
+            "C",
+            "F"
+          ],
+          "campus_id": "B",
+          "resource_id": "B-dialysis",
+          "travel_minutes": 12,
+          "nearest_feasible_minutes": 12,
+          "extra_travel_minutes": 0,
+          "nearest_campus_id": "B",
+          "resource_before": {
+            "used": 1,
+            "free": 1
+          },
+          "resource_after": {
+            "used": 2,
+            "free": 0
+          },
+          "preserved_profiles": [],
+          "reason": "nearest_feasible"
+        },
+        {
+          "request_id": "r07",
+          "minute": 20,
+          "origin_id": "east",
+          "service": "mri",
+          "urgency": "highest",
+          "excluded_pool_counts": {
+            "required_service_or_tool_unavailable": 8,
+            "no_staffed_slot_left": 1
+          },
+          "status": "assigned",
+          "eligible_campuses": [
+            "D"
+          ],
+          "campus_id": "D",
+          "resource_id": "D-mri",
+          "travel_minutes": 9,
+          "nearest_feasible_minutes": 9,
+          "extra_travel_minutes": 0,
+          "nearest_campus_id": "D",
+          "resource_before": {
+            "used": 1,
+            "free": 1
+          },
+          "resource_after": {
+            "used": 2,
+            "free": 0
+          },
+          "preserved_profiles": [],
+          "reason": "nearest_feasible"
+        },
+        {
+          "request_id": "r08",
+          "minute": 20,
+          "origin_id": "west",
+          "service": "trauma_care",
+          "urgency": "routine",
+          "excluded_pool_counts": {
+            "required_service_or_tool_unavailable": 7,
+            "no_staffed_slot_left": 1,
+            "unknown_or_stale_capacity": 1
+          },
+          "status": "assigned",
+          "eligible_campuses": [
+            "F"
+          ],
+          "campus_id": "F",
+          "resource_id": "F-trauma",
+          "travel_minutes": 10,
+          "nearest_feasible_minutes": 10,
+          "extra_travel_minutes": 0,
+          "nearest_campus_id": "F",
+          "resource_before": {
+            "used": 0,
+            "free": 2
+          },
+          "resource_after": {
+            "used": 1,
+            "free": 1
+          },
+          "preserved_profiles": [],
+          "reason": "nearest_feasible"
+        }
+      ],
+      "capacity_events": [],
+      "metrics": {
+        "requested": 8,
+        "assigned": 8,
+        "unassigned": 0,
+        "extra_travel_minutes": 4,
+        "p90_extra_travel_minutes": 4,
+        "by_urgency": {
+          "highest": {
+            "requested": 2,
+            "assigned": 2,
+            "unassigned": 0,
+            "extra_travel_minutes": 0,
+            "p90_extra_travel_minutes": 0
+          },
+          "time_sensitive": {
+            "requested": 2,
+            "assigned": 2,
+            "unassigned": 0,
+            "extra_travel_minutes": 0,
+            "p90_extra_travel_minutes": 0
+          },
+          "routine": {
+            "requested": 4,
+            "assigned": 4,
+            "unassigned": 0,
+            "extra_travel_minutes": 4,
+            "p90_extra_travel_minutes": 4
+          }
+        },
+        "within_window": 8,
+        "unassigned_reasons": {},
+        "capacity_violations": 0
+      },
+      "final_free_slots": {
+        "A-dialysis": 0,
+        "A-mri": 0,
+        "B-dialysis": 0,
+        "C-dialysis": 1,
+        "C-trauma": 0,
+        "D-mri": 0,
+        "E-dialysis": null,
+        "E-trauma": null,
+        "F-dialysis": 1,
+        "F-trauma": 1
+      }
+    }
+  }
+}
