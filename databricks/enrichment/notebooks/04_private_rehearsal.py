@@ -10,10 +10,12 @@ import json
 from pathlib import Path
 import sys
 
+existing_widgets = dbutils.widgets.getAll()
 for name in ("repo_root", "output_catalog", "output_schema", "confirm_private_rehearsal", "input_path",
              "batch_files_json", "identity_rows_path", "expected_base_sha256", "expected_identity_sha256",
              "expected_batch_sha256", "run_id", "as_of", "receipt_path"):
-    dbutils.widgets.text(name, "")
+    if name not in existing_widgets:
+        dbutils.widgets.text(name, "")
 repo_root = Path(dbutils.widgets.get("repo_root"))
 assert repo_root.is_absolute() and (repo_root / "contracts/enrichment/schema.json").is_file()
 sys.path.insert(0, str(repo_root / "databricks/enrichment"))

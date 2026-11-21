@@ -1,6 +1,8 @@
+import ast
 from pathlib import Path
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -11,6 +13,38 @@ from simulation import SimulatedStore
 
 
 class RehearsalTests(unittest.TestCase):
+    def test_notebook_preserves_bootstrap_path_and_job_parameters(self):
+        class Widgets:
+            def __init__(self):
+                self.values = {"repo_root": str(ROOT), "output_catalog": "workspace",
+                               "run_id": "synthetic-rehearsal"}
+
+            def getAll(self):
+                return dict(self.values)
+
+            def text(self, name, default):
+                self.values[name] = default
+
+            def get(self, name):
+                return self.values[name]
+
+        notebook = ROOT / "databricks/enrichment/notebooks/04_private_rehearsal.py"
+        tree = ast.parse(notebook.read_text())
+        boundary = next(i for i, node in enumerate(tree.body)
+                        if isinstance(node, ast.ImportFrom) and node.module == "common")
+        startup = ast.Module(body=tree.body[:boundary], type_ignores=[])
+        widgets = Widgets()
+        existing = dict(widgets.values)
+        namespace = {"dbutils": SimpleNamespace(widgets=widgets)}
+        old_path = sys.path[:]
+        try:
+            exec(compile(startup, str(notebook), "exec"), namespace)
+        finally:
+            sys.path[:] = old_path
+        self.assertEqual(namespace["repo_root"], ROOT)
+        self.assertTrue(all(widgets.values[key] == value for key, value in existing.items()))
+        self.assertEqual(widgets.values["confirm_private_rehearsal"], "")
+
     def test_persistent_protocol_receipt_and_nonempty_store_guard(self):
         with tempfile.TemporaryDirectory() as folder:
             store = SimulatedStore(str(Path(folder) / "rehearsal.sqlite"))
