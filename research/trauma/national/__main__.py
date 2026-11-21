@@ -141,9 +141,7 @@ def review_item(snapshot_id, code, action, *, external_id=None, severity="medium
     }
 
 
-def add_snapshot(
-    batch, ledger, acquired, registry, lineage, *, comparison_only=False,
-):
+def add_snapshot(batch, ledger, acquired, registry, lineage, *, comparison_only=False, all_states=False):
     snapshot_id = f"{SOURCE_KEY}:{acquired['sha256']}"
     dates, review, url = acquired["dates"], acquired["review"], acquired["resolved_url"]
     batch["source_snapshots"].append({
@@ -164,7 +162,11 @@ def add_snapshot(
             snapshot_id, "programme_version_date_disagreement",
             "Compare the cited report dates and retain the source-specific chronology.",
         ))
-    for row in acquired["rows"]:
+    rows = acquired["document"].rows if all_states else acquired["rows"]
+    for row in rows:
+        rajasthan = flatten(row.state).casefold() == STATE
+        reviewer = review["reviewer"] if rajasthan else None
+        reviewed_at = review["reviewed_at"] if rajasthan else None
         external_id = stable_id("b3-facility", snapshot_id, row.key)
         notes = [issue for issue in review["issues"] if issue["row"] == row.key]
         flags = ["historical_programme_listing", "state_from_programme_section"]
@@ -180,7 +182,7 @@ def add_snapshot(
             "record_locator": row.locator, "name_original": row.name,
             "name_normalized": flatten(row.name).casefold() if row.name else None,
             "address_original": None, "facility_type": "unknown", "city": None,
-            "state": "Rajasthan", "pin": None, "latitude": None, "longitude": None,
+            "state": "Rajasthan" if rajasthan else flatten(row.state), "pin": None, "latitude": None, "longitude": None,
             "coordinate_method": None, "quality_flags": sorted(set(flags)),
         })
         for issue in notes:
@@ -195,7 +197,10 @@ def add_snapshot(
                 external_id=external_id,
             ))
         evidence_ids = {}
-        for kind, assertion in interpretations(row):
+        claims = list(interpretations(row))
+        if all_states and not rajasthan and row.section.key == "completed":
+            claims.append(("programme_stage", "MoHFW listed construction as completed in its historical programme."))
+        for kind, assertion in claims:
             evidence_id = stable_id("b3-evidence", external_id, kind)
             evidence_ids[kind] = evidence_id
             batch["facility_evidence"].append({
@@ -205,7 +210,7 @@ def add_snapshot(
                 "locator": f"{row.locator}; context: {row.section.locator}; state label on PDF p. {row.state_page}",
                 "source_url": url, "effective_date": dates["status_as_of"], "valid_until": None,
                 "temporal_status": "historical",
-                "reviewer": review["reviewer"], "reviewed_at": review["reviewed_at"],
+                "reviewer": reviewer, "reviewed_at": reviewed_at,
             })
         ledger.append({
             "external_facility_id": external_id, "snapshot_id": snapshot_id, "row": row.key,
@@ -217,8 +222,8 @@ def add_snapshot(
             "excerpt": row.excerpt, "published_date": dates["published_date"],
             "status_as_of": dates["status_as_of"], "valid_until": dates["valid_until"],
             "status_is_historical": True, "eligible_as_current_status": False,
-            "date_conflicts": dates["conflicts"], "visual_review": "pass",
-            "reviewer": review["reviewer"], "reviewed_at": review["reviewed_at"],
+            "date_conflicts": dates["conflicts"], "visual_review": "pass" if rajasthan else "not_individually_reviewed",
+            "reviewer": reviewer, "reviewed_at": reviewed_at,
             "unresolved_issues": notes, "evidence_ids": evidence_ids,
         })
 
@@ -284,7 +289,14 @@ def artifact(path, checksum, size, role):
     return {"path": str(path.resolve()), "sha256": checksum, "bytes": size, "role": role}
 
 
-def build(manifest_path, review_path, output_dir):
+def build(manifest_path, review_path, output_dir, *, all_states=False, prior_release=None):
+    if all_states and prior_release is None:
+        raise ValueError("The all-state extension requires the prior Rajasthan release directory")
+    if not all_states and prior_release is not None:
+        raise ValueError("--prior-release is used with --all-states")
+    if all_states and output_dir.resolve() in {manifest_path.parent.resolve(), review_path.parent.resolve(),
+                                               prior_release.resolve()}:
+        raise ValueError("Use a separate output directory for the national extension")
     registry = next(item for item in read_json(REPO / "contracts/enrichment/source_registry.json")["sources"]
                     if item["source_key"] == SOURCE_KEY)
     acquired = load_acquisitions(manifest_path, review_path, registry)
@@ -292,9 +304,12 @@ def build(manifest_path, review_path, output_dir):
     batch = {"contract_version": "1.0.0", "source_snapshots": [], "external_facilities": [],
              "facility_matches": [], "facility_evidence": [], "review_queue": []}
     ledger = []
-    add_snapshot(batch, ledger, acquired["primary"], registry, lineage)
+    add_snapshot(batch, ledger, acquired["primary"], registry, lineage, all_states=all_states)
     if not lineage["same_edition"]:
-        add_snapshot(batch, ledger, acquired["older"], registry, lineage, comparison_only=True)
+        add_snapshot(batch, ledger, acquired["older"], registry, lineage, comparison_only=True, all_states=all_states)
+    if all_states:
+        from .national_release import national_receipt, publish_national
+        national = national_receipt(batch, ledger, acquired, prior_release)
     validate_batch(batch)
 
     coverage = {
@@ -311,13 +326,14 @@ def build(manifest_path, review_path, output_dir):
     coverage["batch_counts"] = {key: len(value) for key, value in batch.items() if isinstance(value, list)}
     coverage["levels"] = dict(Counter(row["level"] or "unknown" for row in ledger))
     coverage["functionality"] = dict(Counter(row["printed_functionality"] or "unknown" for row in ledger))
+    if all_states:
+        coverage["national"] = national
     parts = {
         "temporal_claim_ledger.json": ("claim_ledger", ledger),
         "lineage.json": ("lineage", lineage),
         "coverage.json": ("coverage", coverage),
         "batch.json": ("producer_envelope", batch),
     }
-    output_dir.mkdir(parents=True, exist_ok=True)
     inventory = []
     for label, item in acquired.items():
         entry = artifact(item["path"], item["sha256"], item["path"].stat().st_size, "raw_pdf")
@@ -327,12 +343,20 @@ def build(manifest_path, review_path, output_dir):
                           "retrieval_attempts": item["retrieval_attempts"]})
     for path, role in ((manifest_path, "acquisition_manifest"), (review_path, "visual_review")):
         inventory.append(artifact(path, sha256(path), path.stat().st_size, role))
+    if all_states:
+        for name in ("batch.json", "claim_ledger.json"):
+            path = prior_release / name
+            inventory.append(artifact(path, sha256(path), path.stat().st_size, "prior_rajasthan_release"))
     outputs = {}
     for name, (role, payload) in parts.items():
         encoded = json_bytes(payload)
         outputs[name] = encoded
         inventory.append(artifact(output_dir / name, digest(encoded), len(encoded), role))
     outputs["artifact_inventory.json"] = json_bytes({"artifacts": inventory})
+    if all_states:
+        publish_national(output_dir, outputs)
+        return coverage["batch_counts"]
+    output_dir.mkdir(parents=True, exist_ok=True)
     # Publish the envelope last so it can serve as the initial handoff marker.
     for name in ("temporal_claim_ledger.json", "lineage.json", "coverage.json", "artifact_inventory.json",
                  "batch.json"):
@@ -348,8 +372,11 @@ def main():
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--visual-review", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--all-states", action="store_true", help="Emit all states and preserve previous audit decisions")
+    parser.add_argument("--prior-release", type=Path, help="Directory with the prior batch.json and claim_ledger.json")
     args = parser.parse_args()
-    print(json.dumps(build(args.manifest, args.visual_review, args.output_dir), sort_keys=True))
+    print(json.dumps(build(args.manifest, args.visual_review, args.output_dir,
+                           all_states=args.all_states, prior_release=args.prior_release), sort_keys=True))
 
 
 if __name__ == "__main__":

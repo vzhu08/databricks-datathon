@@ -67,6 +67,10 @@ def flatten(text):
     return " ".join(text.split())
 
 
+def is_table_note(text):
+    return bool(re.match(r"^(?:notes?\s*:|source\s*:|\*+\s)", text.lstrip(), re.IGNORECASE))
+
+
 def parse_rows(section, grid_rows):
     """Carry a standalone or merged-cell state through continuation pages."""
     records = []
@@ -75,6 +79,8 @@ def parse_rows(section, grid_rows):
     for grid_row in grid_rows:
         cells = grid_row.cells
         first = cells[0] or ""
+        if is_table_note(first) and not any(cells[1:]):
+            continue
         if re.fullmatch(r"S(?:l)?\.\s*No\.?", first, re.IGNORECASE):
             continue
         serial = re.fullmatch(r"(\d+)\.?", first)
@@ -167,7 +173,7 @@ def read_pdf(path: Path):
                     gap_top = previous[1]
                     if top > gap_top:
                         gap = page.crop((left, gap_top, right, top)).extract_text().strip()
-                        if gap:
+                        if gap and not is_table_note(gap):
                             if sections[key].annexure != 2 or "\n" in gap:
                                 raise ValueError(f"Unrecognised inter-table text on PDF p. {number}")
                             grids[key].append(GridRow(number, (gap,)))
