@@ -130,6 +130,43 @@ class ProjectionTests(unittest.TestCase):
         with self.assertRaises(MatchingError):
             self.run_projection([yes, conflict])
 
+    def test_disputed_replacement_keeps_older_contrary_evidence(self):
+        older_text = "Example Campus refers all MRI cases elsewhere."
+        replacement_text = "Example Campus offers onsite MRI."
+        independent_text = "Example Campus operates an onsite MRI clinic."
+        field = " ".join((older_text, replacement_text, independent_text))
+        self.base[0]["source_row"]["description"] = field
+        reviews = []
+        for review_id, finding, excerpt, source_date in (
+                ("older", "referral_only", older_text, "2026-11-01"),
+                ("replacement", "onsite_service", replacement_text, "2026-11-10"),
+                ("dispute", "other_campus", replacement_text, "2026-11-10"),
+                ("independent", "onsite_service", independent_text, "2026-11-15")):
+            review = original(finding=finding)
+            review["review_id"] = review_id
+            start = field.index(excerpt)
+            review["source"].update(start=start, end=start + len(excerpt), excerpt=excerpt, source_date=source_date)
+            reviews.append(review)
+        older, replacement, dispute, independent = reviews
+        self.assertEqual(lookup(self.run_projection(reviews), FID)["services"]["mri"]["reason_code"],
+                         "conflicting_claims")
+        older["superseded_by"] = replacement["review_id"]
+        for ordered in (reviews, list(reversed(reviews))):
+            result = self.run_projection(ordered)
+            service = lookup(result, FID)["services"]["mri"]
+            self.assertEqual(service["reason_code"], "conflicting_claims")
+            older_claim = next(r for r in service["reviews"] if r["review_id"] == "older")
+            self.assertIsNone(older_claim["superseded_by"])
+            self.assertEqual(older_claim["disputed_replacement_id"], "replacement")
+            public = patient_lookup(result, FID)["services"]["mri"]
+            self.assertEqual(public["status"], "unconfirmed")
+            self.assertFalse(any(c.get("historical") for c in public["sources"]))
+
+        uncontested = self.run_projection([older, replacement, independent])
+        public = patient_lookup(uncontested, FID)["services"]["mri"]
+        self.assertEqual(public["status"], "yes")
+        self.assertTrue(any(c.get("historical") for c in public["sources"]))
+
     def test_patient_view_keeps_time_scope_and_checked_sources(self):
         no = original("dialysis", "referral_only", "All dialysis patients are referred elsewhere.")
         no["source"].update(valid_from="2026-11-20", valid_until="2026-11-22")
@@ -237,6 +274,26 @@ class ProjectionTests(unittest.TestCase):
         partner["source"]["target_match_id"] = batch["facility_matches"][0]["match_id"]
         partner["campus_resolution"] = "The service statement explicitly identifies Partner Campus."
         return host, partner, batch
+
+    def test_cross_occurrence_target_is_named_separately_from_the_host(self):
+        host_text = "North Example Campus performs onsite MRI."
+        target_text = "Example Campus performs onsite MRI."
+        for excerpt in (host_text, target_text):
+            with self.subTest(excerpt=excerpt), self.assertRaisesRegex(MatchingError, "named target campus"):
+                _, target, batch = self.campus_reviews(host_text, host_text, excerpt)
+                self.base[0]["source_row"]["name"] = "Example Campus"
+                self.base[1]["source_row"]["name"] = "North Example Campus"
+                target["campus_resolution"] = "The confirmed match identifies Example Campus."
+                self.run_projection([target], [batch])
+
+        # Also allow a real second mention when the shorter name is nested elsewhere in the field.
+        field = f"{host_text} {target_text}"
+        _, target, batch = self.campus_reviews(field, host_text, field)
+        self.base[0]["source_row"]["name"] = "Example Campus"
+        self.base[1]["source_row"]["name"] = "North Example Campus"
+        target["campus_resolution"] = "The second sentence explicitly identifies Example Campus."
+        result = self.run_projection([target], [batch])
+        self.assertEqual(patient_lookup(result, FID)["services"]["mri"]["status"], "yes")
 
     def test_competing_onsite_targets_share_one_passage(self):
         phrase = "Only Partner Campus operates the onsite MRI service."
@@ -370,6 +427,24 @@ class ProjectionTests(unittest.TestCase):
         self.assertEqual(public_host["status"], "no")
         self.assertTrue(any(c.get("historical") for c in public_host["sources"]))
         self.assertEqual(len(lookup(result, "twin")["services"]["mri"]["reviews"]), 2)
+
+    def test_cross_campus_dispute_blocks_supersession(self):
+        phrase = "Only Partner Campus operates onsite MRI."
+        older_text = "Host Campus refers all MRI cases elsewhere."
+        host, partner, batch = self.campus_reviews(f"{phrase} {older_text}", phrase, phrase)
+        older = copy.deepcopy(host)
+        older.update(review_id="previous-referral", finding="referral_only", superseded_by=host["review_id"])
+        start = len(phrase) + 1
+        older["source"].update(start=start, end=start + len(older_text), excerpt=older_text,
+                               source_date="2026-11-01")
+
+        result = self.run_projection([older, host, partner], [batch])
+        self.assertEqual(result, self.run_projection([partner, host, older], [batch]))
+        host_status = lookup(result, "twin")["services"]["mri"]
+        self.assertEqual(host_status["reason_code"], "referral_only")
+        self.assertEqual(host_status["reviews"][0]["disputed_replacement_id"], "twin")
+        self.assertEqual(host_status["reviews"][1]["attribution_conflicts_with"], [FID])
+        self.assertEqual(patient_lookup(result, FID)["services"]["mri"]["status"], "unconfirmed")
 
 
 if __name__ == "__main__":
