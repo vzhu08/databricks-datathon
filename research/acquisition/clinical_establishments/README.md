@@ -92,8 +92,30 @@ private package; raw hashes are verified before checking clearance.
 
 A real clearance must identify `status: "cleared"`, the exact source `url` and
 `sha256`, `intended_use: "private_acquisition_and_team_review"`, `basis`,
-`basis_uri`, `reviewer` and UTC `reviewed_at`. This does not authorize public
-publication. Metadata requires `publisher`, `source_family`, `source_key`,
+`basis_uri`, `reviewer` and UTC `reviewed_at`. These inline fields alone never
+permit release. `permission_record` must name an existing private JSON file whose
+bytes match `permission_record_sha256`. That separate record must contain:
+
+- `record_type: "file_specific_permission"` and `decision: "granted"`;
+- the exact `source_url`, `source_sha256`, `intended_use` and `rights_holder`;
+- `permitted_content` including `facility_rows`, `identity_sidecar` and
+  `service_excerpts`;
+- a `grant_artifact` with a relative `path`, `sha256`, `kind: "file_specific_grant"`
+  and exact `locator` inside the retained permission artifact;
+- a `review` with the same `reviewer` and `reviewed_at` as the manifest, and both
+  `affirmative_grant_verified: true` and `rights_holder_authority_verified: true`.
+
+The grant artifact must exist, differ from the source and permission-record files,
+and match its recorded hash. `basis_uri` must be `urn:sha256:` followed by that
+grant-artifact hash. The record's holder must match the source metadata's declared
+`rights_holder`. General website policies, pending decisions, nonexistent files,
+altered artifacts and grants for another file/use/holder fail before extraction.
+This is an integrity and scope check of a human-reviewed grant, not automated
+verification of legal authority or the document's meaning. The reviewer must
+inspect the retained artifact and determine that it grants the recorded use.
+
+This does not authorize public publication. Metadata requires `publisher`,
+`rights_holder`, `source_family`, `source_key`,
 `layout_reviewer` and UTC `layout_reviewed_at`; `published_date`, `effective_date`,
 `source_date_text` and `source_date_locator` preserve distinct temporal evidence.
 The synthetic tests demonstrate a complete cleared manifest without implying that
@@ -104,8 +126,12 @@ registration namespace, index jurisdiction and reviewed header rows. An optional
 `sha256` binds a profile to a snapshot. Additional layouts require inspection and
 an explicit mapping; there is no guessed catch-all PDF parser. Telangana's split
 tables are joined only when left/right column counts and every physical row's
-vertical bounds agree. Unknown layouts, unresolved continuation rows, missing
-serials and pages without detected tables withhold the whole source from release.
+vertical bounds agree. Unknown layouts, unresolved continuation rows, missing or
+duplicate printed serials and pages without detected tables withhold the whole
+source from release. Both physical rows remain in private inspection when serials
+repeat; an intentional numbering restart requires a separately reviewed parser
+change before release. Repeated registration IDs are allowed and remain separate
+records with distinct physical locators.
 Rejects retain locators and reasons in private inspection output.
 
 ## Identity and evidence semantics

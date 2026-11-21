@@ -43,8 +43,13 @@ def utc(value):
     return value
 
 
-def compile_rows(rows, capture, metadata, rights):
-    """No rights inference: callers must supply an explicit, auditable clearance."""
+def verify_permission(root, capture, metadata, rights):
+    """Verify a separate reviewed permission record and the actual grant artifact.
+
+    This verifies evidence presence, integrity and scope, not a legal conclusion.
+    A human must attest that the artifact is an affirmative grant from the holder.
+    A general website policy or an inline operator status is not a grant record.
+    """
     if rights.get("status") != "cleared":
         raise ValueError("Source is not cleared for reuse")
     if rights.get("sha256") != capture["sha256"] or rights.get("url") != capture["url"]:
@@ -54,6 +59,49 @@ def compile_rows(rows, capture, metadata, rights):
     if not all(rights.get(k) for k in ("basis", "basis_uri", "reviewer", "reviewed_at")):
         raise ValueError("Rights clearance requires evidence and a reviewer")
     utc(rights["reviewed_at"])
+    record_path = scoped_path(root, rights.get("permission_record"))
+    if not record_path.is_file():
+        raise ValueError("File-specific permission record is missing")
+    record_bytes = record_path.read_bytes()
+    if digest(record_bytes) != rights.get("permission_record_sha256"):
+        raise ValueError("File-specific permission record hash differs")
+    record = read_json(record_path)
+    if (record.get("record_type") != "file_specific_permission"
+            or record.get("decision") != "granted"):
+        raise ValueError("An affirmative file-specific permission record is required")
+    if record.get("source_url") != capture["url"] or record.get("source_sha256") != capture["sha256"]:
+        raise ValueError("Permission record does not identify this source file")
+    if record.get("intended_use") != rights["intended_use"]:
+        raise ValueError("Permission record does not cover the intended use")
+    holder = metadata.get("rights_holder")
+    if not isinstance(holder, str) or not holder.strip() or record.get("rights_holder") != holder:
+        raise ValueError("Permission record does not match the source rights holder")
+    if not {"facility_rows", "identity_sidecar", "service_excerpts"} <= set(record.get("permitted_content", [])):
+        raise ValueError("Permission record does not cover all emitted content")
+    review = record.get("review", {})
+    if (review.get("reviewer") != rights["reviewer"] or review.get("reviewed_at") != rights["reviewed_at"]
+            or review.get("affirmative_grant_verified") is not True
+            or review.get("rights_holder_authority_verified") is not True):
+        raise ValueError("Permission record lacks an accountable affirmative-grant review")
+    grant = record.get("grant_artifact", {})
+    if grant.get("kind") != "file_specific_grant" or not grant.get("locator"):
+        raise ValueError("General policies are not file-specific grant artifacts")
+    grant_path = scoped_path(root, grant.get("path"))
+    if not grant_path.is_file():
+        raise ValueError("Permission grant artifact is missing")
+    if grant_path in {record_path, scoped_path(root, capture["raw_path"])}:
+        raise ValueError("A source file or self-declaration is not the grant artifact")
+    grant_bytes = grant_path.read_bytes()
+    if not grant_bytes or digest(grant_bytes) != grant.get("sha256"):
+        raise ValueError("Permission grant artifact hash differs")
+    if rights["basis_uri"] != f"urn:sha256:{grant['sha256']}":
+        raise ValueError("Permission basis must identify the verified grant artifact")
+    return record
+
+
+def compile_rows(rows, capture, metadata, rights, root):
+    """No content is emitted without the verified file-specific grant record."""
+    permission = verify_permission(root, capture, metadata, rights)
     utc(capture["retrieved_at"])
     for k in ("publisher", "source_family", "source_key", "layout_reviewer", "layout_reviewed_at"):
         if not metadata.get(k):
@@ -67,7 +115,9 @@ def compile_rows(rows, capture, metadata, rights):
     batch["source_snapshots"].append(dict(snapshot_id=sid, source_key=metadata["source_key"],
         publisher=metadata["publisher"], source_family=metadata["source_family"], url=capture["url"],
         retrieved_at=capture["retrieved_at"], published_date=published,
-        license=f"{rights['basis']} ({rights['basis_uri']}); scope: {rights['intended_use']}",
+        license=f"File-specific permission from {permission['rights_holder']}; "
+                f"record urn:sha256:{rights['permission_record_sha256']}; "
+                f"grant {rights['basis_uri']}; scope: {rights['intended_use']}",
         attribution=metadata["publisher"], sha256=capture["sha256"],
         artifact_uri=f"urn:sha256:{capture['sha256']}", parser_version="ce-register-1",
         independence_status="unassessed"))
@@ -132,16 +182,20 @@ def build(root, manifest):
         if rights.get("status") != "cleared":
             holds.append(dict(url=key, sha256=capture["sha256"], reason=rights.get("status", "reuse_unassessed")))
             continue
+        # Validate the grant before parsing or producing any content. Inline
+        # status/basis fields alone can never unlock the release path.
+        verify_permission(root, capture, doc.get("metadata", {}), rights)
         if not doc.get("profile"):
             holds.append(dict(url=key, reason="unreviewed_parser_layout"))
             continue
         parsed = extract(raw_path, doc["profile"])
         # Unknown layouts/continuations never become a silently partial release.
         bad = set(parsed["summary"]["reject_reasons"]) - {"header_or_title", "blank_row"}
-        if bad or parsed["summary"]["pages_without_tables"] or parsed["summary"]["missing_serials"]:
+        if (bad or parsed["summary"]["pages_without_tables"] or parsed["summary"]["missing_serials"]
+                or parsed["summary"]["duplicate_serials"]):
             holds.append(dict(url=key, reason="unreconciled_extraction", detail=parsed["summary"]))
             continue
-        batch, ledger = compile_rows(parsed["rows"], capture, doc["metadata"], rights)
+        batch, ledger = compile_rows(parsed["rows"], capture, doc["metadata"], rights, root)
         seen[capture["sha256"]] = key
         for table in combined:
             if table != "contract_version":

@@ -1,6 +1,7 @@
 """Synthetic source layouts, permissions, provenance and downstream regressions."""
 import copy
 import json
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -22,7 +23,7 @@ PROFILE = dict(state="Example State", registration_namespace="example:clinical-r
                  service_wording=6, pin=7))
 
 
-def synthetic_pdf(path):
+def synthetic_pdf(path, serials=(1, 2)):
     doc = pymupdf.open()
     for page_no, service in enumerate(["Dialysis referral only", "Multispecialty"], 1):
         page = doc.new_page(width=900, height=220)
@@ -33,7 +34,7 @@ def synthetic_pdf(path):
         for y in ys:
             page.draw_line((xs[0], y), (xs[-1], y))
         header = ["S.No", "Registration", "Name", "Address", "State", "District", "Service", "PIN"]
-        values = [str(page_no), "REG-7", "Example MRI Clinic", "1 Fictional Road", "Example State",
+        values = [str(serials[page_no - 1]), "REG-7", "Example MRI Clinic", "1 Fictional Road", "Example State",
                   "Example District", service, "001234"]
         for y, row in zip(ys, [header, values]):
             for x, value in zip(xs, row):
@@ -42,18 +43,34 @@ def synthetic_pdf(path):
     doc.close()
 
 
-def fixtures(tmp_path):
+def fixtures(tmp_path, serials=(1, 2)):
     raw = tmp_path / "source.pdf"
-    synthetic_pdf(raw)
+    synthetic_pdf(raw, serials)
     sha = digest(raw.read_bytes())
     capture = dict(url=URL, status="fetched", retrieved_at=STAMP, sha256=sha, raw_path="source.pdf")
     rights = dict(status="cleared", sha256=sha, url=URL, intended_use="private_acquisition_and_team_review",
                   basis="Author-created synthetic fixture", basis_uri="https://example.invalid/permission",
                   reviewer="fixture-author", reviewed_at=STAMP)
     metadata = dict(publisher="Synthetic Publisher", source_family="synthetic-registry",
+                    rights_holder="Synthetic Publisher",
                     source_key="synthetic-register", layout_reviewer="fixture-author", layout_reviewed_at=STAMP,
                     published_date=None, effective_date=None, source_date_text="Data as on: January 2026")
     write_json(tmp_path / "capture.json", capture)
+    grant = ("SYNTHETIC GRANT, invented for tests only. Synthetic Publisher permits "
+             "private acquisition and team review of facility rows, identity sidecars "
+             f"and service excerpts from {URL}, SHA-256 {sha}.\n").encode()
+    (tmp_path / "grant.txt").write_bytes(grant)
+    permission = dict(record_type="file_specific_permission", decision="granted",
+        source_url=URL, source_sha256=sha, rights_holder="Synthetic Publisher",
+        intended_use="private_acquisition_and_team_review",
+        permitted_content=["facility_rows", "identity_sidecar", "service_excerpts"],
+        grant_artifact=dict(path="grant.txt", sha256=digest(grant), kind="file_specific_grant", locator="line 1"),
+        review=dict(reviewer="fixture-author", reviewed_at=STAMP,
+                    affirmative_grant_verified=True, rights_holder_authority_verified=True))
+    write_json(tmp_path / "permission.json", permission)
+    rights.update(permission_record="permission.json",
+                  permission_record_sha256=digest((tmp_path / "permission.json").read_bytes()),
+                  basis_uri="urn:sha256:" + digest(grant))
     manifest = dict(documents=[dict(capture_receipt="capture.json", rights=rights,
                                    profile=PROFILE, metadata=metadata)])
     return capture, rights, metadata, manifest
@@ -115,7 +132,7 @@ def test_clearance_cannot_be_assumed_or_transferred(tmp_path, change):
     capture, rights, metadata, _ = fixtures(tmp_path)
     rights.update(change)
     with pytest.raises(ValueError):
-        compile_rows([], capture, metadata, rights)
+        compile_rows([], capture, metadata, rights, tmp_path)
 
 
 def test_permission_hold_emits_no_source_rows(tmp_path):
@@ -155,7 +172,7 @@ def test_byte_alias_not_an_independent_source(tmp_path):
 def test_missing_name_bad_pin_and_registration_preserved(tmp_path):
     capture, rights, metadata, _ = fixtures(tmp_path)
     row, reject = classify_row(["1", "REG-001", None, "Unit 123456", "Example State", "District", "MRI planned", "12345"], PROFILE, "row 1")
-    batch, sidecar = compile_rows([row], capture, metadata, rights)
+    batch, sidecar = compile_rows([row], capture, metadata, rights, tmp_path)
     external = batch["external_facilities"][0]
     assert external["name_original"] is None and external["pin"] is None
     assert {"missing_name", "invalid_source_pin"} <= set(external["quality_flags"])
@@ -240,3 +257,102 @@ def test_portal_links_keep_repetition_and_hash_check(tmp_path):
     (tmp_path / "page.html").write_bytes(b"changed")
     with pytest.raises(ValueError):
         portal_inventory(a, tmp_path)
+
+
+def run_producer(tmp_path, manifest, output="cli-release"):
+    write_json(tmp_path / "manifest.json", manifest)
+    return subprocess.run([sys.executable, "-m", "research.acquisition.clinical_establishments.producer",
+        "--root", str(tmp_path), "--manifest", str(tmp_path / "manifest.json"),
+        "--out", str(tmp_path / output)], cwd=Path(__file__).resolve().parents[4],
+        capture_output=True, text=True)
+
+
+@pytest.mark.parametrize("mode", ["absent", "generic_policy_only", "generic_policy_record", "pending_record",
+    "altered_record", "missing_artifact", "altered_artifact", "wrong_holder", "wrong_file_hash", "wrong_url",
+    "wrong_use", "excerpts_not_permitted", "unverified_authority", "unverified_grant"])
+def test_cli_requires_applicable_permission_evidence(tmp_path, mode):
+    _, _, _, manifest = fixtures(tmp_path)
+    rights = manifest["documents"][0]["rights"]
+    permission = json.loads((tmp_path / "permission.json").read_text())
+    if mode == "absent":
+        rights["permission_record"] = "missing-permission.json"
+    elif mode == "generic_policy_only":
+        rights.pop("permission_record")
+        rights.pop("permission_record_sha256")
+        rights.update(basis="Permission is still pending", basis_uri="https://example.invalid/copyright-policy")
+    elif mode == "generic_policy_record":
+        permission["record_type"] = "general_website_policy"
+        permission["grant_artifact"]["kind"] = "website_policy"
+    elif mode == "pending_record":
+        permission["decision"] = "pending"
+    elif mode == "altered_record":
+        (tmp_path / "permission.json").write_text("{}")
+    elif mode == "missing_artifact":
+        (tmp_path / "grant.txt").unlink()
+    elif mode == "altered_artifact":
+        (tmp_path / "grant.txt").write_text("Permission has not been granted.")
+    elif mode == "wrong_holder":
+        permission["rights_holder"] = "Another Publisher"
+    elif mode == "wrong_file_hash":
+        permission["source_sha256"] = "0" * 64
+    elif mode == "wrong_url":
+        permission["source_url"] = "https://other.example.invalid/different.pdf"
+    elif mode == "wrong_use":
+        permission["intended_use"] = "personal_viewing_only"
+    elif mode == "excerpts_not_permitted":
+        permission["permitted_content"].remove("service_excerpts")
+    elif mode == "unverified_authority":
+        permission["review"]["rights_holder_authority_verified"] = False
+    elif mode == "unverified_grant":
+        permission["review"]["affirmative_grant_verified"] = False
+    if mode not in {"absent", "generic_policy_only", "altered_record", "missing_artifact", "altered_artifact"}:
+        write_json(tmp_path / "permission.json", permission)
+        rights["permission_record_sha256"] = digest((tmp_path / "permission.json").read_bytes())
+    result = run_producer(tmp_path, manifest)
+    assert result.returncode != 0, result.stdout
+    assert not (tmp_path / "cli-release").exists()
+
+
+@pytest.mark.parametrize("rights", [{}, {"status": "permission_required"}])
+def test_cli_unapproved_source_remains_links_only(tmp_path, rights):
+    _, _, _, manifest = fixtures(tmp_path)
+    manifest["documents"][0]["rights"] = rights
+    result = run_producer(tmp_path, manifest)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["external_facilities"] == 0
+    assert json.loads((tmp_path / "cli-release/identity-sidecar.json").read_text()) == []
+
+
+def test_cli_applicable_grant_replays_and_duplicate_imports(tmp_path):
+    _, _, _, manifest = fixtures(tmp_path)
+    result = run_producer(tmp_path, manifest)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["external_facilities"] == 2
+    assert json.loads(result.stdout)["facility_evidence"] == 1
+    assert len(json.loads((tmp_path / "cli-release/identity-sidecar.json").read_text())) == 2
+    again = run_producer(tmp_path, manifest, "cli-replay")
+    assert again.returncode == 0, again.stderr
+    for path in (tmp_path / "cli-release").iterdir():
+        assert path.read_bytes() == (tmp_path / "cli-replay" / path.name).read_bytes()
+    write_json(tmp_path / "base.json", [])
+    root = Path(__file__).resolve().parents[4]
+    validated = subprocess.run([sys.executable, str(root / "databricks/enrichment/validate_batch.py"),
+        "--base", str(tmp_path / "base.json"), "--batch", str(tmp_path / "cli-release/batch.json"),
+        "--batch", str(tmp_path / "cli-release/batch.json")], cwd=root, capture_output=True, text=True)
+    assert validated.returncode == 0, validated.stderr
+    assert json.loads(validated.stdout)["counts"]["external_facilities"] == 2
+
+
+def test_cli_duplicate_printed_serials_hold_both_physical_rows(tmp_path):
+    _, _, _, manifest = fixtures(tmp_path, serials=(1, 1))
+    inspected = extract(tmp_path / "source.pdf", PROFILE)
+    assert len(inspected["rows"]) == 2
+    assert inspected["summary"]["duplicate_serials"] == [1]
+    assert inspected["rows"][0]["locator"] != inspected["rows"][1]["locator"]
+    result = run_producer(tmp_path, manifest)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["external_facilities"] == 0
+    report = json.loads((tmp_path / "cli-release/release-report.json").read_text())
+    assert report["holds"][0]["reason"] == "unreconciled_extraction"
+    assert report["holds"][0]["detail"]["duplicate_serials"] == [1]
+    assert report["holds"][0]["detail"]["parsed_rows"] == 2
