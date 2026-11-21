@@ -4,7 +4,7 @@ The current [board on main](https://github.com/vzhu08/databricks-datathon/blob/m
 
 ## Every developer
 
-Read the remote board at kickoff and before handoff. If it cannot be read, report that blocker before starting a new assignment. Work within your path scope. Propose shared contract changes to Oliver. Do not overwrite another branch, modify kit/, merge PRs, deploy, or commit real data. No recurring automation is required for this finite sprint. Report exact checks and distinguish fixtures, public data, and live Databricks.
+Read the remote board at kickoff and before handoff. If it cannot be read, report that blocker before starting a new assignment. Work within your path scope. Propose shared contract changes to Vincent, the integration lead. Do not overwrite another branch, modify kit/, merge PRs, deploy, or commit real data. No recurring automation is required for this finite sprint. Report exact checks and distinguish fixtures, public data, and live Databricks.
 
 ## Developer A · Codex
 
@@ -28,7 +28,7 @@ Claim ACQ-C01 in its issue with your handle/session. Read its full task card and
 Implement ACQ-D01. Read the complete task card and contract v1.0.0. Own databricks/enrichment/, tests/databricks/enrichment/, and docs/handoffs/ACQ-D01.md on codex/acq-d-databricks. Start with a strict schema/referential validator and local fixture tests, then parameterized staged Delta ingestion and source profiling. Inspect authorized Databricks access if available; do not invent a table, credentials, or successful live run. Complete every unblocked local component and provide the exact remaining user action for any live access blocker. Open a PR with evidence; do not merge or change shared contracts.
 ```
 
-## Orchestrator
+## Orchestrator · Vincent Zhu
 
 Keep the main board and shared contract current, inspect task progress, review scope/quality, and integrate accepted PRs in dependency order. Record exact branch heads and results. Never translate a fixture pass into a live-data or deployed-app claim. B/C claim their roles; A/D chat IDs belong in their issue/board records once created.
 
