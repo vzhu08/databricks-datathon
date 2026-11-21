@@ -139,11 +139,113 @@ def source_scope_flags(text):
     flags = []
     if re.search(r'\bnear(?:by)?\b|\badjacent\s+to\b|\bnext\s+to\b|\bopposite\b|\bbeside\b', text, re.I):
         flags.append('source_nearby_wording_not_onsite')
-    if re.search(r'\bteleradiology\b|\bremote\b|\boff[- ]site\b|\bacquired\s+elsewhere\b|\breferred?\s+(?:out|to)\b', text, re.I):
+    if re.search(r'\bteleradiology\b|\bremote\b|\boff[- ]site\b|'
+                 r'\b(?:acquired|performed|scanned)\s+elsewhere\b|'
+                 r'\b(?:refers?|referred|referring)\b|\breferrals?[- ]only\b|'
+                 r'\breferrals?\s+(?:to|for)\b|\bonly\s+referrals?\b', text, re.I):
         flags.append('source_remote_wording_not_onsite')
-    if re.search(r'\bproposed\b|\bplanned\b|\bnot\s+(?:yet\s+)?operating\b|\bno\s+MRI\b|\bMRI\s+unavailable\b', text, re.I):
+    if re.search(r'\bproposed\b|\bplanned\b|\bclosed\b|\bclosure\b|'
+                 r'\b(?:ceased|stopped|suspended)\b|\bnot\s+(?:yet\s+)?operating\b|'
+                 r'\b(?:does|do|did)\s+not\s+(?:perform|provide|offer|conduct|operate)\b|'
+                 r'\bno\s+MRI\b|\bMRI\s+(?:is\s+)?unavailable\b|'
+                 r'\bnot\s+(?:available|offered|provided|performed)\b', text, re.I):
         flags.append('source_nonoperating_wording')
     return flags
+
+CONTEXT_BLOCKS = {'p', 'li', 'dd', 'dt', 'blockquote', 'figcaption', 'address',
+                  'h1', 'h2', 'h3', 'h4', 'h5', 'h6'}
+SAME_UNIT_CONTINUATION = re.compile(
+    r'^(?:it|its|they|their|this\s+(?:unit|centre|center|facility|service)|'
+    r'the\s+(?:unit|centre|center|facility|service)|images?|scans?|'
+    r'MRI\s+(?:images?|scans?)|patients?|reporting|services?)\b', re.I)
+
+def statement_context(text, excerpt, name):
+    """Recover complete relevant statements; do not scan unrelated neighbors."""
+    text, quote = norm(text), norm(excerpt)
+    matches = list(re.finditer(re.escape(quote), text))
+    if not quote or not matches:
+        raise ValueError('Excerpt absent from enclosing source context')
+    statements = list(re.finditer(r'\S.*?(?:[.!?](?=\s|$)|$)', text))
+    touched = {i for i, statement in enumerate(statements)
+               if any(statement.start() < match.end() and statement.end() > match.start()
+                      for match in matches)}
+    named = {i for i in touched if mentions_label(statements[i].group(), name)}
+    selected = set(named or touched)
+    # Same-unit statements and subjectless continuations retain their qualifiers.
+    # An adjacent statement naming another unit is not evidence about this one.
+    for seed in list(selected):
+        previous = seed - 1
+        while previous >= 0 and mentions_label(statements[previous].group(), name):
+            selected.add(previous)
+            previous -= 1
+        following = seed + 1
+        while following < len(statements):
+            value = statements[following].group()
+            if not (mentions_label(value, name) or SAME_UNIT_CONTINUATION.match(value)):
+                break
+            selected.add(following)
+            following += 1
+    indices = sorted(selected)
+    context = '\n'.join(statements[i].group() for i in indices)
+    spans = ','.join(f'{statements[i].start()}:{statements[i].end()}' for i in indices)
+    return context, spans
+
+def element_locator(element):
+    """A deterministic selector for an enclosing element, including unnamed rows."""
+    parts = []
+    while element and element.name != '[document]':
+        ordinal = 1 + len(element.find_previous_siblings(element.name))
+        parts.append(f'{element.name}:nth-of-type({ordinal})')
+        element = element.parent
+    return ' > '.join(reversed(parts))
+
+def enclosing_context(path, spec, excerpt, name):
+    """Resolve scope from the original, independently of how tightly it was quoted."""
+    if 'page' in spec:
+        # PDF annotations are page-located; keep statement spans on that page.
+        # Without explicit sentence boundaries a larger passage is retained for
+        # conservative review, rather than guessing table/column segmentation.
+        text, locator = located_text(path, spec)
+        context, spans = statement_context(text, excerpt, name)
+        return context, locator+'; normalized-text chars='+spans
+    soup = BeautifulSoup(path.read_bytes(), 'html.parser')
+    for el in soup.select('script,style'): el.decompose()
+    elements = soup.select(spec['selector'])
+    if len(elements) != 1:
+        raise ValueError('Scope selector must identify one source location')
+    element = elements[0]
+    row = element if element.name == 'tr' else element.find_parent('tr')
+    if row is not None:
+        block = row
+    else:
+        # A broad selector may enclose several blocks. Locate the quoted block,
+        # never use a neighboring paragraph/row just because it shares the page.
+        candidates = []
+        for child in element.find_all(list(CONTEXT_BLOCKS | {'tr'})):
+            if norm(excerpt) in norm(child.get_text(' ', strip=True)):
+                candidate = child.find_parent('tr') or child
+                if not any(candidate is existing for existing in candidates):
+                    candidates.append(candidate)
+        candidates = [candidate for candidate in candidates
+                      if not any(candidate is ancestor for other in candidates if other is not candidate
+                                 for ancestor in other.parents)]
+        if len(candidates) > 1:
+            raise ValueError('Excerpt occurs in multiple source contexts; narrow the selector or quote')
+        if candidates:
+            block = candidates[0]
+        elif element.name in CONTEXT_BLOCKS:
+            block = element
+        else:
+            block = element.find_parent(list(CONTEXT_BLOCKS))
+            if block is None:
+                block = element if element.name in {'div', 'section', 'article', 'body', 'html'} else (
+                    element.find_parent(['div', 'section', 'article', 'body', 'html']) or element)
+    text = norm(block.get_text(' ', strip=True))
+    locator = 'HTML context='+element_locator(block)
+    if block.name == 'tr':
+        return text, locator+'; complete table row'
+    context, spans = statement_context(text, excerpt, name)
+    return context, locator+'; normalized-text chars='+spans
 
 def taxonomy(soup):
     index=defaultdict(list); state=city=None
@@ -251,6 +353,9 @@ def bind_annotation(spec, sources, index):
     name = record.get('name_original')
     if name and not mentions_label(excerpt, name):
         raise ValueError('Unit label is absent from the located claim excerpt')
+    claim_context, claim_scope_locator = enclosing_context(path, spec, excerpt, name)
+    record.update(claim_scope_context=claim_context, claim_scope_locator=claim_scope_locator,
+                  host_scope_context=None, host_scope_locator=None)
     record['source_record_id'] = spec['annotation_key']
     record['record_locator'] = locator
     record['quality_flags'] = list(record.get('quality_flags', [
@@ -275,14 +380,16 @@ def bind_annotation(spec, sources, index):
             raise ValueError('Host campus label is absent from the relation excerpt')
         if not name or not mentions_label(host_excerpt, name):
             raise ValueError('Unit label is absent from the relation excerpt')
+        host_context, host_scope_locator = enclosing_context(host_path, host_location, host_excerpt, name)
         record.update(host_locator=host_locator, host_source=host_source,
-                      host_snapshot_id=host_sid, host_source_url=host_manifest['url'])
+                      host_snapshot_id=host_sid, host_source_url=host_manifest['url'],
+                      host_scope_context=host_context, host_scope_locator=host_scope_locator)
     requested_mri = bool(record.get('mri_scope') or spec['kind'] in (
         'named_mri_service', 'installation_only', 'proposed_mri', 'mri_date_conflict'))
-    record['mri_scope'] = requested_mri and binds_mri_to_unit(excerpt, name, host)
+    record['mri_scope'] = requested_mri and binds_mri_to_unit(claim_context, name, host)
     if requested_mri and not record['mri_scope']:
         record['quality_flags'].append('mri_not_bound_to_named_unit')
-    scope_flags = source_scope_flags(excerpt + ' ' + (host_excerpt or ''))
+    scope_flags = source_scope_flags(claim_context + '\n' + (record['host_scope_context'] or ''))
     record['quality_flags'].extend(scope_flags)
     record['source_scope_blocks_onsite'] = bool(scope_flags)
     record['declared_host_relation'] = relation
@@ -367,6 +474,8 @@ def compile_packet(root, as_of, annotations='annotations.json'):
             host_excerpt=record.get('host_excerpt'),host_locator=record.get('host_locator'),
             host_source=record.get('host_source'),host_snapshot_id=record.get('host_snapshot_id'),
             host_source_url=record.get('host_source_url'),claim_locator=locator,
+            claim_scope_context=record.get('claim_scope_context'),claim_scope_locator=record.get('claim_scope_locator'),
+            host_scope_context=record.get('host_scope_context'),host_scope_locator=record.get('host_scope_locator'),
             onsite_mri_documentary_candidate=bool(kind=='named_mri_service' and is_mri
                 and not remote and relation!='nearby' and not record.get('source_scope_blocks_onsite')
                 and kind not in NON_OPERATIONAL and not time_flags),

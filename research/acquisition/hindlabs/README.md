@@ -55,8 +55,8 @@ Each annotation supplies `annotation_key`, `source`, `kind`, `excerpt`,
 explicit CSS `selector` selecting exactly one HTML element. The
 whitespace-normalized excerpt must occur there and include the emitted unit name.
 Published locators are derived from the validated selector/page; input display
-`locator` strings are ignored. MRI must occur in the named unit's own clause,
-after excluding host names and location suffixes. Unbound MRI annotations retain
+`locator` strings are ignored. MRI must occur in the named unit's own source
+statement or row, after excluding host names and location suffixes. Unbound MRI annotations retain
 their identity and review flags but emit no MRI service claim or candidate.
 
 Record fields include `name_original`, `unit_class` and optional geography,
@@ -71,6 +71,24 @@ snapshot ID. Host relations are `onsite`, `nearby`, `remote` or `unresolved`.
 Nearby/remote source wording overrides an incompatible `onsite` annotation, whose
 original value remains in `declared_host_relation`, and prevents an onsite
 candidate. These conservative checks do not replace campus/service review.
+
+Scope is checked against the original enclosing statement or complete HTML table
+row for both claim and host, not just the supplied quote. Selecting a nested span
+or cell cannot hide teleradiology, nearby, closure, negative or referral-only
+wording. Same-unit statements and continuations such as “Images are acquired
+elsewhere” stay in scope; an unrelated adjacent statement naming another unit
+does not veto an onsite claim. Ambiguous quotes matching multiple HTML blocks or
+rows require a narrower selector or quote. PDF scope uses statement spans in the
+validated page; without sentence boundaries, the larger passage is retained for
+conservative review rather than guessing a table or column split.
+
+The ledger records `claim_scope_context`/`claim_scope_locator` and
+`host_scope_context`/`host_scope_locator` separately. Context locators identify the
+enclosing HTML element or PDF page and zero-based, end-exclusive character spans
+in its whitespace-normalized text (or the complete HTML row). Relevant statement
+fragments are separated by newlines. Original evidence/host excerpts and validated
+claim/host locators remain unchanged; expanded context is never substituted for a
+quoted excerpt.
 
 Optional `dates` hold complete validity dates and/or the original
 partial operating dates and date-conflict notes. Annotation selection and meaning
@@ -104,7 +122,8 @@ The synthetic suite runs the adapter CLI before, on and after validity boundarie
 then imports all four envelopes together through
 `databricks/enrichment/validate_batch.py` with an empty synthetic base, preserving
 one copy of each source claim. It also exercises forged locators, unrelated unit
-names, separately located HTML/PDF host evidence and nearby modality wording.
+names, separately located HTML/PDF host evidence, clipped scope qualifiers,
+closure/referral-only wording and unrelated neighboring statements/rows.
 For private packets, run that validator separately using the authorized base. Fixture checks,
 local original-source replay, live Databricks checks, publication and submission
 are distinct results. This adapter performs none of the last three.

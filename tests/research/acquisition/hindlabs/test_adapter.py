@@ -493,5 +493,162 @@ class CliRegressionTests(unittest.TestCase):
         corpus(self.root, [annotation])
         self.assertIn('one source location', self.run_cli(succeeds=False))
 
+    def scope_corpus(self, html, excerpt, selector='#scope', record_fields=None):
+        annotation = claim('onsite', 'Example MRI Unit', **(record_fields or {}))
+        annotation.update(selector=selector, excerpt=excerpt)
+        raw = FIXTURE.read_bytes().replace(b'</body>', html.encode()+b'</body>')
+        corpus(self.root, [annotation], raw)
+        return annotation
+
+    def scope_row(self, result):
+        return next(r for r in result['claim_ledger.json'] if r['kind']=='named_mri_service')
+
+    def test_cli_full_and_clipped_qualifiers_cannot_create_onsite_candidates(self):
+        statements = [
+            ('remote', 'Example MRI Unit provides MRI teleradiology reporting only. Images are acquired elsewhere.',
+             'Example MRI Unit provides MRI', 'source_remote_wording_not_onsite'),
+            ('nearby', 'Example MRI Unit is near the hospital where all MRI scans are performed.',
+             'Example MRI Unit', 'source_nearby_wording_not_onsite'),
+            ('closed', 'Example MRI Unit is closed and does not perform MRI.',
+             'Example MRI Unit', 'source_nonoperating_wording'),
+            ('negative', 'Example MRI Unit does not perform MRI scans.',
+             'Example MRI Unit', 'source_nonoperating_wording'),
+            ('referral', 'Example MRI Unit provides MRI referrals only; scans are performed elsewhere.',
+             'Example MRI Unit provides MRI', 'source_remote_wording_not_onsite'),
+            ('referral-only', 'Example MRI Unit is a referral-only service for MRI.',
+             'Example MRI Unit', 'source_remote_wording_not_onsite'),
+        ]
+        for key, full, clipped, flag in statements:
+            for label, excerpt in [('full', full), ('clipped', clipped)]:
+                with self.subTest(key=key, quote=label):
+                    self.scope_corpus('<p id="scope">'+full+'</p>', excerpt)
+                    result = self.run_cli(key+'-'+label)
+                    row = self.scope_row(result)
+                    self.assertFalse(row['onsite_mri_documentary_candidate'])
+                    self.assertIn(flag, row['review_flags'])
+                    evidence = next(e for e in result['batch.json']['facility_evidence']
+                                    if e['evidence_id']==row['evidence_id'])
+                    self.assertEqual(evidence['excerpt'], excerpt)
+                    self.assertEqual(evidence['locator'], 'HTML selector=#scope')
+                    self.assertEqual(evidence['polarity'], 'inconclusive')
+                    self.assertEqual(result['batch.json']['facility_matches'], [])
+
+    def test_cli_inline_selector_cannot_clip_enclosing_statement(self):
+        excerpt = 'Example MRI Unit provides MRI'
+        html = '<p><span id="scope">'+excerpt+'</span> teleradiology reporting only.</p>'
+        self.scope_corpus(html, excerpt)
+        result = self.run_cli()
+        row = self.scope_row(result)
+        self.assertFalse(row['onsite_mri_documentary_candidate'])
+        self.assertIn('teleradiology reporting only.', row['claim_scope_context'])
+        self.assertEqual(row['claim_locator'], 'HTML selector=#scope')
+        self.assertIn('p:nth-of-type', row['claim_scope_locator'])
+
+    def test_cli_clipped_host_uses_its_own_complete_statement(self):
+        excerpt = 'Example MRI Unit serves Example East Campus'
+        for key, suffix, flag in [
+            ('remote', ' with MRI teleradiology reporting only.', 'source_remote_wording_not_onsite'),
+            ('nearby', ' from a nearby office.', 'source_nearby_wording_not_onsite'),
+            ('closed', ' but is closed and does not perform MRI.', 'source_nonoperating_wording'),
+            ('referral', ' through referral-only MRI services.', 'source_remote_wording_not_onsite'),
+        ]:
+            with self.subTest(key=key):
+                html = '<p><span id="host-scope">'+excerpt+'</span>'+suffix+'</p>'
+                self.scope_corpus(html, 'Example MRI Unit operates inside Example East Campus.',
+                    selector='#onsite', record_fields=dict(host_campus='Example East Campus',
+                    host_relation='onsite', host_excerpt=excerpt,
+                    host_location=dict(selector='#host-scope')))
+                result = self.run_cli(key)
+                row = self.scope_row(result)
+                self.assertFalse(row['onsite_mri_documentary_candidate'])
+                self.assertIn(flag, row['review_flags'])
+                self.assertEqual(row['host_excerpt'], excerpt)
+                self.assertEqual(row['host_locator'], 'HTML selector=#host-scope')
+                self.assertIn(suffix.strip(), row['host_scope_context'])
+
+    def test_cli_unrelated_adjacent_statement_does_not_veto_actual_onsite_claim(self):
+        own = 'Example MRI Unit provides MRI scans onsite.'
+        other = 'Other Diagnostic Unit is closed and provides referral-only teleradiology from a nearby office.'
+        for key, text in [('before', other+' '+own), ('after', own+' '+other)]:
+            for label, excerpt in [('clipped', 'Example MRI Unit provides MRI'), ('full', text)]:
+                with self.subTest(key=key, quote=label):
+                    self.scope_corpus('<p id="scope">'+text+'</p>', excerpt)
+                    result = self.run_cli(key+'-'+label)
+                    row = self.scope_row(result)
+                    self.assertTrue(row['onsite_mri_documentary_candidate'])
+                    self.assertEqual(row['claim_scope_context'], own)
+                    self.assertFalse(any(flag.startswith('source_') for flag in row['review_flags']))
+
+    def test_cli_unrelated_host_neighbor_does_not_veto_onsite_claim(self):
+        own = 'Example MRI Unit is inside Example East Campus.'
+        other = 'Other Diagnostic Unit is closed and provides remote reporting only.'
+        self.scope_corpus('<p id="host-scope">'+own+' '+other+'</p>',
+            'Example MRI Unit operates inside Example East Campus.', selector='#onsite',
+            record_fields=dict(host_campus='Example East Campus', host_relation='onsite',
+                               host_excerpt=own, host_location=dict(selector='#host-scope')))
+        result = self.run_cli()
+        row = self.scope_row(result)
+        self.assertTrue(row['onsite_mri_documentary_candidate'])
+        self.assertEqual(row['host_scope_context'], own)
+        self.assertEqual(row['host_excerpt'], own)
+
+    def test_cli_broad_selector_does_not_choose_between_repeated_row_fragments(self):
+        html = ('<table id="scope"><tr><td>Example MRI Unit</td><td>Performs MRI onsite.</td></tr>'
+                '<tr><td>Example MRI Unit</td><td>Closed.</td></tr></table>')
+        self.scope_corpus(html, 'Example MRI Unit')
+        self.assertIn('multiple source contexts', self.run_cli(succeeds=False))
+
+    def test_cli_same_unit_continuation_cannot_be_dropped(self):
+        own = 'Example MRI Unit provides MRI.'
+        continuation = 'Images are acquired elsewhere.'
+        self.scope_corpus('<p id="scope">'+own+' '+continuation+'</p>', own)
+        result = self.run_cli()
+        row = self.scope_row(result)
+        self.assertFalse(row['onsite_mri_documentary_candidate'])
+        self.assertIn(continuation, row['claim_scope_context'])
+
+    def test_cli_complete_table_row_applies_but_neighboring_row_does_not(self):
+        for key, status, expected in [('closed', 'Closed; referral-only MRI.', False),
+                                      ('onsite', 'Performs MRI scans onsite.', True)]:
+            with self.subTest(key=key):
+                html = ('<table><tr><td><span id="scope">Example MRI Unit</span></td><td>'+status+
+                        '</td></tr><tr><td>Other Diagnostic Unit</td>'
+                        '<td>Nearby teleradiology reporting only; closed.</td></tr></table>')
+                self.scope_corpus(html, 'Example MRI Unit')
+                result = self.run_cli(key)
+                row = self.scope_row(result)
+                self.assertEqual(row['onsite_mri_documentary_candidate'], expected)
+                self.assertIn(status, row['claim_scope_context'])
+                self.assertNotIn('Other Diagnostic Unit', row['claim_scope_context'])
+                self.assertIn('tr:nth-of-type', row['claim_scope_locator'])
+
+    def test_cli_pdf_statement_scope_preserves_excerpt_and_excludes_unrelated_neighbor(self):
+        import fitz
+        for key, statement, expected in [
+            ('remote', 'Example MRI Unit provides MRI teleradiology reporting only.', False),
+            ('closed', 'Example MRI Unit is closed and does not perform MRI.', False),
+            ('onsite', 'Example MRI Unit provides MRI scans onsite.', True),
+        ]:
+            with self.subTest(key=key):
+                annotation = claim('onsite', 'Example MRI Unit')
+                annotation.pop('selector')
+                annotation.update(source='scope_pdf', page=1, excerpt='Example MRI Unit')
+                manifest = corpus(self.root, [annotation])
+                pdf = self.root/('raw/scope-'+key+'.pdf')
+                with fitz.open() as doc:
+                    page = doc.new_page()
+                    page.insert_text((72,72), statement)
+                    page.insert_text((72,110), 'Other Diagnostic Unit is closed and provides teleradiology only.')
+                    doc.save(pdf)
+                manifest['sources'].append(dict(manifest['sources'][0], key='scope_pdf',
+                    url='https://example.invalid/scope.pdf', path=pdf.relative_to(self.root).as_posix(),
+                    sha256=digest(pdf.read_bytes())))
+                (self.root/'manifest.json').write_bytes(encode(manifest))
+                result = self.run_cli(key)
+                row = self.scope_row(result)
+                self.assertEqual(row['onsite_mri_documentary_candidate'], expected)
+                self.assertEqual(row['claim_scope_context'], statement)
+                self.assertEqual(row['claim_locator'], 'PDF page=1')
+
 
 if __name__=='__main__':unittest.main()
