@@ -1,0 +1,249 @@
+{
+  "format_version": 1,
+  "release_sha256": {
+    "batch.json": "198c8049d950b093c7a6916168481310cd3ebc8e877dd967b90a2346b45b3a4b",
+    "claim_ledger.json": "a47e7bb6f645c808dba351d16c04467b51d4f360c90629cacc2ac6489a2f8113"
+  },
+  "sources": [
+    {
+      "key": "monilek",
+      "publisher": "Monilek Hospital & Research Centre",
+      "family": "monilek",
+      "independence_status": "shared_origin",
+      "url": "https://monilekhospital.com/Home/details/12",
+      "retrieved_at": "2026-11-21T19:31:49.295760Z",
+      "sha256": "5c240ac883f300adf360deae618a9abd4a7d92e3c5b77efb8c39955226f5a009",
+      "format": "html",
+      "name_format": "{name}",
+      "address_format": "{address}",
+      "fields": {
+        "excerpt": [32, 0, 70],
+        "city": [1, 39, 45],
+        "name": [0, 0, 34],
+        "address": [1, 0, 63]
+      },
+      "identity_locator": "Department of Nephrology, facility list; title and address header identify the campus"
+    },
+    {
+      "key": "rh",
+      "publisher": "Rajasthan Hospital",
+      "family": "rajasthan_hospital",
+      "independence_status": "shared_origin",
+      "url": "https://rajasthanhospital.in/departments/nephrology/",
+      "retrieved_at": "2026-11-21T19:31:50.348095Z",
+      "sha256": "4afe5516afbc4bb440a7f2305cb3cba9fdf4c44bd9f02f3236b11839c904a6fb",
+      "format": "html",
+      "name_format": "{name}",
+      "address_format": "{address}",
+      "fields": {
+        "excerpt": [99, 0, 39],
+        "city": [20, 5, 11],
+        "name": [0, 62, 80],
+        "address": [20, 0, 53],
+        "opposite_campus": [20, 5, 22]
+      },
+      "identity_locator": "Nephrology service list, item 14; hospital address footer"
+    },
+    {
+      "key": "geetanjali",
+      "publisher": "Geetanjali Hospital",
+      "family": "geetanjali_hospital",
+      "independence_status": "shared_origin",
+      "url": "https://www.geetanjalihospital.co.in/faq",
+      "retrieved_at": "2026-11-21T19:31:50.281169Z",
+      "sha256": "2f2b03eeaa3176410ee739ec64234ba1dbd847ac850684c77ca5d872ff797ac5",
+      "format": "html",
+      "name_format": "{name}",
+      "address_format": "{address}",
+      "fields": {
+        "excerpt": [168, 0, 21],
+        "city": [245, 72, 79],
+        "name": [0, 6, 25],
+        "address": [245, 0, 97]
+      },
+      "identity_locator": "FAQ question 1, Scope of Services / Nephrology; hospital footer"
+    },
+    {
+      "key": "medipulse",
+      "publisher": "Medipulse Hospital",
+      "family": "medipulse",
+      "independence_status": "shared_origin",
+      "url": "https://www.medipulse.in/departments/nephrology",
+      "retrieved_at": "2026-11-21T19:33:13.037167Z",
+      "sha256": "3338c0b5476b0eb679bda4e49d964eece024140cb471da055ba07eff1e930167",
+      "format": "html",
+      "name_format": "{name}",
+      "address_format": "{street}, {city}",
+      "fields": {
+        "excerpt": [190, 0, 41],
+        "city": [259, 43, 50],
+        "name": [0, 13, 31],
+        "street": [259, 19, 42],
+        "locality": [259, 28, 42]
+      },
+      "identity_locator": "Department of Nephrology, Key Services; {locality} address footer"
+    },
+    {
+      "key": "sms",
+      "publisher": "Annals of Medical and Health Sciences Research, institution-affiliated authors",
+      "family": "sms_nephrology",
+      "independence_status": "shared_origin",
+      "url": "https://www.amhsr.org/articles/periodic-peritoneal-dialysis-in-end-stage-renal-disease-is-it-still-relevant-a-single-center-study-from-india.pdf",
+      "retrieved_at": "2026-11-21T19:38:04.340055Z",
+      "sha256": "86e8572258c3dfeeca3e9f3cde64e2f8c9ea16e802693f5df3f979c14be6b15e",
+      "format": "pdf",
+      "name_format": "{name}",
+      "fields": {
+        "excerpt": [1, 1116, 1208],
+        "city": [1, 288, 294],
+        "name": [1, 262, 286],
+        "first_month": [1, 1137, 1148],
+        "last_month": [1, 1153, 1165]
+      },
+      "identity_locator": "Abstract, Subjects and Methods; departmental affiliation and title define PD"
+    },
+    {
+      "key": "udaipurstudy",
+      "publisher": "International Journal of Medical and Pharmaceutical Research, institution-affiliated study",
+      "family": "geetanjali_hospital",
+      "independence_status": "shared_origin",
+      "url": "https://ijmpr.in/article/catheter-related-bloodstream-infections-in-patients-undergoing-hemodialysis-through-non-tunneled-catheters-incidence-microbiological-profile-antimicrobial-susceptibility-and-clinical-outcomes-3849/",
+      "retrieved_at": "2026-11-21T19:37:44.621616Z",
+      "sha256": "ce5deec983203d9f875adb34881e70a578b3e18ce74bdd21bc8d14c76b1f3b6e",
+      "published_date": "2026-07-13",
+      "format": "html",
+      "name_format": "{name}",
+      "fields": {
+        "excerpt": [93, 289, 387],
+        "city": [93, 145, 152],
+        "name": [93, 104, 143],
+        "first_month": [93, 190, 202],
+        "last_month": [93, 206, 215]
+      },
+      "identity_locator": "Materials and Methods, opening paragraph; study site and period"
+    },
+    {
+      "key": "cag",
+      "publisher": "Comptroller and Auditor General of India",
+      "family": "cag_performance_audit",
+      "independence_status": "independent",
+      "url": "https://cag.gov.in/uploads/download_audit_report/2019/Report_No_4_of_2019_General_and_Social_Sector_Government_of_Rajasthan.pdf",
+      "retrieved_at": "2026-11-21T19:37:45.866072Z",
+      "sha256": "63a1e875d9b955b4744142c78e52b96efcf8028091329c2373fa9b3b6b030f9a",
+      "format": "pdf",
+      "name_format": "{name}",
+      "fields": {
+        "excerpt": [127, 3004, 3025],
+        "city": [111, 106, 113],
+        "name": [111, 77, 104],
+        "year_range": [127, 1720, 1727],
+        "hospital_abbreviation": [127, 1729, 1741]
+      },
+      "identity_locator": "Section 3.7, {hospital_abbreviation}; printed page 119, diagnostic fees paragraph and footnote 53"
+    },
+    {
+      "key": "charter",
+      "publisher": "RUHS College of Medical Sciences",
+      "family": "ruhs_jaipuria",
+      "independence_status": "shared_origin",
+      "url": "https://ruhscms.org/files/Citizen_Charter.pdf",
+      "retrieved_at": "2026-11-21T19:33:13.824410Z",
+      "sha256": "045cffec8b5f94efe516daee1ed2cc45f74f7b88434b5f94718799159ecefa99",
+      "format": "pdf",
+      "name_format": "{name}",
+      "address_format": "{address}",
+      "fields": {
+        "excerpt": [1, 1274, 1344],
+        "city": [1, 41, 47],
+        "name": [1, 16, 58],
+        "address": [1, 1080, 1099]
+      },
+      "identity_locator": "Citizen Charter opening identity, contact block and registration timings"
+    },
+    {
+      "key": "ipna",
+      "publisher": "AIIMS Jodhpur workshop organizers, brochure hosted by IPNA",
+      "family": "aiims_jodhpur",
+      "independence_status": "shared_origin",
+      "url": "https://theipna.org/wp-content/uploads/2024/01/3rd-pediatrics-annual-kidney-meet-9_240110_205435-1.pdf",
+      "retrieved_at": "2026-11-21T19:37:44.590617Z",
+      "sha256": "56afb41727f485026cea62ac7b1b6c724aaf0d06f1483954b931d6506e4914f3",
+      "format": "pdf",
+      "name_format": "{acronym}, {city}",
+      "expand_aiims": true,
+      "fields": {
+        "excerpt": [3, 323, 378],
+        "city": [1, 198, 205],
+        "acronym": [1, 192, 197],
+        "event_month": [1, 285, 297],
+        "campus_short": [3, 33, 46]
+      },
+      "identity_locator": "3rd Annual Pediatric Kidney Meet {campus_short} agenda; day 1 session 10:10–10:30, event date in brochure"
+    }
+  ],
+  "interpretation_rules": [
+    {
+      "kind": "onsite_self_report",
+      "time_specific": false,
+      "assertion": "The hospital lists dialysis for ICU patients under its nephrology services. The source does not date the service.",
+      "ownership": "private",
+      "contains": "\\bICU\\b"
+    },
+    {
+      "kind": "historical_institutional_study",
+      "time_specific": true,
+      "assertion": "The institution-affiliated study reports catheter insertion at this centre among haemodialysis participants during {first_month} to {last_month}. The passage does not locate every dialysis session.",
+      "ownership": "private",
+      "contains": "\\bcatheters\\b"
+    },
+    {
+      "kind": "onsite_self_report",
+      "time_specific": false,
+      "assertion": "The hospital lists dialysis of critically ill patients among its nephrology services. The campus is opposite {opposite_campus}. The statement is undated.",
+      "ownership": "private",
+      "contains": "\\bcritically\\b"
+    },
+    {
+      "kind": "unknown_service",
+      "time_specific": false,
+      "assertion": "This public campus charter describes emergency services. Its wording leaves dialysis unknown. The separate hospital opposite it has a different identity.",
+      "ownership": "public",
+      "contains": "\\bemergency\\b"
+    },
+    {
+      "kind": "historical_financial_audit",
+      "time_specific": true,
+      "assertion": "The government auditor identified a historical dialysis charge in the hospital's {year_range} accounts. The entry does not establish modality, session volume or present availability.",
+      "ownership": "public",
+      "contains": "\\blakh\\b"
+    },
+    {
+      "kind": "onsite_self_report",
+      "time_specific": false,
+      "assertion": "The hospital lists peritoneal dialysis under nephrology in its own scope of services. The listing is undated.",
+      "ownership": "private",
+      "contains": "\\bperitoneal\\b"
+    },
+    {
+      "kind": "training_only",
+      "time_specific": true,
+      "assertion": "A {event_month} workshop scheduled a session on haemodialysis unit setup. A workshop agenda alone does not establish patient service.",
+      "ownership": "public",
+      "contains": "\\bprescription\\b"
+    },
+    {
+      "kind": "onsite_self_report",
+      "time_specific": false,
+      "assertion": "The hospital describes an on-site haemodialysis facility. Its effective date and present acceptance are unknown.",
+      "ownership": "private",
+      "contains": "\\bstation\\b"
+    },
+    {
+      "kind": "historical_institutional_study",
+      "time_specific": true,
+      "assertion": "The hospital-affiliated authors describe peritoneal dialysis performed in this hospital between {first_month} and {last_month}. The observation applies to that study period.",
+      "ownership": "public",
+      "contains": "\\bunderwent\\b"
+    }
+  ]
+}
