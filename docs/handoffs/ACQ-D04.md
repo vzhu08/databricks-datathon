@@ -2,7 +2,7 @@
 
 Owner: Developer D. Review and integration: Vincent Zhu (`vzhu08`) through [task #39](https://github.com/vzhu08/databricks-datathon/issues/39) and [handoff #40](https://github.com/vzhu08/databricks-datathon/issues/40).
 
-Branch: `codex/acq-d-national-register`, started from `8e8320a`. Tested implementation: `6dd333c45bdfabf11820d7876f17e506161aad24`; the following handoff commit is documentation only. The remote ownership board was reread at `33ab2f8` before handoff. Changes are confined to `research/certification/`, `tests/research/certification/` and this file. The integration lead retains board and merge ownership.
+Branch: `codex/acq-d-national-register`, started from `8e8320a`. Initial implementation: `6dd333c45bdfabf11820d7876f17e506161aad24`. Tested cutoff correction: `2d9eb6562f4b01564d7fb0648b4f2612ff73f78d`; the following handoff update is documentation only. The remote ownership board was reread through `5c44d37` for this correction. Changes are confined to `research/certification/`, `tests/research/certification/` and this file. The integration lead retains board and merge ownership.
 
 ## Result and limits
 
@@ -110,7 +110,9 @@ research/certification/.venv/bin/python -m research.certification.run replay \
   --run-dir data/local/certification/acq-d03-final-20261121
 ```
 
-Fixture checks: **61 certification tests pass** (26 national, 35 preserved D03) and **72 enrichment tests pass**. Tests use synthetic facilities and cover filter/pager drift, partial acquisition, changed totals, repeats, temporal uncertainty, source discrepancies, raw corruption, no-overwrite behavior and validator compatibility. Compilation and `git diff --check` also passed.
+Fixture checks: **64 certification tests pass** (29 national, 35 preserved D03) and **72 enrichment tests pass**. Tests use synthetic facilities and cover filter/pager drift, partial acquisition, changed totals, repeats, temporal uncertainty, source discrepancies, raw corruption, no-overwrite behavior and validator compatibility. Compilation and `git diff --check` also passed.
+
+Vincent's [integration review](https://github.com/vzhu08/databricks-datathon/issues/39#issuecomment-7068885557) identified a noncanonical-cutoff bug: Python 3.12 accepts `20261121`, which could then compare incorrectly with canonical end dates. D04 now rejects anything other than an exact `YYYY-MM-DD` calendar date at acquisition, recheck, finalization, build and classification boundaries. Regression tests show that a synthetic `24/12/2026` end remains future-end ledger-only at `2026-11-21`, while `20261121` is rejected before projection or output. Compact/week-date acquisition creates no directory and never calls the collector. The actual compact-date CLI invocation exits 1 with the format error and no directory created. Local checks ran on Python 3.9.6; Vincent's Python 3.12 retest remains part of integration review. No actual capture used a compact cutoff, and the recorded artifact hashes remain valid.
 
 Public-source checks: actual v1 validation passes; D04 replays all **eight derived files byte-identically with zero network requests**. D03 replays its **seven original files byte-identically**, with unchanged run-manifest hash `5269d0f02bfd27b368b492440cc9cdf1883e2c4492d571bc1d0557b28310c22c`. The D04 source discrepancy and map difference remain explicit limitations.
 
