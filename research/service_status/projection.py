@@ -1,6 +1,7 @@
 """Private, as-of service assessments from reviewed claims on a preserved VF base."""
 from collections import Counter, defaultdict
 from datetime import date, datetime
+from itertools import combinations
 import re
 
 from research.matching.common import base_check, combine_external, digest, require
@@ -29,6 +30,34 @@ def iso_day(value):
     parsed = date.fromisoformat(value)
     require(value == parsed.isoformat(), "date", "expected YYYY-MM-DD")
     return parsed
+
+
+def joint_onsite_targets(review, base):
+    """Validate an explicit joint-service assessment without inferring it from campus names."""
+    targets = review["joint_onsite_targets"]
+    require(review["source"]["kind"] == "original" and review["finding"] == "onsite_service"
+            and isinstance(targets, list) and len(targets) >= 2
+            and all(isinstance(t, str) and t in base for t in targets)
+            and len(set(targets)) == len(targets) and review["facility_id"] in targets,
+            "joint_onsite_targets", "expected distinct original onsite targets including this campus")
+    names = {}
+    for target in targets:
+        name = base[target]["source_row"].get("name")
+        require(isinstance(name, str) and name.strip() and name.strip().casefold() not in names,
+                "joint_onsite_targets", "the target campuses must have distinguishable names")
+        names[name.strip().casefold()] = target
+    # Match longer names first so a single mention of North Example Campus cannot also name Example Campus.
+    alternatives = "|".join(re.escape(name) for name in sorted(names, key=len, reverse=True))
+    pattern = re.compile(r"(?<!\w)(?:" + alternatives + r")(?!\w)")
+    excerpt = review["source"]["excerpt"].casefold()
+    require({names[m.group()] for m in pattern.finditer(excerpt)} == set(targets),
+            "joint_onsite_targets", "the service excerpt must identify each target separately")
+    rationale = review.get("campus_resolution")
+    rationale = rationale.casefold() if isinstance(rationale, str) else ""
+    require(any(names[m.group()] == review["facility_id"] for m in pattern.finditer(rationale))
+            and bool(set(re.findall(r"\w+", pattern.sub(" ", rationale))) - {"and", "or"}),
+            "campus_resolution", "explain onsite service for this named target campus")
+    return sorted(targets)
 
 
 def assessed_claim(review, base, snapshots, evidence, matches, as_of):
@@ -106,8 +135,58 @@ def assessed_claim(review, base, snapshots, evidence, matches, as_of):
             "provenance": provenance}
 
 
-def decision(claims):
+def overlaps(first, second):
+    return first["start"] < second["end"] and second["start"] < first["end"]
+
+
+def local_disputes(claims):
+    opinions = defaultdict(list)
+    for c in claims:
+        ref = c["provenance"]
+        locator = ((ref["occurrence_key"], ref["field"]) if ref["kind"] == "original"
+                   else (ref["evidence_id"],))
+        if c["in_period"] and c["superseded_by"] is None:
+            opinions[locator].append(c)
+    disputed = set()
+    for group in opinions.values():
+        unresolved = [c["provenance"] for c in group if c["decision"] is None]
+        for claim in group:
+            if claim["decision"] is None:
+                continue
+            ref = claim["provenance"]
+            if any(ref["kind"] == "external" or overlaps(ref, other) for other in unresolved):
+                disputed.add(claim["review_id"])
+    return disputed
+
+
+def attribution_disputes(grouped):
+    disputed = {target: local_disputes(claims) for target, claims in grouped.items()}
+    passages = defaultdict(list)
+    for target, claims in grouped.items():
+        _, service = target
+        for claim in claims:
+            ref = claim["provenance"]
+            if (ref["kind"] == "original" and claim["decision"] == "yes"
+                    and claim["superseded_by"] is None and claim["review_id"] not in disputed[target]):
+                passages[ref["occurrence_key"], service, ref["field"]].append((target, claim))
+
+    for opinions in passages.values():
+        opinions.sort(key=lambda pair: pair[1]["review_id"])
+        for (left_target, left), (right_target, right) in combinations(opinions, 2):
+            if left_target == right_target or not overlaps(left["provenance"], right["provenance"]):
+                continue
+            if left.get("joint_onsite_targets") and left["joint_onsite_targets"] == right.get("joint_onsite_targets"):
+                continue
+            for target, claim, other in ((left_target, left, right), (right_target, right, left)):
+                disputed[target].add(claim["review_id"])
+                claim.setdefault("attribution_conflicts_with", []).append(other["review_id"])
+    return disputed
+
+
+def decision(claims, disputed=None):
     claims = sorted(claims, key=lambda claim: claim["review_id"])
+    if disputed is None:
+        disputed = local_disputes(claims)
     by_id = {c["review_id"]: c for c in claims}
     active = []
     for claim in claims:
@@ -122,24 +201,6 @@ def decision(claims):
         original_date = claim["provenance"]["source_date"]
         require(not original_date or iso_day(replacement["provenance"]["source_date"]) >= iso_day(original_date),
                 "superseded_by", "replacement evidence predates the superseded observation")
-    opinions = defaultdict(list)
-    for c in active:
-        ref = c["provenance"]
-        locator = ((ref["occurrence_key"], ref["field"]) if ref["kind"] == "original"
-                   else (ref["evidence_id"],))
-        if c["in_period"]:
-            opinions[locator].append(c)
-    disputed = set()
-    for group in opinions.values():
-        unresolved = [c["provenance"] for c in group if c["decision"] is None]
-        for claim in group:
-            if claim["decision"] is None:
-                continue
-            ref = claim["provenance"]
-            if any(ref["kind"] == "external" or
-                   (ref["start"] < other["end"] and other["start"] < ref["end"])
-                   for other in unresolved):
-                disputed.add(claim["review_id"])
     eligible = [c for c in active if c["decision"] and c["review_id"] not in disputed]
     outcomes = {c["decision"] for c in eligible}
     if any(c["finding"] == "campus_conflict" and c["in_period"] for c in active):
@@ -193,6 +254,8 @@ def project(base, metadata, reviews, batches, *, as_of, checked_sources, base_fi
         require(isinstance(rid, str) and rid.strip() and rid not in seen, "review_id", "missing or duplicate")
         seen.add(rid)
         claim = assessed_claim(r, source, snapshots, facts, matches, day)
+        if "joint_onsite_targets" in r:
+            claim["joint_onsite_targets"] = joint_onsite_targets(r, source)
         if r.get("campus_resolution"):
             claim["campus_resolution"] = r["campus_resolution"]
         relevant_flags = set(identity.get(fid, {}).get("conflicts", []))
@@ -206,10 +269,11 @@ def project(base, metadata, reviews, batches, *, as_of, checked_sources, base_fi
                 claim["reviewed_finding"] = claim["finding"]
                 claim.update(finding="campus_conflict", decision=None)
         grouped[fid, service].append(claim)
+    disputed = attribution_disputes(grouped)
     facilities, coverage = {}, {s: Counter() for s in SERVICES}
     by_state = {}
     for fid, row in source.items():
-        services = {s: decision(grouped.get((fid, s), ())) for s in SERVICES}
+        services = {s: decision(grouped.get((fid, s), ()), disputed.get((fid, s), ())) for s in SERVICES}
         geography = identity.get(fid, {}).get("state") or "unknown"
         state_counts = by_state.setdefault(geography, {s: Counter() for s in SERVICES})
         for s, result in services.items():

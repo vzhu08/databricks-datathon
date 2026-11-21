@@ -225,6 +225,112 @@ class ProjectionTests(unittest.TestCase):
         self.assertEqual(patient_lookup(result, FID)["services"]["mri"]["status"], "yes")
         self.assertEqual(len(lookup(result, FID)["services"]["mri"]["reviews"]), 3)
 
+    def campus_reviews(self, text, host_excerpt, partner_excerpt):
+        self.base[0]["source_row"].update(name="Partner Campus", description=text)
+        self.base[1]["source_row"].update(name="Host Campus", description=text)
+        batch = load(ROOT / "contracts" / "fixtures" / "enrichment.json")
+        host, partner = original(), original()
+        for review, target, excerpt in ((host, "twin", host_excerpt), (partner, FID, partner_excerpt)):
+            review.update(review_id=target, facility_id=target)
+            start = text.index(excerpt)
+            review["source"].update(occurrence_key="twin", start=start, end=start + len(excerpt), excerpt=excerpt)
+        partner["source"]["target_match_id"] = batch["facility_matches"][0]["match_id"]
+        partner["campus_resolution"] = "The service statement explicitly identifies Partner Campus."
+        return host, partner, batch
+
+    def test_competing_onsite_targets_share_one_passage(self):
+        phrase = "Only Partner Campus operates the onsite MRI service."
+        text = "Host Campus is on Example Road. " + phrase
+        for host_excerpt in (phrase, phrase[:-1], text):
+            with self.subTest(host_excerpt=host_excerpt):
+                host, partner, batch = self.campus_reviews(text, host_excerpt, phrase)
+                contested = self.run_projection([host, partner], [batch])
+                self.assertEqual(contested, self.run_projection([partner, host], [batch]))
+                for target, rival in (("twin", FID), (FID, "twin")):
+                    claim = lookup(contested, target)["services"]["mri"]
+                    self.assertEqual(claim["reason_code"], "disputed_claim")
+                    self.assertEqual(patient_lookup(contested, target)["services"]["mri"]["status"], "unconfirmed")
+                    self.assertEqual(claim["reviews"][0]["finding"], "onsite_service")
+                    self.assertEqual(claim["reviews"][0]["attribution_conflicts_with"], [rival])
+                    self.assertEqual(claim["reviews"][0]["provenance"]["occurrence_key"], "twin")
+
+        other = copy.deepcopy(host)
+        other.update(review_id="other", finding="other_campus")
+        for reviews in ([partner], [other, partner], [host, partner, other]):
+            result = self.run_projection(reviews, [batch])
+            self.assertEqual(patient_lookup(result, "twin")["services"]["mri"]["status"], "unconfirmed")
+            self.assertEqual(patient_lookup(result, FID)["services"]["mri"]["status"], "yes")
+
+    def test_explicit_joint_onsite_review_for_each_named_target(self):
+        text = "Host Campus and Partner Campus each perform MRI onsite."
+        host, partner, batch = self.campus_reviews(text, text, text)
+        host["campus_resolution"] = "Host Campus is one of the two sites explicitly providing MRI onsite."
+        self.assertEqual(self.run_projection([host, partner], [batch])["coverage"]["mri"]["unconfirmed"], 3)
+        host["joint_onsite_targets"] = [FID, "twin"]
+        self.assertEqual(self.run_projection([host, partner], [batch])["coverage"]["mri"]["unconfirmed"], 3)
+        partner["joint_onsite_targets"] = ["twin", FID]
+        result = self.run_projection([host, partner], [batch])
+        for target in ("twin", FID):
+            self.assertEqual(patient_lookup(result, target)["services"]["mri"]["status"], "yes")
+            claim = lookup(result, target)["services"]["mri"]["reviews"][0]
+            self.assertEqual(claim["joint_onsite_targets"], sorted([FID, "twin"]))
+            self.assertNotIn("attribution_conflicts_with", claim)
+
+        for targets, rationale in ((["twin", FID], "It is at the second campus."),
+                                   (["twin", FID], "Host Campus and Partner Campus."),
+                                   (["twin", "twin"], host["campus_resolution"]),
+                                   (["twin", "absent"], host["campus_resolution"])):
+            with self.subTest(targets=targets, rationale=rationale), self.assertRaises(MatchingError):
+                self.run_projection([dict(host, joint_onsite_targets=targets, campus_resolution=rationale)], [batch])
+        self.base[1]["source_row"]["name"] = "Campus"
+        host["source"].update(start=16, end=len(text), excerpt=text[16:])
+        with self.assertRaisesRegex(MatchingError, "identify each target separately"):
+            self.run_projection([host], [batch])
+
+    def test_separate_statements_and_twin_origins_can_support_two_campuses(self):
+        first, second = "Host Campus performs onsite MRI.", "Partner Campus performs onsite MRI."
+        host, partner, batch = self.campus_reviews(first + " " + second, first, second)
+        self.assertEqual(self.run_projection([host, partner], [batch])["coverage"]["mri"]["yes"], 2)
+        # Distinct original occurrences can have identical IDs, raw fields and character coordinates.
+        both = "Host Campus and Partner Campus each perform onsite MRI."
+        host, partner, batch = self.campus_reviews(both, both, both)
+        partner["source"]["occurrence_key"] = FID
+        del partner["source"]["target_match_id"]
+        self.assertEqual(self.run_projection([host, partner], [batch])["coverage"]["mri"]["yes"], 2)
+
+    def test_different_services_or_fields_do_not_compete_for_a_passage(self):
+        text = "Host Campus offers dialysis and Partner Campus provides onsite MRI."
+        host, partner, batch = self.campus_reviews(text, text, text)
+        host["service"] = "dialysis"
+        result = self.run_projection([host, partner], [batch])
+        self.assertEqual(patient_lookup(result, "twin")["services"]["dialysis"]["status"], "yes")
+        self.assertEqual(patient_lookup(result, FID)["services"]["mri"]["status"], "yes")
+
+        text = "Host Campus and Partner Campus each offer onsite MRI."
+        host, partner, batch = self.campus_reviews(text, text, text)
+        self.base[1]["source_row"]["capability"] = text
+        host["source"]["field"] = "capability"
+        self.assertEqual(self.run_projection([host, partner], [batch])["coverage"]["mri"]["yes"], 2)
+
+    def test_competing_targets_keep_independent_support_and_historical_reviews(self):
+        phrase = "Only Partner Campus operates onsite MRI."
+        separate = "Host Campus refers all MRI cases elsewhere."
+        host, partner, batch = self.campus_reviews(phrase + " " + separate, phrase, phrase)
+        no = copy.deepcopy(host)
+        no.update(review_id="host-referral", finding="referral_only")
+        no["source"].update(start=len(phrase) + 1, end=len(phrase) + 1 + len(separate), excerpt=separate)
+        result = self.run_projection([host, partner, no], [batch])
+        self.assertEqual(patient_lookup(result, "twin")["services"]["mri"]["status"], "no")
+        self.assertEqual(patient_lookup(result, FID)["services"]["mri"]["status"], "unconfirmed")
+
+        host["superseded_by"] = no["review_id"]
+        result = self.run_projection([host, partner, no], [batch])
+        self.assertEqual(patient_lookup(result, FID)["services"]["mri"]["status"], "yes")
+        public_host = patient_lookup(result, "twin")["services"]["mri"]
+        self.assertEqual(public_host["status"], "no")
+        self.assertTrue(any(c.get("historical") for c in public_host["sources"]))
+        self.assertEqual(len(lookup(result, "twin")["services"]["mri"]["reviews"]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
