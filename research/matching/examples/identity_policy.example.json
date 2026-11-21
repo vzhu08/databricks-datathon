@@ -1,0 +1,7 @@
+{
+  "synthetic_registry": {
+    "base_field": "source_row.registry_id",
+    "external_field": "source_record_id",
+    "source_keys": ["synthetic_directory"]
+  }
+}

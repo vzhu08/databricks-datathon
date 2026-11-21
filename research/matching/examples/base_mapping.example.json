@@ -1,0 +1,11 @@
+{
+  "name": "source_row.EXAMPLE_NAME_COLUMN",
+  "address": "source_row.EXAMPLE_ADDRESS_COLUMN",
+  "city": "source_row.EXAMPLE_CITY_COLUMN",
+  "state": "source_row.EXAMPLE_STATE_COLUMN",
+  "pin": "source_row.EXAMPLE_PIN_COLUMN",
+  "latitude": "source_row.EXAMPLE_LATITUDE_COLUMN",
+  "longitude": "source_row.EXAMPLE_LONGITUDE_COLUMN",
+  "phone": ["source_row.EXAMPLE_PHONE_COLUMN"],
+  "alt_names": ["source_row.EXAMPLE_ALIAS_COLUMN"]
+}

@@ -1,0 +1,11 @@
+[
+  {
+    "case_id": "control:synthetic-001",
+    "kind": "control",
+    "external_facility_id": "synthetic:external:001",
+    "points": [
+      {"label": "claimed", "latitude": 26.0, "longitude": 75.0,
+       "coordinate_basis": "Synthetic review point; not measured source coordinates"}
+    ]
+  }
+]

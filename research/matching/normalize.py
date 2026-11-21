@@ -51,8 +51,12 @@ colony sector block plot floor main cross circle chowk bazar bazaar market post 
 taluk taluka mandal dist district city town village vill state india pin pincode
 """.split())
 
-_PUNCT = re.compile(r"[^\w\s]", re.UNICODE)
 _SPACE = re.compile(r"\s+")
+
+
+def _strip_punctuation(value):
+    """Keep letters, combining marks and digits of any script; everything else becomes a space."""
+    return "".join(ch if unicodedata.category(ch)[0] in "LMN" else " " for ch in value)
 
 
 def fold(text):
@@ -60,8 +64,7 @@ def fold(text):
     if not isinstance(text, str):
         return None
     value = unicodedata.normalize("NFKC", text).casefold().replace("&", " and ")
-    value = _PUNCT.sub(" ", value).replace("_", " ")
-    value = _SPACE.sub(" ", value).strip()
+    value = _SPACE.sub(" ", _strip_punctuation(value)).strip()
     return value or None
 
 

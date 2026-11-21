@@ -1,0 +1,9 @@
+[
+  {
+    "match_id": "acq-c-match:0000000000000000000000000000000000000000000000000000000000000000",
+    "decision": "confirmed",
+    "reviewer": "reviewer-handle",
+    "reviewed_at": "2026-11-21T20:00:00Z",
+    "rationale": "Synthetic example: address and district on both records describe the same campus."
+  }
+]
