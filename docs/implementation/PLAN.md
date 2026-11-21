@@ -20,6 +20,8 @@ A/B public work and C/D fixture work start independently. Actual matching needs 
 
 Use public/free sources. Do not add paid imagery, patient data, hospital outreach, or portal automation that bypasses access controls. HFR/PM-JAY bulk integration is deferred; access failures must be documented, not hidden with synthetic substitutions.
 
+The [validation research plan](VALIDATION_RESEARCH.md) brings together the accepted data and the subsequent A–D acquisition assignments. Its first audit evaluates campus identity, service claims, accreditation and geographic evidence separately.
+
 ## Quality and release gates
 
 - Preserve original row IDs, count, and evidence wording; external/postal joins must not multiply base rows.
