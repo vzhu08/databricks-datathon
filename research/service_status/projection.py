@@ -1,6 +1,7 @@
 """Private, as-of service assessments from reviewed claims on a preserved VF base."""
 from collections import Counter, defaultdict
 from datetime import date, datetime
+import re
 
 from research.matching.common import base_check, combine_external, digest, require
 
@@ -30,7 +31,7 @@ def iso_day(value):
     return parsed
 
 
-def assessed_claim(review, raw, snapshots, evidence, matches, as_of):
+def assessed_claim(review, base, snapshots, evidence, matches, as_of):
     """Resolve a review back to its source; never infer clinical polarity from a word or machine count."""
     finding = review["finding"]
     require(finding in DECISIVE or finding in OTHER, "finding", "unknown review finding")
@@ -41,6 +42,10 @@ def assessed_claim(review, raw, snapshots, evidence, matches, as_of):
     ref = review["source"]
     in_period = True
     if ref["kind"] == "original":
+        target = review["facility_id"]
+        origin = ref.get("occurrence_key", target)
+        require(origin in base, "source.occurrence_key", "unknown original occurrence")
+        raw = base[origin]["source_row"]
         field, start, end = ref["field"], ref["start"], ref["end"]
         require(field in FIELDS, "source.field", "expected an original service field")
         value = raw.get(field)
@@ -48,6 +53,16 @@ def assessed_claim(review, raw, snapshots, evidence, matches, as_of):
                 and 0 <= start < end <= len(value), "source", "invalid original-field span")
         require(value[start:end] == ref["excerpt"] and ref["excerpt"].strip(),
                 "source.excerpt", "original text has changed")
+        target_match_id = ref.get("target_match_id")
+        if origin != target:
+            match = matches.get(target_match_id)
+            campus_name = base[target]["source_row"].get("name")
+            require(match is not None and match["status"] == "confirmed" and match["facility_id"] == target,
+                    "source.target_match_id", "cross-occurrence attribution needs a confirmed target campus")
+            require(isinstance(campus_name, str) and campus_name.strip()
+                    and re.search(r"(?<!\w)" + re.escape(campus_name.strip()) + r"(?!\w)", ref["excerpt"], re.I)
+                    and isinstance(review.get("campus_resolution"), str) and review["campus_resolution"].strip(),
+                    "campus_resolution", "review must identify the named target campus in the cited statement")
         source_day = ref.get("source_date")
         valid_from, valid_until = ref.get("valid_from"), ref.get("valid_until")
         start_day = iso_day(valid_from) if valid_from else None
@@ -55,7 +70,8 @@ def assessed_claim(review, raw, snapshots, evidence, matches, as_of):
         require(not (start_day and end_day and end_day < start_day), "source", "reversed effective interval")
         in_period = (start_day is None or start_day <= as_of) and (end_day is None or as_of <= end_day)
         applicable = in_period
-        provenance = {"kind": "original", "field": field, "start": start, "end": end,
+        provenance = {"kind": "original", "occurrence_key": origin, "target_match_id": target_match_id,
+                      "field": field, "start": start, "end": end,
                       "source_date": source_day, "family": ref.get("source_family"),
                       "valid_from": valid_from, "valid_until": valid_until,
                       "url_scope": "record", "url_field": "source_urls"}
@@ -109,7 +125,7 @@ def decision(claims):
     opinions = defaultdict(list)
     for c in active:
         ref = c["provenance"]
-        locator = ((ref["field"], ref["start"], ref["end"]) if ref["kind"] == "original"
+        locator = ((ref["occurrence_key"], ref["field"], ref["start"], ref["end"]) if ref["kind"] == "original"
                    else (ref["evidence_id"],))
         if c["in_period"]:
             opinions[locator].append(c)
@@ -169,12 +185,12 @@ def project(base, metadata, reviews, batches, *, as_of, checked_sources, base_fi
         require(fid in source and service in SERVICES, "review", "unknown occurrence or service")
         require(isinstance(rid, str) and rid.strip() and rid not in seen, "review_id", "missing or duplicate")
         seen.add(rid)
-        claim = assessed_claim(r, source[fid]["source_row"], snapshots, facts, matches, day)
+        claim = assessed_claim(r, source, snapshots, facts, matches, day)
+        if r.get("campus_resolution"):
+            claim["campus_resolution"] = r["campus_resolution"]
         if claim["decision"] and identity.get(fid, {}).get("conflicts"):
             rationale = r.get("campus_resolution")
-            if isinstance(rationale, str) and rationale.strip():
-                claim["campus_resolution"] = rationale
-            else:
+            if not (isinstance(rationale, str) and rationale.strip()):
                 claim["reviewed_finding"] = claim["finding"]
                 claim.update(finding="campus_conflict", decision=None)
         grouped[fid, service].append(claim)

@@ -84,6 +84,26 @@ class ProjectionTests(unittest.TestCase):
             r["source"].update(dates)
             self.assertEqual(lookup(self.run_projection([r]), FID)["services"]["mri"]["status"], "unconfirmed")
 
+    def test_service_at_other_named_campus_preserves_the_original_locator(self):
+        other = original(finding="other_campus")
+        other.update(facility_id="twin", review_id="r2")
+        self.base[0]["source_row"]["name"] = "Example Campus"
+        attributed = original()
+        attributed["source"]["occurrence_key"] = "twin"
+        with self.assertRaises(MatchingError):
+            self.run_projection([other, attributed])
+        batch = load(ROOT / "contracts" / "fixtures" / "enrichment.json")
+        attributed["source"]["target_match_id"] = batch["facility_matches"][0]["match_id"]
+        attributed["campus_resolution"] = "The source explicitly names Example Campus and the reviewed match resolves that site."
+        result = self.run_projection([other, attributed], [batch])
+        self.assertEqual(lookup(result, "twin")["services"]["mri"]["status"], "unconfirmed")
+        entry = lookup(result, FID)["services"]["mri"]
+        self.assertEqual(entry["status"], "yes")
+        self.assertEqual(entry["reviews"][0]["provenance"]["occurrence_key"], "twin")
+        self.base[0]["source_row"]["name"] = "Different Campus"
+        with self.assertRaises(MatchingError):
+            self.run_projection([other, attributed], [batch])
+
     def test_wrong_field_span_and_base_version_fail(self):
         r = original()
         r["source"]["start"] += 1
