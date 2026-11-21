@@ -6,6 +6,17 @@ Use GitHub repository issues and this board for all team communication. Record a
 
 ## Current scope
 
+Oliver's main chat owns every merge, revert, PR disposition, branch retirement and release; the user makes executive decisions there. Vincent's data chat owns acquisition/refinement, distributes data assignments and recommends data changes to Oliver. Andrew owns all demo UI and UX. Ayush takes one short, nonblocking check. The two orchestrators each have one five-minute board checker. [Ownership acknowledgement](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7071089326) · [Assignments and checker consolidation](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7071100414)
+
+The [routing and storm-surge plan](ROUTING_AND_SURGE_DEMO.md) adds a fictional local demonstration alongside the national evidence work.
+
+| Owner | Active demo task | Handoff |
+| --- | --- | --- |
+| Oliver | [#87 · Model, allocation and replay](https://github.com/vzhu08/databricks-datathon/issues/87) | Release a tested, synthetic replay to Andrew and maintain the integration queue. |
+| Vincent | [#88 · Data orchestration](https://github.com/vzhu08/databricks-datathon/issues/88) | Supply dated campus-level evidence, typed capacity, coverage and reuse limits. |
+| Andrew | [#89 · All UI/UX](https://github.com/vzhu08/databricks-datathon/issues/89) | Implement the playable offline map, explanations and accessible comparison. |
+| Ayush | [#90 · One replay clarity check](https://github.com/vzhu08/databricks-datathon/issues/90) | Return one short comment after Andrew posts a playable build. |
+
 All new implementation, collection, dataset scouting and reporting must serve the full pinned national Virtue Foundation base. The acceptance denominator is 10,088 original facility rows, including the 11 repeated-ID pairs. Count geographically unknown and unsupported rows. Show coverage by state/UT and service. Regional source totals and sampled audits have their own denominators. Standalone local investigations and proposed state pilots are retired. [Plan](PLAN.md) · [National evidence task](https://github.com/vzhu08/databricks-datathon/issues/58)
 
 ## Latest messages
