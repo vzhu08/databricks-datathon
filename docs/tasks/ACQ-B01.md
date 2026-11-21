@@ -1,3 +1,5 @@
+> Historical Rajasthan research card. The regional collection is complete. Use the [national plan](../implementation/PLAN.md) and [NAT-B01](https://github.com/vzhu08/databricks-datathon/issues/58) for current work on all 10,088 original facility rows.
+
 # ACQ-B01 · Developer B · Deep Rajasthan trauma evidence programme
 
 Task issue: https://github.com/vzhu08/databricks-datathon/issues/4

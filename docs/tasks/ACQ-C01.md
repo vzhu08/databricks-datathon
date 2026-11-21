@@ -1,3 +1,5 @@
+> This card records the completed matching implementation. The remaining live work is the full nationwide run in [#57](https://github.com/vzhu08/databricks-datathon/issues/57). The [national plan](../implementation/PLAN.md) governs current acceptance.
+
 # ACQ-C01 · Developer C · Identity matching and geographic verification
 
 Task issue: https://github.com/vzhu08/databricks-datathon/issues/5

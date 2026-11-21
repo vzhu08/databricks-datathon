@@ -1,36 +1,31 @@
-# Implementation plan · evidence acquisition sprint
+# Nationwide facility validation plan
 
-## Outcome
+## Population and deliverable
 
-Deliver nationwide identity/location corroboration and a Rajasthan trauma pilot as reproducible collection code, source snapshots outside Git, reviewed links, five Databricks Delta tables, and a coverage report. Building footprints are a secondary location check. [Board](OWNERSHIP.md) · [Contract](ACQUISITION_CONTRACT.md)
+Process every row of `databricks_virtue_foundation_dataset_dais_2026_databricks.virtue_foundation_dataset.facilities VERSION AS OF 0`. The verified denominator is **10,088 original rows**, with **10,077 distinct nonblank upstream IDs**. Keep all 11 pairs of identical rows. The sibling `india_post_pincode_directory VERSION AS OF 0` contains 165,627 rows and 19,586 distinct PINs. Group it by PIN before joining. Keep the original ID and fields alongside each unique processing key. [Source receipt](https://github.com/vzhu08/databricks-datathon/issues/36#issuecomment-7069028113) · [Row-preservation proof](https://github.com/vzhu08/databricks-datathon/issues/6#issuecomment-7069026841)
 
-The human superseded the original first-pass assignments. Retain their useful practices: exact excerpts, campus preservation, synthetic fixtures, isolated write scopes, bound SQL parameters, and distinct local/live verification. Keep the existing search contract unchanged. App ranking, UI, deployment, and numerical authenticity-score calibration are downstream work, not silently included here.
+Produce a reproducible national matching and evidence run plus a coverage report for dialysis, MRI and trauma care. A row counts as processed when it receives an explicit outcome. Missing fields, ambiguous candidates and unsupported services remain visible. Report the number of processed original rows out of 10,088 separately from the number with a confirmed campus or supported service.
 
-## Acquisition and parallel execution
+## Work by owner
 
-1. **D inspects the original data.** Use the authorized Marketplace table and included postal directory. Preserve original IDs, text, URLs, and campus distinctions. Record actual schema and missingness. Use a documented stable surrogate only if the source lacks an ID. No guessed live table names or fixture schema presented as real.
-2. **A collects national identity references.** Download/reuse HOT OSM healthcare features and the NHP hospital-directory mirror. Capture provenance, dates, raw hashes, attribution, type coverage, duplicates, invalid coordinates, and normalized records. A mirror is not an additional independent source.
-3. **B leads deep Rajasthan research through five chats.** Collect state trauma listings, RGHS identities, national trauma-program records, targeted NABH scopes/official hospital pages, and an independent audit. See B's task for planning, goal, subtask isolation, and evidence requirements.
-4. **C resolves identities and geography.** Propose candidates against D's base IDs. Confirm only unambiguous same-namespace identifiers without conflicts automatically; other pilot links require review. Check postal context without row multiplication. Obtain small building extracts around ten disputed sites and ten clear controls when available.
-5. **D publishes additive enrichment.** Validate and stage `source_snapshots`, `external_facilities`, `facility_matches`, `facility_evidence`, and `review_queue`, then publish a completed run after checks. Preserve the original facility table.
+| Owner | Deliverable |
+| --- | --- |
+| Oliver · A/D | Supply the complete versioned base, source mapping and hash. Apply the reviewed occurrence-key rule for identical repeats and prove zero lost or added payloads. Validate and publish the five additive tables through the completed-run manifest. [Preparation](https://github.com/vzhu08/databricks-datathon/issues/6) |
+| Andrew · C | Run the indexed matcher on all 10,088 rows against the 146,847 national OSM and National Health Portal references. Carry missing-geography and zero-candidate rows through to the report. Record runtime, versions, state/UT counts and mutually exclusive identity outcomes. [National matching](https://github.com/vzhu08/databricks-datathon/issues/57) |
+| Vincent · B/integration | Assess original service fields across the full base. Preserve exact wording, field, URL, date and upstream family. Separate direct onsite support, planned/unavailable/referred-out wording and unresolved evidence. Link external service evidence only to a reviewed campus. [Coverage report](https://github.com/vzhu08/databricks-datathon/issues/58) |
+| Ayush · E | Verify the shared base from his own account, then scout one India-wide bulk dataset at a time. Record an official source, access method, geographic reach, campus join fields and reuse terms. [Account check](https://github.com/vzhu08/databricks-datathon/issues/60) |
 
-6. **E handles a small support task.** Ayuush checks eight source links and prepares a brief demo reference. This does not block acquisition or integration.
+## Criteria for new datasets
 
-A/B public work and C/D fixture work start independently. Actual matching needs A/B batches plus D's base mapping; live publication needs workspace access. Download public snapshots locally and import them to a permitted Volume so execution does not depend on unrestricted outbound access from Free Edition.
+Prioritize India-wide facility-level snapshots, permitted bulk downloads and documented APIs that can be compared with the entire original table. A nationwide specialist register may cover a subset of facilities; state its eligible population and measure overlap and incremental yield against all originals. Before adoption, verify permission, source family, snapshot date/hash, joint coverage with existing sources, and the states or facility types left uncovered. Count unique original records reached. A publisher’s row total alone cannot establish overlap.
 
-Use public/free sources. Do not add paid imagery, patient data, hospital outreach, or portal automation that bypasses access controls. HFR/PM-JAY bulk integration is deferred; access failures must be documented, not hidden with synthetic substitutions.
+Standalone regional collection and case studies have ended. Retain completed work as historical material with its geographic scope. Keep reserved evaluation sources independent of feature tuning. Where local evidence already exists, apply it only to eligible linked rows and keep its limited coverage explicit.
 
-The [validation research plan](VALIDATION_RESEARCH.md) brings together the accepted data and the subsequent A–D acquisition assignments. Its first audit evaluates campus identity, service claims, accreditation and geographic evidence separately.
+## Acceptance checks
 
-## Quality and release gates
+1. Verify both pinned input versions, processing-key uniqueness, unchanged original text and equality of the original row multiset before and after joins. Repeated source IDs do not supply independent campus confirmations.
+2. Reconcile mutually exclusive identity outcomes to 10,088, including unresolved and unmatched rows. Report state/UT breakdowns plus an unknown-geography group. For each service report supported, excluded and unknown outcomes using the same national denominator, with source-family overlap and missingness.
+3. Freeze nationwide outputs before auditing accuracy. Draw a reproducible sample across the national population (up to 50 campus pairs and 30 service claims), include missed candidates, and keep deliberate challenge cases separate. Two reviewers check campus identity, wording, time and independence. Report audited denominators independently from population coverage.
+4. Validate references, attribution, replay, idempotency and failure recovery before publishing. Keep source IDs, snapshots and row-level evidence in authorized private storage. Record local fixtures, public-source checks, live Databricks results, deployment and submission separately. [Contract](ACQUISITION_CONTRACT.md) · [Validation methods](VALIDATION_RESEARCH.md) · [Team board](OWNERSHIP.md)
 
-- Preserve original row IDs, count, and evidence wording; external/postal joins must not multiply base rows.
-- Every external row/evidence item resolves to a source snapshot and locator. Confirmed links include method/rationale and required reviewer/timestamp.
-- Deduplicate identical records deterministically; retain conflicting variants under repeated IDs and queue them. Replaying identical inputs creates no duplicates or conflicting replacements.
-- Missing registry entries, dates, certificates, coordinates, or footprints remain unknown. Scheme suspension does not establish closure; appearance does not establish clinical quality. General emergency care does not establish a trauma level.
-- Separate publication, retrieval, effective, and expiry dates. Old functional status remains historical; never label it current because the PDF was downloaded today.
-- Audit up to 50 identity candidates and 30 trauma claims, or all available if fewer. Include same-name campuses, weak matches, conflicting coordinates, and undated evidence. Report denominators and actual coverage without manufacturing matches to meet targets.
-- Run contract, referential, idempotency, failure-handling, raw-data exclusion, and attribution checks before publishing. Report public-source results and live Databricks results separately from fixture tests.
-- Footprint sampling follows usable identity/service evidence; unavailable footprint checks do not block the core five-table handoff.
-
-The pre-existing team target is November 22 at 11:45 a.m. ET, before the organizer's tentative 12:30 p.m. ET deadline. The orchestrator must reconfirm before submission. Acquisition completion does not imply app deployment or submission.
+The team’s submission target is November 22 at 11:45 a.m. ET. Reconfirm the organizer deadline before submission.

@@ -4,8 +4,8 @@ Build a facility finder for community health workers in India. The first pass us
 
 ## Start here
 
-1. Oliver's orchestrator leads the approved **evidence-acquisition sprint**: national identity/location corroboration, deeper Rajasthan trauma evidence, and a small footprint check. The original work assignments are superseded; existing app/search work is preserved.
-2. Read the [plan](docs/implementation/PLAN.md), [message and task board](docs/implementation/OWNERSHIP.md), and [acquisition contract](docs/implementation/ACQUISITION_CONTRACT.md). Developer A and D have separate Codex chats; B is the human research lead with five scoped chats, C owns matching/geography, and Ayuush is Developer E for a small source-link check. [Kickoff prompts](docs/KICKOFF_PROMPTS.md)
+1. Vincent leads the nationwide facility-validation run. Process all **10,088 original Virtue Foundation rows** at Delta version 0. Report identity and service coverage across India and by state/UT, including records with missing information. The [implementation plan](docs/implementation/PLAN.md) defines the denominator and release checks.
+2. Read the [current team board](docs/implementation/OWNERSHIP.md) and [kickoff prompts](docs/KICKOFF_PROMPTS.md). Oliver prepares the shared inputs, Andrew owns national matching, Vincent owns service evidence and validation, and Ayush checks nationwide data sources. Coordinate through repo issues and the board.
 3. The [search contract](docs/implementation/SEARCH_CONTRACT.md) and its synthetic fixtures remain the baseline app interface. The acquisition sprint adds five evidence tables without silently changing ranking or the UI. Real source snapshots and Marketplace rows stay outside Git.
 
 The launch target is a Streamlit app on Databricks Free Edition. The organizer lists Sunday, November 22 at **12:30 p.m. ET** as the tentative deadline for code, analysis, and video. The team's target is **11:45 a.m. ET**. [Event schedule](https://cmudsc.com/datathon-fall2026/) · [Challenge brief](https://docs.google.com/document/d/e/2PACX-1vQxhDNQmgZhPgjG0M6LCb_UXNV8CJryqBNQQuqWfIg_dm40ZU1AYAXzZKViC6haFoCmLNiRVfUSBMjf/pub)
