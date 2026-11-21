@@ -8,7 +8,8 @@
 
 # COMMAND ----------
 
-from functools import reduce
+from pathlib import Path
+import sys
 import json
 
 from pyspark.sql import functions as F
@@ -29,15 +30,26 @@ from pyspark.sql import types as T
 # COMMAND ----------
 
 dbutils.widgets.text("SOURCE_TABLE", "", "Virtue Marketplace source table")
-dbutils.widgets.text("OUTPUT_TABLE", "main.default.virtue_facilities_prepared", "Prepared Delta table")
+dbutils.widgets.text("repo_root", "", "Workspace Git folder")
+dbutils.widgets.text("OUTPUT_TABLE", "", "Prepared Delta table")
 dbutils.widgets.text("COLUMN_MAPPING_JSON", "{}", "Raw-column overrides as JSON")
 
 SOURCE_TABLE = dbutils.widgets.get("SOURCE_TABLE").strip()
 OUTPUT_TABLE = dbutils.widgets.get("OUTPUT_TABLE").strip()
 COLUMN_MAPPING_JSON = dbutils.widgets.get("COLUMN_MAPPING_JSON").strip() or "{}"
 
-if not SOURCE_TABLE:
-    raise ValueError("SOURCE_TABLE is required. Set it to the fully-qualified Virtue Foundation Marketplace table.")
+root = Path(dbutils.widgets.get("repo_root") or ".").resolve()
+sys.path.insert(0, str(root / "databricks/enrichment"))
+from delta_store import identifier
+from source_inspection import json_value
+from common import stable_id
+
+source_name = identifier(SOURCE_TABLE, 3)
+output_name = identifier(OUTPUT_TABLE, 3)
+if source_name.casefold() == output_name.casefold():
+    raise ValueError("Choose a new prepared table distinct from the Marketplace source.")
+if spark.catalog.tableExists(output_name):
+    raise ValueError("Prepared table already exists. Choose a new versioned output name.")
 
 try:
     COLUMN_OVERRIDES = json.loads(COLUMN_MAPPING_JSON)
@@ -46,7 +58,7 @@ except json.JSONDecodeError as exc:
 
 # COMMAND ----------
 
-raw = spark.table(SOURCE_TABLE)
+raw = spark.table(source_name)
 print(f"Source table: {SOURCE_TABLE}")
 print(f"Rows: {raw.count():,}")
 print(f"Columns ({len(raw.columns)}):")
@@ -118,8 +130,10 @@ def resolve_column(target):
 
 mapping = {target: resolve_column(target) for target in CANDIDATES}
 
-required = ["name", "description", "capabilities", "procedures"]
+required = ["name"]
 missing_required = [field for field in required if not mapping[field]]
+if not any(mapping[f] for f in ("description", "capabilities", "procedures", "equipment")):
+    raise ValueError("Map at least one observed evidence column.")
 if missing_required:
     raise ValueError(
         "Could not resolve required Marketplace columns: "
@@ -144,36 +158,56 @@ for target, source in mapping.items():
 
 # COMMAND ----------
 
+def quoted_column(name):
+    return "`" + name.replace("`", "``") + "`"
+
+
 def source_expr(target, cast_type="string"):
     source = mapping.get(target)
     if not source:
         return F.lit(None).cast(cast_type)
-    return F.col(source).cast(cast_type)
+    name = quoted_column(source)
+    if cast_type == "double":
+        return F.expr(f"try_cast({name} as double)")
+    if target in ("description", "capabilities", "procedures", "equipment", "record_source_urls"):
+        data_type = raw.schema[source].dataType
+        if isinstance(data_type, T.ArrayType) and isinstance(data_type.elementType, T.StringType):
+            return F.col(name)
+        if not isinstance(data_type, T.StringType):
+            raise ValueError(f"Mapped {target} must contain text or an array of text.")
+    return F.col(name).cast(cast_type)
 
-# Deterministic content hash fallback for lineage.
-raw_struct = F.struct(*[F.col(c).alias(c) for c in sorted(raw.columns)])
-raw_hash = F.sha2(F.to_json(raw_struct, options={"ignoreNullFields": "false"}), 256)
 
 if mapping["raw_row_ref"]:
-    upstream_ref = F.col(mapping["raw_row_ref"]).cast("string")
-    raw_row_ref_expr = F.when(
-        upstream_ref.isNotNull() & (F.length(F.trim(upstream_ref)) > 0),
-        upstream_ref
-    ).otherwise(raw_hash)
+    id_source = mapping["raw_row_ref"]
+    if not isinstance(raw.schema[id_source].dataType, (T.StringType, T.IntegralType)):
+        raise ValueError("Choose a source ID of text or integer type.")
+    raw_row_ref_expr = F.col(quoted_column(id_source)).cast("string")
+    if raw.where(raw_row_ref_expr.isNull() | (F.length(F.trim(raw_row_ref_expr)) == 0)).limit(1).count():
+        raise ValueError("Mapped ID is empty on at least one row. Resolve identity before publication.")
 else:
-    raw_row_ref_expr = raw_hash
+    # Use the same namespaced surrogate as enrichment, preserving Spark field types.
+    # The bounded path fits the facility pilot and fails before collecting a larger table.
+    rows = raw.limit(500001).collect()
+    if len(rows) > 500000:
+        raise ValueError("ID-less source exceeds the bounded export size.")
+    surrogate_col = "__prepared_source_id"
+    while surrogate_col in raw.columns:
+        surrogate_col += "_"
+    schema = T.StructType(raw.schema.fields + [T.StructField(surrogate_col, T.StringType(), False)])
+    raw = spark.createDataFrame(
+        [tuple(row) + (stable_id("base", SOURCE_TABLE, json_value(row.asDict(recursive=True))),)
+         for row in rows], schema,
+    )
+    raw_row_ref_expr = F.col(surrogate_col)
 
 lat_raw = source_expr("latitude", "double")
 lon_raw = source_expr("longitude", "double")
 
-lat_valid = F.when(
-    lat_raw.between(-90.0, 90.0) & ~(lat_raw == F.lit(0.0)),
-    lat_raw
-)
-lon_valid = F.when(
-    lon_raw.between(-180.0, 180.0) & ~(lon_raw == F.lit(0.0)),
-    lon_raw
-)
+point_valid = (lat_raw.between(-90.0, 90.0) & lon_raw.between(-180.0, 180.0)
+               & ~((lat_raw == 0.0) & (lon_raw == 0.0)))
+lat_valid = F.when(point_valid, lat_raw)
+lon_valid = F.when(point_valid, lon_raw)
 
 base = raw.select(
     raw_row_ref_expr.alias("raw_row_ref"),
@@ -190,18 +224,7 @@ base = raw.select(
     source_expr("record_source_urls").alias("record_source_urls"),
 )
 
-identity_material = F.concat_ws(
-    "||",
-    F.coalesce(F.col("raw_row_ref"), F.lit("")),
-    F.coalesce(F.col("name"), F.lit("")),
-    F.coalesce(F.col("city"), F.lit("")),
-    F.coalesce(F.col("state"), F.lit("")),
-    F.coalesce(F.col("pin"), F.lit("")),
-    F.coalesce(F.col("latitude").cast("string"), F.lit("")),
-    F.coalesce(F.col("longitude").cast("string"), F.lit("")),
-)
-
-prepared = base.withColumn("facility_id", F.sha2(identity_material, 256)).select(
+prepared = base.withColumn("facility_id", F.col("raw_row_ref")).select(
     "facility_id",
     "raw_row_ref",
     "name",
@@ -330,9 +353,8 @@ display(
 (
     prepared.write
     .format("delta")
-    .mode("overwrite")
-    .option("overwriteSchema", "true")
-    .saveAsTable(OUTPUT_TABLE)
+    .mode("errorifexists")
+    .saveAsTable(output_name)
 )
 
 print(f"Wrote {prepared.count():,} rows to {OUTPUT_TABLE}")
