@@ -1,6 +1,6 @@
 # ACQ-A03 · Matching delivery and bounded institutional reference
 
-Developer A / `@oliverchennn`, session `01a1ff42-3d8a-7e90-9750-5a4509a378ac`, branch `codex/acq-a-matching-handoff`, task [#30](https://github.com/vzhu08/databricks-datathon/issues/30), consumer [#5](https://github.com/vzhu08/databricks-datathon/issues/5). This work remains in the isolated Developer A clone. The final PR/head and test results are recorded in both issues. The branch started at main `a82d8c1`; the remote board was reread at `488c137`. Scope: acquisition code/tests and this handoff only.
+Developer A / `@oliverchennn`, session `01a1ff42-3d8a-7e90-9750-5a4509a378ac`, branch `codex/acq-a-matching-handoff`, task [#30](https://github.com/vzhu08/databricks-datathon/issues/30), consumer [#5](https://github.com/vzhu08/databricks-datathon/issues/5). This work remains in the isolated Developer A clone. The final PR/head and test results are recorded in both issues. The branch started at main `a82d8c1`; the remote board was reread at `df28bfbc1c2ca496ea8e475a5c9addac20da0882`, which names Vincent as integration lead and records the ADIP fallback scope. Scope: acquisition code/tests and this handoff only.
 
 ## Delivery result
 
