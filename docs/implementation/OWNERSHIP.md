@@ -16,6 +16,7 @@ The [routing and storm-surge plan](ROUTING_AND_SURGE_DEMO.md) adds a fictional l
 | Vincent | [#88 · Data orchestration](https://github.com/vzhu08/databricks-datathon/issues/88) | Supply dated campus-level evidence, typed capacity, coverage and reuse limits. |
 | Andrew | [#89 · All UI/UX](https://github.com/vzhu08/databricks-datathon/issues/89) | Implement the playable offline map, explanations and accessible comparison. |
 | Ayush | [#90 · One replay clarity check](https://github.com/vzhu08/databricks-datathon/issues/90) | Return one short comment after Andrew posts a playable build. |
+| Oliver · Developer A chat | [#96 · Live traffic-aware driving times](https://github.com/vzhu08/databricks-datathon/issues/96) | Own `codex/oliver-live-driving-times`, the backend provider, normal opt-in finder integration and tests. Publish the response contract to Andrew (#89), use Vincent’s approved campus coordinates (#88), and send the tested PR to Oliver. The offline storm replay uses synthetic travel times. |
 
 All new implementation, collection, dataset scouting and reporting must serve the full pinned national Virtue Foundation base. The acceptance denominator is 10,088 original facility rows, including the 11 repeated-ID pairs. Count geographically unknown and unsupported rows. Show coverage by state/UT and service. Regional source totals and sampled audits have their own denominators. Standalone local investigations and proposed state pilots are retired. [Plan](PLAN.md) · [National evidence task](https://github.com/vzhu08/databricks-datathon/issues/58)
 
