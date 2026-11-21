@@ -201,6 +201,45 @@ class NationalRunTests(unittest.TestCase):
         self.assertEqual(1, report["by_state"]["(label is not a state or union territory)"]["original_rows"])
         self.assertEqual(5, sum(s["original_rows"] for s in report["by_state"].values()))
 
+    def test_a_label_that_is_not_a_state_is_unknown_for_matching(self):
+        """A city in the state column used to conflict with every candidate's state."""
+        postal = [{"pin": "302001", "statename": STATE}, {"pin": "302001", "statename": STATE},
+                  {"pin": "380001", "statename": STATE}, {"pin": "380001", "statename": OTHER},
+                  {"pin": "999001", "statename": "Atlantis"}]
+        base = [base_row(1, name="Larkspur Hospital", city="North Town", state="North Town", pin="302001"),
+                base_row(2, name="Marigold Hospital", city="North Town", state=STATE, pin="380001"),
+                base_row(3, name="Juniper Clinic", city="East Town", state=None, pin="999001"),
+                base_row(4, name="Quillon Clinic", city="East Town", state=OTHER, pin="302001"),
+                base_row(5, name="Tamarind Clinic", city="East Town", state=OTHER, pin="111111"),
+                base_row(6, name="Saffron Clinic", city="East Town", state=OTHER, pin=None)]
+        externals = [ext(1, "Larkspur Hospital", snapshot(), city="North Town", state=STATE)]
+        result = run(base, envelope([snapshot()], externals), postal=postal,
+                     postal_mapping={"pin": "pin", "state": "statename"})
+        pair = result["candidates"][0]
+        self.assertEqual(("synthetic:base:001", "unknown"), (pair["facility_id"], pair["signals"]["state"]))
+        self.assertNotIn("state_conflict", pair["flags"])
+        rows = {r["facility_id"][-1]: r for r in result["base_rows"]}
+        self.assertEqual([("(label is not a state or union territory)", None, "rajasthan", {"label": "not_a_state", "pin": "exact"}),
+                          ("rajasthan", "rajasthan", None, {"label": "state", "pin": "pin_spans_states"}),
+                          ("(no state label)", None, None, {"label": "missing", "pin": "pin_state_not_recognised"}),
+                          ("gujarat", "gujarat", "rajasthan", {"label": "state", "pin": "exact"}),
+                          ("gujarat", "gujarat", None, {"label": "state", "pin": "pin_not_in_postal_directory"}),
+                          ("gujarat", "gujarat", None, {"label": "state", "pin": "pin_missing_or_invalid"})],
+                         [tuple(rows[n][k] for k in ("state", "state_for_matching", "state_from_pin", "state_provenance"))
+                          for n in "123456"])
+        self.assertIn("state_label_not_a_state", rows["1"]["input_problems"])
+        self.assertIn("state_label_missing", rows["3"]["input_problems"])
+        self.assertNotIn("base_geography_disagreement", rows["1"]["conflicts"])   # a malformed label is not a disagreement
+        self.assertIn("base_geography_disagreement", rows["4"]["conflicts"])      # a real state that its PIN contradicts
+        resolution = result["national_report"]["state_resolution"]
+        self.assertEqual({"agree": 0, "disagree": 1}, resolution["label_is_a_state_and_pin_is_exact"])
+        self.assertEqual((1, 1, 4), tuple(resolution["by_label"][k]["original_rows"] for k in ("not_a_state", "missing", "state")))
+        self.assertEqual(1, resolution["by_label"]["not_a_state"]["exact"])
+        self.assertNotIn("north town", json.dumps(result["national_report"]).casefold().replace("north town clinic", ""))
+        without = run(base, envelope([snapshot()], externals))["base_rows"][0]
+        self.assertEqual((None, {"label": "not_a_state", "pin": "no_postal_reference"}),
+                         (without["state_from_pin"], without["state_provenance"]))
+
     def test_missed_sample_is_repeatable_and_never_lists_a_copy_twice(self):
         base, batch = data()
         extra = base_row(6, name="Quillon Sanatorium", city="West Town", state=STATE)

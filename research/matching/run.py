@@ -53,7 +53,8 @@ def cross_check(batch, base_index, external_ids):
 
 
 def execute(base, external_batches, mapping=None, attributes=None, policy=None, postal=None,
-            postal_mapping=None, config=None, sample_size=50, source_metadata=None, identifier_base=None):
+            postal_mapping=None, config=None, sample_size=50, source_metadata=None, identifier_base=None,
+            known_states=None):
     """Pure function behind the CLI: returns every output as plain data.
 
     `source_metadata` is D's metadata for this base; `mapping` adds or overrides
@@ -69,7 +70,7 @@ def execute(base, external_batches, mapping=None, attributes=None, policy=None, 
     mapping = check_mapping(mapping, base) if mapping is not None else default_mapping(base)
     policy = check_policy(policy or {})
     config = settings(config)
-    bases = base_views(base, mapping)
+    bases = base_views(base, mapping, known_states)
     externals = external_views(external, attributes)
     postal_table = postal_profile = None
     if postal is not None:

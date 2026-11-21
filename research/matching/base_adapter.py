@@ -93,7 +93,9 @@ def _many(row, selector):
     return out
 
 
-def base_views(base, mapping):
+def base_views(base, mapping, known_states=None):
+    """`known_states`: folded state names. A state label outside it is kept as
+    `state_label` and the state used for matching becomes unknown (None)."""
     views = []
     for row in base:
         get = lambda role: field_value(row, mapping[role]) if role in mapping and isinstance(mapping[role], str) else None
@@ -102,12 +104,13 @@ def base_views(base, mapping):
         names = [tokens(n) for n in ([name] if name else []) + aliases]
         phones = frozenset().union(*[phone_keys(p) for p in _many(row, mapping["phone"])]) if "phone" in mapping else frozenset()
         raw_pin = get("pin")
+        label = state_key(_text(get("state")))
         views.append({
             "id": row["facility_id"], "row": row,
             "names": [n for n in names if n], "has_alias": bool(aliases),
             "address": address_tokens(_text(get("address"))),
             "city": place_key(_text(get("city"))), "district": place_key(_text(get("district"))),
-            "state": state_key(_text(get("state"))),
+            "state": label if known_states is None or label in known_states else None, "state_label": label,
             "pin": pin_key(raw_pin), "pin_invalid": raw_pin is not None and pin_key(raw_pin) is None,
             "coord": coordinate_status(get("latitude"), get("longitude")),
             "phones": phones, "type": fold(_text(get("type"))),

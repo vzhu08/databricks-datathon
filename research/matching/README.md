@@ -101,6 +101,14 @@ Input problems are counted separately and overlap the outcomes: `name_missing`, 
 
 Campus conflicts are also counted separately, overall and by state, and overlap the outcomes and each other. Rows with an empty state column are counted under `(no state label)`. Rows whose state column holds something else, such as a city, a district or stray text, are counted together under `(label is not a state or union territory)`, so that text never reaches a report.
 
+**State used for matching.** A label that is not a state or union territory, or is missing, is treated as unknown: it no longer conflicts with every candidate's state. Each row of `base_rows.json` keeps three values apart:
+
+- `state`: the report bucket for the original label, as above.
+- `state_for_matching`: the label when it names a state or union territory, otherwise null.
+- `state_from_pin`: the state of the row's PIN when the postal reference lists that PIN in exactly one recognised state, otherwise null. It is reported for comparison and is never used as the row's state for matching.
+
+`state_provenance` says where each came from: `label` is `state`, `not_a_state` or `missing`, and `pin` is `exact`, `pin_spans_states`, `pin_state_not_recognised`, `pin_not_in_postal_directory`, `pin_missing_or_invalid` or `no_postal_reference`. Rows with an unusable label carry the input problem `state_label_not_a_state` or `state_label_missing`. That is a problem with the row's own label, and is separate from `base_geography_disagreement` (a real state that the row's PIN contradicts) and from conflicts with a candidate. `national_report.json` counts all of this under `state_resolution`.
+
 | Conflict | Meaning |
 | --- | --- |
 | `competing_campuses` | A candidate is flagged `ambiguous_campus`: several campuses fit the row, or several rows fit one campus. |
