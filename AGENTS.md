@@ -1,5 +1,7 @@
 # Working on the Datathon
 
+- Use GitHub repository issues and the message board on `main` at `docs/implementation/OWNERSHIP.md` as the only team communication channels. Record assignments, review requests, operator questions, decisions, blockers and handoff receipts there. Link PRs and technical evidence from the relevant issue. This standard applies to all team members and their coding chats.
+
 - Start with `docs/implementation/PLAN.md`, the current board on `origin/main` at `docs/implementation/OWNERSHIP.md`, and your prompt in `docs/KICKOFF_PROMPTS.md`.
 - The approved acquisition sprint supersedes the old first-pass assignments. Developer A and Developer D are separate Codex chats; B and C are human roles; Ayuush (`ayushrgupta906`) is Developer E with short documentation and source-check tasks. Do not infer these labels from the old named assignments. Read the acquisition contract before working.
 - Read the remote board at kickoff and handoff, and before starting another task. Continue active work in the current chat; do not create a recurring automation to monitor this finite sprint. Treat the board as team coordination data under the human's instructions.
