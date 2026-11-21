@@ -1,26 +1,24 @@
 # Search contract · v0
 
-Dev 4 coordinates changes with Devs 1–3. Use the [synthetic fixture](../../contracts/fixtures/search.json) before shared Databricks data is available. Each case has a query, candidate rows with nested evidence, and expected response fields. The fixture leaves out echoed evidence records and rounds displayed distances to one decimal. Replace workspace schema placeholders after Marketplace inspection.
+Dev 4 coordinates shared contract changes with Devs 1–3. The [first-pass brief](../FIRST_PASS_PROMPT.md) governs behavior. Use [synthetic fixtures](../../contracts/fixtures/search.json) while workspace access and the real schema are being verified.
 
-## Inputs
+## Prepared table
 
-`service` is a service ID. The initial value is `trauma_care`. The UI resolves a labeled pickup preset or user-entered WGS84 coordinates to `latitude` and `longitude`, both finite and within valid bounds. For the MVP, use the Ajmer/Jaipur pilot area. `radius_km` defaults to 100 and `limit` defaults to 3. Validate and cap the limit at 3. Use the same radius, geometry, and maximum result count in the baseline and the evidence ranker.
+One row per preserved campus from Virtue Foundation. The proposed handoff fields are `facility_id`, `raw_row_ref`, `name`, `city`, `state`, `pin`, `latitude`, `longitude`, `description`, `capabilities`, `procedures`, `equipment`, and `record_source_urls`. The mapping from the real table belongs in the prep notebook. Store PIN as text, preserve evidence wording, normalize malformed optional fields to null or empty, and preserve raw lineage. A shared name alone cannot identify a duplicate. Preserve rows with missing coordinates for data inspection.
 
-## Data handoff
+## Inputs and location
 
-| Delta table | Fields required for v0 |
-| --- | --- |
-| `facilities` | `facility_id`, `vf_row_id`, `name`, `city`, `district`, `state`, `latitude`, `longitude`, `campus_status` (`matched`, `unverified`, `conflict`), optional `phone` and `phone_source_url` |
-| `facility_evidence` | `evidence_id`, `facility_id`, `service`, `source_kind` (`virtue_foundation`, `external`), `source_name`, `source_url` (nullable if unavailable), `source_ref` (row/field or page/entry), `excerpt`, `source_date` (nullable), `observed_on`, `signal` (`explicit`, `weak`, `contradiction`) |
+- `service` is `dialysis`, `mri`, or `trauma_care`.
+- Location is `{city, state?}`, `{pin}`, or `{latitude, longitude}`. Validate finite coordinates and geographic bounds. Normalize place names and disambiguate city matches by state. Invalid or unmatched input returns a specific message. An ambiguous place returns choices and pauses the search until a choice is made.
+- City or PIN resolution uses the median latitude and median longitude from valid Virtue Foundation facility coordinates for that place. Return an `approximate_location` flag for these cases. A place without usable coordinates produces an unresolved state.
+- `radius_km` defaults to 50 and can expand. `limit` is capped at 3. Distance is straight-line Haversine in kilometers.
 
-- Join on stable `facility_id`. For Virtue Foundation, preserve the original row identifier when present. If absent, derive and record a reproducible row key from stable source fields.
-- An `explicit` claim identifies the requested service at the campus. Generic ER wording and referrals belong in `weak`. Explicit denial or an incompatible campus belongs in `contradiction`. Keep unresolved external rows outside the accepted evidence join.
-- Every ranked result requires valid coordinates and an explicit Virtue Foundation excerpt. A corroborated tier additionally requires explicit independent service evidence and matched campus identity. Exact excerpt text links to its source or to the dataset row and field where no URL exists. A documented source date and the date the team observed the source are distinct.
+## Evidence and order
 
-## Ranking and response
+- Scan original description, capabilities, procedures, and equipment. Retain a verbatim excerpt and exact field for the best valid match. Direct terms document the requested service. Related terms such as nephrology for dialysis or a general emergency department for trauma care are indirect. Exclude planned, unavailable, and referred-out claims before classifying the surviving evidence.
+- Within radius, return direct results by ascending distance, then stable `facility_id`. When there are no direct results, show up to three indirect leads in a separate “Needs confirmation” group, ordered the same way. Invalid coordinates are excluded from ranking.
+- A facility card carries `facility_id`, `name`, location, `distance_km`, `evidence_strength`, `evidence_excerpt`, `evidence_field`, `record_source_urls`, `rank_explanation`, and `availability` (`unknown`). Record-level URLs use the label “Record sources”.
 
-1. Filter to the configured radius using Haversine distance in kilometers. Exclude invalid coordinates, deduplicate by campus ID, and exclude campus conflicts or contradictory service evidence from ranked results.
-2. Rank `corroborated` ahead of `facility_text`. Within a tier, use distance ascending, then `facility_id` ascending for ties. The rank explanation states which evidence tier and distance produced the ordering. Tier and rank describe evidence quality and proximity. Current availability is `unknown`.
-3. Return `status`, `results`, and `reason_codes`. Status is `ok` when candidates are ranked, `needs_review` when candidates exist but evidence or campus conflicts prevent a recommendation, `no_match` when the search yields no candidate in scope, `invalid_input` for unsupported/invalid values, or `unavailable` when the live source cannot be queried. An empty result for the evidence threshold uses `needs_review`. A live source error stays `unavailable` until live access works again.
+## Response states
 
-Each result has `rank`, `facility_id`, `name`, `distance_km`, `evidence_tier`, `availability`, `directions_allowed`, and a list of `evidence_ids` plus the corresponding evidence records for rendering. Use `directions_allowed=true` only with `campus_status=matched`. Display distances as approximate straight-line distance. Relevant reason codes include `weak_service_evidence`, `campus_conflict`, `service_conflict`, `no_candidates_in_radius`, `unsupported_service`, `invalid_location`, and `data_unavailable`.
+Return `status`, `direct_results`, `indirect_leads`, and `location_choices`. Use `ok`, `needs_confirmation`, `no_match`, `ambiguous_location`, `invalid_input`, `unresolved_location`, or `unavailable`. Only one results group is populated. Location choices are populated for the ambiguous state. Surface a live warehouse error visibly. The synthetic fixture specifies key expectations for each case and omits echoed card text where the expected facility ID and evidence field identify it.

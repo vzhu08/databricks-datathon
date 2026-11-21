@@ -51,6 +51,8 @@ def main():
                 current = read_board()
             except (OSError, subprocess.SubprocessError) as error:
                 detail = getattr(error, "stderr", None) or str(error)
+                if isinstance(detail, bytes):
+                    detail = detail.decode("utf-8", errors="replace")
                 print(f"[{checked_at}] Board check failed: {detail.strip()}",
                       file=sys.stderr, flush=True)
                 if once:

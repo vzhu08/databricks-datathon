@@ -1,138 +1,240 @@
 {
   "mode": "synthetic",
+  "facilities": [
+    {
+      "description": "A nephrology consultation service is available.",
+      "capabilities": null,
+      "procedures": null,
+      "equipment": null,
+      "record_source_urls": [],
+      "facility_id": "demo-near",
+      "raw_row_ref": "demo-row-1",
+      "name": "Example Community Clinic",
+      "city": "Jaipur",
+      "state": "Rajasthan",
+      "pin": "302001",
+      "latitude": 26.92,
+      "longitude": 75.82
+    },
+    {
+      "description": null,
+      "capabilities": null,
+      "procedures": "The North Campus provides hemodialysis.",
+      "equipment": null,
+      "record_source_urls": [
+        "https://example.invalid/north-campus"
+      ],
+      "facility_id": "demo-north",
+      "raw_row_ref": "demo-row-2",
+      "name": "Example Regional Hospital",
+      "city": "Jaipur",
+      "state": "Rajasthan",
+      "pin": "302001",
+      "latitude": 26.98,
+      "longitude": 75.82
+    },
+    {
+      "description": null,
+      "capabilities": "The South Campus provides outpatient dialysis.",
+      "procedures": null,
+      "equipment": "MRI scanner available for diagnostic imaging.",
+      "record_source_urls": [],
+      "facility_id": "demo-south",
+      "raw_row_ref": "demo-row-3",
+      "name": "Example Regional Hospital",
+      "city": "Jaipur",
+      "state": "Rajasthan",
+      "pin": "302001",
+      "latitude": 26.82,
+      "longitude": 75.82
+    },
+    {
+      "description": "Dialysis is unavailable. Patients are referred elsewhere for dialysis. MRI is planned; trauma cases are referred to another hospital.",
+      "capabilities": null,
+      "procedures": null,
+      "equipment": null,
+      "record_source_urls": [],
+      "facility_id": "demo-excluded",
+      "raw_row_ref": "demo-row-4",
+      "name": "Example Partner Clinic",
+      "city": "Jaipur",
+      "state": "Rajasthan",
+      "pin": "302001",
+      "latitude": 26.92,
+      "longitude": 75.82
+    },
+    {
+      "description": "Emergency department available.",
+      "capabilities": null,
+      "procedures": null,
+      "equipment": null,
+      "record_source_urls": [],
+      "facility_id": "demo-east",
+      "raw_row_ref": "demo-row-5",
+      "name": "Example Eastern Hospital",
+      "city": "Jaipur",
+      "state": "Odisha",
+      "pin": "700001",
+      "latitude": 20.85,
+      "longitude": 86.31
+    },
+    {
+      "description": "The hospital operates a trauma care unit.",
+      "capabilities": null,
+      "procedures": null,
+      "equipment": null,
+      "record_source_urls": [],
+      "facility_id": "demo-trauma",
+      "raw_row_ref": "demo-row-6",
+      "name": "Example Trauma Centre",
+      "city": "Jaipur",
+      "state": "Odisha",
+      "pin": "700001",
+      "latitude": 20.91,
+      "longitude": 86.31
+    }
+  ],
   "cases": [
     {
-      "id": "stronger_evidence_beats_nearer_keyword",
-      "query": {"service": "trauma_care", "latitude": 26.45, "longitude": 74.64},
-      "facilities": [
-        {
-          "facility_id": "demo-near",
-          "vf_row_id": "demo-row-1",
-          "name": "Example Road Hospital",
-          "city": "Ajmer",
-          "district": "Ajmer",
-          "state": "Rajasthan",
-          "latitude": 26.468,
-          "longitude": 74.64,
-          "campus_status": "unverified",
-          "evidence": [
-            {
-              "evidence_id": "demo-vf-1",
-              "facility_id": "demo-near",
-              "service": "trauma_care",
-              "source_kind": "virtue_foundation",
-              "source_name": "Synthetic facility record",
-              "source_url": null,
-              "source_ref": "demo-row-1:description",
-              "excerpt": "Emergency department available. Trauma cases are referred to a specialist center.",
-              "source_date": null,
-              "observed_on": "2026-11-21",
-              "signal": "weak"
-            }
-          ]
-        },
-        {
-          "facility_id": "demo-far",
-          "vf_row_id": "demo-row-2",
-          "name": "Example District Trauma Centre",
-          "city": "Ajmer",
-          "district": "Ajmer",
-          "state": "Rajasthan",
-          "latitude": 26.55,
-          "longitude": 74.64,
-          "campus_status": "matched",
-          "evidence": [
-            {
-              "evidence_id": "demo-vf-2",
-              "facility_id": "demo-far",
-              "service": "trauma_care",
-              "source_kind": "virtue_foundation",
-              "source_name": "Synthetic facility record",
-              "source_url": null,
-              "source_ref": "demo-row-2:description",
-              "excerpt": "The district campus operates a trauma unit for road injuries.",
-              "source_date": null,
-              "observed_on": "2026-11-21",
-              "signal": "explicit"
-            },
-            {
-              "evidence_id": "demo-ext-2",
-              "facility_id": "demo-far",
-              "service": "trauma_care",
-              "source_kind": "external",
-              "source_name": "Synthetic district directory",
-              "source_url": "https://example.invalid/trauma-directory",
-              "source_ref": "entry-2",
-              "excerpt": "Example District Trauma Centre, Ajmer district campus, trauma unit.",
-              "source_date": "2025-08-01",
-              "observed_on": "2026-11-21",
-              "signal": "explicit"
-            }
-          ]
+      "id": "direct_beats_near_indirect_and_keeps_same_name_campuses",
+      "query": {
+        "service": "dialysis",
+        "location": {
+          "city": "Jaipur",
+          "state": "Rajasthan"
         }
-      ],
-      "expected_baseline_top_id": "demo-near",
+      },
       "expected": {
         "status": "ok",
-        "reason_codes": ["weak_service_evidence"],
-        "results": [
+        "direct_results": [
           {
-            "rank": 1,
-            "facility_id": "demo-far",
-            "name": "Example District Trauma Centre",
-            "distance_km": 11.1,
-            "evidence_tier": "corroborated",
-            "availability": "unknown",
-            "directions_allowed": true,
-            "evidence_ids": ["demo-vf-2", "demo-ext-2"]
+            "facility_id": "demo-north",
+            "evidence_field": "procedures",
+            "evidence_excerpt": "The North Campus provides hemodialysis."
+          },
+          {
+            "facility_id": "demo-south",
+            "evidence_field": "capabilities",
+            "evidence_excerpt": "The South Campus provides outpatient dialysis."
+          }
+        ],
+        "indirect_leads": [],
+        "approximate_location": true
+      }
+    },
+    {
+      "id": "ambiguous_city",
+      "query": {
+        "service": "dialysis",
+        "location": {
+          "city": "Jaipur"
+        }
+      },
+      "expected": {
+        "status": "ambiguous_location",
+        "location_choices": [
+          {
+            "city": "Jaipur",
+            "state": "Odisha"
+          },
+          {
+            "city": "Jaipur",
+            "state": "Rajasthan"
           }
         ]
       }
     },
     {
-      "id": "conflicting_campus_requires_review",
-      "query": {"service": "trauma_care", "latitude": 26.45, "longitude": 74.64},
-      "facilities": [
-        {
-          "facility_id": "demo-conflict",
-          "vf_row_id": "demo-row-3",
-          "name": "Example Hospital Annex",
-          "city": "Ajmer",
-          "district": "Ajmer",
-          "state": "Rajasthan",
-          "latitude": 26.47,
-          "longitude": 74.64,
-          "campus_status": "conflict",
-          "evidence": [
-            {
-              "evidence_id": "demo-vf-3",
-              "facility_id": "demo-conflict",
-              "service": "trauma_care",
-              "source_kind": "virtue_foundation",
-              "source_name": "Synthetic facility record",
-              "source_url": null,
-              "source_ref": "demo-row-3:description",
-              "excerpt": "The trauma unit is listed at the main campus.",
-              "source_date": null,
-              "observed_on": "2026-11-21",
-              "signal": "explicit"
-            }
-          ]
-        }
-      ],
-      "expected": {"status": "needs_review", "reason_codes": ["campus_conflict"], "results": []}
-    },
-    {
-      "id": "no_candidate_within_radius",
-      "query": {"service": "trauma_care", "latitude": 26.45, "longitude": 74.64},
-      "facilities": [],
-      "expected": {"status": "no_match", "reason_codes": ["no_candidates_in_radius"], "results": []}
-    },
-    {
       "id": "invalid_coordinates",
-      "query": {"service": "trauma_care", "latitude": 100, "longitude": 74.64},
-      "facilities": [],
-      "expected": {"status": "invalid_input", "reason_codes": ["invalid_location"], "results": []}
+      "query": {
+        "service": "mri",
+        "location": {
+          "latitude": 100,
+          "longitude": 75.82
+        }
+      },
+      "expected": {
+        "status": "invalid_input"
+      }
+    },
+    {
+      "id": "indirect_lead_when_no_direct_match",
+      "query": {
+        "service": "dialysis",
+        "location": {
+          "pin": "302001"
+        },
+        "radius_km": 2
+      },
+      "expected": {
+        "status": "needs_confirmation",
+        "direct_results": [],
+        "indirect_leads": [
+          {
+            "facility_id": "demo-near",
+            "evidence_field": "description",
+            "evidence_excerpt": "A nephrology consultation service is available."
+          }
+        ],
+        "approximate_location": true
+      }
+    },
+    {
+      "id": "mri_from_equipment",
+      "query": {
+        "service": "mri",
+        "location": {
+          "latitude": 26.92,
+          "longitude": 75.82
+        }
+      },
+      "expected": {
+        "status": "ok",
+        "direct_results": [
+          {
+            "facility_id": "demo-south",
+            "evidence_field": "equipment",
+            "evidence_excerpt": "MRI scanner available for diagnostic imaging."
+          }
+        ],
+        "indirect_leads": []
+      }
+    },
+    {
+      "id": "trauma_excludes_referral_and_general_emergency",
+      "query": {
+        "service": "trauma_care",
+        "location": {
+          "latitude": 20.85,
+          "longitude": 86.31
+        }
+      },
+      "expected": {
+        "status": "ok",
+        "direct_results": [
+          {
+            "facility_id": "demo-trauma",
+            "evidence_field": "description",
+            "evidence_excerpt": "The hospital operates a trauma care unit."
+          }
+        ],
+        "indirect_leads": []
+      }
+    },
+    {
+      "id": "no_match_when_only_referral_is_in_scope",
+      "query": {
+        "service": "trauma_care",
+        "location": {
+          "latitude": 26.92,
+          "longitude": 75.82
+        }
+      },
+      "expected": {
+        "status": "no_match",
+        "direct_results": [],
+        "indirect_leads": []
+      }
     }
   ]
 }
