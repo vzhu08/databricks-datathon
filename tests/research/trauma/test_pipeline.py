@@ -123,3 +123,21 @@ class ReleaseTests(unittest.TestCase):
         queue = release["batch.json"]["review_queue"]
         self.assertEqual(len(queue), 2)
         self.assertTrue(all(row["evidence_id"] is None and row["review_id"] != "test:issue" for row in queue))
+
+    def test_independent_scope_audit_keeps_one_specific_review(self):
+        claim = self.batch["facility_evidence"][0]
+        claim.update(claim_type="accreditation", service=None)
+        self.write("B1", "batch.json", self.batch)
+        self.write("B5", "audit.json", [dict(self.audit, outcome="uncertain", evidence_sha256=digest(claim))])
+        queue = {k: v if k == "contract_version" else [] for k, v in self.batch.items()}
+        queue["review_queue"] = [dict(
+            review_id="b5:example", facility_id=None, match_id=None, evidence_id=claim["evidence_id"],
+            external_facility_id=claim["external_facility_id"], reason_code="issuer_scope_unknown",
+            severity="medium", status="open", resolution=None, next_action="Recheck the scope with its issuer.",
+        )]
+        self.write("B5", "batch.json", queue)
+        result = build(self.root)
+        self.assertEqual(result["coverage.json"]["audited_claim_types"], {"accreditation": 1})
+        issues = result["batch.json"]["review_queue"]
+        self.assertEqual([row["reason_code"] for row in issues], ["issuer_scope_unknown"])
+        self.assertIsNone(issues[0]["evidence_id"])
