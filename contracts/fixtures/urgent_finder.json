@@ -1,0 +1,38 @@
+{
+  "service": "mri",
+  "urgency": "routine",
+  "as_of": "2026-11-21",
+  "travel_metric": "travel_minutes",
+  "travel_budget": 60,
+  "preferred": ["wider_bore"],
+  "candidates": [
+    {
+      "facility_id": "SYNTHETIC-CAMPUS-NEAR",
+      "as_of": "2026-11-21",
+      "travel_minutes": 20,
+      "services": {
+        "mri": {
+          "status": "yes",
+          "source_date": "2026-11-20",
+          "independent_families": ["SYNTHETIC-REGISTRY"],
+          "capabilities": {"wider_bore": "no"}
+        },
+        "trauma_care": {"status": "unconfirmed"}
+      }
+    },
+    {
+      "facility_id": "SYNTHETIC-CAMPUS-UPGRADED",
+      "as_of": "2026-11-21",
+      "travel_minutes": 27,
+      "services": {
+        "mri": {
+          "status": "yes",
+          "source_date": "2026-11-20",
+          "independent_families": ["SYNTHETIC-REGISTRY"],
+          "capabilities": {"wider_bore": "yes"}
+        },
+        "trauma_care": {"status": "unconfirmed"}
+      }
+    }
+  ]
+}
