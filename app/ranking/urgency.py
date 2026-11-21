@@ -4,6 +4,8 @@ Each candidate is a reviewed snapshot for one facility_id and as_of date.
 services[service] supplies its yes/no/unconfirmed decision, the latest
 applicable service assertion's source_date, independently assessed upstream
 families, and campus-specific capability decisions at the same assessment date.
+Yes and no both require a service assertion date on or before as_of. An absent,
+invalid or future date leaves the decision unconfirmed at every urgency level.
 Callers supply travel to each candidate from the same origin and transport mode.
 """
 
@@ -102,10 +104,11 @@ def rank_campuses(service, urgency, candidates, *, as_of, travel_metric, travel_
 
         current = _iso_date(candidate.get("as_of")) == day
         status = decision.get("status", "unconfirmed")
-        if current and (status == "no" or any(capabilities.get(k) == "no" for k in mandatory)):
-            continue
         raw_date = decision.get("source_date")
         source_day = _iso_date(raw_date)
+        dated = source_day is not None and source_day <= day
+        if current and dated and (status == "no" or any(capabilities.get(k) == "no" for k in mandatory)):
+            continue
         reasons = []
         if not current:
             reasons.append("assessment_date_mismatch")
@@ -113,7 +116,9 @@ def rank_campuses(service, urgency, candidates, *, as_of, travel_metric, travel_
             reasons.append("service_unconfirmed")
         if any(capabilities.get(k) != "yes" for k in mandatory):
             reasons.append("required_capability_unconfirmed")
-        if raw_date is not None and (source_day is None or source_day > day):
+        if status in ("yes", "no") and raw_date is None:
+            reasons.append("missing_service_evidence_date")
+        elif raw_date is not None and not dated:
             reasons.append("invalid_service_evidence_date")
         if travel is None:
             reasons.append("travel_unknown")
@@ -124,13 +129,10 @@ def rank_campuses(service, urgency, candidates, *, as_of, travel_metric, travel_
         families = _labels(decision.get("independent_families", ()), "independent_families")
         # Upstream families must already be reconciled by the evidence producer.
         # The first family establishes the claim; up to two more corroborate it.
-        recency = 0.0
-        if source_day is not None:
-            age_months = (day - source_day).days / (365.2425 / 12)
-            recency = 2 ** (-age_months / half_life)
+        age_months = (day - source_day).days / (365.2425 / 12)
         factors = {
             "travel": 1 - travel / budget,
-            "recency": recency,
+            "recency": 2 ** (-age_months / half_life),
             "corroboration": min(2, max(0, len(families) - 1)) / 2,
             "preferred": sum(capabilities.get(k) == "yes" for k in optional) / len(optional)
             if optional else 0.0,
@@ -141,7 +143,7 @@ def rank_campuses(service, urgency, candidates, *, as_of, travel_metric, travel_
             "score": sum(weights[name] * factor for name, factor in factors.items()),
             "weights": weights.copy(),
             "factors": factors,
-            "source_date": source_day.isoformat() if source_day else None,
+            "source_date": source_day.isoformat(),
             "availability": "unknown",
         })
 

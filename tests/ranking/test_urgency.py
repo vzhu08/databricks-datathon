@@ -81,12 +81,36 @@ class UrgencyRankTests(unittest.TestCase):
         undated = campus("undated", 10, source_date=None)
         undated["page_updated"] = DAY
         rows = rank([old, undated, recent], as_of=date.fromisoformat(DAY))["ranked"]
-        self.assertEqual([x["facility_id"] for x in rows], ["recent", "old", "undated"])
+        self.assertEqual([x["facility_id"] for x in rows], ["recent", "old"])
         self.assertEqual(rows[0]["factors"]["recency"], 1)
         self.assertAlmostEqual(rows[1]["factors"]["recency"], .5, places=3)
-        self.assertEqual(rows[2]["factors"]["recency"], 0)
-        self.assertIsNone(rows[2]["source_date"])
         self.assertAlmostEqual(sum(rows[0]["weights"].values()), 100)
+
+    def test_undated_yes_at_highest_urgency_stays_a_confirmation_lead(self):
+        record = campus("nearest", 0)
+        del record["services"]["mri"]["source_date"]
+        record["page_updated"] = DAY
+        result = rank([record], "highest")
+        self.assertEqual(result["status"], "needs_confirmation")
+        self.assertEqual(result["ranked"], [])
+        self.assertEqual(result["needs_confirmation"][0]["reasons"], ["missing_service_evidence_date"])
+        eligible = campus("documented", 40)
+        mixed = rank([record, eligible], "highest")
+        self.assertEqual([x["facility_id"] for x in mixed["ranked"]], ["documented"])
+
+    def test_undated_invalid_or_future_no_is_an_unscored_confirmation_lead(self):
+        for source_date, reason in [
+            (None, "missing_service_evidence_date"),
+            ("not-a-date", "invalid_service_evidence_date"),
+            ("2026-11-22", "invalid_service_evidence_date"),
+        ]:
+            with self.subTest(source_date=source_date):
+                response = rank([campus("x", 0, status="no", source_date=source_date)], "highest")
+                self.assertEqual(response["status"], "needs_confirmation")
+                self.assertEqual(response["ranked"], [])
+                self.assertEqual(response["needs_confirmation"][0]["reasons"],
+                                 ["service_unconfirmed", reason])
+        self.assertEqual(rank([campus("x", 0, status="no", source_date=DAY)])["status"], "no_match")
 
     def test_future_malformed_or_mismatched_evidence_stays_unconfirmed(self):
         for record, reason in [
