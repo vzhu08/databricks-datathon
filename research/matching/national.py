@@ -6,7 +6,9 @@
 Wraps `research.matching.run.execute`. Base rows that repeat one full payload
 under different row handles are matched once, and that result is copied to
 every handle in the group. A repeated row therefore never competes with its
-own copy and never counts as independent evidence or as a second campus.
+own copy as a candidate and never counts as independent evidence or as a
+second campus. Identifier uniqueness is still counted over every original row,
+as D's validator counts it, so a group of copies confirms nothing automatically.
 Inputs are never modified. Outputs describe retrieval, not reviewed identity.
 """
 from __future__ import annotations
@@ -19,8 +21,8 @@ from pathlib import Path
 
 from . import MATCHER_VERSION
 from .base_adapter import base_views, check_mapping, default_mapping, mapping_from_source_metadata
-from .common import (MatchingError, base_check, canonical, digest, file_digest, load, require,
-                     write_json)
+from .common import (MatchingError, base_check, canonical, digest, field_value, file_digest, load,
+                     require, write_json)
 from .normalize import state_key
 from .run import execute
 
@@ -57,28 +59,61 @@ def duplicate_groups(base):
 
 
 def sidecar_groups(sidecar):
-    """Row-handle sets from D's duplicate-group sidecar.
+    """Groups from D's duplicate-group sidecar.
 
     Accepts an array of groups, or an object holding exactly one such array.
-    A group is an array of handles or an object with exactly one array of handles.
+    A group is an array of row handles, or an object with exactly one array of
+    row handles and optional `original_id` and `multiplicity` declarations.
+    Returns one {"handles", "original_id", "multiplicity", "other_fields"} per group.
     """
-    def handles(value, path):
+    def group(value, path):
+        declared = {"original_id": None, "multiplicity": None, "other_fields": []}
         if isinstance(value, dict):
-            lists = [v for v in value.values() if isinstance(v, list) and v and all(isinstance(x, str) for x in v)]
+            lists = [k for k, v in value.items() if isinstance(v, list) and v and all(isinstance(x, str) for x in v)]
             require(len(lists) == 1, path, "a group object needs exactly one array of row handles")
-            value = lists[0]
+            if "original_id" in value:
+                require(isinstance(value["original_id"], str) and bool(value["original_id"]), f"{path}.original_id",
+                        "the declared original ID must be nonempty text")
+                declared["original_id"] = value["original_id"]
+            if "multiplicity" in value:
+                require(isinstance(value["multiplicity"], int) and not isinstance(value["multiplicity"], bool),
+                        f"{path}.multiplicity", "the declared multiplicity must be an integer")
+                declared["multiplicity"] = value["multiplicity"]
+            declared["other_fields"] = sorted(set(value) - {"original_id", "multiplicity", lists[0]})
+            value = value[lists[0]]
         require(isinstance(value, list) and len(value) > 1 and all(isinstance(x, str) and x for x in value)
                 and len(set(value)) == len(value), path, "a group needs two or more distinct row handles")
-        return frozenset(value)
+        require(declared["multiplicity"] is None or declared["multiplicity"] == len(value), f"{path}.multiplicity",
+                "the declared multiplicity differs from the number of row handles")
+        return {"handles": frozenset(value), **declared}
 
     if isinstance(sidecar, dict):
         arrays = [v for v in sidecar.values() if isinstance(v, list) and all(isinstance(x, (list, dict)) for x in v)]
         require(len(arrays) == 1, "duplicate_groups", "expected one array of groups")
         sidecar = arrays[0]
     require(isinstance(sidecar, list), "duplicate_groups", "expected an array of groups")
-    found = [handles(item, f"duplicate_groups[{position}]") for position, item in enumerate(sidecar)]
-    require(len(set(found)) == len(found), "duplicate_groups", "a group is listed twice")
-    return set(found)
+    found = [group(item, f"duplicate_groups[{position}]") for position, item in enumerate(sidecar)]
+    require(len({g["handles"] for g in found}) == len(found), "duplicate_groups", "a group is listed twice")
+    return found
+
+
+def check_sidecar(sidecar, groups, index, id_selector):
+    """D's sidecar must describe exactly the groups found in the base. A declared
+    original ID must be the ID every member row carries. Returns the names of
+    sidecar fields this check does not verify."""
+    declared = sidecar_groups(sidecar)
+    require({g["handles"] for g in declared} == {frozenset(g["members"]) for g in groups}, "duplicate_groups",
+            "the sidecar disagrees with the identical-payload groups found in the base")
+    for position, item in enumerate(declared):
+        if item["original_id"] is None:
+            continue
+        path = f"duplicate_groups[{position}].original_id"
+        require(id_selector is not None, path, "cannot be verified: supply --source-metadata, whose mapping names the ID column")
+        for handle in sorted(item["handles"]):
+            value = field_value(index[handle], id_selector)
+            require(value is not None and str(value) == item["original_id"], path,
+                    "differs from the original ID carried by the group's base rows")
+    return sorted({name for item in declared for name in item["other_fields"]})
 
 
 def _source_keys(external_batches):
@@ -139,19 +174,30 @@ def _missed_sample(rows, limit):
 
 def execute_national(base, external_batches, mapping=None, attributes=None, policy=None, postal=None,
                      postal_mapping=None, config=None, sample_size=50, source_metadata=None,
-                     duplicate_sidecar=None, expect_duplicate_groups=None, state=None, missed_sample_size=50):
+                     duplicate_sidecar=None, expect_duplicate_groups=None, state=None, missed_sample_size=50,
+                     base_file_sha256=None):
     """Pure function behind the CLI. `state` limits the run to base rows with
-    that state label (the scoped pilot); identical copies always stay together."""
+    that state label (the scoped pilot); identical copies always stay together.
+    `base_file_sha256` is the hash of the base file as read; without it the
+    canonical encoding of `base` is hashed, which is how D writes the file."""
     index = base_check(base)
     before = digest(base)
+    id_selector = None
     if source_metadata is not None:
         mapping = {**mapping_from_source_metadata(source_metadata, base), **(mapping or {})}
+        recorded = source_metadata.get("base_file_sha256")
+        require(isinstance(recorded, str) and bool(recorded), "source_metadata.base_file_sha256",
+                "D's metadata must record the hash of the base file")
+        require(recorded == (base_file_sha256 or before), "source_metadata.base_file_sha256",
+                "differs from the base file; use the metadata written with this base")
+        id_column = source_metadata["mapping"].get("id")
+        id_selector = f"source_row.{id_column}" if isinstance(id_column, str) and id_column.strip() else None
     mapping = check_mapping(mapping, base) if mapping is not None else default_mapping(base)
 
     groups = duplicate_groups(base)
+    sidecar_unverified = None
     if duplicate_sidecar is not None:
-        require(sidecar_groups(duplicate_sidecar) == {frozenset(g["members"]) for g in groups}, "duplicate_groups",
-                "the sidecar disagrees with the identical-payload groups found in the base")
+        sidecar_unverified = check_sidecar(duplicate_sidecar, groups, index, id_selector)
     if expect_duplicate_groups is not None:
         require(len(groups) == expect_duplicate_groups, "duplicate_groups",
                 f"found {len(groups)} identical-payload groups, expected {expect_duplicate_groups}")
@@ -169,8 +215,10 @@ def execute_national(base, external_batches, mapping=None, attributes=None, poli
     representative = lambda fid: group_of[fid]["representative"] if fid in group_of else fid
     unique_rows = [row for row in in_scope if representative(row["facility_id"]) == row["facility_id"]]
 
+    # Identifier uniqueness is counted over every original row, copies and out-of-scope rows
+    # included, so nothing confirms here that D's validator would reject on the full base.
     result = execute(unique_rows, external_batches, mapping, attributes, policy, postal, postal_mapping,
-                     config, sample_size)
+                     config, sample_size, identifier_base=base)
     require(digest(base) == before and len(base) == len(index), "base", "base changed during the run")
 
     source_of = _source_keys(external_batches)
@@ -232,6 +280,14 @@ def execute_national(base, external_batches, mapping=None, attributes=None, poli
                          "original_rows_in_base_file": len(base),
                          "identical_payload_groups": len(in_scope_groups),
                          "rows_in_identical_payload_groups": sum(g["multiplicity"] for g in in_scope_groups)},
+        "identical_payload_groups_detail": {
+            "with_identifier_confirmation_withheld": sum(
+                any(c["review_reason"] == "identifier_not_unique" for c in by_base.get(g["representative"], []))
+                for g in in_scope_groups),
+            "note": "A shared identifier appears once per copy in the full base, so it is not unique on the base "
+                    "side and confirms nothing automatically. These groups are reported as ambiguous.",
+            "sidecar": "not supplied" if sidecar_unverified is None else "agrees with the base",
+            "sidecar_fields_not_verified": sidecar_unverified or []},
         "outcomes": {"unit": "original rows", **{o: sum(r["outcome"] == o for r in rows) for o in OUTCOMES}},
         "outcomes_distinct_payloads": {"unit": "distinct payloads",
                                        **{o: sum(r["outcome"] == o and r["facility_id"] == r["matched_as"] for r in rows)
@@ -298,7 +354,8 @@ def main(argv=None):
                                   optional(args.identity_policy), optional(args.postal),
                                   optional(args.postal_mapping), optional(args.config), args.sample_size,
                                   optional(args.source_metadata), optional(args.duplicate_groups),
-                                  args.expect_duplicate_groups, args.state, args.missed_sample_size)
+                                  args.expect_duplicate_groups, args.state, args.missed_sample_size,
+                                  file_digest(args.base))
         finished = time.perf_counter()
         hashes = {name: write_json(out / f"{name}.json", result[name]) for name in RUN_OUTPUTS + NATIONAL_OUTPUTS}
         # Timing and memory depend on the machine, so they stay out of the hashed outputs.

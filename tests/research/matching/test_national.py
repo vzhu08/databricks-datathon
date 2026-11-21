@@ -1,6 +1,7 @@
 """NAT-C01: twin-aware matching and one output row per original base row.
 Entirely synthetic data."""
 import copy
+import hashlib
 import json
 import subprocess
 import sys
@@ -13,7 +14,6 @@ from matching_fixtures import ROOT, base_row, envelope, ext, mapping, snapshot
 from research.matching.common import MatchingError, digest
 from research.matching.national import (duplicate_groups, execute_national, payload_digest,
                                         sidecar_groups)
-from research.matching.run import execute
 
 STATE, OTHER = "Synthetic State", "Other Synthetic State"
 POLICY = {"synthetic_registry": {"base_field": "source_row.registry_id", "external_field": "source_record_id",
@@ -33,7 +33,8 @@ def data():
             base_row(5, name=None, registry_id="R-5", city="East Town", state=OTHER)]
     snap, other = snapshot(), snapshot("synthetic_map")
     externals = [ext(1, "Larkspur Hosp", snap, source_record_id="R-1", city="North Town", state=STATE),
-                 ext(2, "Marigold Hospital", other, city="North Town", state=STATE)]
+                 ext(2, "Marigold Hospital", other, city="North Town", state=STATE),
+                 ext(3, "Juniper Clinic", snap, source_record_id="R-4", city="East Town", state=OTHER)]
     return base, envelope([snap, other], externals)
 
 
@@ -54,10 +55,17 @@ class DuplicateGroupTests(unittest.TestCase):
 
     def test_sidecar_must_agree_with_the_base(self):
         base, batch = data()
-        good = [{"original_id": "R-1", "multiplicity": 2, "row_handles": ["synthetic:base:002", "synthetic:base:001"]}]
-        for sidecar in (good, {"groups": good}, [["synthetic:base:001", "synthetic:base:002"]]):
-            self.assertEqual({frozenset({"synthetic:base:001", "synthetic:base:002"})}, sidecar_groups(sidecar))
-            run(base, batch, duplicate_sidecar=sidecar)
+        handles = ["synthetic:base:002", "synthetic:base:001"]
+        good = [{"original_id": "R-1", "multiplicity": 2, "row_handles": handles, "payload_sha256": "not checked"}]
+        metadata = {"mapping": {"id": "registry_id", "name": "name", "state": "state"}, "row_count": 5,
+                    "base_file_sha256": digest(base)}
+        for sidecar in (good, {"groups": good}):
+            self.assertEqual([frozenset(handles)], [g["handles"] for g in sidecar_groups(sidecar)])
+            detail = execute_national(base, [batch], source_metadata=metadata, duplicate_sidecar=sidecar)[
+                "national_report"]["identical_payload_groups_detail"]
+            self.assertEqual(("agrees with the base", ["payload_sha256"]),
+                             (detail["sidecar"], detail["sidecar_fields_not_verified"]))
+        run(base, batch, duplicate_sidecar=[sorted(handles)])           # bare handle arrays declare nothing else
         with self.assertRaisesRegex(MatchingError, "sidecar disagrees"):
             run(base, batch, duplicate_sidecar=[["synthetic:base:001", "synthetic:base:003"]])
         with self.assertRaisesRegex(MatchingError, "sidecar disagrees"):
@@ -68,28 +76,72 @@ class DuplicateGroupTests(unittest.TestCase):
             run(base, batch, expect_duplicate_groups=2)
         run(base, batch, expect_duplicate_groups=1)
 
+    def test_declared_original_id_and_multiplicity_are_verified(self):
+        base, batch = data()
+        handles = ["synthetic:base:001", "synthetic:base:002"]
+        metadata = {"mapping": {"id": "registry_id", "name": "name", "state": "state"}, "row_count": 5,
+                    "base_file_sha256": digest(base)}
+        with_metadata = lambda sidecar: execute_national(base, [batch], source_metadata=metadata, duplicate_sidecar=sidecar)
+        with self.assertRaisesRegex(MatchingError, "differs from the original ID"):
+            with_metadata([{"original_id": "R-999", "multiplicity": 2, "row_handles": handles}])
+        with self.assertRaisesRegex(MatchingError, "multiplicity differs"):
+            with_metadata([{"original_id": "R-1", "multiplicity": 999, "row_handles": handles}])
+        with self.assertRaisesRegex(MatchingError, "must be an integer"):
+            with_metadata([{"original_id": "R-1", "multiplicity": "2", "row_handles": handles}])
+        with self.assertRaisesRegex(MatchingError, "cannot be verified"):      # no ID column is known without metadata
+            run(base, batch, duplicate_sidecar=[{"original_id": "R-1", "row_handles": handles}])
+
 
 class NationalRunTests(unittest.TestCase):
-    def test_twins_share_one_result_and_do_not_compete(self):
+    def test_copies_share_one_result_and_confirm_nothing_automatically(self):
         base, batch = data()
-        plain = execute(base, [batch], mapping=mapping(base), policy=POLICY)
-        # As separate rows the two copies block each other: nothing confirms.
-        self.assertEqual(0, plain["report"]["base"]["rows_with_automatic_shared_identifier_confirmation"])
         result = run(base, batch, policy=POLICY)
         rows = {r["facility_id"]: r for r in result["base_rows"]}
         self.assertEqual([row["facility_id"] for row in base], [r["facility_id"] for r in result["base_rows"]])
+        # The registry ID appears twice in the full base, so it proves nothing; both copies carry one shared result.
         for fid in ("synthetic:base:001", "synthetic:base:002"):
-            self.assertEqual(("confirmed", "synthetic:base:001", 2, ["synthetic:external:001"]),
+            self.assertEqual(("ambiguous", "synthetic:base:001", 2, [], 1),
                              (rows[fid]["outcome"], rows[fid]["matched_as"], rows[fid]["duplicate_multiplicity"],
-                              rows[fid]["confirmed_external_facility_ids"]))
+                              rows[fid]["confirmed_external_facility_ids"], rows[fid]["candidate_count"]))
             self.assertEqual(result["duplicate_groups"][0]["group_id"], rows[fid]["duplicate_group"])
-        # The contract batch names only the representative, so one reference is never confirmed twice.
-        self.assertEqual({"synthetic:base:001", "synthetic:base:003"},
+        pair = [c for c in result["candidates"] if c["facility_id"] == "synthetic:base:001"][0]
+        self.assertEqual(("identifier_not_unique", 0, False),
+                         (pair["review_reason"], pair["other_bases_for_external"], "ambiguous_campus" in pair["flags"]))
+        self.assertEqual(1, result["national_report"]["identical_payload_groups_detail"]["with_identifier_confirmation_withheld"])
+        # A row without copies still confirms on its unique identifier.
+        self.assertEqual(("confirmed", ["synthetic:external:003"], None, 1),
+                         (rows["synthetic:base:004"]["outcome"], rows["synthetic:base:004"]["confirmed_external_facility_ids"],
+                          rows["synthetic:base:004"]["duplicate_group"], rows["synthetic:base:004"]["duplicate_multiplicity"]))
+        self.assertEqual({"synthetic:base:004"}, {m["facility_id"] for m in result["batch"]["facility_matches"]
+                                                  if m["status"] == "confirmed"})
+        # The envelope names the representative only; the other handle is reached through base_rows.
+        self.assertEqual({"synthetic:base:001", "synthetic:base:003", "synthetic:base:004"},
                          {m["facility_id"] for m in result["batch"]["facility_matches"]})
         self.assertEqual("candidate_only", rows["synthetic:base:003"]["outcome"])
-        self.assertEqual(("unmatched", None, 1), (rows["synthetic:base:004"]["outcome"],
-                                                  rows["synthetic:base:004"]["duplicate_group"],
-                                                  rows["synthetic:base:004"]["duplicate_multiplicity"]))
+        self.assertEqual("unmatched", rows["synthetic:base:005"]["outcome"])
+
+    def test_d_validator_accepts_the_envelope_on_the_full_base(self):
+        """Both normal entry points, with every original row given to each."""
+        base, batch = data()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            (tmp / "in").mkdir()
+            files = {"base": tmp / "in/base.json", "ext": tmp / "in/ext.json", "map": tmp / "in/map.json",
+                     "policy": tmp / "in/policy.json"}
+            for name, value in (("base", base), ("ext", batch), ("map", mapping(base)), ("policy", POLICY)):
+                files[name].write_text(json.dumps(value), encoding="utf-8")
+            matched = subprocess.run([sys.executable, "-m", "research.matching.national", "--base", str(files["base"]),
+                                      "--external", str(files["ext"]), "--base-mapping", str(files["map"]),
+                                      "--identity-policy", str(files["policy"]), "--expect-duplicate-groups", "1",
+                                      "--output-dir", str(tmp / "out")], cwd=ROOT, capture_output=True, text=True)
+            self.assertEqual(0, matched.returncode, matched.stderr)
+            self.assertEqual({"ambiguous": 2, "candidate_only": 1, "confirmed": 1, "unit": "original rows", "unmatched": 1},
+                             json.loads(matched.stdout)["outcomes"])
+            validated = subprocess.run([sys.executable, str(ROOT / "databricks/enrichment/validate_batch.py"),
+                                        "--base", str(files["base"]), "--batch", str(files["ext"]),
+                                        "--batch", str(tmp / "out/batch.json"), "--identity-policy", str(files["policy"]),
+                                        "--as-of", "2026-11-21"], cwd=ROOT, capture_output=True, text=True)
+            self.assertEqual(0, validated.returncode, validated.stdout + validated.stderr)
 
     def test_report_keeps_both_denominators_and_every_row(self):
         base, batch = data()
@@ -99,22 +151,23 @@ class NationalRunTests(unittest.TestCase):
         self.assertEqual({"original_rows": 5, "distinct_payloads": 4, "original_rows_in_base_file": 5,
                           "identical_payload_groups": 1, "rows_in_identical_payload_groups": 2},
                          report["denominators"])
-        self.assertEqual({"unit": "original rows", "confirmed": 2, "ambiguous": 0, "candidate_only": 1, "unmatched": 2},
+        self.assertEqual({"unit": "original rows", "confirmed": 1, "ambiguous": 2, "candidate_only": 1, "unmatched": 1},
                          report["outcomes"])
-        self.assertEqual({"unit": "distinct payloads", "confirmed": 1, "ambiguous": 0, "candidate_only": 1,
-                          "unmatched": 2}, report["outcomes_distinct_payloads"])
+        self.assertEqual({"unit": "distinct payloads", "confirmed": 1, "ambiguous": 1, "candidate_only": 1,
+                          "unmatched": 1}, report["outcomes_distinct_payloads"])
         state = report["by_state"]["synthetic state"]
-        self.assertEqual((3, 2, 2, 1, 0), (state["original_rows"], state["distinct_payloads"], state["confirmed"],
+        self.assertEqual((3, 2, 2, 1, 0), (state["original_rows"], state["distinct_payloads"], state["ambiguous"],
                                            state["candidate_only"], state["unmatched"]))
         self.assertEqual(sum(s["original_rows"] for s in report["by_state"].values()), 5)
         directory, other = report["by_source"]["synthetic_directory"], report["by_source"]["synthetic_map"]
-        self.assertEqual((1, 1, 5, 2, 3), (directory["reference_rows"], directory["reference_rows_retrieved"],
-                                           directory["original_rows"], directory["confirmed"], directory["unmatched"]))
+        self.assertEqual((2, 2, 5, 1, 2, 2), (directory["reference_rows"], directory["reference_rows_retrieved"],
+                                              directory["original_rows"], directory["confirmed"],
+                                              directory["ambiguous"], directory["unmatched"]))
         self.assertEqual((1, 4), (other["candidate_only"], other["unmatched"]))
         for entry in list(report["by_state"].values()) + list(report["by_source"].values()):
             self.assertEqual(entry["original_rows"], sum(entry[o] for o in ("confirmed", "ambiguous",
                                                                            "candidate_only", "unmatched")))
-        self.assertEqual({"0": 2, "1": 3}, {k: v for k, v in report["source_overlap"].items() if k != "unit"})
+        self.assertEqual({"0": 1, "1": 4}, {k: v for k, v in report["source_overlap"].items() if k != "unit"})
         self.assertEqual(1, report["input_problems"]["by_problem"]["name_missing"])
 
     def test_missed_sample_is_repeatable_and_never_lists_a_copy_twice(self):
@@ -123,8 +176,8 @@ class NationalRunTests(unittest.TestCase):
         base += [extra, twin(extra, 7)]
         one, two = run(base, batch)["missed_sample"], run(list(reversed(base)), batch)["missed_sample"]
         self.assertEqual(one, two)
-        self.assertEqual((3, 3), (one["available"], one["sampled"]))
-        self.assertEqual({"synthetic:base:004", "synthetic:base:005", "synthetic:base:006"},
+        self.assertEqual((2, 2), (one["available"], one["sampled"]))
+        self.assertEqual({"synthetic:base:005", "synthetic:base:006"},
                          {r["facility_id"] for r in one["rows"]})
         self.assertEqual(1, run(base, batch, missed_sample_size=1)["missed_sample"]["sampled"])
 
@@ -142,11 +195,25 @@ class NationalRunTests(unittest.TestCase):
 
     def test_source_metadata_is_checked_against_the_whole_base(self):
         base, batch = data()
-        metadata = {"mapping": {"id": "registry_id", "name": "name", "state": "state"}, "row_count": 5}
+        metadata = {"mapping": {"id": "registry_id", "name": "name", "state": "state"}, "row_count": 5,
+                    "base_file_sha256": digest(base)}
         result = execute_national(base, [batch], source_metadata=metadata, mapping={"city": "source_row.city"})
         self.assertEqual(["city", "name", "state"], result["national_report"]["run_report"]["base_mapping_roles"])
         with self.assertRaisesRegex(MatchingError, "row_count differs"):
             execute_national(base, [batch], source_metadata=dict(metadata, row_count=4))
+        with self.assertRaisesRegex(MatchingError, "base_file_sha256: differs from the base file"):
+            execute_national(base, [batch], source_metadata=dict(metadata, base_file_sha256="0" * 64))
+        with self.assertRaisesRegex(MatchingError, "must record the hash"):
+            execute_national(base, [batch], source_metadata={k: v for k, v in metadata.items() if k != "base_file_sha256"})
+        # The CLI compares the recorded hash with the bytes of the file it was given.
+        with self.assertRaisesRegex(MatchingError, "differs from the base file"):
+            execute_national(base, [batch], source_metadata=metadata, base_file_sha256="f" * 64)
+
+    def test_scope_does_not_hide_an_identifier_shared_outside_it(self):
+        base, batch = data()
+        base[2]["source_row"]["registry_id"] = "R-4"          # an in-scope row now shares the other state's ID
+        rows = {r["facility_id"]: r for r in run(base, batch, policy=POLICY, state=OTHER)["base_rows"]}
+        self.assertEqual("ambiguous", rows["synthetic:base:004"]["outcome"])
 
     def test_cli_is_reproducible_and_never_touches_inputs(self):
         base, batch = data()
@@ -160,9 +227,14 @@ class NationalRunTests(unittest.TestCase):
             files["map"].write_text(json.dumps(mapping(base)), encoding="utf-8")
             files["groups"].write_text(json.dumps([["synthetic:base:001", "synthetic:base:002"]]), encoding="utf-8")
             files["policy"].write_text(json.dumps(POLICY), encoding="utf-8")
+            files["meta"] = tmp / "in/source_metadata.json"
+            metadata = {"mapping": {"id": "registry_id", "name": "name", "state": "state"}, "row_count": len(base),
+                        "base_file_sha256": hashlib.sha256(files["base"].read_bytes()).hexdigest()}
+            files["meta"].write_text(json.dumps(metadata), encoding="utf-8")
             before = {k: p.read_bytes() for k, p in files.items()}
             command = [sys.executable, "-m", "research.matching.national", "--base", str(files["base"]),
                        "--external", str(files["ext"]), "--base-mapping", str(files["map"]),
+                       "--source-metadata", str(files["meta"]),
                        "--duplicate-groups", str(files["groups"]), "--identity-policy", str(files["policy"]),
                        "--expect-duplicate-groups", "1"]
             outputs = []
@@ -179,6 +251,13 @@ class NationalRunTests(unittest.TestCase):
             refused = subprocess.run(command + ["--output-dir", str(tmp / "in")], cwd=ROOT, capture_output=True, text=True)
             self.assertEqual(1, refused.returncode)
             self.assertIn("INVALID", refused.stderr)
+            wrong = tmp / "wrong_metadata.json"
+            wrong.write_text(json.dumps(dict(metadata, base_file_sha256="0" * 64)), encoding="utf-8")
+            stale = subprocess.run([wrong if part == str(files["meta"]) else part for part in command]
+                                   + ["--output-dir", str(tmp / "three")], cwd=ROOT, capture_output=True, text=True)
+            self.assertEqual(1, stale.returncode)
+            self.assertIn("base_file_sha256: differs from the base file", stale.stderr)
+            self.assertFalse((tmp / "three").exists())
 
 
 if __name__ == "__main__":

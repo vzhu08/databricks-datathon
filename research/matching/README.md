@@ -69,12 +69,16 @@ This wraps the matching run for the full base and writes one output row for ever
 
 | Argument | Meaning |
 | --- | --- |
-| `--duplicate-groups` | D's duplicate-group sidecar. An array of groups, or an object holding one such array. A group is an array of row handles or an object with exactly one array of row handles. The run fails unless these groups equal the ones found in the base. |
+| `--duplicate-groups` | D's duplicate-group sidecar. An array of groups, or an object holding one such array. A group is an array of row handles, or an object with exactly one array of row handles and optional `original_id` and `multiplicity`. The run fails unless these groups equal the ones found in the base, each declared `multiplicity` equals the number of handles, and each declared `original_id` is the ID every member row carries (the ID column comes from `--source-metadata`). Other fields are not verified and are listed in the report. |
 | `--expect-duplicate-groups` | Fail unless exactly this many identical-payload groups exist. Use 11 for facilities version 0. |
 | `--state` | Limit the run to base rows with this state label. This is the scoped pilot. |
 | `--missed-sample-size` | Limit for the sample of unmatched rows, default 50. |
 
-**Identical repeated rows.** The pinned base holds a few rows that repeat one full payload under different row handles. Matched as separate rows, each copy would count the other as a competing base row for the same reference, and a shared identifier would no longer be unique on the base side. Both effects create ambiguity that is not in the data. The nationwide run therefore groups rows whose whole payload is identical (everything except `facility_id`), matches the first handle of each group in sorted order, and copies that result to every handle in the group. The copies are interchangeable. A copy is never a second campus and never independent evidence. Rows that share an ID but differ in payload are not grouped.
+With `--source-metadata`, the metadata must record `base_file_sha256` and it must equal the hash of the base file given to the run.
+
+**Identical repeated rows.** The pinned base holds a few rows that repeat one full payload under different row handles. Matched as separate rows, each copy would count the other as a competing base row for the same reference, which flags a campus ambiguity that is not in the data. The nationwide run therefore groups rows whose whole payload is identical (everything except `facility_id`), retrieves candidates for the first handle of each group in sorted order, and copies that result to every handle in the group. The copies are interchangeable. A copy is never a second campus and never independent evidence. Rows that share an ID but differ in payload are not grouped.
+
+**Identifiers are counted over every original row.** D's validator counts identifier uniqueness across the full base. The nationwide run does the same, including copies and rows outside a `--state` scope. An identifier carried by two copies is therefore not unique on the base side, so a group of copies confirms nothing automatically: its candidate stays a candidate with the review reason `identifier_not_unique`, and both rows are reported as `ambiguous`. `national_report.json` counts these groups under `identical_payload_groups_detail`. Confirming such a group needs a reviewed, group-aware rule agreed with D and the integration lead. Until then the envelope passes D's validator on the full base.
 
 Outputs are the six files of the matching run, computed on one row per distinct payload, plus:
 
@@ -84,7 +88,7 @@ Outputs are the six files of the matching run, computed on one row per distinct 
 - `national_report.json`: outcome counts overall, by state and by source, input problems, source overlap, and both denominators (original rows and distinct payloads).
 - `timing.json`: load time, matching time and peak memory. It depends on the machine, so it is not listed in `manifest.json`.
 
-`batch.json` names only the representative of each group, so one reference is never confirmed for two base rows. Join `base_rows.json` on `matched_as` to reach the other handles.
+`batch.json` names only the representative of each group. Join `base_rows.json` on `matched_as` to reach the other handles.
 
 | Outcome | Meaning |
 | --- | --- |

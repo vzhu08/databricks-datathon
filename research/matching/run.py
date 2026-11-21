@@ -53,11 +53,13 @@ def cross_check(batch, base_index, external_ids):
 
 
 def execute(base, external_batches, mapping=None, attributes=None, policy=None, postal=None,
-            postal_mapping=None, config=None, sample_size=50, source_metadata=None):
+            postal_mapping=None, config=None, sample_size=50, source_metadata=None, identifier_base=None):
     """Pure function behind the CLI: returns every output as plain data.
 
     `source_metadata` is D's metadata for this base; `mapping` adds or overrides
     roles D's mapping does not carry (address, city, district, phone, alt_names).
+    `identifier_base` is the full original base when `base` is only part of it,
+    so that identifier uniqueness is counted across every original row.
     """
     base_index = base_check(base)
     base_digest = digest(base)
@@ -75,7 +77,7 @@ def execute(base, external_batches, mapping=None, attributes=None, policy=None, 
         postal_table, postal_profile = aggregate(postal, postal_mapping)
 
     candidates = generate(bases, externals, policy, config)
-    matches, reviews, candidates = build(candidates, bases, externals, policy)
+    matches, reviews, candidates = build(candidates, bases, externals, policy, identifier_base)
 
     address_selector = mapping.get("address")
     base_address = lambda v: field_value(v["row"], address_selector) if isinstance(address_selector, str) else None
