@@ -109,3 +109,17 @@ class ReleaseTests(unittest.TestCase):
             self.write("B5", "audit.json", decisions)
             with self.assertRaises(ValueError):
                 build(self.root)
+
+    def test_quarantine_keeps_original_source_issue(self):
+        claim = self.batch["facility_evidence"][0]
+        issue = dict(review_id="test:issue", facility_id=None, match_id=None, evidence_id=claim["evidence_id"],
+                     external_facility_id=claim["external_facility_id"], reason_code="campus", severity="medium",
+                     status="open", resolution=None, next_action="Review campus wording.")
+        self.batch["review_queue"] = [issue]
+        self.write("B1", "batch.json", self.batch)
+        self.write("B5", "audit.json", [dict(self.audit, outcome="uncertain")])
+        release = build(self.root)
+        self.assertEqual(release["source_review_ledger.json"], [issue])
+        queue = release["batch.json"]["review_queue"]
+        self.assertEqual(len(queue), 2)
+        self.assertTrue(all(row["evidence_id"] is None and row["review_id"] != "test:issue" for row in queue))

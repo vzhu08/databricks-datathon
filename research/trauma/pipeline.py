@@ -19,7 +19,7 @@ LANES = ("B1", "B2", "B3", "B4")
 FORMATS = FormatChecker()
 
 
-def load_json(path):
+def load_json(path, data=None):
     def reject_duplicates(pairs):
         result = {}
         for key, value in pairs:
@@ -27,7 +27,8 @@ def load_json(path):
                 raise ValueError(f"{path.name}: duplicate JSON key {key}")
             result[key] = value
         return result
-    return json.loads(path.read_text(encoding="utf-8-sig"), object_pairs_hook=reject_duplicates)
+    raw = path.read_bytes() if data is None else data
+    return json.loads(raw.decode("utf-8-sig"), object_pairs_hook=reject_duplicates)
 
 
 def digest(row):
@@ -116,9 +117,10 @@ def build(input_dir, *, partial=False):
         path = input_dir / lane / "batch.json"
         if partial and not path.exists():
             continue
-        batch = load_json(path)
+        raw = path.read_bytes()
+        batch = load_json(path, raw)
         check_envelope(batch, validator)
-        producers[lane] = hashlib.sha256(path.read_bytes()).hexdigest()
+        producers[lane] = hashlib.sha256(raw).hexdigest()
         for table, primary_key in TABLES.items():
             for row in batch[table]:
                 key = row[primary_key]
