@@ -1,5 +1,7 @@
 # Rajasthan NQAS reference
 
+The newer national-level register is a separate [ACQ-D04 workflow](NATIONAL.md); this page describes the preserved D03 full/partial capture.
+
 ACQ-D03 acquires the public NHSRC QPS full/partial facility tables for a **held-out accreditation audit**. Keep this entire reference out of candidate generation, matching features, thresholds and candidate adjudication until predictions are frozen. The emitted v1 envelope is a separate audit artifact; its identity-shaped rows are not permission to feed it into the ordinary matcher. No original population is supplied, and the producer creates no base links or matches.
 
 NQAS applies to the named facility, printed department scope and recorded validity interval. It is separate from NABH and does not establish general clinical quality, a service capability or live availability. Both NHSRC portals and all QPS presentations have the single source family `nhsrc_nqas`, assessed as `shared_origin`.
