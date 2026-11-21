@@ -5,12 +5,12 @@
         --output google_buildings.ndjson --manifest google_manifest.json [--max-bytes N]
 
 Open Buildings v3 publishes one compressed CSV per level-6 S2 cell. This picks
-the cells that hold the most sample points within a download budget, streams
+the cells intersecting the most sample search areas within a download budget, streams
 each file once and keeps only the buildings whose published centre lies within
 the search radius plus a margin of a sample point. Nothing else is stored.
 
-Sample points in cells left out of the budget are listed as not compared; they
-stay unknown. Needs s2sphere to name the cell for a coordinate
+Sample points with incomplete cell coverage are listed as not compared.
+Needs s2sphere to cover each padded search area
 (research/geography/requirements.txt).
 """
 from __future__ import annotations
@@ -31,7 +31,7 @@ from .coverage import RADIUS_M, check_sample
 from .overture import bbox
 from .overture_read import ATTEMPTS, TIMEOUT_S, write_ndjson
 
-EXTRACT_VERSION = "open-buildings-extract-1.0.0"
+EXTRACT_VERSION = "open-buildings-extract-1.1.0"
 DATASET = "Google Open Buildings"
 DATASET_VERSION = "v3"
 BUCKET = "open-buildings-data"
@@ -43,12 +43,18 @@ MAX_BYTES = 1_600_000_000
 MARGIN_M = 100.0
 
 
-def cell_token(lat, lon):
+def covering_tokens(box):
+    """All level-6 S2 cells intersecting the padded centre-selection rectangle."""
     try:
         import s2sphere
     except ImportError:
         raise MatchingError("s2sphere is required: pip install -r research/geography/requirements.txt")
-    return s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(lat, lon)).parent(6).to_token()
+    west, south, east, north = box
+    region = s2sphere.LatLngRect.from_point_pair(s2sphere.LatLng.from_degrees(south, west),
+                                                 s2sphere.LatLng.from_degrees(north, east))
+    coverer = s2sphere.RegionCoverer()
+    coverer.min_level = coverer.max_level = 6
+    return sorted(cell.to_token() for cell in coverer.get_covering(region))
 
 
 def object_metadata(token):
@@ -67,15 +73,8 @@ def object_metadata(token):
     raise MatchingError(f"open buildings: could not read metadata for cell {token}")
 
 
-def choose_cells(cases, tokens, sizes, max_bytes):
-    """Cells by descending number of sample points, then size, then token, while they fit.
-
-    `tokens` maps case_id to cell token, `sizes` maps token to bytes (None when
-    the cell has no published file). Returns (chosen tokens, skipped {token: reason}).
-    """
-    members = defaultdict(list)
-    for case in cases:
-        members[tokens[case["case_id"]]].append(case["case_id"])
+def choose_cells(members, sizes, max_bytes):
+    """Prioritize cells covering the most cases, then smaller files within budget."""
     chosen, skipped, used = [], {}, 0
     for token in sorted(members, key=lambda t: (-len(members[t]), sizes.get(t) or 0, t)):
         size = sizes.get(token)
@@ -182,36 +181,41 @@ def stream_cell(token, boxes):
 
 
 def extract(sample, max_bytes=MAX_BYTES, radius_m=RADIUS_M, metadata=object_metadata, stream=stream_cell,
-            token_of=cell_token):
+            tokens_for=covering_tokens):
     check_sample(sample)
-    cases = sample["cases"]
-    tokens = {c["case_id"]: token_of(c["points"][0]["latitude"], c["points"][0]["longitude"]) for c in cases}
-    info = {token: metadata(token) for token in sorted(set(tokens.values()))}
+    require(0 < radius_m <= RADIUS_M and max_bytes >= 0, "extract", "invalid radius or byte budget")
+    boxes, required_cells, members = {}, {}, defaultdict(list)
+    for case in sample["cases"]:
+        case_id, point = case["case_id"], case["points"][0]
+        boxes[case_id] = bbox(point["latitude"], point["longitude"], radius_m + MARGIN_M)
+        required_cells[case_id] = sorted(set(tokens_for(boxes[case_id])))
+        require(required_cells[case_id], "cells", "no cells cover the search area")
+        for token in required_cells[case_id]:
+            members[token].append(case_id)
+    info = {token: metadata(token) for token in sorted(members)}
     sizes = {token: (int(meta["size"]) if meta else None) for token, meta in info.items()}
-    chosen, skipped = choose_cells(cases, tokens, sizes, max_bytes)
+    chosen, skipped = choose_cells(members, sizes, max_bytes)
     rows, cells = {}, []
     for token in chosen:
-        members = [c for c in cases if tokens[c["case_id"]] == token]
-        boxes = [bbox(c["points"][0]["latitude"], c["points"][0]["longitude"], radius_m + MARGIN_M) for c in members]
-        found, lines = stream(token, boxes)
+        found, lines = stream(token, [boxes[c] for c in members[token]])
         for row in found:
             rows.setdefault(row["id"], row)
         cells.append({"token": token, "object": OBJECT.format(token=token), "bytes": sizes[token],
                       "md5": info[token].get("md5Hash"), "generation": info[token].get("generation"),
                       "updated": info[token].get("updated"), "rows_read": lines, "rows_kept": len(found),
-                      "sample_points": len(members)})
-    compared = sorted(c["case_id"] for c in cases if tokens[c["case_id"]] in chosen)
+                      "sample_points": len(members[token])})
+    compared = sorted(case_id for case_id, needed in required_cells.items() if set(needed).issubset(chosen))
     manifest = {
         "extract_version": EXTRACT_VERSION, "dataset": DATASET, "dataset_version": DATASET_VERSION,
         "sample_sha256": sample["sample_sha256"], "radius_m": radius_m, "centre_margin_m": MARGIN_M,
         "max_bytes": max_bytes, "bytes_downloaded": sum(c["bytes"] for c in cells), "cells": cells,
         "cells_not_read": [{"token": t, "reason": r, "bytes": sizes.get(t),
-                            "sample_points": sum(tokens[c["case_id"]] == t for c in cases)}
+                            "sample_points": len(members[t])}
                            for t, r in sorted(skipped.items())],
         "compared_case_ids": compared,
-        "not_compared_case_ids": sorted(c["case_id"] for c in cases if c["case_id"] not in compared),
-        "selection_rule": "Cells ordered by sample points held (most first), then file size, then token; "
-                          "each is read while the running total stays within max_bytes.",
+        "required_cells": required_cells, "not_compared_case_ids": sorted(set(required_cells) - set(compared)),
+        "selection_rule": "Read cells intersecting padded search rectangles in order of number of cases, "
+                          "then size and token. Compare a case only if every required cell was read.",
         "license_note": "Check the Open Buildings dataset page for its current terms before redistribution.",
     }
     return [rows[key] for key in sorted(rows)], manifest

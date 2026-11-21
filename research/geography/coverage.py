@@ -31,7 +31,7 @@ from .distance import haversine_m, point_to_polygons_m
 from .footprints import lineage, load_buildings
 
 SAMPLE_VERSION = "rajasthan-footprint-sample-1.0.0"
-COVERAGE_VERSION = "footprint-coverage-1.0.0"
+COVERAGE_VERSION = "footprint-coverage-1.1.0"
 # A's screening rectangle for Rajasthan (rajasthan-candidates-1.0.0): not a state polygon.
 RECTANGLE = {"lon_min": 69.4, "lon_max": 78.35, "lat_min": 23.0, "lat_max": 30.25}
 STRATA = ("isolated_point_control", "mapped_area_control", "ambiguous_neighbour", "coarse_coordinate")
@@ -58,7 +58,9 @@ RULE = (
 
 def origin_family(dataset):
     """Collapse an upstream dataset name to its origin, so reuse counts once."""
-    text = str(dataset).casefold()
+    text = str(dataset or "").casefold().strip()
+    if text in {"", "none", "unknown", "unassessed", "unstated", "unspecified"}:
+        return "unstated"
     if "openstreetmap" in text or text.strip() == "osm":
         return "osm"
     if "google" in text:
@@ -72,8 +74,9 @@ def origin_family(dataset):
 
 
 def families_of(building):
-    names = lineage(building)
-    return ["unstated"] if names is None else sorted({origin_family(n) for n in names})
+    sources = building["sources"] or []
+    return sorted({origin_family(s.get("dataset") if isinstance(s, dict) else None) for s in sources}
+                  or {"unstated"})
 
 
 def _grid(rows, cell=0.01):
@@ -229,14 +232,15 @@ def _describe(item, reference_origin):
     return {"feature_id": b["id"], "distance_m": round(distance, 1), "contained": contained,
             "upstream_datasets": lineage(b), "origins": families,
             "shares_origin_with_reference": reference_origin in families,
-            "origin_stated": families != ["unstated"],
+            "origin_stated": "unstated" not in families,
             "upstream_dataset_versions": _versions(b),
             "upstream_record_update_time": _update_time(b)}
 
 
 def _independent(building, reference_origin):
     families = families_of(building)
-    return families != ["unstated"] and reference_origin not in families
+    reference = origin_family(reference_origin)
+    return reference != "unstated" and "unstated" not in families and reference not in families
 
 
 def _source_view(found, reference_origin):
@@ -294,6 +298,9 @@ def measure(sample, overture, google=None, imagery=None, radius_m=RADIUS_M, rele
             finding, reason = "footprint_nearby_point_outside", (
                 f"Nearest mapped building is {round(nearest, 1)} m away and none contains the point. A point "
                 "can mark an entrance, a campus centre or a street address.")
+        elif origin_family(origin) == "unstated":
+            finding, reason = "inside_footprint_reference_origin_unknown", (
+                "The source of the reference coordinate is unknown, so independence cannot be assessed.")
         elif not other_origins:
             finding, reason = "inside_footprint_of_reference_origin_only", (
                 "Every footprint containing the point has the reference record's own origin or an unstated one, "
@@ -394,7 +401,24 @@ def _cmd_measure(args):
     overture, skipped = load_buildings(args.overture)
     google = None
     if args.google:
+        from .open_buildings import EXTRACT_VERSION
         document = load(args.google_manifest)
+        require(document.get("extract_version") == EXTRACT_VERSION, "google", "rebuild with boundary-aware extraction")
+        require(document.get("sample_sha256") == sample["sample_sha256"], "google", "sample hash mismatch")
+        require(document.get("extract_sha256") == file_digest(args.google), "google", "extract hash mismatch")
+        radius = number(document.get("radius_m"))
+        require(radius is not None and args.radius_m <= radius <= RADIUS_M, "google", "insufficient extract radius")
+        required = document.get("required_cells")
+        case_ids = {c["case_id"] for c in sample["cases"]}
+        require(isinstance(required, dict) and set(required) == case_ids, "google", "cell coverage missing for sample")
+        read = {c["token"] for c in document["cells"]}
+        for tokens in required.values():
+            require(isinstance(tokens, list) and tokens and all(isinstance(t, str) and t for t in tokens),
+                    "google", "invalid required cell list")
+        complete = sorted(c for c, tokens in required.items() if set(tokens).issubset(read))
+        require(document.get("compared_case_ids") == complete, "google", "inconsistent comparison denominator")
+        require(document.get("not_compared_case_ids") == sorted(case_ids - set(complete)),
+                "google", "inconsistent excluded cases")
         buildings, google_skipped = load_buildings(args.google)
         google = {"buildings": buildings, "compared_case_ids": document["compared_case_ids"],
                   "cells": document.get("cells"), "skipped": google_skipped}

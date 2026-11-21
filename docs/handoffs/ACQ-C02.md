@@ -4,7 +4,23 @@ Developer C · `@andrewhgu` · Claude Code session `session_01LWLtujoz3kp3Vn9Yqd
 
 Task [#34](https://github.com/vzhu08/databricks-datathon/issues/34), branch `codex/acq-c-footprint-research`. Implementation tested at **`eb110d1fb40df5ab2d7f88b0ec61f1728f2191e1`**; this handoff is a later documentation-only commit, and the final head is recorded on the issue and PR. The remote board was reread at `df28bfb` before handoff. Changed paths: `research/geography/`, `tests/research/matching/test_coverage.py`, this file. No merge, deployment, board or shared-contract change was made.
 
-Status: **public-source study complete for one frozen 20-point sample.** No original facility row was used, no link to an original facility is asserted, and no clinical label is attached to any point. The disputed and control audit on real campus pairs stays open in [#5](https://github.com/vzhu08/databricks-datathon/issues/5).
+Status: **The contributor's public-source counts below are preliminary pending replay of the corrected Google comparison on the frozen 20-point sample.** The original run inspected each coordinate's centre cell. A radius extending across a cell boundary can require additional files. Version 1.1 records those cells and binds each accepted comparison to the sample and extract hashes. The real-campus audit remains open in [#5](https://github.com/vzhu08/databricks-datathon/issues/5).
+
+### Replay requested from Andrew
+
+Run these commands with the updated geography code on the machine holding the frozen artifacts. They create a sibling output directory, retain the published Overture and imagery inputs, and rebuild the Google extraction with its original download budget. The original sample file SHA-256 is `91999ea77892483ea69ce601d959c3d485594bdcf835fddf282dd1c2be7c2a6d`.
+
+```sh
+old=data/local/geography/c02
+new=data/local/geography/c02-v1.1
+mkdir "$new" &&
+cp "$old/sample.json" "$old/overture_buildings.ndjson" "$old/imagery.json" "$new/" &&
+python -m research.geography.open_buildings --sample "$new/sample.json" --output "$new/google_buildings.ndjson" --manifest "$new/google_manifest.json" --max-bytes 4000000000 &&
+python -m research.geography.coverage measure --sample "$new/sample.json" --overture "$new/overture_buildings.ndjson" --release 2026-11-18.0 --google "$new/google_buildings.ndjson" --google-manifest "$new/google_manifest.json" --imagery "$new/imagery.json" --output-dir "$new" &&
+python -m research.geography.coverage manifest --dir "$new"
+```
+
+Report the new manifest hash, compared counts by stratum, points whose required cells were skipped, and any changes in independent-origin findings on #34. If the original files are unavailable, reconstruct the frame and verify the frozen cases hash before a new run. Label a new frame, extraction or acquisition date explicitly.
 
 [Workflow, rules and limits](../../research/geography/README.md)
 

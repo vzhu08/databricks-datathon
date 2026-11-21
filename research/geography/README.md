@@ -57,7 +57,7 @@ Other eligible records are counted and not sampled. Inside a stratum the order i
 
 `overture_read` applies the predicate of the DuckDB script written by `research.geography.overture`: a building's bounding box touches the 500 m box around a listed point, for at most 40 points, selecting `id`, `sources`, `subtype`, `class` and geometry. It reads each release file's footer once over HTTPS range requests, caches the row-group bounding boxes in `--index`, then reads only the row groups that can touch a box. Use it where the DuckDB `httpfs` and `spatial` extensions cannot be installed. No height, floor count or area is read.
 
-`open_buildings` reads Google Open Buildings v3, published as one compressed CSV per level-6 S2 cell. Cells are taken in order of sample points held, then file size, while the total stays within `--max-bytes` (default 1.6 GB). Each file is streamed once and only buildings whose published centre lies within 600 m of a sample point are kept. Points in cells that were not read are listed as not compared.
+`open_buildings` reads Google Open Buildings v3, published as one compressed CSV per level-6 S2 cell. It covers each search rectangle, including the 100 m margin for published building centres. It gives priority to cells intersecting the most sample areas, then the smallest files within `--max-bytes` (default 1.6 GB). A point enters the comparison denominator only after every cell intersecting its padded rectangle has been read. The manifest lists the required cells per point. Measurement verifies the manifest version, frozen sample hash, extract hash, radius and comparison denominator. Older centre-cell manifests require a fresh Google extract.
 
 ## What is measured
 
@@ -68,6 +68,7 @@ Upstream dataset names collapse to one origin each: OpenStreetMap, Google Open B
 | Finding | Meaning |
 | --- | --- |
 | `inside_footprint_of_other_origin` | The point is inside a building whose origin differs from the reference record's. Supports building-location plausibility. |
+| `inside_footprint_reference_origin_unknown` | A building contains the coordinate and the coordinate's lineage is unknown. Source independence is undetermined. |
 | `inside_footprint_of_reference_origin_only` | Every containing building shares the reference record's origin or has none stated. No independent support. |
 | `footprint_nearby_point_outside` | Buildings exist within the radius and none contains the point. Inconclusive; the distance is recorded. |
 | `no_footprint_within_radius` | Nothing mapped within the radius in the sources compared. Unknown. |
