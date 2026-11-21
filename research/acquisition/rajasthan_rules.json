@@ -1,0 +1,16 @@
+{
+  "version": "rajasthan-candidates-1.0.0",
+  "rajasthan_aliases": ["rajasthan", "राजस्थान"],
+  "missing_state_tokens": ["", "0", "unknown", "not available", "n a", "na"],
+  "address_state_suffixes": ["andaman and nicobar islands", "andhra pradesh", "arunachal pradesh", "assam", "bihar", "chandigarh", "chhattisgarh", "dadra and nagar haveli", "dadra and nagar haveli and daman and diu", "daman and diu", "delhi", "goa", "gujarat", "haryana", "himachal pradesh", "jammu and kashmir", "jharkhand", "karnataka", "kerala", "ladakh", "lakshadweep", "madhya pradesh", "maharashtra", "manipur", "meghalaya", "mizoram", "nagaland", "odisha", "orissa", "puducherry", "pondicherry", "punjab", "rajasthan", "sikkim", "tamil nadu", "telangana", "tripura", "uttarakhand", "uttaranchal", "uttar pradesh", "west bengal", "राजस्थान"],
+  "geographic_screen": {
+    "longitude_min": 69.4,
+    "latitude_min": 23.0,
+    "longitude_max": 78.35,
+    "latitude_max": 30.25,
+    "basis_url": "https://rajdharaa.rajasthan.gov.in/",
+    "basis_inspected_date": "2026-11-21",
+    "basis": "Outward-rounded rectangle around the state GIS portal's published latitude 23°3'30\"–30°11'33\" and longitude 69°28'58\"–78°16'24\" extents.",
+    "limitation": "This is a recall screen, not a state polygon. It includes neighboring states. An other-state label inside the rectangle is not proof that the label is wrong."
+  }
+}
