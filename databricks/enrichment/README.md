@@ -2,6 +2,8 @@
 
 Contract: `contracts/enrichment/schema.json`, v1.0.0. This directory owns no source data. Base facilities remain separate from the five enrichment tables. Run commands from the repository root of the isolated Developer D checkout.
 
+For an authorized teammate's local JSON/JSONL export, use the [offline export adapter](LOCAL_EXPORT.md). It produces compatible base/metadata files while preserving operator-reported scope and completeness; live workspace acceptance remains separate.
+
 ## Local setup and checks
 
 Python 3.9+; tested on Python 3.9.6. The only local dependency is pinned in this directory. No Spark, credentials, browser tokens, or workspace access is needed for local validation.
