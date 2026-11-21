@@ -1,5 +1,17 @@
 # ACQ-D01 handoff
 
+## Portability correction and joint validation · November 21
+
+PR [#74](https://github.com/vzhu08/databricks-datathon/pull/74) now writes and compares manifest-relative paths with `as_posix()`, addressing Vincent's [native Windows reproducer](https://github.com/vzhu08/databricks-datathon/issues/6#issuecomment-7069398792). Tested code commit: `f08f4711a0724daca26ba495d8294e3f93daac7a`. All **96 enrichment tests** pass on Python 3.9.6; compilation and diff checks pass. Two nested-path regressions exercise Windows relative-path formatting on this macOS host, fail against the previous implementation, and pass with the correction. Native Windows execution remains Vincent's independent check.
+
+The downloaded 70-file national package passes normal replay and replay with Windows relative-path formatting. All six derived outputs remain byte-identical, with 10,088 original rows, 10,077 distinct payloads, 11 duplicate groups and zero lost or added rows. The frozen prepared-manifest SHA-256 remains `9493372df8e4f34004bef4d7651f3885ae6a1e11621c008eb7cf0a8cc36912f8`; no package was regenerated, uploaded or changed.
+
+D independently checked C head `6ee81bc60f921140878f9f964cf89825e45b962c` with D head `77b9061e4aa78f7a385669dcb1e1e14af8b63963`. All 11 national matching tests pass. A further fixture used C's five original synthetic rows with D-generated occurrence handles and sidecar, source metadata, both normal CLIs, and D's SQLite publication/readback/idempotent-replay simulation. All five rows and their original-payload multiset remain; outcomes are 1 confirmed, 2 ambiguous, 1 candidate-only and 1 unmatched. This verifies the full-base duplicate correction without changing the shared uniqueness rule.
+
+The [remaining C metadata mismatch](https://github.com/vzhu08/databricks-datathon/issues/57#issuecomment-7069459685) is separate: C validates `original_id`, but D emits `original_unique_id`. Changing that emitted field to a false synthetic ID is accepted and reported as unverified. Andrew owns the correction. The real base-file digest, original multiset and all 11 sidecar handle groups were independently checked by D. Private synthetic receipt: `data/local/reviews/joint-twins-6ee81bc/verification.json`.
+
+The remote board was reread at `5a5b88b`. Vincent owns merge/readiness decisions. Accepted national matching and service outputs, live five-table Delta publication, completed-pointer/failure checks and submission remain pending; local simulation does not establish those results.
+
 ## National version-0 base · November 21 follow-up
 
 The original-source access blocker is resolved. D implemented Vincent's [reviewed occurrence-key policy](https://github.com/vzhu08/databricks-datathon/issues/6#issuecomment-7069026841), exported both pinned sources, prepared the complete national base and delivered it through the existing private team Volume. Tested implementation: `16a0190ba594a9239d4439024caa23fc7de9d9e0` on `codex/acq-d-databricks`, started from main `e9c83bc`. The remote board was reread through `6c1d721` for handoff. The follow-up handoff commit changes documentation only; the final head and PR are recorded on #6.
