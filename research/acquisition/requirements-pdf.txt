@@ -1,0 +1,3 @@
+# Optional PDF path; Python 3.12 tested. Core collectors do not need pdfplumber.
+-r requirements.txt
+pdfplumber==0.11.9
