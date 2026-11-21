@@ -92,6 +92,32 @@ class PdfExtractionTests(unittest.TestCase):
         with self.assertRaisesRegex(AcquisitionError, "table_header_changed"):
             extract(self.path, [changed])
 
+    def test_partial_and_shifted_repeated_headers_stop_before_contamination(self):
+        for repeated in (["", "Name", "Address", "Scope", ""],
+                         ["", "Address", "Scope", "Validity", ""],
+                         ["", "", "Address:", "", ""]):
+            with self.subTest(repeated=repeated):
+                self.path.write_bytes(synthetic_pdf([[HEADERS,
+                    ["1", "Synthetic Campus East", "Example Street", "Synthetic scope", ""],
+                    repeated,
+                    ["2", "Synthetic Campus West", "Other Street", "Other scope", ""],
+                ]]))
+                with self.assertRaisesRegex(AcquisitionError, "partial_or_shifted_repeated_header"):
+                    extract(self.path, [layout(1)])
+
+    def test_exact_repeated_header_is_skipped_and_genuine_continuation_survives(self):
+        self.path.write_bytes(synthetic_pdf([[HEADERS,
+            ["1", "Synthetic Campus East", "Example Street", "Synthetic scope", ""],
+            HEADERS,
+            ["", "", "Address details continue", "Scope covers synthetic tests", ""],
+            ["2", "Synthetic Campus West", "Other Street", "Other scope", ""],
+        ]]))
+        result = extract(self.path, [layout(1)])
+        self.assertEqual([r["name_raw"] for r in result["rows"]], ["Synthetic Campus East", "Synthetic Campus West"])
+        self.assertEqual(result["rows"][0]["address_raw"], "Example Street\nAddress details continue")
+        self.assertEqual(result["rows"][0]["scope_raw"], "Synthetic scope\nScope covers synthetic tests")
+        self.assertEqual(len(result["rows"][0]["fragments"]), 2)
+
     def test_pdf_to_compiler_requires_review_and_preserves_page_fragments(self):
         self.path.write_bytes(synthetic_pdf([
             [HEADERS, ["1", "Synthetic Campus", "Example Street", "Synthetic scope", ""]],

@@ -48,8 +48,8 @@ class CollectorTests(unittest.TestCase):
                 "reuse": {"status": "permitted", "reason": "Invented test content", "third_party_rights": "cleared",
                           "license": "Synthetic fixture only", "attribution": "Synthetic fixture author"}, **changes}
 
-    def compile(self, *sources):
-        return compile_collection({"manifest_version": "1.0.0", "as_of": "2026-11-21", "sources": list(sources)}, self.root)
+    def compile(self, *sources, as_of="2026-11-21"):
+        return compile_collection({"manifest_version": "1.0.0", "as_of": as_of, "sources": list(sources)}, self.root)
 
     def test_groups_children_repeated_scopes_and_bilingual_rows(self):
         source = self.source([
@@ -102,6 +102,48 @@ class CollectorTests(unittest.TestCase):
         b.update(selected=True, selection_reason="Conflicting synthetic selection")
         with self.assertRaisesRegex(AcquisitionError, "multiple_explicit"):
             self.compile(a, b)
+
+    def test_historical_cutoff_retains_future_edition_but_selects_eligible_revision(self):
+        august = self.source(document_date="2026-08-01")
+        november = self.source(document_date="2026-11-01")
+        result = self.compile(august, november, as_of="2026-10-01")
+        self.assertEqual([s["sha256"] for s in result["batch.json"]["source_snapshots"]], [august["sha256"]])
+        self.assertEqual(len(result["source_inventory.json"]), 2)
+        self.assertEqual(len(result["observations.json"]), 2)
+        future = next(r for r in result["observations.json"] if r["document_date"] == "2026-11-01")
+        self.assertFalse(future["selected_snapshot"])
+        selection = result["snapshot_selection.json"][0]
+        self.assertEqual(selection["future_snapshot_ids"], [future["snapshot_id"]])
+        self.assertEqual(result["report.json"]["future_dated_permitted_snapshots"], 1)
+        later = self.compile(august, november, as_of="2026-11-01")
+        self.assertEqual([s["sha256"] for s in later["batch.json"]["source_snapshots"]], [november["sha256"]])
+        self.assertEqual(later["report.json"]["future_dated_permitted_snapshots"], 0)
+
+    def test_future_only_series_produces_review_without_campus_candidates(self):
+        result = self.compile(self.source(document_date="2026-11-01"), as_of="2026-10-01")
+        self.assertEqual(result["batch.json"]["source_snapshots"], [])
+        self.assertEqual(result["batch.json"]["external_facilities"], [])
+        self.assertEqual(len(result["observations.json"]), 1)
+        self.assertEqual(result["snapshot_selection.json"][0]["reason"], "no_snapshot_on_or_before_as_of")
+        self.assertEqual(result["report.json"]["unresolved_snapshot_series"], 1)
+
+    def test_manual_selection_cannot_override_historical_cutoff(self):
+        future = self.source(document_date="2026-11-01", selected=True, selection_reason="Synthetic explicit choice")
+        with self.assertRaisesRegex(AcquisitionError, "cannot_select_future_snapshot"):
+            self.compile(future, as_of="2026-10-01")
+
+    def test_cutoff_includes_same_day_and_preserves_tie_and_unknown_date_rules(self):
+        older = self.source(document_date="2026-08-01")
+        boundary = self.source(document_date="2026-10-01")
+        future = self.source(document_date="2026-11-01")
+        result = self.compile(older, boundary, future, as_of="2026-10-01")
+        self.assertEqual(result["batch.json"]["source_snapshots"][0]["sha256"], boundary["sha256"])
+        variant = self.source(document_date="2026-10-01")
+        tied = self.compile(older, boundary, variant, future, as_of="2026-10-01")
+        self.assertEqual(tied["snapshot_selection.json"][0]["reason"], "same_date_variants_require_selection")
+        unknown = self.source(document_date=None)
+        undated = self.compile(boundary, unknown, future, as_of="2026-10-01")
+        self.assertEqual(undated["snapshot_selection.json"][0]["reason"], "undated_snapshot_requires_selection")
 
     def test_undated_snapshot_never_uses_retrieval_date_as_freshness(self):
         a = self.source(document_date="2026-10-01")
@@ -185,6 +227,30 @@ class CollectorTests(unittest.TestCase):
         for raw in ("01.01.2025 to 31,12.2025", "31.02.2025 to 01.03.2025", "31.12.2025 to 01.01.2025", "2025", "01.01.2025 or 02.01.2025"):
             with self.subTest(raw=raw):
                 self.assertEqual(validity(raw), ([], ["validity_needs_review"]))
+
+    def test_excluded_or_suspended_periods_are_held_with_exact_wording(self):
+        for raw in (
+            "Valid 01.01.2026 to 31.12.2026 except 01.03.2026 to 31.03.2026",
+            "Suspended from 01.03.2026 to 31.03.2026",
+            "Not valid 01.03.2026 to 31.03.2026",
+            "Valid 01.01.2026 to 31.12.2026 subject to renewal",
+        ):
+            with self.subTest(raw=raw):
+                result = self.compile(self.source([campus(validity_raw=raw)]))
+                row = result["observations.json"][0]
+                self.assertEqual(row["validity_raw"], raw)
+                self.assertEqual(row["validity_episodes"], [])
+                self.assertIn("validity_needs_review", row["quality_flags"])
+                self.assertTrue(any(r["reason_code"] == "validity_needs_review" for r in result["batch.json"]["review_queue"]))
+
+    def test_plain_positive_validity_labels_and_multiple_periods_still_parse(self):
+        for raw in ("Valid 01.01.2026 to 31.12.2026", "Validity: 01/01/2026 to 31/12/2026",
+                    "Validity period from 01-01-2026 until 31-12-2026."):
+            with self.subTest(raw=raw):
+                self.assertEqual(validity(raw), ([{"valid_from": "2026-01-01", "valid_to": "2026-12-31"}], []))
+        episodes, flags = validity("Valid 01.01.2025 to 31.12.2025; valid from 01.01.2026 to 31.12.2026")
+        self.assertEqual(len(episodes), 2)
+        self.assertEqual(flags, ["multiple_validity_episodes"])
 
     def test_invalid_group_links_duplicate_locators_and_representation_cycles_fail(self):
         cases = [

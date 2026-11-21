@@ -87,8 +87,10 @@ ISO `effective_date`, and `authority`. Supported kinds are renewal, suspension,
 delisting, cashless withdrawal, nonrenewal and name change. Excerpts must occur
 verbatim in the row's name, scope or validity text. Events remain in the private
 observation ledger; no service evidence is emitted. `validity_raw` is preserved;
-only explicit day/month/year intervals are parsed, with malformed dates and
-multiple/repeated episodes separately flagged.
+only unqualified positive day/month/year intervals are parsed, with malformed
+dates and multiple/repeated episodes separately flagged. Excluded, suspended,
+negated or otherwise qualified periods retain their printed wording and receive
+`validity_needs_review` without normalized positive episodes.
 
 ## PDF layouts
 
@@ -99,13 +101,19 @@ fields are address, scope, validity, scheme ID/namespace, city, state, PIN and
 institution type, using the names above. Header/column changes stop extraction.
 Serial resets require a new explicit section. Blank-serial continuation rows
 attach only within the same section; orphan continuations fail. Character-centre
-extraction preserves glyphs touching cell borders. Page/table/bounding-box
+extraction preserves glyphs touching cell borders. Exact repeated headers are
+skipped; partial or shifted header labels stop extraction before they can become
+continuation text. Page/table/bounding-box
 fragments remain available in the observation ledger after compilation.
 
 ## Selection and outputs
 
 Selection partitions by source family, issuer, series, eligible population and
-coverage scope. It selects the newest permitted document date in each partition.
+coverage scope. It selects the newest permitted document date on or before the
+manifest's `as_of` date in each partition. Later editions remain in the source
+inventory and observation ledger, and are listed in `future_snapshot_ids`.
+A future-only series produces a review item and no campus candidates; an
+explicit selection cannot override the cutoff.
 Unknown dates or two variants on the latest date leave that partition unresolved
 until an explicit selection is supplied. Retrieval time never substitutes for
 document date. A newer held source stays in the inventory; selecting an older

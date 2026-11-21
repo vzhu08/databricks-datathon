@@ -62,7 +62,7 @@ def locator(value):
 
 
 def validity(raw):
-    """Recognize only explicit day/month/year pairs; preserve uncertain text for review."""
+    """Recognize unqualified positive intervals; preserve other wording for review."""
     if raw is None:
         return [], ["validity_unknown"]
     text(raw)
@@ -81,6 +81,18 @@ def validity(raw):
         separator = raw[tokens[i].end():tokens[i + 1].start()].strip().casefold()
         if separator not in {"to", "until", "through", "-", "–", "—"}:
             return [], ["validity_needs_review"]
+    # Accept a small positive grammar instead of dropping arbitrary surrounding
+    # prose. In particular, exclusions and suspensions are not validity episodes.
+    label = r"(?:(?:valid(?:ity)?(?:\s+period)?|period(?:\s+of\s+validity)?)(?:\s+from)?|from)"
+    prefix = rf"\s*(?:{label}\s*:?\s*)?"
+    if not re.fullmatch(prefix, raw[:tokens[0].start()], re.I):
+        return [], ["validity_needs_review"]
+    for i in range(2, len(tokens), 2):
+        gap = raw[tokens[i - 1].end():tokens[i].start()]
+        if not re.fullmatch(rf"\s*(?:[;,]\s*|and\s+)?{prefix}", gap, re.I):
+            return [], ["validity_needs_review"]
+    if not re.fullmatch(r"\s*[.;]?\s*", raw[tokens[-1].end():]):
+        return [], ["validity_needs_review"]
     if any(parsed[i] > parsed[i + 1] for i in range(0, len(parsed), 2)):
         return [], ["validity_needs_review"]
     episodes = [{"valid_from": parsed[i], "valid_to": parsed[i + 1]} for i in range(0, len(parsed), 2)]
@@ -120,26 +132,32 @@ def source_metadata(source):
     return source["source_key"] + ":" + source["sha256"]
 
 
-def select_snapshots(sources):
+def select_snapshots(sources, as_of):
     """Choose within a population/issuer series; ambiguous or undated series stay unresolved."""
     groups = defaultdict(list)
     for source in sources:
         groups[tuple(source[k] for k in SERIES_FIELDS)].append(source)
     selections = []
     for key, group in sorted(groups.items()):
+        future = [s for s in group if s.get("document_date") is not None and s["document_date"] > as_of]
+        eligible = [s for s in group if s.get("document_date") is None or s["document_date"] <= as_of]
+        require(not any(s.get("selected") for s in future), "cannot_select_future_snapshot")
         explicit = [s for s in group if s.get("selected")]
         require(len(explicit) <= 1, "multiple_explicit_snapshots_in_series")
         if explicit:
             selected, reason = explicit[0], "explicit_reviewed_selection"
-        elif any(s.get("document_date") is None for s in group):
+        elif not eligible:
+            selected, reason = None, "no_snapshot_on_or_before_as_of"
+        elif any(s.get("document_date") is None for s in eligible):
             selected, reason = None, "undated_snapshot_requires_selection"
         else:
-            latest = max(s["document_date"] for s in group)
-            candidates = [s for s in group if s["document_date"] == latest]
+            latest = max(s["document_date"] for s in eligible)
+            candidates = [s for s in eligible if s["document_date"] == latest]
             selected = candidates[0] if len(candidates) == 1 else None
             reason = "latest_permitted_document_date" if selected else "same_date_variants_require_selection"
         selections.append({**dict(zip(SERIES_FIELDS, key)),
                            "snapshot_ids": sorted(s["snapshot_id"] for s in group),
+                           "future_snapshot_ids": sorted(s["snapshot_id"] for s in future),
                            "selected_snapshot_id": selected["snapshot_id"] if selected else None,
                            "reason": reason,
                            "selection_reason": selected.get("selection_reason") if selected else None})
@@ -263,13 +281,16 @@ def compile_collection(manifest, root):
             all_rows.extend(rows); held_rows.extend(held); sources.append(source)
             item.update(rows=len(rows), held_rows=len(held), rows_sha256=source["rows_sha256"])
         inventory.append(item)
-    selections = select_snapshots(sources)
+    selections = select_snapshots(sources, manifest["as_of"])
     selected = {s["selected_snapshot_id"] for s in selections if s["selected_snapshot_id"]}
     batch = envelope()
     for selection in selections:
         if not selection["selected_snapshot_id"]:
+            action = (f"Provide a reviewed snapshot dated on or before {manifest['as_of']}; later editions remain excluded."
+                      if selection["reason"] == "no_snapshot_on_or_before_as_of" else
+                      "Select one reviewed snapshot for this issuer/population series; retrieval time is not a document date.")
             batch["review_queue"].append(review(selection["reason"], selection["snapshot_ids"],
-                action="Select one reviewed snapshot for this issuer/population series; retrieval time is not a document date."))
+                action=action))
     for source in sources:
         if source["snapshot_id"] not in selected:
             continue
@@ -328,6 +349,7 @@ def compile_collection(manifest, root):
               "selected_group_records": sum(r["record_kind"] != "campus" and not r["representation_of"] for r in latest),
               "selected_duplicate_representations": sum(bool(r["representation_of"]) for r in latest),
               "held_rows": len(held_rows), "unresolved_snapshot_series": sum(s["selected_snapshot_id"] is None for s in selections),
+              "future_dated_permitted_snapshots": sum(len(s["future_snapshot_ids"]) for s in selections),
               "diagnostics_only_campus_observations": sum(r["diagnostics_only"] and r["record_kind"] == "campus" and not r["representation_of"] for r in latest),
               "by_issuer_city_state_kind": [{"issuer": k[0], "city": k[1], "state": k[2], "kind": k[3], "rows": n} for k, n in sorted(counts.items())],
               "live_availability": "unknown", "live_databricks": "not_run", "submission": "not_performed"}

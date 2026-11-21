@@ -53,6 +53,15 @@ def extract(path, layout):
                     if value:
                         cells[field] = value
                 serial = cells.pop("serial", "").strip().rstrip(".")
+                if not serial and cells:
+                    require(current is not None and current["locator"]["section"] == section,
+                            "orphan_continuation_requires_review")
+                    # Exact repeated headers were skipped above. Partial or
+                    # shifted labels must never become continuation text.
+                    labels = {label.rstrip(":.") for label in expected}
+                    fragments = {" ".join(part.split()).casefold().rstrip(":.")
+                                 for value in cells.values() for part in [value, *value.splitlines()]}
+                    require(not (labels & fragments), "partial_or_shifted_repeated_header")
                 if serial:
                     require(bool(re.fullmatch(r"[1-9][0-9]*", serial)), "unrecognized_row_serial")
                     require((section, serial) not in seen, "repeated_serial_requires_explicit_section")
@@ -60,10 +69,7 @@ def extract(path, layout):
                     current = {"locator": {"page": page_no, "table": table_no, "section": section, "row": serial},
                                "fragments": []}
                     records.append(current)
-                elif cells:
-                    require(current is not None and current["locator"]["section"] == section,
-                            "orphan_continuation_requires_review")
-                else:
+                elif not cells:
                     continue
                 for field, value in cells.items():
                     current[field] = current.get(field, "") + ("\n" if current.get(field) else "") + value
