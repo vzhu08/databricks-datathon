@@ -11,7 +11,8 @@ from urllib.parse import parse_qsl, urlsplit
 from .common import SourceError, now, require, sha
 
 HOSTS = {"qps.nhsrcindia.org", "nqas.nhsrcindia.org", "nhsrcindia.org"}
-QUERY_KEYS = {"field_state1_value", "field_district1_value", "title", "page"}
+QUERY_KEYS = {"field_state1_value", "field_district1_value", "title", "page",
+              "field_state_target_id", "field_certified_value"}
 
 
 def public_url(url):
