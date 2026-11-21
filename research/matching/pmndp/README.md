@@ -53,7 +53,7 @@ fixtures belong in Git.
 - `source_date` is the date the document's content refers to. Evidence is
   `historical` with that date, or `undated` when it is null.
 - `profile.skip` holds patterns for header rows, `profile.aggregate` overrides
-  the pattern for total rows, `profile.date_formats` adds date layouts, and
+  the pattern for total rows, `profile.date_formats` replaces the default date layouts, and
   `profile.carry` names columns that inherit the previous row's value when a
   merged cell leaves them empty.
 
