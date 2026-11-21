@@ -13,11 +13,11 @@ from unittest import mock
 
 from matching_fixtures import ROOT, envelope, ext, snapshot, square
 
-from research.geography import imagery, open_buildings, overture_read
+from research.geography import coverage, imagery, open_buildings, overture_read
 from research.geography.coverage import (MAX_CASES, STRATA, check_sample, freeze, measure, origin_family)
 from research.geography.footprints import load_buildings
 from research.geography.overture import bbox
-from research.matching.common import MatchingError, canonical
+from research.matching.common import MatchingError, canonical, file_digest
 
 try:
     import pyarrow
@@ -89,6 +89,43 @@ def one_case_sample(stratum="isolated_point_control"):
 
 
 class SampleTests(unittest.TestCase):
+    def test_unknown_reference_origin_does_not_support_independence(self):
+        batch = frame()
+        batch["source_snapshots"][0]["source_family"] = None
+        sample = freeze(batch, 1)
+        case = sample["cases"][0]
+        point = case["points"][0]
+        buildings = loaded([building("b-independent-looking", point["latitude"], point["longitude"],
+                                     "Microsoft ML Buildings")])
+        observation = next(o for o in measure(sample, buildings)["observations"] if o["case_id"] == case["case_id"])
+        self.assertEqual("inside_footprint_reference_origin_unknown", observation["finding"])
+        self.assertFalse(observation["supports_building_location_plausibility"])
+        self.assertIsNone(observation["overture"]["nearest_other_origin"])
+
+    def test_measure_checks_google_file_sample_radius_and_complete_coverage(self):
+        sample = freeze(frame(), 1)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sample_path, data, manifest = root / "sample.json", root / "buildings.ndjson", root / "manifest.json"
+            sample_path.write_text(json.dumps(sample), encoding="utf-8")
+            data.write_text("", encoding="utf-8")
+            ids = sorted(c["case_id"] for c in sample["cases"])
+            base = {"extract_version": open_buildings.EXTRACT_VERSION, "sample_sha256": sample["sample_sha256"],
+                    "extract_sha256": file_digest(data), "radius_m": 500, "cells": [{"token": "A"}],
+                    "required_cells": {c: ["A"] for c in ids}, "compared_case_ids": ids, "not_compared_case_ids": []}
+            argv = ["measure", "--sample", str(sample_path), "--overture", str(data), "--release", "2099-01-01.0",
+                    "--google", str(data), "--google-manifest", str(manifest), "--output-dir", str(root)]
+            for updates, expected in [
+                ({}, 0), ({"sample_sha256": "stale"}, 1), ({"extract_sha256": "changed"}, 1),
+                ({"radius_m": 100}, 1), ({"extract_version": "open-buildings-extract-1.0.0"}, 1),
+                ({"required_cells": {c: ["A", "B"] for c in ids}}, 1),
+                ({"compared_case_ids": ids + ids[:1]}, 1), ({"not_compared_case_ids": ids[:1]}, 1),
+            ]:
+                with self.subTest(updates=updates), mock.patch("sys.stdout", new_callable=io.StringIO), \
+                        mock.patch("sys.stderr", new_callable=io.StringIO):
+                    manifest.write_text(json.dumps(base | updates), encoding="utf-8")
+                    self.assertEqual(expected, coverage.main(argv))
+
     def test_strata_exclusions_and_denominators(self):
         sample = freeze(frame())
         self.assertEqual({"isolated_point_control": 7, "mapped_area_control": 6, "ambiguous_neighbour": 6,
@@ -430,10 +467,9 @@ class OpenBuildingsTests(unittest.TestCase):
             self.assertIsNone(open_buildings.wkt_geojson(bad))
 
     def test_cell_choice_is_bounded_and_ordered(self):
-        cases = [{"case_id": c} for c in "abcdef"]
-        tokens = {"a": "t1", "b": "t1", "c": "t2", "d": "t2", "e": "t3", "f": "t4"}
+        members = {"t1": ["a", "b"], "t2": ["c", "d"], "t3": ["e"], "t4": ["f"]}
         sizes = {"t1": 500, "t2": 300, "t3": 250, "t4": None}
-        chosen, skipped = open_buildings.choose_cells(cases, tokens, sizes, 900)
+        chosen, skipped = open_buildings.choose_cells(members, sizes, 900)
         self.assertEqual(["t2", "t1"], chosen)  # equal point counts: the smaller file first
         self.assertEqual({"t3": "outside_download_budget", "t4": "no_published_file_for_cell"}, skipped)
 
@@ -442,8 +478,8 @@ class OpenBuildingsTests(unittest.TestCase):
         points = {c["case_id"]: c["points"][0] for c in sample["cases"]}
         first, second = sorted(points)[:2]
 
-        def token_of(lat, lon):
-            return "cellA" if (lat, lon) == (points[first]["latitude"], points[first]["longitude"]) else "cellB"
+        def tokens_for(box):
+            return ["cellA"] if box == bbox(points[first]["latitude"], points[first]["longitude"], 600) else ["cellB"]
 
         def line(lat, lon, code):
             ring = square(lat, lon, 8)["coordinates"][0]
@@ -461,7 +497,7 @@ class OpenBuildingsTests(unittest.TestCase):
 
         rows, manifest = open_buildings.extract(
             sample, max_bytes=100, metadata=lambda t: {"size": "100" if t == "cellA" else "5000", "md5Hash": "m"},
-            stream=stream, token_of=token_of)
+            stream=stream, tokens_for=tokens_for)
         self.assertEqual(["cellA"], read)
         self.assertEqual(["google_open_buildings_v3:CODE+IN", "google_open_buildings_v3:CODE+MARGIN"],
                          [r["id"] for r in rows])
@@ -471,6 +507,29 @@ class OpenBuildingsTests(unittest.TestCase):
         self.assertEqual("outside_download_budget", manifest["cells_not_read"][0]["reason"])
         self.assertEqual((4, 2), (manifest["cells"][0]["rows_read"], manifest["cells"][0]["rows_kept"]))
         self.assertEqual(sample["sample_sha256"], manifest["sample_sha256"])
+
+    def test_cross_cell_cases_require_all_files(self):
+        sample = freeze(frame(), 1)
+        ids = sorted(c["case_id"] for c in sample["cases"])
+        for right_size, expected_ids in [(None, []), (1000, []), (10, ids)]:
+            def metadata(token):
+                size = 10 if token == "left" else right_size
+                return None if size is None else {"size": str(size)}
+            _, manifest = open_buildings.extract(sample, max_bytes=20, metadata=metadata, stream=lambda *_: ([], 0),
+                                                 tokens_for=lambda _: ["left", "right"])
+            self.assertEqual(expected_ids, manifest["compared_case_ids"])
+            self.assertEqual(sorted(set(ids) - set(expected_ids)), manifest["not_compared_case_ids"])
+
+    def test_s2_covering_crosses_level_six_boundary(self):
+        try:
+            import s2sphere
+        except ImportError:
+            self.skipTest("live cell covering needs s2sphere")
+        cell = s2sphere.Cell(s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(LAT, LON)).parent(6))
+        edge = s2sphere.LatLng.from_point((cell.get_vertex(0) + cell.get_vertex(1)).normalize())
+        tokens = open_buildings.covering_tokens(bbox(edge.lat().degrees, edge.lng().degrees, 600))
+        self.assertIn(cell.id().to_token(), tokens)
+        self.assertGreaterEqual(len(tokens), 2)
 
 
 class ImageryTests(unittest.TestCase):
