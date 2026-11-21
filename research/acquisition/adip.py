@@ -15,7 +15,7 @@ import re
 import tempfile
 import unicodedata
 
-from .common import AcquisitionError, canonical, digest, envelope, file_digest, read_json, review, validate, write_json
+from .common import AcquisitionError, canonical, digest, envelope, file_digest, publish_json_directory, read_json, review, validate, write_json
 
 VERSION = "adip-institutions-1.0.0"
 HEADER = ["Sr. No.", "State", "Name of Hospital"]
@@ -110,26 +110,6 @@ def exact_name_overlap(reference, regional):
             "confirmed_campuses": 0, "rows": rows}
 
 
-def publish_reference(output, payloads):
-    """Publish a complete reference or verify a previous identical release."""
-    output = Path(output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    if not output.exists():
-        with tempfile.TemporaryDirectory(prefix=".adip-", dir=output.parent) as temp:
-            stage = Path(temp) / "reference"
-            for name, data in payloads.items():
-                write_json(stage / name, data)
-            try:
-                stage.rename(output)
-                return
-            except OSError:
-                if not output.is_dir():
-                    raise
-    if (not output.is_dir() or set(p.name for p in output.iterdir()) != set(payloads)
-            or any((output / name).read_bytes() != canonical(data) + b"\n" for name, data in payloads.items())):
-        raise AcquisitionError("adip_existing_output_not_identical")
-
-
 def publish_overlap(destination, result):
     """Preserve existing files, including an accidentally selected input batch."""
     destination = Path(destination)
@@ -184,7 +164,7 @@ def build(pdf, acquisition_metadata, audit_path, output):
     payloads = {"batch.json": batch, "institutions.json": sidecar, "report.json": report}
     payloads["manifest.json"] = {"files": {name: digest(canonical(data) + b"\n") for name, data in payloads.items()},
                                  "raw_sha256": raw_hash, "audit_sha256": file_digest(audit_path)}
-    publish_reference(output, payloads)
+    publish_json_directory(output, payloads, "adip_existing_output_not_identical")
     return report
 
 

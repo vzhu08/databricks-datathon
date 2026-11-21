@@ -64,3 +64,11 @@ The [DHIS letter](https://rajswasthya.rajasthan.gov.in/admin/upload/letter/2025/
 **Live Databricks:** managed storage creation, eight uploaded artifacts, full download/hash readback and three teammates' read grants are verified. No Marketplace original rows were exported, no Delta tables published and no scoring/app behavior changed. C/D still own matching and publication against authorized base IDs.
 
 **Submission:** not attempted. DHIS source acquisition and ADIP redistribution permission remain open. No board/shared-contract edits, merge or deployment performed. No real source rows, PDF, credentials, contact details or local dependency directories are tracked in Git.
+
+## Vincent’s integration and DHIS follow-up
+
+Vincent rechecked the published PR against main at `df28bfbc1c2ca496ea8e475a5c9addac20da0882`. All 61 original acquisition tests passed on Ubuntu. The original verifier failed to import on Windows because it loaded the POSIX collector lock. The portability correction uses the native Windows lock, preserves existing output on interrupted or conflicting ADIP reruns, and checks archive member names before host normalization. All 64 acquisition tests passed on both Windows and Ubuntu at `1271d0cec02c25b6d2315f21adab1d8a97d8f235`.
+
+The follow-up parser and tests handle repeated headings, wrapped facility names, district disagreements and distinct administrative milestones. All 71 acquisition tests passed on Windows and Ubuntu. D's validator accepted the synthetic normal-entry CLI output with one snapshot, two institutional rows, one district review, zero matches and zero service evidence on an empty base.
+
+The indexed official letter shows 20 rows under Annexure 1’s registration heading, nine distinct district labels and five name/district flags within that vocabulary. Direct original downloads timed out and the public archive lookup found no snapshot. Source-byte validation, visual review, original coverage and campus overlap remain open. No DHIS source rows have entered the shared data package. [Parser and audit instructions](../../research/acquisition/DHIS.md) · [Original letter](https://rajswasthya.rajasthan.gov.in/admin/upload/letter/2025/07/96%20Dt.09.06.2025%20Letter%20to%20CMHO%20for%20DHIS%20%281%29.pdf)
