@@ -48,7 +48,7 @@ def local_path(root, relative):
     return path
 
 def temporal_scope(dates, as_of):
-    """Only explicit complete dates set validity; partial dates stay in the ledger."""
+    """Return frozen source status separately from the dated assessment."""
     effective, until = dates.get('effective_date'), dates.get('valid_until')
     if effective is not None: iso_day(effective)
     if until is not None: iso_day(until)
@@ -61,14 +61,18 @@ def temporal_scope(dates, as_of):
         raise ValueError('Undated evidence cannot contain validity dates')
     if status == 'dated' and not effective:
         raise ValueError('Dated evidence needs effective_date')
-    if status == 'expired' and (not until or iso_day(until) >= as_of):
-        raise ValueError('Expired evidence needs a validity end before the assessment date')
+    if status == 'expired':
+        if not until:
+            raise ValueError('Expired evidence needs an explicit validity end')
+        # Expiry is an assessment, not a changing payload on the frozen claim.
+        status = 'dated' if effective else 'historical'
+    assessed_status = status
     flags = []
     if until and iso_day(until) < as_of:
-        status = 'expired'; flags.append('expired_claim')
+        assessed_status = 'expired'; flags.append('expired_claim')
     if effective and iso_day(effective) > as_of: flags.append('not_yet_effective')
     if dates.get('temporal_conflict'): flags.append('temporal_conflict')
-    return status, flags
+    return status, assessed_status, flags
 
 def directory_page_count(raw):
     soup = BeautifulSoup(raw, 'html.parser')
@@ -94,6 +98,52 @@ def classify(text):
     if re.search(r'\bLAB\b|LABORATOR|PATHOLOG|COVID TEST',text): return 'laboratory_documented_scope'
     if 'IMAGING' in text: return 'imaging_modality_unspecified'
     return 'modality_unknown'
+
+HOST_CONTEXT = re.compile(
+    r'\b(?:near(?:by)?|adjacent\s+to|next\s+to|opposite|opp\.?|beside|'
+    r'at|inside|within|hosted\s+by|located\s+(?:at|in)|in\s+the\s+premises\s+of)\b',
+    re.I)
+
+def own_unit_text(text):
+    """A location/host suffix cannot provide the unit's modality."""
+    return HOST_CONTEXT.split(text, maxsplit=1)[0]
+
+def classify_unit(name, category):
+    label_scope = classify(own_unit_text(name or ''))
+    category_scope = classify(own_unit_text(category))
+    generic = {'modality_unknown', 'imaging_modality_unspecified'}
+    if label_scope not in generic and category_scope not in generic and label_scope != category_scope:
+        return 'modality_unknown', ['conflicting_unit_modality_labels']
+    if category_scope not in generic:
+        return category_scope, []
+    if label_scope != 'modality_unknown':
+        return label_scope, []
+    return category_scope, []
+
+def mentions_label(text, label):
+    return bool(label and re.search(r'(?<!\w)' + re.escape(norm(label)) + r'(?!\w)', norm(text), re.I))
+
+def binds_mri_to_unit(excerpt, name, host):
+    """Require MRI and the named unit in one clause, excluding host suffixes."""
+    text = norm(excerpt)
+    if host:
+        text = re.sub(r'(?<!\w)' + re.escape(norm(host)) + r'(?!\w)', '[host]', text, flags=re.I)
+    for clause in re.split(r'(?<=[.!?;])\s+', text):
+        own = own_unit_text(clause)
+        if mentions_label(own, name) and re.search(r'\bMRI\b|magnetic resonance', own, re.I):
+            return True
+    return False
+
+def source_scope_flags(text):
+    """Conservative source-wording vetoes; annotation labels cannot override them."""
+    flags = []
+    if re.search(r'\bnear(?:by)?\b|\badjacent\s+to\b|\bnext\s+to\b|\bopposite\b|\bbeside\b', text, re.I):
+        flags.append('source_nearby_wording_not_onsite')
+    if re.search(r'\bteleradiology\b|\bremote\b|\boff[- ]site\b|\bacquired\s+elsewhere\b|\breferred?\s+(?:out|to)\b', text, re.I):
+        flags.append('source_remote_wording_not_onsite')
+    if re.search(r'\bproposed\b|\bplanned\b|\bnot\s+(?:yet\s+)?operating\b|\bno\s+MRI\b|\bMRI\s+unavailable\b', text, re.I):
+        flags.append('source_nonoperating_wording')
+    return flags
 
 def taxonomy(soup):
     index=defaultdict(list); state=city=None
@@ -152,8 +202,9 @@ def directory_rows(raw, page_number):
         city=None
         if state=='MAHARASHTRA': flags.append('potential_dmer66_campus_overlap_not_independent_confirmation')
         # Generic host/address MRI wording cannot supply the node's modality.
-        category=classify((name or '')+' '+values.get('Category',''))
-        if category in ('modality_unknown','imaging_modality_unspecified') and re.search(r'^HINDLABS\s+(?:FAIR PRICE\s+)?MRI\s+(?:SCAN\s+)?CENTRE\b',address or '',re.I):
+        category, modality_flags=classify_unit(name,values.get('Category',''))
+        flags.extend(modality_flags)
+        if not modality_flags and category in ('modality_unknown','imaging_modality_unspecified') and re.search(r'^HINDLABS\s+(?:FAIR PRICE\s+)?MRI\s+(?:SCAN\s+)?CENTRE\b',address or '',re.I):
             category='mri_unit_address_label'
         locator=f'page query={page_number}; row={row_number}; div#{modal["id"]}'
         # Exact name excerpt, with original address/PIN in external identity fields.
@@ -167,20 +218,83 @@ def directory_rows(raw, page_number):
     if not records: raise ValueError('Empty directory page')
     return records
 
-def source_text(path,spec):
+def located_text(path,spec):
+    if ('page' in spec) == ('selector' in spec):
+        raise ValueError('Use exactly one PDF page or HTML selector')
     if 'page' in spec:
         import fitz
         with fitz.open(path) as doc:
             if type(spec['page']) is not int or not 1 <= spec['page'] <= len(doc):
                 raise ValueError('PDF page outside document')
-            return doc[spec['page']-1].get_text()
+            return doc[spec['page']-1].get_text(), f'PDF page={spec["page"]}'
     soup=BeautifulSoup(path.read_bytes(),'html.parser')
     for el in soup.select('script,style'): el.decompose()
     if spec.get('selector'):
         elements=soup.select(spec['selector'])
         if not elements: raise ValueError('Missing selector '+spec['selector'])
-        return '\n'.join(el.get_text(' ',strip=True) for el in elements)
+        if len(elements) != 1: raise ValueError('Selector must identify one source location')
+        return elements[0].get_text(' ',strip=True), 'HTML selector='+spec['selector']
     raise ValueError('Documentary HTML evidence requires a CSS selector')
+
+def source_text(path,spec):
+    return located_text(path,spec)[0]
+
+def bind_annotation(spec, sources, index):
+    """Validate the claim and independently resolve any host source location."""
+    source = spec['source']
+    _, path, _ = sources[source]
+    text, locator = located_text(path, spec)
+    excerpt = spec['excerpt']
+    if not excerpt or norm(excerpt) not in norm(text):
+        raise ValueError(f'Excerpt fails original locator check: annotation {index}, {source}')
+    record = dict(spec['record'])
+    name = record.get('name_original')
+    if name and not mentions_label(excerpt, name):
+        raise ValueError('Unit label is absent from the located claim excerpt')
+    record['source_record_id'] = spec['annotation_key']
+    record['record_locator'] = locator
+    record['quality_flags'] = list(record.get('quality_flags', [
+        'unlinked_source_identity', 'documentary_scope_requires_review', 'shared_hll_origin']))
+    if not name: record['quality_flags'].append('missing_unit_name')
+    relation = record.get('host_relation', 'unresolved')
+    if relation not in HOST_RELATIONS: raise ValueError('Unknown node-to-host relation')
+    host = record.get('host_campus')
+    host_excerpt = record.get('host_excerpt')
+    host_location = record.get('host_location')
+    if host or relation != 'unresolved' or host_excerpt or host_location or record.get('host_locator'):
+        if not host or not host_excerpt or not isinstance(host_location, dict):
+            raise ValueError('A node-to-host claim needs a campus and located exact excerpt via host_location')
+        host_source = host_location.get('source', source)
+        if host_source not in sources:
+            raise ValueError('Host source is missing or restricted')
+        host_sid, host_path, host_manifest = sources[host_source]
+        host_text, host_locator = located_text(host_path, host_location)
+        if norm(host_excerpt) not in norm(host_text):
+            raise ValueError('Node-to-host excerpt does not match its own source location')
+        if not mentions_label(host_excerpt, host):
+            raise ValueError('Host campus label is absent from the relation excerpt')
+        if not name or not mentions_label(host_excerpt, name):
+            raise ValueError('Unit label is absent from the relation excerpt')
+        record.update(host_locator=host_locator, host_source=host_source,
+                      host_snapshot_id=host_sid, host_source_url=host_manifest['url'])
+    requested_mri = bool(record.get('mri_scope') or spec['kind'] in (
+        'named_mri_service', 'installation_only', 'proposed_mri', 'mri_date_conflict'))
+    record['mri_scope'] = requested_mri and binds_mri_to_unit(excerpt, name, host)
+    if requested_mri and not record['mri_scope']:
+        record['quality_flags'].append('mri_not_bound_to_named_unit')
+    scope_flags = source_scope_flags(excerpt + ' ' + (host_excerpt or ''))
+    record['quality_flags'].extend(scope_flags)
+    record['source_scope_blocks_onsite'] = bool(scope_flags)
+    record['declared_host_relation'] = relation
+    if host:
+        observed = []
+        if 'source_nearby_wording_not_onsite' in scope_flags: observed.append('nearby')
+        if 'source_remote_wording_not_onsite' in scope_flags: observed.append('remote')
+        if observed:
+            record['host_relation'] = observed[0] if len(observed) == 1 else 'unresolved'
+            if record['host_relation'] != relation:
+                record['quality_flags'].append('host_relation_annotation_conflicts_with_source')
+    return record, locator
 
 def compile_packet(root, as_of, annotations='annotations.json'):
     root=Path(root).resolve()
@@ -216,10 +330,10 @@ def compile_packet(root, as_of, annotations='annotations.json'):
         if record.get('facility_id') or record.get('match_id'):
             raise ValueError('The source adapter cannot accept VF links')
         dates=dates or {}
-        temporal, time_flags=temporal_scope(dates,assessment)
+        source_temporal, temporal, time_flags=temporal_scope(dates,assessment)
         relation=record.get('host_relation','unresolved')
         if relation not in HOST_RELATIONS: raise ValueError('Unknown node-to-host relation')
-        flags=list(record['quality_flags']) + time_flags
+        flags=list(record['quality_flags'])
         if record.get('host_campus'):
             flags.append('host_campus_claim_not_confirmed_identity')
         remote=kind=='teleradiology_only' or relation=='remote'
@@ -234,25 +348,30 @@ def compile_packet(root, as_of, annotations='annotations.json'):
             city=record.get('city'),state=record.get('state'),pin=record.get('pin'),
             latitude=None,longitude=None,coordinate_method=None,quality_flags=sorted(set(flags)))
         batch['external_facilities'].append(facility)
-        is_mri=record.get('mri_scope') or kind in ('named_mri_service','installation_only','proposed_mri','mri_date_conflict')
+        is_mri=bool(record.get('mri_scope'))
         evidence=dict(external_facility_id=eid,snapshot_id=sid,facility_id=None,match_id=None,
             claim_type='service' if is_mri else 'identity',
             service='mri' if is_mri else None,
             polarity='inconclusive',assertion=assertion,excerpt=excerpt,observation=None,
             locator=locator,source_url=s['url'],effective_date=dates.get('effective_date'),
-            valid_until=dates.get('valid_until'),temporal_status=temporal,reviewer=None,reviewed_at=None)
+            valid_until=dates.get('valid_until'),temporal_status=source_temporal,reviewer=None,reviewed_at=None)
         claimid=rid('evidence',evidence);batch['facility_evidence'].append(dict(evidence_id=claimid,**evidence))
         batch['review_queue'].append(dict(review_id=rid('review',claimid),facility_id=None,
             external_facility_id=eid,evidence_id=claimid,match_id=None,reason_code='campus_time_and_service_scope_review',
-            severity='medium',status='open',next_action='Vincent/Andrew: review host campus, specific unit, source date, permission and shared lineage before any VF link or patient-facing decision.',resolution=None))
+            severity='medium',status='open',next_action='Review host campus, specific unit, source date, permission and shared lineage before any VF link or patient-facing decision.',resolution=None))
         ledger.append(dict(evidence_id=claimid,external_facility_id=eid,source=source,kind=kind,
             unit_class=record['unit_class'],state=record.get('state'),district=record.get('district'),city=record.get('city'),
             host_campus=record.get('host_campus'),unit_key=record.get('unit_key'),
             host_relation=relation,host_identity_confirmed=False,
+            declared_host_relation=record.get('declared_host_relation'),
             host_excerpt=record.get('host_excerpt'),host_locator=record.get('host_locator'),
+            host_source=record.get('host_source'),host_snapshot_id=record.get('host_snapshot_id'),
+            host_source_url=record.get('host_source_url'),claim_locator=locator,
             onsite_mri_documentary_candidate=bool(kind=='named_mri_service' and is_mri
-                and not remote and relation!='nearby' and kind not in NON_OPERATIONAL and not time_flags),
-            review_flags=sorted(set(flags)),temporal_status=temporal,
+                and not remote and relation!='nearby' and not record.get('source_scope_blocks_onsite')
+                and kind not in NON_OPERATIONAL and not time_flags),
+            review_flags=sorted(set(flags + time_flags)),temporal_status=temporal,as_of=as_of,
+            source_temporal_status=source_temporal,declared_temporal_status=dates.get('temporal_status'),
             unit_details=record.get('unit_details'),raw_pin=record.get('raw_pin'),
             state_original=record.get('state_original'),
             source_date_text=dates.get('source_date_text'),date_precision=dates.get('date_precision'),
@@ -280,25 +399,8 @@ def compile_packet(root, as_of, annotations='annotations.json'):
                 'HLL directory lists this specific unit and address. Modality classification is limited to explicit unit labels; no campus-level service, opening, closure or appointment inference.')
 
     for index,spec in enumerate(json.loads(local_path(root,annotations).read_text()),1):
-        source=spec['source']; sid,path,s=sources[source]
-        text=source_text(path,spec)
-        excerpt=spec['excerpt']
-        if not excerpt or norm(excerpt) not in norm(text):
-            raise ValueError(f'Excerpt fails original locator check: annotation {index}, {source}')
-        r=dict(spec['record']); r['source_record_id']=spec['annotation_key'];r['record_locator']=spec['locator']
-        r.setdefault('quality_flags',['unlinked_source_identity','documentary_scope_requires_review','shared_hll_origin'])
-        if r.get('name_original') is None:
-            r['quality_flags']=[*r['quality_flags'],'missing_unit_name']
-        if r.get('host_relation','unresolved')!='unresolved':
-            if not r.get('host_campus') or not r.get('host_excerpt') or not r.get('host_locator'):
-                raise ValueError('A node-to-host relation needs a campus and located exact excerpt')
-            if norm(r['host_excerpt']) not in norm(text):
-                raise ValueError('Node-to-host excerpt does not match the original locator')
-            if norm(r['host_campus']) not in norm(r['host_excerpt']):
-                raise ValueError('Host campus label is absent from the relation excerpt')
-            if not r.get('name_original') or norm(r['name_original']) not in norm(r['host_excerpt']):
-                raise ValueError('Unit label is absent from the relation excerpt')
-        add(r,source,spec['kind'],excerpt,spec['locator'],spec['assertion'],spec.get('dates'))
+        r,locator=bind_annotation(spec,sources,index)
+        add(r,spec['source'],spec['kind'],spec['excerpt'],locator,spec['assertion'],spec.get('dates'))
     # IDs cannot silently overwrite or collide.
     for table,pk in [('source_snapshots','snapshot_id'),('external_facilities','external_facility_id'),('facility_evidence','evidence_id'),('review_queue','review_id')]:
         ids=[r[pk] for r in batch[table]]

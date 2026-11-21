@@ -10,7 +10,8 @@ annotations, inventories and generated packets stay in ignored local storage.
 
 - Each directory node is a source identity. A collection point, laboratory or
   imaging unit never becomes its host hospital. District taxonomy is retained in
-  the private ledger and is not substituted for city.
+  the private ledger and is not substituted for city. Nearby/host suffixes cannot
+  supply a modality; conflicting unit labels and categories remain unresolved.
 - An explicit node-to-host relation needs the unit label, campus label and an
   exact located source excerpt. Even an `onsite` relation remains an unconfirmed
   campus claim; the adapter creates no VF identity links.
@@ -19,7 +20,11 @@ annotations, inventories and generated packets stay in ignored local storage.
   does not close the host hospital or establish a negative service claim.
 - Expiry uses an explicit validity end and the required `--as-of` date. The end
   date is inclusive. Partial months, financial years and conflicting dates stay
-  in the ledger; retrieval dates never supply operating dates.
+  in the ledger; retrieval dates never supply operating dates. The five-table
+  envelope contains only frozen source facts and is identical across assessment
+  dates. Expiry, future validity and candidacy belong in the ledger/report, which
+  record `as_of`. An annotated `expired` status requires a validity end and is
+  normalized to `dated` or `historical` in the immutable source evidence.
 - `onsite_mri_documentary_candidate` is a queue for reviewing a named unit's
   documentary service claim, including historical claims. It is not evidence of
   a confirmed host, present operation or VF service. Every emitted evidence row
@@ -45,13 +50,29 @@ Directory source keys are `branchlocator`, then `branchlocator_01`, etc.
 Sources marked `delivery_status: "restricted_hold"` are skipped before being
 opened and cannot be referenced by annotations. Keep both held tenders excluded.
 
-Each annotation supplies `annotation_key`, `source`, `kind`, `locator`, `excerpt`,
+Each annotation supplies `annotation_key`, `source`, `kind`, `excerpt`,
 `assertion` and `record`. Use a one-based integer `page` for PDF evidence or an
-explicit CSS `selector` for HTML. The whitespace-normalized excerpt must occur at
-that locator. Record fields include `name_original`, `unit_class` and optional
-geography, `mri_scope`, `host_campus`, `host_relation`, `host_excerpt`,
-`host_locator` and `quality_flags`. Host relations are `onsite`, `nearby`, `remote`
-or `unresolved`. Optional `dates` hold complete validity dates and/or the original
+explicit CSS `selector` selecting exactly one HTML element. The
+whitespace-normalized excerpt must occur there and include the emitted unit name.
+Published locators are derived from the validated selector/page; input display
+`locator` strings are ignored. MRI must occur in the named unit's own clause,
+after excluding host names and location suffixes. Unbound MRI annotations retain
+their identity and review flags but emit no MRI service claim or candidate.
+
+Record fields include `name_original`, `unit_class` and optional geography,
+`mri_scope`, `host_campus`, `host_relation`, `host_excerpt`, `host_location` and
+`quality_flags`. Any host claim, including an unresolved one, requires a
+`host_location` object with a `page` or `selector` and optionally `source`
+(defaulting to the claim source). The adapter independently checks the host quote
+at that location against an eligible, hash-verified source; both unit and campus
+labels must occur in the quote. Free-text input `host_locator` values cannot
+provide this binding. The ledger retains the derived host locator, source URL and
+snapshot ID. Host relations are `onsite`, `nearby`, `remote` or `unresolved`.
+Nearby/remote source wording overrides an incompatible `onsite` annotation, whose
+original value remains in `declared_host_relation`, and prevents an onsite
+candidate. These conservative checks do not replace campus/service review.
+
+Optional `dates` hold complete validity dates and/or the original
 partial operating dates and date-conflict notes. Annotation selection and meaning
 remain human review responsibilities.
 
@@ -79,11 +100,20 @@ IDs use the `hll_hindlabs` namespace, source URL/content hash and record identit
 they do not reuse the earlier private acquisition script's ID namespace.
 Use one revision of this intake; do not import both namespaces as independent evidence.
 
-The synthetic suite includes a duplicate import through
-`databricks/enrichment/validate_batch.py` with an empty synthetic base. For private
-packets, run that validator separately using the authorized base. Fixture checks,
+The synthetic suite runs the adapter CLI before, on and after validity boundaries,
+then imports all four envelopes together through
+`databricks/enrichment/validate_batch.py` with an empty synthetic base, preserving
+one copy of each source claim. It also exercises forged locators, unrelated unit
+names, separately located HTML/PDF host evidence and nearby modality wording.
+For private packets, run that validator separately using the authorized base. Fixture checks,
 local original-source replay, live Databricks checks, publication and submission
 are distinct results. This adapter performs none of the last three.
+
+The earlier PR review builds and private packets are superseded for source
+binding. Their annotations need explicit host locations and quotes naming the
+unit before they can be rebuilt under these checks. Do not import old and new
+review builds together. This correction's regressions use synthetic inputs;
+the previously reported private replay does not validate the stricter annotations.
 
 ## Local inventory for Oliver
 

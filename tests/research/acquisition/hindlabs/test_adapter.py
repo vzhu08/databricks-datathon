@@ -51,7 +51,7 @@ class AdapterTests(unittest.TestCase):
 
     def test_node_and_host_remain_distinct_even_with_onsite_wording(self):
         annotation = claim('onsite', 'Example MRI Unit', host_campus='Example East Campus',
-                           host_relation='onsite', host_locator='p#onsite',
+                           host_relation='onsite', host_location={'selector': 'p#onsite'},
                            host_excerpt='Example MRI Unit operates inside Example East Campus.')
         result = self.compile([annotation])
         batch = result['batch.json']
@@ -70,7 +70,7 @@ class AdapterTests(unittest.TestCase):
         result = self.compile([claim('nearby', 'Example Laboratory Node', 'laboratory_documented_scope',
                                     mri_scope=False,
                                     host_campus='Example MRI Hospital', host_relation='nearby',
-                                    host_locator='p#nearby',
+                                    host_location={'selector': 'p#nearby'},
                                     host_excerpt='Example Laboratory Node is near Example MRI Hospital.')])
         first = directory_rows(FIXTURE.read_bytes(), 0)[0]
         self.assertEqual(first['unit_class'], 'laboratory_documented_scope')
@@ -85,13 +85,13 @@ class AdapterTests(unittest.TestCase):
     def test_nearby_relation_cannot_support_onsite_candidate(self):
         result = self.compile([claim('nearby', 'Example Laboratory Node',
                                     host_campus='Example MRI Hospital', host_relation='nearby',
-                                    host_locator='p#nearby',
+                                    host_location={'selector': 'p#nearby'},
                                     host_excerpt='Example Laboratory Node is near Example MRI Hospital.')])
         self.assertEqual(result['summary.json']['named_mri_documentary_candidates'], 0)
 
     def test_remote_reporting_keeps_mri_but_never_onsite_support(self):
         annotation = claim('remote', 'Example Remote Node', 'teleradiology_only',
-                           host_campus='Example East Campus', host_relation='remote', host_locator='p#remote',
+                           host_campus='Example East Campus', host_relation='remote', host_location={'selector': 'p#remote'},
                            host_excerpt='Example Remote Node provides MRI teleradiology reporting for Example East Campus.')
         result = self.compile([annotation])
         row = next(r for r in result['claim_ledger.json'] if r['kind']=='teleradiology_only')
@@ -156,7 +156,7 @@ class AdapterTests(unittest.TestCase):
     def test_unlocated_or_wrong_host_binding_is_rejected(self):
         annotation = claim('onsite', 'Example MRI Unit', host_campus='Example East Campus', host_relation='onsite')
         with self.assertRaisesRegex(ValueError, 'located exact'): self.compile([annotation])
-        annotation['record'].update(host_locator='p#onsite', host_excerpt=annotation['excerpt'], host_campus='Other Campus')
+        annotation['record'].update(host_location={'selector': 'p#onsite'}, host_excerpt=annotation['excerpt'], host_campus='Other Campus')
         with self.assertRaisesRegex(ValueError, 'Host campus label'): self.compile([annotation])
 
     def test_fabricated_source_quote_and_wrong_selector_are_rejected(self):
@@ -271,6 +271,227 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(report['counts']['external_facilities'],6)
         self.assertEqual(report['counts']['facility_evidence'],6)
         self.assertEqual(report['counts']['facility_matches'],0)
+
+
+class CliRegressionTests(unittest.TestCase):
+    """Exercise the submitted annotations through the public CLI and D import."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+
+    def run_cli(self, output='release', as_of='2026-11-21', succeeds=True):
+        target = self.root / output
+        proc = subprocess.run([
+            sys.executable, '-m', 'research.acquisition.hindlabs.adapter',
+            '--root', str(self.root), '--output', str(target), '--as-of', as_of,
+        ], cwd=REPO, capture_output=True, text=True, timeout=20)
+        if not succeeds:
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertFalse(target.exists(), 'Invalid annotation must not publish partial output')
+            return proc.stderr
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return {p.name: json.loads(p.read_text()) for p in target.iterdir()}
+
+    def validate_together(self, *outputs):
+        base = self.root / 'base.json'
+        base.write_text('[]')
+        command = [sys.executable, str(REPO / 'databricks/enrichment/validate_batch.py')]
+        for output in outputs:
+            command.extend(['--batch', str(self.root / output / 'batch.json')])
+        command.extend(['--base', str(base), '--as-of', '2026-11-21'])
+        proc = subprocess.run(command, cwd=REPO, capture_output=True, text=True, timeout=20)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return json.loads(proc.stdout)
+
+    def test_cli_and_d_repeat_import_across_validity_boundaries(self):
+        annotation = claim('expiry', 'Example MRI Unit')
+        annotation['dates'] = dict(effective_date='2023-01-01', valid_until='2024-12-31',
+                                   temporal_status='dated')
+        corpus(self.root, [annotation])
+        dates = [('future', '2022-12-31'), ('effective', '2023-01-01'),
+                 ('last_day', '2024-12-31'), ('expired', '2025-01-01')]
+        results = [self.run_cli(output, day) for output, day in dates]
+        for result in results[1:]:
+            self.assertEqual(results[0]['batch.json'], result['batch.json'])
+        self.assertTrue(all((self.root/'future/batch.json').read_bytes() ==
+                            (self.root/output/'batch.json').read_bytes() for output, _ in dates))
+        ledgers = [next(r for r in result['claim_ledger.json'] if r['kind']=='named_mri_service')
+                   for result in results]
+        self.assertEqual([r['onsite_mri_documentary_candidate'] for r in ledgers],
+                         [False, True, True, False])
+        self.assertEqual([r['as_of'] for r in ledgers], [day for _, day in dates])
+        self.assertEqual(ledgers[-1]['temporal_status'], 'expired')
+        self.assertEqual(ledgers[-1]['source_temporal_status'], 'dated')
+        self.assertIn('expired_claim', ledgers[-1]['review_flags'])
+        self.assertFalse(any('expired_claim' in r['quality_flags'] or
+                             'not_yet_effective' in r['quality_flags']
+                             for r in results[-1]['batch.json']['external_facilities']))
+        self.assertEqual(results[-1], self.run_cli('expired', '2025-01-01'))
+        report = self.validate_together('future', 'effective', 'last_day', 'expired', 'expired')
+        self.assertEqual(report['counts'], dict(source_snapshots=1, external_facilities=4,
+                         facility_matches=0, facility_evidence=4, review_queue=4))
+
+    def test_cli_rejects_unrelated_unit_even_when_excerpt_is_real(self):
+        annotation = claim('onsite', 'Completely Different Synthetic Unit')
+        annotation['locator'] = 'HTML p#missing-claim'
+        corpus(self.root, [annotation])
+        self.assertIn('Unit label is absent', self.run_cli(succeeds=False))
+
+    def test_cli_derives_claim_locator_from_validated_selector(self):
+        annotation = claim('onsite', 'Example MRI Unit')
+        annotation['locator'] = 'HTML p#missing-claim'
+        corpus(self.root, [annotation])
+        result = self.run_cli()
+        row = next(r for r in result['claim_ledger.json'] if r['kind']=='named_mri_service')
+        evidence = next(r for r in result['batch.json']['facility_evidence']
+                        if r['evidence_id']==row['evidence_id'])
+        external = next(r for r in result['batch.json']['external_facilities']
+                        if r['external_facility_id']==row['external_facility_id'])
+        self.assertEqual(evidence['locator'], 'HTML selector=#onsite')
+        self.assertEqual(external['record_locator'], evidence['locator'])
+        self.assertEqual(row['claim_locator'], evidence['locator'])
+        self.assertNotIn('missing-claim', json.dumps(result))
+
+    def test_cli_requires_host_location_and_rejects_nonexistent_or_wrong_selector(self):
+        annotation = claim('nearby', 'Example Laboratory Node', host_campus='Example MRI Hospital',
+                           host_relation='onsite', host_locator='p#does-not-exist',
+                           host_excerpt='Example Laboratory Node is near Example MRI Hospital.')
+        corpus(self.root, [annotation])
+        self.assertIn('host_location', self.run_cli(succeeds=False))
+        for selector, message in [('p#does-not-exist', 'Missing selector'),
+                                  ('p#onsite', 'its own source location')]:
+            with self.subTest(selector=selector):
+                annotation['record']['host_location'] = dict(selector=selector)
+                corpus(self.root, [annotation])
+                self.assertIn(message, self.run_cli(succeeds=False))
+
+    def test_cli_nearby_and_remote_wording_override_onsite_annotation(self):
+        for key, name, host, flag in [
+            ('nearby', 'Example Laboratory Node', 'Example MRI Hospital', 'source_nearby_wording_not_onsite'),
+            ('remote', 'Example Remote Node', 'Example East Campus', 'source_remote_wording_not_onsite'),
+        ]:
+            with self.subTest(key=key):
+                annotation = claim(key, name, host_campus=host, host_relation='onsite',
+                                   host_location=dict(selector='#'+key))
+                annotation['record']['host_excerpt'] = annotation['excerpt']
+                corpus(self.root, [annotation])
+                result = self.run_cli(key)
+                row = next(r for r in result['claim_ledger.json'] if r['kind']=='named_mri_service')
+                self.assertFalse(row['onsite_mri_documentary_candidate'])
+                self.assertIn(flag, row['review_flags'])
+                self.assertEqual(row['host_relation'], key)
+                self.assertEqual(row['declared_host_relation'], 'onsite')
+                self.assertEqual(result['summary.json']['named_mri_documentary_candidates'], 0)
+                if key=='nearby':
+                    evidence = next(r for r in result['batch.json']['facility_evidence']
+                                    if r['evidence_id']==row['evidence_id'])
+                    self.assertIsNone(evidence['service'])
+                    self.assertIn('mri_not_bound_to_named_unit', row['review_flags'])
+
+    def test_cli_binds_host_quote_at_separate_source_and_preserves_its_provenance(self):
+        annotation = claim('onsite', 'Example MRI Unit', host_campus='Example East Campus',
+                           host_relation='onsite', host_location=dict(source='host_document', selector='#campus'),
+                           host_locator='invented display locator',
+                           host_excerpt='Example MRI Unit is located inside Example East Campus.')
+        manifest = corpus(self.root, [annotation])
+        raw = b'<p id="campus">Example MRI Unit is located inside Example East Campus.</p>'
+        (self.root/'raw/host.html').write_bytes(raw)
+        manifest['sources'].append(dict(manifest['sources'][0], key='host_document',
+            url='https://example.invalid/host', path='raw/host.html', sha256=digest(raw)))
+        (self.root/'manifest.json').write_bytes(encode(manifest))
+        result = self.run_cli()
+        row = next(r for r in result['claim_ledger.json'] if r['kind']=='named_mri_service')
+        snapshot = next(r for r in result['batch.json']['source_snapshots'] if r['source_key']=='host_document')
+        self.assertEqual(row['host_locator'], 'HTML selector=#campus')
+        self.assertEqual(row['host_snapshot_id'], snapshot['snapshot_id'])
+        self.assertEqual(row['host_source_url'], 'https://example.invalid/host')
+        self.assertFalse(row['host_identity_confirmed'])
+        self.assertNotIn('invented display locator', json.dumps(result))
+        # The same quote exists only in the host file, never in the claim file.
+        annotation['record']['host_location']['source'] = 'branchlocator'
+        (self.root/'annotations.json').write_bytes(encode([annotation]))
+        self.assertIn('Missing selector', self.run_cli('wrong-source', succeeds=False))
+        annotation['record']['host_location']['source'] = 'host_document'
+        (self.root/'annotations.json').write_bytes(encode([annotation]))
+        manifest['sources'][-1]['delivery_status'] = 'restricted_hold'
+        (self.root/'manifest.json').write_bytes(encode(manifest))
+        self.assertIn('missing or restricted', self.run_cli('held-host', succeeds=False))
+
+    def test_cli_host_pdf_location_is_validated_independently(self):
+        import fitz
+        annotation = claim('onsite', 'Example MRI Unit', host_campus='Example East Campus',
+                           host_relation='onsite', host_location=dict(source='host_pdf', page=2),
+                           host_excerpt='Example MRI Unit is inside Example East Campus.')
+        manifest = corpus(self.root, [annotation])
+        pdf = self.root/'raw/host.pdf'
+        with fitz.open() as doc:
+            doc.new_page().insert_text((72,72), 'Example unrelated first page.')
+            doc.new_page().insert_text((72,72), annotation['record']['host_excerpt'])
+            doc.save(pdf)
+        manifest['sources'].append(dict(manifest['sources'][0], key='host_pdf',
+            url='https://example.invalid/host.pdf', path='raw/host.pdf', sha256=digest(pdf.read_bytes())))
+        (self.root/'manifest.json').write_bytes(encode(manifest))
+        result = self.run_cli()
+        row = next(r for r in result['claim_ledger.json'] if r['kind']=='named_mri_service')
+        self.assertEqual(row['host_locator'], 'PDF page=2')
+        annotation['record']['host_location']['page'] = 1
+        (self.root/'annotations.json').write_bytes(encode([annotation]))
+        self.assertIn('its own source location', self.run_cli('wrong-page', succeeds=False))
+
+    def test_cli_derives_pdf_claim_locator_and_rejects_wrong_page(self):
+        import fitz
+        annotation = claim('onsite', 'Example MRI Unit')
+        annotation.pop('selector')
+        annotation.update(source='claim_pdf', page=2, locator='PDF page=999')
+        manifest = corpus(self.root, [annotation])
+        pdf = self.root/'raw/claim.pdf'
+        with fitz.open() as doc:
+            doc.new_page().insert_text((72,72), 'Example unrelated first page.')
+            doc.new_page().insert_text((72,72), annotation['excerpt'])
+            doc.save(pdf)
+        manifest['sources'].append(dict(manifest['sources'][0], key='claim_pdf',
+            url='https://example.invalid/claim.pdf', path='raw/claim.pdf', sha256=digest(pdf.read_bytes())))
+        (self.root/'manifest.json').write_bytes(encode(manifest))
+        result = self.run_cli()
+        evidence = next(r for r in result['batch.json']['facility_evidence'] if r['service']=='mri')
+        self.assertEqual(evidence['locator'], 'PDF page=2')
+        self.assertNotIn('page=999', json.dumps(result))
+        annotation['page'] = 1
+        (self.root/'annotations.json').write_bytes(encode([annotation]))
+        self.assertIn('Excerpt fails', self.run_cli('wrong-page', succeeds=False))
+
+    def test_cli_nearby_heading_does_not_change_directory_modality(self):
+        raw = FIXTURE.read_bytes().replace(b'<h3>Example Laboratory Node</h3>',
+            b'<h3>Example Laboratory Node near Example MRI Hospital</h3>')
+        corpus(self.root, raw=raw)
+        result = self.run_cli()
+        row = next(r for r in result['batch.json']['external_facilities'] if r['source_record_id']=='101')
+        self.assertEqual(row['facility_type'], 'laboratory_documented_scope')
+        self.assertEqual(row['name_original'], 'Example Laboratory Node near Example MRI Hospital')
+        self.assertEqual(result['summary.json']['directory_by_unit_class']['mri_unit_label'], 1)
+
+    def test_cli_modality_conflict_and_unrelated_mri_clause_remain_unresolved(self):
+        raw = FIXTURE.read_bytes().replace(b'<h3>Example Laboratory Node</h3>',
+                                           b'<h3>Example MRI Unit</h3>')
+        raw = raw.replace(b'Example MRI Unit operates inside Example East Campus.',
+            b'Example Laboratory Node provides blood tests. Example MRI Unit operates inside Example East Campus.')
+        annotation = claim('onsite', 'Example Laboratory Node')
+        annotation['excerpt'] = ('Example Laboratory Node provides blood tests. '
+                                 'Example MRI Unit operates inside Example East Campus.')
+        corpus(self.root, [annotation], raw)
+        result = self.run_cli()
+        row = next(r for r in result['batch.json']['external_facilities'] if r['source_record_id']=='101')
+        self.assertEqual(row['facility_type'], 'modality_unknown')
+        self.assertIn('conflicting_unit_modality_labels', row['quality_flags'])
+        self.assertEqual(result['summary.json']['named_mri_documentary_candidates'], 0)
+
+    def test_cli_rejects_selector_that_combines_separate_rows(self):
+        annotation = claim('onsite', 'Example MRI Unit')
+        annotation['selector'] = '#onsite, #nearby'
+        corpus(self.root, [annotation])
+        self.assertIn('one source location', self.run_cli(succeeds=False))
 
 
 if __name__=='__main__':unittest.main()
