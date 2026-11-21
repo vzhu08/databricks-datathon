@@ -21,7 +21,7 @@ from pathlib import Path
 
 from research.matching.common import (MatchingError, canonical, digest, empty, file_digest, load, require,
                                       schema_check, stable_id, write_json)
-from research.matching.normalize import address_tokens, place_key, state_key, tokens
+from research.matching.normalize import place_key, state_key, tokens
 from . import IMPORTER_VERSION
 
 KINDS = ("listing", "establishment", "registrations")
@@ -213,12 +213,24 @@ def ingest(document, table_rows):
     return raw, aggregates, rejects, summary
 
 
+ADDRESS_SPELLINGS = {"rd": "road", "st": "street", "ave": "avenue", "av": "avenue", "opp": "opposite",
+                     "nr": "near", "no": "number", "dist": "district", "po": "post"}
+
+
+def address_key(address):
+    """An address as its printed words in their printed order, with case,
+    punctuation and a few harmless spellings folded. Order is kept because it
+    carries which number belongs to which unit: 'Block 3, Plot 12' is not
+    'Block 12, Plot 3'. A reordered address therefore does not merge and goes
+    to review."""
+    return " ".join(ADDRESS_SPELLINGS.get(t, t) for t in tokens(address)) if address else None
+
+
 def _keys(row, district=None):
     address = row["address_original"]
     kind, place = centre_key(row["name_original"])
     centre = f"{kind}:{place}" if kind or place else " ".join(tokens(row["name_original"]))
-    return (place_key(row["district_original"]) or district or "", centre,
-            " ".join(sorted(address_tokens(address))) if address else None)
+    return place_key(row["district_original"]) or district or "", centre, address_key(address) or None
 
 
 def _similar_place(one, two):

@@ -156,6 +156,17 @@ class RosterTests(unittest.TestCase):
                                          same["batch"]["review_queue"]))
         one_sided = two("16 East Street", None)                        # nothing contradicts the single address
         self.assertEqual(1, len(one_sided["campus_candidates"]))
+        # The association of labels and numbers decides: block 3 plot 12 is not block 12 plot 3.
+        swapped = two("Block 3, Plot 12, Cedar Road", "Block 12, Plot 3, Cedar Road")
+        self.assertEqual(2, len(swapped["campus_candidates"]))
+        self.assertEqual(["pmndp_address_differs_across_documents"] * 2,
+                         [r["reason_code"] for r in swapped["batch"]["review_queue"]])
+        self.assertEqual({"Block 3, Plot 12, Cedar Road", "Block 12, Plot 3, Cedar Road"},
+                         {e["address_original"] for e in swapped["batch"]["external_facilities"]})
+        punctuation = two("Block 3, Plot 12, Cedar Road", "block 3 plot-12 CEDAR RD.")     # same address
+        self.assertEqual((1, []), (len(punctuation["campus_candidates"]), punctuation["batch"]["review_queue"]))
+        reordered = two("Block 3, Plot 12, Cedar Road", "Cedar Road, Block 3, Plot 12")    # uncertain: a person decides
+        self.assertEqual((2, 2), (len(reordered["campus_candidates"]), len(reordered["batch"]["review_queue"])))
 
     def test_zero_and_unreadable_values(self):
         result = run(*fixture())

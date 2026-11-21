@@ -90,6 +90,10 @@ Rules worth knowing:
   flagged `address_differs_across_documents`, linked to each other in
   `possible_overlap_with` and queued for review. A row that cannot be assigned to
   a branch is flagged `same_name_branch_unreconciled`.
+- **Address equality** compares the printed words in their printed order, with
+  case, punctuation and a few spellings (`rd`, `st`, `ave`) folded. Order is kept
+  because it carries which number belongs to which unit: `Block 3, Plot 12` is not
+  `Block 12, Plot 3`. A reordered address does not merge and goes to review.
 - **A document with no district column** takes the district another document of the same family prints for the same centre, when exactly one is printed (`district_from_other_document`). The row itself keeps its district empty. Otherwise the campus is flagged `district_not_printed`.
 - **Near matches are never merged.** Across documents of one family, a similar place name, or the same place with another kind of facility, is flagged `possible_overlap_unreconciled` on both candidates with a review item each. A town can have both an area hospital and a community health centre, and a facility can be renamed or upgraded between two documents; a person decides.
 - **Recovered rows.** A table that continues on a new page can lose its first row when the page has no rule above it. The extractor recovers a line printed directly above a table when its words sit in the table's columns, marks it `recovered`, and the importer flags the row `recovered_from_text_above_table`.
