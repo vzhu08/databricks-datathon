@@ -166,8 +166,10 @@ def attribution_disputes(grouped):
         _, service = target
         for claim in claims:
             ref = claim["provenance"]
-            if (ref["kind"] == "original" and claim["decision"] == "yes"
-                    and claim["superseded_by"] is None and claim["review_id"] not in disputed[target]):
+            # A campus hold can prevent a yes while the review still attributes the passage to that campus.
+            finding = claim.get("reviewed_finding", claim["finding"])
+            if (ref["kind"] == "original" and finding == "onsite_service"
+                    and claim["in_period"] and claim["superseded_by"] is None):
                 passages[ref["occurrence_key"], service, ref["field"]].append((target, claim))
 
     for opinions in passages.values():

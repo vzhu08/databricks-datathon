@@ -256,10 +256,50 @@ class ProjectionTests(unittest.TestCase):
 
         other = copy.deepcopy(host)
         other.update(review_id="other", finding="other_campus")
-        for reviews in ([partner], [other, partner], [host, partner, other]):
+        for reviews in ([partner], [other, partner]):
             result = self.run_projection(reviews, [batch])
             self.assertEqual(patient_lookup(result, "twin")["services"]["mri"]["status"], "unconfirmed")
             self.assertEqual(patient_lookup(result, FID)["services"]["mri"]["status"], "yes")
+
+        # A third interpretation does not withdraw the host's active onsite attribution.
+        contested = self.run_projection([host, partner, other], [batch])
+        self.assertEqual(contested["coverage"]["mri"]["unconfirmed"], 3)
+        partner_support = copy.deepcopy(partner)
+        partner_support["review_id"] = "independent-partner"
+        separate_text = "The MRI clinic at Partner Campus performs scans onsite."
+        partner_support["source"] = dict(partner["source"], occurrence_key=FID, field="procedure",
+                                         start=0, end=len(separate_text), excerpt=separate_text)
+        self.base[0]["source_row"]["procedure"] = separate_text
+        del partner_support["source"]["target_match_id"]
+        supported = self.run_projection([host, partner, other, partner_support], [batch])
+        self.assertEqual(patient_lookup(supported, FID)["services"]["mri"]["status"], "yes")
+
+    def test_geography_held_onsite_review_still_competes_for_the_same_passage(self):
+        phrase = "Only Partner Campus operates onsite MRI."
+        host, partner, batch = self.campus_reviews(phrase, phrase, phrase)
+        geo = [{"facility_id": r["facility_id"], "state": "synthetic", "outcome": "ambiguous",
+                "conflicts": ["base_geography_disagreement"] if r["facility_id"] == "twin" else []}
+               for r in self.base]
+        result = self.run_projection([host, partner], [batch], identity=geo)
+        self.assertEqual(result, self.run_projection([partner, host], [batch], identity=geo))
+        for target, rival, reason in (("twin", FID, "campus_conflict"), (FID, "twin", "disputed_claim")):
+            service = lookup(result, target)["services"]["mri"]
+            self.assertEqual(service["reason_code"], reason)
+            self.assertEqual(patient_lookup(result, target)["services"]["mri"]["status"], "unconfirmed")
+            self.assertEqual(service["reviews"][0]["attribution_conflicts_with"], [rival])
+        self.assertEqual(lookup(result, "twin")["services"]["mri"]["reviews"][0]["reviewed_finding"], "onsite_service")
+
+        undated_host = copy.deepcopy(host)
+        undated_host["source"]["source_date"] = None
+        undated = self.run_projection([undated_host, partner], [batch], identity=geo)
+        self.assertEqual(undated["coverage"]["mri"]["unconfirmed"], 3)
+
+        for boundary in ({"valid_until": "2026-11-20"}, {"valid_from": "2026-11-22"}, {"source_date": "2026-11-22"}):
+            with self.subTest(boundary=boundary):
+                dated_host = copy.deepcopy(host)
+                dated_host["source"].update(boundary)
+                resolved = self.run_projection([dated_host, partner], [batch], identity=geo)
+                self.assertEqual(patient_lookup(resolved, FID)["services"]["mri"]["status"], "yes")
 
     def test_explicit_joint_onsite_review_for_each_named_target(self):
         text = "Host Campus and Partner Campus each perform MRI onsite."
