@@ -2,13 +2,13 @@
 
 Developer D · `@oliverchennn` · Codex chat `01a1ff42-470d-7f20-a2e2-ed23665cc075` · November 21, 2026.
 
-Branch: `codex/acq-d-databricks`. Task and final PR/head record: [issue #6](https://github.com/vzhu08/databricks-datathon/issues/6). Tested implementation SHA: `ddb17b68f1b92b3b881b44311a3d6dcbe886a7a3`. The handoff is a subsequent documentation commit; the final pushed head and its repeated checks are recorded on the issue/PR to avoid a self-referential commit SHA in this file.
+Branch: `codex/acq-d-databricks`. [PR #17](https://github.com/vzhu08/databricks-datathon/pull/17) · [issue #6](https://github.com/vzhu08/databricks-datathon/issues/6). Tested implementation SHA: `ddb17b68f1b92b3b881b44311a3d6dcbe886a7a3`. Tests, fixture validation and real public-batch validation also passed at `fa7136455ebe53be881f37524b0e261f7c57d006` (same implementation plus initial handoff). This final handoff update changes documentation only; the final pushed head is recorded on the issue/PR to avoid a self-referential commit SHA in this file.
 
 Status: local implementation ready for review. Live original-source inspection and Databricks publication are blocked/unverified. No merge, deployment or submission was performed.
 
 ## Scope and compatibility
 
-Only `databricks/enrichment/`, `tests/databricks/enrichment/`, and this handoff were changed in the prepared Developer D clone. No shared schema, registry, fixtures, board, A/B/C paths, original ingestion, app or kit changes. The authoritative board was reread at `origin/main` commit `eea8686d94fcd4b6ca649096f08cf9007ccba86a` before handoff. The implementation consumes the v1.0.0 schema and contract published in PR #8.
+Only `databricks/enrichment/`, `tests/databricks/enrichment/`, and this handoff were changed in the prepared Developer D clone. No shared schema, registry, fixtures, board, A/B/C paths, original ingestion, app or kit changes. The authoritative board was last reread at `origin/main` commit `18ba546878b28fe78f792e050facef123e729a81`; that board confirms A's PR #13 is merged and its batch is ready. The shared contract/schema/fixtures remain unchanged from PR #8. A merge-tree check against that main completed without conflicts; GitHub reported PR #17 `MERGEABLE` / `CLEAN`. No merge was performed by D.
 
 Delivered: format-aware JSON Schema and semantic CLI; additive deterministic merge; explicit hashed review transitions; original-row preservation; bounded source inspection/export and postal profiles; typed five-table Delta staging; a separate completed-run operational manifest/pointer; coverage with denominators/unknowns; and three parameterized notebooks. [Setup, privileges, notebook order and recovery](../../databricks/enrichment/README.md) document the full workflow.
 
@@ -56,7 +56,25 @@ SQLite **simulations** interrupt publication after each of writes 1–5, verify 
 
 ## Real public inputs
 
-No real source rows were acquired by D or committed. At this handoff, A's issue #3 reports successful public OSM/NHP acquisition (136,004 + 10,843 external rows after OSM exact-repeat collapse), but its final readiness handoff has not yet been posted. D has not consumed or independently validated those artifacts. Readiness/compatibility is pending, not a fixture-derived public result. A's ignored `data/local/acquisition/` artifacts may be consumed read-only once its handoff confirms readiness. B/C human batches remain later inputs; none were fabricated.
+After A posted its final readiness handoff on issue #3, D read A's handoff and consumed its ignored combined batch read-only. No source files or A-owned paths were modified, and no real records were committed. A's batch file SHA-256 independently matched `4b5900bad2a57a179d03a6eab88f283db4f44d62a7a13b57ea77c6d445e951aa`.
+
+From the Developer D clone, with the scoped environment active and an intentionally empty base JSON array at `databricks/enrichment/.venv/empty-base.json`:
+
+```sh
+python databricks/enrichment/validate_batch.py \
+  --batch ../developer-a/data/local/acquisition/public/runs/0eac1025996c46409dd3b07aeca8e283/batch.json \
+  --base databricks/enrichment/.venv/empty-base.json --as-of 2026-11-21 \
+  > databricks/enrichment/.venv/public-validation.json
+```
+
+**Exited 0:** 2 snapshots, 146,847 external records (OSM 136,004; NHP 10,843), 172 open reviews, 0 matches, 0 evidence, 0 base rows. The empty base is a source-batch compatibility check, not a substitute Marketplace dataset or original-facility coverage claim. Missing external values: 3,218 names, 1 coordinate pair, 136,235 PINs, 1,292 states. Both snapshots preserve `shared_origin`; the 172 reviews remain unresolved. No D evidence review or source recrawl is implied by this validator pass.
+
+Real public snapshot IDs:
+
+- `hot_osm_health:5b2c036798554a5842b66dbbd88f98d4561269a5e05de377513fd6454f6deff3`
+- `nhp_hospitals_mirror:058ca80693d6ee3c20b8588cfd1889e6ae3f7241a33a717854fbbc3d354e2e47`
+
+Artifact root remains `/Users/oliverchen/Documents/ChatGPT/databricks hack/.workspaces/developer-a/data/local/acquisition/public/`. A's [handoff](https://github.com/vzhu08/databricks-datathon/blob/main/docs/handoffs/ACQ-A01.md) records raw snapshot paths, download/replay provenance and attribution. D's aggregate validation report is local/ignored at the path above. B/C human batches remain later inputs; none were fabricated. Real Marketplace matching, authorized Volume upload and live Delta publication remain blocked.
 
 ## Live Databricks findings and smallest next action
 
