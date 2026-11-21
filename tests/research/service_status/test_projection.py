@@ -157,7 +157,7 @@ class ProjectionTests(unittest.TestCase):
 
     def test_identity_conflict_requires_explicit_campus_resolution(self):
         geo = [{"facility_id": b["facility_id"], "state": "synthetic", "outcome": "ambiguous",
-                "conflicts": ["competing_campuses"]}
+                "conflicts": ["base_geography_disagreement", "competing_campuses"]}
                for b in self.base]
         r = original()
         unresolved = lookup(self.run_projection([r], identity=geo), FID)["services"]["mri"]
@@ -168,6 +168,26 @@ class ProjectionTests(unittest.TestCase):
             self.run_projection(identity=geo[:-1])
         with self.assertRaises(MatchingError):
             self.run_projection(identity=self.base)
+
+    def test_candidate_flags_apply_to_links_but_do_not_dispute_same_campus_text(self):
+        geo = [{"facility_id": row["facility_id"], "state": "synthetic", "outcome": "ambiguous",
+                "conflicts": ["competing_campuses", "candidate_geography_conflict"]} for row in self.base]
+        batch = load(ROOT / "contracts" / "fixtures" / "enrichment.json")
+        item = batch["facility_evidence"][0]
+        item.update(temporal_status="dated", effective_date=DAY, excerpt="Trauma care onsite.")
+        external = original("trauma_care")
+        external.update(review_id="ext", source={"kind": "external", "evidence_id": item["evidence_id"]})
+        result = self.run_projection([original(), external], [batch], identity=geo)
+        services = lookup(result, FID)["services"]
+        self.assertEqual(services["mri"]["status"], "yes")
+        self.assertEqual(services["trauma_care"]["reason_code"], "campus_conflict")
+        self.assertEqual(result["facilities"][FID]["identity_conflicts"], geo[0]["conflicts"])
+
+        # An explicit dispute about the original itself always survives candidate retrieval.
+        disputed = original(finding="campus_conflict")
+        disputed["review_id"] = "dispute"
+        result = self.run_projection([original(), disputed], identity=geo)
+        self.assertEqual(patient_lookup(result, FID)["services"]["mri"]["status"], "unconfirmed")
 
     def test_same_excerpt_dispute_with_an_independent_undisputed_statement(self):
         yes, other_campus = original(), original(finding="other_campus")

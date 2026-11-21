@@ -195,7 +195,12 @@ def project(base, metadata, reviews, batches, *, as_of, checked_sources, base_fi
         claim = assessed_claim(r, source, snapshots, facts, matches, day)
         if r.get("campus_resolution"):
             claim["campus_resolution"] = r["campus_resolution"]
-        if claim["decision"] and identity.get(fid, {}).get("conflicts"):
+        relevant_flags = set(identity.get(fid, {}).get("conflicts", []))
+        ref = claim["provenance"]
+        if ref["kind"] == "original" and ref["occurrence_key"] == fid:
+            # A competing reference candidate does not change what a reviewed original says about its own campus.
+            relevant_flags.intersection_update({"base_geography_disagreement"})
+        if claim["decision"] and relevant_flags:
             rationale = r.get("campus_resolution")
             if not (isinstance(rationale, str) and rationale.strip()):
                 claim["reviewed_finding"] = claim["finding"]
