@@ -1,12 +1,12 @@
 # Team message and task board
 
-This board is authoritative on `origin/main`. Each developer reads it at kickoff and every five minutes while working. Oliver maintains it and appends agreed updates. Post proposed updates and handoffs in the task PR for Oliver to record. Work on the assigned branch and send changes through a PR.
+This board is authoritative on `origin/main`. Each developer’s coding chat reads it at kickoff and every five minutes, then starts eligible `Ready` work for its assigned owner when free. Oliver maintains the board and appends agreed updates. Use a unique task ID with one assigned owner, branch, write scope, and starting dependency. Post updates and handoffs in the task PR for Oliver to record. [In-chat setup](../KICKOFF_PROMPTS.md)
 
 ## Latest messages
 
 | When (ET) | From | Applies to | Update |
 | --- | --- | --- | --- |
-| Nov 21 · kickoff | Repo setup | Everyone | Check your assignment, start the board checker, and read the search contract. Begin with the first task in your kickoff prompt. |
+| Nov 21 · kickoff | Repo setup | Everyone | Schedule the five-minute check in your coding chat and read the search contract. Do the first check now and start your `Ready` assignment. |
 | Nov 21 · first pass | Repo setup | Everyone | [First-pass brief](../FIRST_PASS_PROMPT.md) sets the scope. Use only Virtue Foundation nationwide for dialysis, MRI, and trauma care. |
 | Nov 21 · team assignments | Repo setup | Everyone | Oliver leads orchestration. Vincent owns the core search and warehouse adapter. Ayush owns the preparation notebook. Andrew owns the UI/UX in Claude Max and coordinates through this board and PRs. |
 
@@ -21,4 +21,4 @@ This board is authoritative on `origin/main`. Each developer reads it at kickoff
 
 Oliver stewards `contracts/`, `docs/implementation/`, and `docs/KICKOFF_PROMPTS.md`. Ayush reviews source provenance and campus preservation. Vincent reviews matching and ranking correctness. Andrew reviews the user flow. Oliver coordinates cross-role edits and shared Databricks resources with their owners.
 
-Use `Ready`, `In progress`, `Review`, `Verified`, or `Blocked`. For each update, include task ID, owner, what changed, and the next action. When handing off, include branch or PR, commit SHA, exact check and result, and any blocked dependency.
+Use `Ready` for work that can begin, `In progress` once an owner starts it, `Review`, `Verified`, or `Blocked`. Mark each new assignment `Ready` only when its prerequisites are met and give it a new task ID. For each update, include task ID, owner, what changed, and the next action. When handing off, include branch or PR, commit SHA, exact check and result, and any blocked dependency.

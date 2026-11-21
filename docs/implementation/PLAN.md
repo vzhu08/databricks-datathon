@@ -4,7 +4,7 @@ The [first-pass prompt](../FIRST_PASS_PROMPT.md) is the brief. A community healt
 
 | When (ET) | Owners | Checkpoint |
 | --- | --- | --- |
-| First 30 minutes | All four | Start five-minute board checks and agree on the prepared row shape and search responses. Ayush checks Marketplace access. Oliver and Vincent check Apps and warehouse access. Andrew starts the UI with synthetic responses. |
+| First 30 minutes | All four | Schedule five-minute checks in the coding chats and agree on the prepared row shape and search responses. Ayush checks Marketplace access. Oliver and Vincent check Apps and warehouse access. Andrew starts the UI with synthetic responses. |
 | Saturday 3:00 p.m. | Ayush and Vincent | Inspect real schema and sample rows if accessible. Produce a repeatable preparation notebook and verify independent location and matching logic against synthetic cases. |
 | Saturday 6:00 p.m. | Vincent, Andrew, and Oliver | Integrate the app end to end. Run “dialysis near Jaipur” on the real table and inspect the exact excerpts if available. Exercise all failure cases with a clearly labeled fixture. Record any workspace blocker precisely. |
 | Saturday 9:00 p.m. | All four | Freeze scope. Verify the ranking rules and capture one success and one uncertainty case. Confirm organizer deadline, submission form, judge access, and reusable-kit rules. |
