@@ -1,5 +1,5 @@
 import copy
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import sys
 import tempfile
 import unittest
@@ -12,6 +12,12 @@ from export_sql_snapshot import POSTAL
 from occurrence_keys import SOURCE
 from prepare_versioned_base import MAPPING, finalize, prepare_rows, replay
 from source_inspection import verify_base_export
+
+
+class WindowsRelativePath(type(Path())):
+    """Exercise Windows relative-path formatting with real files on any host."""
+    def relative_to(self, *other):
+        return PureWindowsPath(*super().relative_to(*other).parts)
 
 
 class VersionedBase(unittest.TestCase):
@@ -92,6 +98,36 @@ class VersionedBase(unittest.TestCase):
                 (root / 'duplicate_groups.json').write_text('[]')
                 with self.assertRaisesRegex(Invalid, 'hash mismatch'):
                     replay(root)
+
+    def test_writer_uses_posix_manifest_paths_on_windows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = WindowsRelativePath(tmp)
+            (root / 'raw').mkdir()
+            (root / 'raw/part.jsonl').write_text('{}\n', encoding='utf-8')
+            self.assertEqual(str(next((root / 'raw').rglob('*')).relative_to(root)), r'raw\part.jsonl')
+            with patch('prepare_versioned_base.local_output', return_value=root), \
+                    patch('prepare_versioned_base.derive', return_value=self.result()):
+                finalize(root)
+            files = load(root / 'prepared_manifest.json')['files']
+            self.assertIn('raw/part.jsonl', files)
+            self.assertTrue(all('\\' not in name for name in files))
+
+    def test_posix_produced_package_replays_with_windows_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'raw').mkdir()
+            (root / 'raw/part.jsonl').write_text('{}\n', encoding='utf-8')
+            with patch('prepare_versioned_base.local_output', return_value=root), \
+                    patch('prepare_versioned_base.derive', return_value=self.result()):
+                finalize(root)
+                manifest = load(root / 'prepared_manifest.json')
+                # Freeze the producer's POSIX spelling independently of this host.
+                manifest['files'] = {name.replace('\\', '/'): sha for name, sha in manifest['files'].items()}
+                (root / 'prepared_manifest.json').write_bytes(canonical(manifest).encode('utf-8'))
+                before = (root / 'prepared_manifest.json').read_bytes()
+                with patch('prepare_versioned_base.local_output', return_value=WindowsRelativePath(root)):
+                    self.assertEqual(replay(root)['status'], 'byte_identical_replay')
+                self.assertEqual((root / 'prepared_manifest.json').read_bytes(), before)
 
 
 if __name__ == '__main__':

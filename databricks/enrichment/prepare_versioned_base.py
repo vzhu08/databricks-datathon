@@ -120,7 +120,7 @@ def finalize(root):
     result = derive(root)
     for name in OUTPUTS:
         write(root / (name + ".json"), canonical(result[name]).encode("utf-8"))
-    files = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+    files = {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
              for p in sorted(root.rglob("*")) if p.is_file()}
     manifest = {"version": "vf-prepared-base-1.0.0", "id_policy": POLICY, "files": files,
                 "report": result["validation_report"]}
@@ -134,7 +134,7 @@ def replay(root):
     manifest = load(root / "prepared_manifest.json")
     require(manifest["version"] == "vf-prepared-base-1.0.0" and manifest["id_policy"] == POLICY,
             "manifest", "unknown prepared version or policy")
-    actual = {str(p.relative_to(root)) for p in root.rglob("*") if p.is_file() and p.name != "prepared_manifest.json"}
+    actual = {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file() and p.name != "prepared_manifest.json"}
     require(actual == set(manifest["files"]), "manifest", "prepared file set changed")
     for name, expected in manifest["files"].items():
         require(hashlib.sha256((root / name).read_bytes()).hexdigest() == expected, "manifest", "prepared artifact hash mismatch")
