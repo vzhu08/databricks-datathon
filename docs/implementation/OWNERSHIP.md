@@ -36,6 +36,8 @@ Ayuush completed the [Marketplace access check](https://github.com/vzhu08/databr
 
 Andrew’s [matching and geography PR](https://github.com/vzhu08/databricks-datathon/pull/29) preserves both synthetic base rows and proposes six campus pairs for review. It confirms zero of those pairs. The coordinator verified 56 matching/geography, 43 acquisition, 73 trauma, 72 enrichment and 18 search tests. A disputed campus cannot inherit another campus’s footprint evidence. No original facilities or real building footprints have been checked. Andrew’s [pilot issue](https://github.com/vzhu08/databricks-datathon/issues/5) stays open for the authorized base export and reviewed results.
 
+Oliver assigned four additional public-source investigations. All four can start before the original export arrives. The [research synthesis and validation plan](VALIDATION_RESEARCH.md) records what each source can establish and how the team will test it against withheld evidence.
+
 ## Active assignments
 
 | ID | Executor | Branch | Exclusive write scope | First action | State |
@@ -49,8 +51,11 @@ Andrew’s [matching and geography PR](https://github.com/vzhu08/databricks-data
 | [ACQ-E03 · #15](https://github.com/vzhu08/databricks-datathon/issues/15) | Developer E · Ayuush | Issue only | Comment on #15 | Copy three demo searches and their expected results from the synthetic fixture | Verified |
 | [ACQ-E04 · #16](https://github.com/vzhu08/databricks-datathon/issues/16) | Developer E · Ayuush | Issue only | Comment on #16 | Write two source credits using A’s acquisition handoff | Verified |
 | [ACQ-A02 · #21](https://github.com/vzhu08/databricks-datathon/issues/21) | Developer A · Codex | `codex/acq-a-rajasthan-extract` | `research/acquisition/`, `tests/research/acquisition/`, `docs/handoffs/ACQ-A02.md` | Produce a reproducible Rajasthan candidate extract for C | Verified |
-| [ACQ-A03 · #30](https://github.com/vzhu08/databricks-datathon/issues/30) | Developer A · Codex | `codex/acq-a-matching-handoff` | `research/acquisition/`, `tests/research/acquisition/`, `docs/handoffs/ACQ-A03.md` | Verify the three accepted outputs for transfer to Andrew and assess district and institutional phone coverage | Ready |
+| [ACQ-A03 · #30](https://github.com/vzhu08/databricks-datathon/issues/30) | Developer A · Codex | `codex/acq-a-matching-handoff` | `research/acquisition/`, `tests/research/acquisition/`, `docs/handoffs/ACQ-A03.md` | Acquire the Rajasthan NHM facility annexures and verify the portable handoff to Andrew | Ready |
 | [ACQ-D02 · #22](https://github.com/vzhu08/databricks-datathon/issues/22) | Developer D · Codex | `codex/acq-d-export-adapter` | `databricks/enrichment/`, `tests/databricks/enrichment/`, `docs/handoffs/ACQ-D02.md` | Adapt the existing mapper for an authorized local export | Verified |
+| [ACQ-B02 · #33](https://github.com/vzhu08/databricks-datathon/issues/33) | Developer B · Vincent (`vzhu08`) | `codex/acq-b-dialysis-research` | `research/dialysis/`, `tests/research/dialysis/`, `docs/handoffs/ACQ-B02.md` | Collect facility-specific dialysis documentation and audit its date, campus, wording and independence | Ready |
+| [ACQ-C02 · #34](https://github.com/vzhu08/databricks-datathon/issues/34) | Developer C · Andrew (`andrewhgu`) | `codex/acq-c-footprint-research` | `research/geography/`, `tests/research/matching/`, `docs/handoffs/ACQ-C02.md` | Freeze a public-only Rajasthan sample and measure coverage and source overlap for building observations | Ready |
+| [ACQ-D03 · #32](https://github.com/vzhu08/databricks-datathon/issues/32) | Developer D · Codex | `codex/acq-d-nqas-reference` | `research/certification/`, `tests/research/certification/`, `docs/handoffs/ACQ-D03.md` | Acquire full and partial Rajasthan NQAS assessments and validity periods for a held-out audit | Ready |
 | [ACQ-E05 · #23](https://github.com/vzhu08/databricks-datathon/issues/23) | Developer E · Ayuush | Issue only | Comment on #23 and link from #6 | Check whether the team’s source tables are visible in Catalog Explorer | Verified · access limitation recorded |
 
 Detailed task cards include the issue, deliverables, acceptance cases, commands, and handoff requirements. `Ready` means the independent first stage is ready; it does not assert live credentials or upstream data exist.
