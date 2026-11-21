@@ -4,7 +4,7 @@ Build a facility finder for community health workers in India. The first pass us
 
 ## Start here
 
-1. Vincent leads the nationwide facility-validation run. Process all **10,088 original Virtue Foundation rows** at Delta version 0. Report identity and service coverage across India and by state/UT, including records with missing information. The [implementation plan](docs/implementation/PLAN.md) defines the denominator and release checks.
+1. Oliver leads the nationwide facility-validation run. Process all **10,088 original Virtue Foundation rows** at Delta version 0. Report identity and service coverage across India and by state/UT, including records with missing information. The [implementation plan](docs/implementation/PLAN.md) defines the denominator and release checks.
 2. Read the [current team board](docs/implementation/OWNERSHIP.md) and [kickoff prompts](docs/KICKOFF_PROMPTS.md). Oliver prepares the shared inputs, Andrew owns national matching, Vincent owns service evidence and validation, and Ayush checks nationwide data sources. Coordinate through repo issues and the board.
 3. The [search contract](docs/implementation/SEARCH_CONTRACT.md) and its synthetic fixtures remain the baseline app interface. The acquisition sprint adds five evidence tables without silently changing ranking or the UI. Real source snapshots and Marketplace rows stay outside Git.
 
