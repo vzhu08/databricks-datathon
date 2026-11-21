@@ -1,5 +1,81 @@
 # ACQ-D01 handoff
 
+## National version-0 base · November 21 follow-up
+
+The original-source access blocker is resolved. D implemented Vincent's [reviewed occurrence-key policy](https://github.com/vzhu08/databricks-datathon/issues/6#issuecomment-7069026841), exported both pinned sources, prepared the complete national base and delivered it through the existing private team Volume. Tested implementation: `16a0190ba594a9239d4439024caa23fc7de9d9e0` on `codex/acq-d-databricks`, started from main `e9c83bc`. The remote board was reread through `6c1d721` for handoff. The follow-up handoff commit changes documentation only; the final head and PR are recorded on #6.
+
+All 10,088 original facility rows remain, including the 11 pairs with identical original IDs and full payloads. Singletons retain their original ID as `facility_id`. All 22 repeated occurrences receive the reviewed `base-occurrence:` hash of `[source_table, "0", original_id, ordinal_string]`. Every original field, null and `unique_id` remains in `source_row`. Ordinals express interchangeable copies within this snapshot, not separate campuses, physical source identities, independent confirmations or cross-version continuity. Default duplicate rejection remains in force for other inputs. The private duplicate-group sidecar binds each shared original ID/payload to its multiplicity and row handles.
+
+### Live source and preservation results
+
+Source catalog/schema: `databricks_virtue_foundation_dataset_dais_2026_databricks.virtue_foundation_dataset`. Both `facilities` and `india_post_pincode_directory` were read with **VERSION AS OF 0** on the existing warehouse `8bac239c2de8f8da`, through Oliver's authorized CLI session supplied in [A's non-secret operator handoff](https://github.com/vzhu08/databricks-datathon/issues/6#issuecomment-7069116214). No credentials were copied, no grants were changed, and no source table was written.
+
+Capture ran **2026-11-21T21:00:47.199571Z–21:01:37.009669Z**. Eight facilities buckets and sixteen postal buckets completed without truncation. The capture retains all 51 facility columns and 11 postal columns, exact SQL-generated row JSON, statement IDs, queries, UTC retrieval times, schemas and hashes. A's 14-file metadata packet was downloaded and fully hash-verified before acquisition. It has manifest SHA-256 `538f3602e84526ef1df2492c78c5f9d22d55644195b7462f2f5f6f983f51dcf5`.
+
+| Check | Observed result |
+| --- | ---: |
+| Original / prepared facility rows | 10,088 / 10,088 |
+| Unique internal row handles | 10,088 |
+| Distinct original IDs / full payloads | 10,077 / 10,077 |
+| Identical duplicate groups / generated occurrence keys | 11 / 22 |
+| Original rows lost / added | 0 / 0 |
+| Original PIN-directory rows retained | 165,627 |
+| Distinct postal PINs / maximum offices per PIN | 19,586 / 153 |
+| Rows preserved by grouped PIN lookup | 10,088 |
+| Base rows with exact six-digit postal context | 9,568 |
+
+The complete prepared key set independently matches the approved SQL formula on the live version-0 source. Sorted-key SHA-256: `96ffb861cd0a2d4092889289d58574d1e512157c907724e46e70a6eb869850b9`. Statement: `01f1e5ef-654e-1a3e-b625-7e21a67e2567`. The aggregate proof is retained privately at `data/local/national-v0/proofs/row-key-proof.json`, SHA-256 `abc40f35c711cb2d20f2539574a02e7bbae966672cf061c0ee2cbe3921d2d94a`. This is D's direct check under Oliver's account, not another teammate-account receipt.
+
+Original facilities canonical multiset SHA-256: `30d32fa927f5d43753ea6d42f3685ea62e1b416a6cffce7e11ebd1d83b905ca6`. Raw JSON bytes and canonical logical-value hashes are recorded separately. The preserved JSON types, field sets and original-row multiset are checked before preparation. Postal values are unchanged; only the contextual lookup trims exact six-digit facility postcodes and groups directory entries to one PIN key.
+
+### Verified private delivery
+
+```text
+/Volumes/workspace/datathon_acquisition/matching_inputs/national-base-v0-20261121-d01/
+```
+
+All **70 files / 265,584,762 bytes** were uploaded, with `prepared_manifest.json` written last. D downloaded the package into a separate ignored directory and verified the manifest plus every listed file hash. C must separately acknowledge its own-account download/readback. Relative artifact paths permit transfer without changing row keys or hashes.
+
+| File | SHA-256 |
+| --- | --- |
+| prepared_manifest.json | `9493372df8e4f34004bef4d7651f3885ae6a1e11621c008eb7cf0a8cc36912f8` |
+| capture_manifest.json | `977832fc184804007bba66a1e553003de549c77041ad041e2d11c4fb72bd4b59` |
+| base.json | `27e4a79de42ec56c76cc676ed45494a52497d179858bc50549a461434c45e9d8` |
+| source_metadata.json | `f3cb10bee47de40ac886523456229a0121de8843c7ff574e53ffb963f40860c1` |
+| duplicate_groups.json | `f2a443a625bdea68e0e3b09a76875f17b05ff9e6b942db5a0db1c3b6f3e49a63` |
+| postal_rows.json | `af41bd5f7a20653f4af877ebd9c878d4cc162fb683e7fb7253bda24564d56343` |
+| postal_metadata.json | `81ee248f3dd6f8c913cbf801f4eecd7dc929066348534c360d0839550a34af8f` |
+| validation_report.json | `928e17acf564eee3b4af07ea0c695deafdee4fb66e1451e4a4833afcca1009c8` |
+
+Authoritative ignored local root: `/Users/oliverchen/Documents/ChatGPT/databricks hack/.workspaces/developer-d/data/local/national-v0/capture-20261121/`. Independent storage readback: sibling `readback-20261121/`. No real source records, raw snapshots or credentials are tracked in Git. The private package preserves the source's provenance; it does not grant public redistribution rights.
+
+### Checks, reproduction and next consumer
+
+Fixture checks: **94 enrichment tests pass** on Python 3.9.6, including occurrence keys, collisions, changed payload/snapshot rejection, default duplicate rejection, SQL chunk/truncation checks, postal cardinality, original-field preservation, package integrity and replay. Compilation and `git diff --check` pass. All tests use synthetic rows.
+
+Live/local checks: the real prepared base passes the D validator with zero errors. Its validation envelope is intentionally empty: this verifies the 10,088-row base, not matching or service support. All six derived files replay byte-identically without network. The private upload and full hash-verified download/readback are separate successful live storage checks.
+
+```sh
+research/certification/.venv/bin/python -m unittest discover -s tests/databricks/enrichment -q
+research/certification/.venv/bin/python databricks/enrichment/prepare_versioned_base.py replay \
+  --run-dir data/local/national-v0/capture-20261121
+research/certification/.venv/bin/python databricks/enrichment/prepare_versioned_base.py replay \
+  --run-dir data/local/national-v0/readback-20261121
+research/certification/.venv/bin/python databricks/enrichment/validate_batch.py \
+  --batch data/local/national-v0/proofs/empty-enrichment.json \
+  --base data/local/national-v0/capture-20261121/base.json --as-of 2026-11-21
+```
+
+[NATIONAL_BASE.md](../../databricks/enrichment/NATIONAL_BASE.md) documents fresh acquisition, explicit policy activation, observed mapping, portable replay, private delivery and failure handling. Existing captures/finalized outputs refuse overwrite. Notebook 01 now accepts the explicit occurrence policy and an independent postal-version widget; the successful live run used the SQL/CLI exporter, not Spark notebook execution.
+
+Andrew receives `base.json`, its source metadata, `duplicate_groups.json`, `postal_rows.json` and postal metadata for the full **10,088-row** national run. Retain unknown geography and zero-candidate rows. Shared duplicates count once for independent campus/evidence review while every original occurrence remains in output. The ordinary v1 validator currently allows one confirmed base ID per external record; duplicating confirmations across occurrence handles requires Vincent/C coordination before publication. D flagged this in [#6](https://github.com/vzhu08/databricks-datathon/issues/6#issuecomment-7069237153), and this source-preparation patch leaves that rule unchanged.
+
+Five-table enrichment publication, a completed-run pointer update, live Delta replay/failure testing and submission: **not performed in this follow-up**. They remain downstream of the accepted C/B outputs and the coordinated service-status work in #67. The integration lead owns PR review, board updates and readiness decisions.
+
+## Earlier D01 handoff · historical record
+
+The following record predates source access. Its original-source blockers are superseded by the version-0 results above; its fixture/publication-simulation distinctions remain applicable.
+
 Developer D · `@oliverchennn` · Codex chat `01a1ff42-470d-7f20-a2e2-ed23665cc075` · November 21, 2026.
 
 Branch: `codex/acq-d-databricks`. [PR #17](https://github.com/vzhu08/databricks-datathon/pull/17) · [issue #6](https://github.com/vzhu08/databricks-datathon/issues/6). Tested implementation SHA: `ddb17b68f1b92b3b881b44311a3d6dcbe886a7a3`. Tests, fixture validation and real public-batch validation also passed at `fa7136455ebe53be881f37524b0e261f7c57d006` (same implementation plus initial handoff). This final handoff update changes documentation only; the final pushed head is recorded on the issue/PR to avoid a self-referential commit SHA in this file.
