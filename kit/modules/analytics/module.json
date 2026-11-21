@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "id": "analytics",
+  "title": "Analytics and optimization",
+  "description": "CSV cleaning, statistics, chart data and exact bounded allocation optimization.",
+  "tags": ["csv", "charts", "optimization"],
+  "useCases": ["CSV cleaning, statistics, chart data and exact bounded allocation optimization."],
+  "runtime": "universal",
+  "environments": ["Node.js 22+", "modern browser"],
+  "source": "modules/analytics/src",
+  "entrypoints": {
+    "core": "modules/analytics/src/index.ts",
+    "browser": "modules/analytics/src/components.tsx"
+  },
+  "exports": ["modules/analytics"],
+  "minimalRead": [
+    "modules/analytics/README.md",
+    "modules/analytics/src/index.ts",
+    "modules/analytics/fixtures/allocation.json"
+  ],
+  "dependencies": [],
+  "packages": {
+    "zod": "4.6.5",
+    "react": "19.3.0",
+    "papaparse": "5.7.0"
+  },
+  "optionalIntegrations": [],
+  "env": [],
+  "systemRequirements": ["Node.js 22+"],
+  "integration": {
+    "steps": [
+      "Read the README and run the local example first.",
+      "Preserve module/shared package layout and install the listed dependencies.",
+      "Use server adapters only from authenticated bounded handlers; never expose provider keys in browser bundles."
+    ],
+    "routes": [],
+    "migrations": [],
+    "assets": []
+  },
+  "contracts": ["modules/analytics/src/index.ts"],
+  "examples": ["modules/analytics/examples/demo.ts"],
+  "fixtures": [
+    "modules/analytics/fixtures/allocation.json",
+    "modules/analytics/fixtures/events.csv"
+  ],
+  "checks": [
+    "node --import tsx modules/analytics/examples/demo.ts",
+    "npx vitest run modules/analytics/tests"
+  ],
+  "modes": {
+    "local": "Credential-free deterministic code and labeled synthetic fixtures.",
+    "live": "Same deterministic calculation on caller-supplied real data; no external provider."
+  },
+  "verification": {
+    "implementation": "implemented",
+    "local": "7 local tests passed; scoped checkout typecheck, ESLint and credential-free example passed (35 combined experience tests).",
+    "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+    "live": "not run \u2014 requires operator test credentials and authorization",
+    "record": "modules/analytics/README.md"
+  },
+  "limitations": [
+    "Exact binary allocation is capped at 20 items; not a general-purpose industrial optimizer.",
+    "No automatic currency/date coercion or imputation; missing numbers stay null."
+  ],
+  "cost": "Local computation only; no API charges.",
+  "docs": ["https://www.papaparse.com/docs"],
+  "license": "MIT",
+  "provenance": "Original kit implementation and authored synthetic fixtures. Provider docs cited in README; provider terms apply to live data."
+}

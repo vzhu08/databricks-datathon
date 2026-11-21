@@ -1,0 +1,1 @@
+[{"query":"fresh vegetables garden","expectedDocumentId":"garden"},{"query":"electric bus accessible","expectedDocumentId":"transit"},{"query":"rainwater irrigation","expectedDocumentId":"water"}]

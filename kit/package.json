@@ -1,0 +1,71 @@
+{
+  "name": "hackathon-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.23.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "kit": "node --import tsx tools/kit.ts",
+    "agents": "node --import tsx tools/agents/cli.ts",
+    "dev": "next dev starters/web --hostname 127.0.0.1",
+    "dev:showcase": "next dev examples/showcase --hostname 127.0.0.1 --port 3001",
+    "build": "next build starters/web --webpack",
+    "build:showcase": "next build examples/showcase --webpack",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm run kit -- catalog check && npm run docs:check",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "docs:check": "node --import tsx tools/docs-check.ts",
+    "test:exports": "node --import tsx tests/exports.ts",
+    "test:browser": "playwright test",
+    "eval": "node --import tsx tools/evaluate.ts",
+    "playground": "node --import tsx tools/playground.ts",
+    "demo:reset": "node --import tsx tools/demo-reset.ts",
+    "realtime": "node --import tsx modules/realtime/examples/server.ts",
+    "test:python-bridge": "node --import tsx tests/hybrid.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "4.0.78",
+    "@ai-sdk/openai": "4.0.91",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.117.3",
+    "ai": "7.0.136",
+    "cheerio": "1.2.0",
+    "ipaddr.js": "2.5.0",
+    "mammoth": "1.13.0",
+    "next": "16.4.0",
+    "papaparse": "5.7.0",
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "6.4.299",
+    "qrcode": "1.5.4",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "undici": "8.11.2",
+    "ws": "8.22.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.0",
+    "@types/node": "26.6.4",
+    "@types/papaparse": "5.5.2",
+    "@types/qrcode": "1.5.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/ws": "8.18.2",
+    "eslint": "10.12.0",
+    "prettier": "3.9.9",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.1",
+    "vitest": "5.0.3"
+  }
+}

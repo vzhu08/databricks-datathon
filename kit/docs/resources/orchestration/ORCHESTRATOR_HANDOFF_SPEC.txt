@@ -1,0 +1,293 @@
+# Implement Seamless Orchestrator Handoff
+
+Implement a reliable, low-friction orchestrator handoff system in the existing `hackathon-kit` distributed Codex orchestration framework.
+
+**Primary objective:** Any of our three teammates should be able to transfer orchestration leadership from one computer and Codex account to another without losing project state, conversation context, worker progress, or task coordination.
+
+This must work during a 24-hour hackathon, where minimizing downtime and manual intervention is critical.
+
+## 1. Inspect the existing implementation
+
+Read the current repository's orchestration implementation, `AGENTS.md`, task management, worker runtime, coordinator, GitHub integration, and persistence architecture.
+
+Extend the existing system. Do not rewrite or replace working infrastructure unnecessarily.
+
+If orchestration itself is not implemented yet, incorporate these requirements into that implementation rather than creating a disconnected handoff system.
+
+Preserve all existing functionality, including Astra configuration, conversational interaction, worker subagents, automated commits, testing, and progress reporting.
+
+## 2. One-command leadership handoff
+
+Implement two methods of transferring leadership.
+
+### A. Graceful handoff (preferred)
+
+The current orchestrator operator executes:
+
+`npm run agents -- handoff --to agent-b`
+
+The system should:
+
+1. Create a complete, durable checkpoint.
+2. Save pending user requests and unresolved decisions.
+3. Record active workers, task assignments, dependencies, blockers, and integration status.
+4. Stop dispatching new work.
+5. Allow existing workers to continue their assigned tasks.
+6. Mark the incoming coordinator as the designated successor.
+7. Release leadership only through a safe transfer protocol.
+8. Display clear instructions for the receiving operator.
+
+On Computer B, the new operator executes:
+
+`npm run agents -- coordinate --resume`
+
+The new orchestrator must:
+
+1. Acquire the leadership lease.
+2. Load the previous coordinator's checkpoint.
+3. Restore the project plan, context, task board, and conversation history.
+4. Reconcile persisted state with actual GitHub Issues, PRs, and worker status.
+5. Resume monitoring and dispatching work.
+6. Summarize what happened before the transfer.
+7. Continue the existing conversation naturally.
+
+Do not claim handoff has completed until the receiving coordinator has acquired leadership successfully.
+
+### B. Recovery takeover
+
+If the original computer crashes, disconnects, or reaches its usage limit, another teammate should execute:
+
+`npm run agents -- takeover`
+
+The new coordinator should:
+
+- Check the existing leadership lease.
+- Reject takeover while a healthy coordinator is active.
+- Permit takeover after verified lease expiration and an appropriate safety margin.
+- Restore persisted state.
+- Reconcile all active tasks.
+- Avoid duplicate task assignments.
+- Resume orchestration.
+
+A manual emergency takeover may be supported, but it must require explicit authorization and enforce the same single-leader guarantees.
+
+## 3. Persistent conversation and context
+
+The new orchestrator must feel like a continuation of the previous Codex conversation, not a completely new agent.
+
+Persist the information necessary to reconstruct conversational continuity:
+
+- Original project objective and requirements.
+- Architecture and technical decisions.
+- User preferences and priorities.
+- Important conversation messages.
+- Clarifications already answered.
+- Current execution plan.
+- Completed and pending work.
+- Known problems, blockers, and proposed solutions.
+- User-approved scope changes.
+- Outstanding questions requiring human decisions.
+- Remaining hackathon time and relevant deadlines.
+
+Use durable, provider-independent storage accessible to all three teammates.
+
+Prefer the existing GitHub-backed orchestration state system, with an appropriate compact checkpoint format. Avoid unnecessary infrastructure dependencies.
+
+Maintain a concise rolling project summary plus structured decision records. Keep sufficient recent conversation history for conversational continuity.
+
+Do not copy Codex authentication files, private session credentials, or hidden model state between accounts.
+
+Recognize that native Codex session state may not be portable across accounts; reconstruct equivalent working context from explicitly persisted messages, decisions, and task records.
+
+Protect sensitive information. Never blindly publish complete private conversations, credentials, or environment variables to GitHub.
+
+## 4. Single active orchestrator
+
+Implement reliable leadership coordination.
+
+Requirements:
+
+- Exactly one coordinator has dispatch authority at a time.
+- Leadership is protected by a durable, time-limited lease.
+- Lease acquisition and renewal must be concurrency-safe.
+- Use an atomic compare-and-swap or equivalent mechanism with real exclusion guarantees; GitHub Issue labels alone are not a sufficient distributed lock.
+- Assign monotonically increasing leadership epochs or fencing tokens.
+- Reject writes from outdated coordinators.
+- If the original coordinator reconnects after handoff, it must recognize that it no longer owns leadership.
+- A restarted old process cannot resume dispatching under an expired lease.
+- All leadership mutations must be auditable.
+
+If the existing GitHub storage cannot support the necessary atomic guarantees directly, implement a minimal reliable coordination mechanism rather than pretending that a non-atomic check followed by a write is safe.
+
+Never allow split-brain orchestration.
+
+## 5. Worker continuity
+
+Handoff must not terminate or restart healthy coding workers.
+
+During a transfer:
+
+- Existing Codex workers continue their assigned tasks.
+- Worker tasks, branches, worktrees, and PRs remain unchanged.
+- Completed results are preserved.
+- New assignments temporarily pause until leadership is established.
+- The incoming coordinator discovers currently running tasks.
+- No worker receives duplicate ownership of an active task.
+- The coordinator reconciles uncertain or stale task states instead of blindly retrying them.
+
+The teammate who previously hosted the orchestrator must be able to continue running their regular coding worker.
+
+The incoming coordinator uses its own locally authenticated Codex account. Existing workers continue using their respective local accounts.
+
+## 6. Conversational experience
+
+The orchestrator must continue behaving like an interactive Codex assistant after handoff.
+
+Support:
+
+- Natural-language conversation.
+- Clarifying questions.
+- Streaming responses where supported.
+- Periodic progress updates.
+- Immediate blocker notifications.
+- User decisions and approvals.
+- Mid-execution changes to priorities.
+- Questions about current worker activity.
+
+When a new coordinator starts, it should provide a concise message such as:
+
+"Orchestration transferred successfully. Three workers are active, five tasks are complete, two PRs are awaiting review, and one backend task is blocked on an API decision. Development is continuing."
+
+This message must be generated from real state, not fabricated assumptions.
+
+Do not repeatedly ask questions that the previous orchestrator already resolved.
+
+If context is genuinely missing or conflicting, ask a targeted clarification.
+
+## 7. Account and usage handling
+
+Each coordinator instance must use the local computer's authenticated Codex account.
+
+Do not copy, export, or share account credentials.
+
+Preserve the existing Astra model configuration where supported.
+
+Support voluntary handoff when an operator notices their account is approaching its usage limit.
+
+If authenticated usage information is available through a supported interface, it may inform a handoff recommendation. Do not invent a mechanism for retrieving private subscription quotas.
+
+Keep ordinary lease renewal, status polling, logging, and worker health checks deterministic; these operations should not invoke Astra unnecessarily.
+
+## 8. Status, progress, and observability
+
+Add clear leadership information to:
+
+`npm run agents -- status`
+
+Show:
+
+- Current coordinator identity.
+- Hosting computer or worker identifier.
+- Leadership lease status.
+- Active leadership epoch.
+- Last successful checkpoint.
+- Active and blocked workers.
+- Current task counts.
+- Pending human decisions.
+- Handoff status, if applicable.
+
+Provide meaningful progress updates throughout handoff.
+
+If a transfer fails, explain why and what the operator should do.
+
+The receiving coordinator should immediately report recovery results and any uncertain tasks.
+
+## 9. Reliability requirements
+
+Handle:
+
+- Coordinator computer crash.
+- Network disconnection.
+- Codex process failure.
+- New coordinator starting before the old one exits.
+- Two computers attempting takeover simultaneously.
+- Old coordinator reconnecting.
+- GitHub API failures.
+- Partial checkpoint writes.
+- Invalid or outdated checkpoints.
+- Worker completion during handoff.
+- Handoff while a PR is under review.
+
+Never silently discard tasks, overwrite valid work, or mark unverified results as complete.
+
+Use bounded retries, idempotent operations, durable checkpoints, and explicit errors.
+
+Where safe, prefer recovery over interrupting the entire development workflow.
+
+## 10. Tests
+
+Create deterministic automated tests with mocked external services.
+
+Test:
+
+1. Successful handoff from A to B.
+2. Successful handoff from B to C.
+3. Multiple consecutive handoffs.
+4. Coordinator crash followed by takeover.
+5. Concurrent takeover attempts.
+6. Rejection of stale leader writes.
+7. Old coordinator reconnecting after losing leadership.
+8. Worker completing a task during handoff.
+9. Preservation of conversation and project context.
+10. Preservation of active workers and task dependencies.
+11. Recovery from incomplete checkpoints.
+12. No authentication credentials appearing in persisted state.
+
+Run existing repository checks and fix any regressions.
+
+Where real multi-computer testing is unavailable, explicitly document that limitation.
+
+## 11. Documentation
+
+Update the orchestration guide with:
+
+- Exact commands to transfer leadership between three computers.
+- Instructions for transferring between separate Codex accounts.
+- How conversation continuity works.
+- Emergency recovery instructions.
+- How to verify that the old coordinator has stopped dispatching.
+- How to switch leadership back.
+- Troubleshooting common failures.
+
+Document which functionality is implemented versus which still requires live verification.
+
+## 12. Optimization for 24-hour hackathons
+
+Prioritize reliability, minimal interruption, and a simple user experience.
+
+Do not introduce unnecessary hosted services, expensive infrastructure, or elaborate configuration.
+
+Target a normal handoff requiring only one command from the outgoing operator and one from the incoming operator.
+
+Preserve ongoing implementation work whenever possible.
+
+Use normal scripts for Git operations, tests, lease management, and checkpoint persistence. Reserve Codex reasoning for planning, conversational context reconstruction, and meaningful decisions.
+
+## 13. Execution and delivery
+
+Implement the feature, not merely a design.
+
+Start by inspecting the actual orchestration architecture and determining the minimum safe extension.
+
+Then implement, test, and document.
+
+At completion, report:
+
+- Files changed.
+- New CLI commands.
+- Persistence and locking mechanism.
+- Test results.
+- Remaining limitations.
+- Exact steps for transferring leadership between our three computers.
+
+Do not declare the handoff system complete unless its key safety and recovery properties have been verified.

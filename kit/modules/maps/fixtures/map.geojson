@@ -1,0 +1,53 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "route",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.9855, 40.7535],
+          [-73.9827, 40.7545],
+          [-73.983, 40.757]
+        ]
+      },
+      "properties": {
+        "name": "fixture walking route"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "library",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-73.9855, 40.7535]
+      },
+      "properties": {
+        "name": "Sample library"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "garden",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-73.983, 40.757]
+      },
+      "properties": {
+        "name": "Sample garden"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-73.9805, 40.7525]
+      },
+      "properties": {
+        "name": "Sample event hall"
+      }
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Kit API playground</title>
+    <style>
+      body {
+        font: 15px system-ui;
+        background: #f5f6f1;
+        color: #172922;
+        max-width: 900px;
+        padding: 35px;
+        margin: auto;
+      }
+      h1 {
+        font-weight: 500;
+        font-size: 38px;
+        letter-spacing: -1px;
+      }
+      p {
+        color: #66756e;
+        line-height: 1.7;
+      }
+      textarea,
+      pre {
+        box-sizing: border-box;
+        width: 100%;
+        background: white;
+        border: 1px solid #dce2da;
+        border-radius: 10px;
+        padding: 20px;
+        font: 14px/1.7 monospace;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      button {
+        border: 0;
+        border-radius: 8px;
+        background: #236747;
+        color: white;
+        padding: 12px 20px;
+        margin: 15px 10px 15px 0;
+        cursor: pointer;
+      }
+      label {
+        display: block;
+        margin-bottom: 10px;
+        font-weight: 600;
+      }
+      small {
+        display: block;
+        color: #66756e;
+      }
+    </style>
+  </head>
+  <body>
+    <small>HACKATHON KIT / DEVELOPER TOOL</small>
+    <h1>Try the contract.</h1>
+    <p>
+      A local, same-origin playground. Requests are validated with the same schema as the
+      application. Credentials remain on the server; no automatic recording. Live calls are disabled
+      unless explicitly enabled at startup.
+    </p>
+    <label for="endpoint">Operation</label
+    ><select id="endpoint">
+      <option value="/transform">Local text transformation</option>
+      <option value="/ai/fixture">AI fixture (no API)</option>
+      <option value="/ai/live">AI live (explicit startup + request approval)</option>
+    </select>
+    <p id="mode">Checking mode…</p>
+    <label for="payload">JSON request body</label
+    ><textarea id="payload" rows="7">{"text":"  Hello   team.  ","operation":"normalize"}</textarea
+    ><button id="run">Run request ↗</button><button id="fixture">Load empty fixture</button>
+    <p id="status" role="status">Ready.</p>
+    <pre id="result" aria-label="Validated response">Your response will appear here.</pre>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      $('run').onclick = async () => {
+        const button = $('run');
+        button.disabled = true;
+        $('status').textContent = 'Running…';
+        try {
+          const response = await fetch($('endpoint').value, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: $('payload').value,
+          });
+          const result = await response.json();
+          $('status').textContent =
+            `HTTP ${response.status} · ${result.timingMs.toFixed(2)} ms · ${result.mode || 'error'}`;
+          $('result').textContent = JSON.stringify(result, null, 2);
+        } catch (e) {
+          $('status').textContent = e.message;
+        } finally {
+          button.disabled = false;
+        }
+      };
+      $('endpoint').onchange = () => {
+        $('payload').value =
+          $('endpoint').value === '/transform'
+            ? JSON.stringify({ text: ' Hello   team ', operation: 'normalize' }, null, 2)
+            : JSON.stringify(
+                { prompt: 'Reply with a short greeting.', confirmUsage: false },
+                null,
+                2,
+              );
+      };
+      fetch('/config')
+        .then((r) => r.json())
+        .then((c) => {
+          $('mode').textContent = c.liveEnabled
+            ? 'LIVE ENABLED · max 3 calls, max 128 output tokens/call. Set confirmUsage:true only to authorize this call; monetary cost unknown.'
+            : 'Local/fixture only. Live calls require an explicitly authorized restart.';
+        });
+      $('fixture').onclick = async () => {
+        const fixtures = await (await fetch('/fixtures')).json();
+        $('payload').value = JSON.stringify(fixtures[1].input, null, 2);
+      };
+    </script>
+  </body>
+</html>

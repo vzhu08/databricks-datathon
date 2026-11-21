@@ -1,0 +1,5 @@
+# Copy to CODEOWNERS only after choosing real GitHub team handles.
+# Package/lockfiles, contracts, catalog and migrations need a named integration steward.
+# /packages/contracts/ @your-org/contract-stewards
+# /catalog/ @your-org/kit-maintainers
+# /modules/supabase/migrations/ @your-org/migration-stewards

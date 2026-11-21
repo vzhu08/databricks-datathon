@@ -1,0 +1,1733 @@
+{
+  "schemaVersion": 1,
+  "modules": [
+    {
+      "schemaVersion": 1,
+      "id": "ai",
+      "title": "AI generation and embeddings",
+      "description": "Server-only OpenAI and Anthropic text, structured output, streaming, tools and embeddings with deterministic fixtures.",
+      "tags": [
+        "ai",
+        "llm",
+        "streaming",
+        "embeddings"
+      ],
+      "useCases": [
+        "Generate structured results",
+        "Stream chat",
+        "Evaluate versioned prompts"
+      ],
+      "runtime": "mixed",
+      "environments": [
+        "Node 22.23.2",
+        "Browser via separated entrypoint"
+      ],
+      "source": "modules/ai/src",
+      "entrypoints": {
+        "browser": "modules/ai/src/index.ts",
+        "server": "modules/ai/src/server.ts"
+      },
+      "exports": [
+        "modules/ai"
+      ],
+      "minimalRead": [
+        "modules/ai/README.md",
+        "modules/ai/module.json",
+        "modules/ai/src/index.ts"
+      ],
+      "dependencies": [],
+      "packages": {
+        "ai": "7.0.136",
+        "@ai-sdk/openai": "4.0.91",
+        "@ai-sdk/anthropic": "4.0.78",
+        "zod": "4.6.5"
+      },
+      "optionalIntegrations": [
+        "OpenAI",
+        "Anthropic"
+      ],
+      "env": [
+        {
+          "name": "AI_PROVIDER",
+          "required": false,
+          "secret": false,
+          "when": "live",
+          "description": "AI_PROVIDER is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "AI_MODEL",
+          "required": true,
+          "secret": false,
+          "when": "live",
+          "description": "AI_MODEL is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "OPENAI_API_KEY",
+          "required": false,
+          "secret": true,
+          "when": "live",
+          "description": "OPENAI_API_KEY is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "required": false,
+          "secret": true,
+          "when": "live",
+          "description": "ANTHROPIC_API_KEY is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "AI_EMBEDDING_MODEL",
+          "required": false,
+          "secret": false,
+          "when": "live",
+          "description": "AI_EMBEDDING_MODEL is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "RUN_LIVE_AI",
+          "required": false,
+          "secret": false,
+          "when": "live",
+          "description": "RUN_LIVE_AI is configured explicitly; see README for adapter-specific prerequisites and scope."
+        }
+      ],
+      "systemRequirements": [
+        "Node >=22"
+      ],
+      "integration": {
+        "steps": [
+          "Read the module README and choose local or explicit live adapter.",
+          "Install manifest packages and preserve shared package imports.",
+          "Register application routes and authorization explicitly; run module checks."
+        ],
+        "routes": [
+          "Application-owned server endpoint",
+          "New projects mount /ai and /api/kit/ai; existing projects register these explicitly after conflict review."
+        ],
+        "migrations": [],
+        "assets": []
+      },
+      "contracts": [
+        "modules/ai/src/index.ts"
+      ],
+      "examples": [
+        "modules/ai/examples/demo.ts",
+        "modules/ai/examples/live.ts",
+        "modules/ai/examples/widget.tsx",
+        "modules/ai/examples/route.ts"
+      ],
+      "fixtures": [
+        "modules/ai/fixtures/sample.json"
+      ],
+      "checks": [
+        "node node_modules/vitest/vitest.mjs run modules/ai/tests",
+        "node --import tsx modules/ai/examples/demo.ts"
+      ],
+      "modes": {
+        "local": "Credential-free deterministic fixtures or real loopback/local worker execution.",
+        "live": "Explicitly configure the documented provider/service and obtain application user intent."
+      },
+      "verification": {
+        "implementation": "implemented",
+        "local": "13 tests passed on Node 22.23.2, 2026-10-09; strict TypeScript and scoped ESLint passed; runnable local example passed.",
+        "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+        "live": "not run — requires operator test credentials and authorization",
+        "record": "modules/ai/README.md"
+      },
+      "limitations": [
+        "Selected model capabilities vary; Anthropic embeddings are unsupported.",
+        "Cost is unknown without a dated price table and known token usage."
+      ],
+      "cost": "Local fixture mode has no external API usage. Live provider/service costs depend on the operator account and configuration.",
+      "docs": [
+        "https://ai-sdk.dev/docs/ai-sdk-core/generating-text",
+        "https://developers.openai.com/api/docs/models",
+        "https://platform.claude.com/docs/en/models/overview",
+        "modules/ai/examples/README.example.md"
+      ],
+      "license": "MIT",
+      "provenance": "Original implementation and synthetic fixtures authored for Hackathon Kit; no third-party content bundled. Official API references checked 2026-10-09."
+    },
+    {
+      "schemaVersion": 1,
+      "id": "analytics",
+      "title": "Analytics and optimization",
+      "description": "CSV cleaning, statistics, chart data and exact bounded allocation optimization.",
+      "tags": [
+        "csv",
+        "charts",
+        "optimization"
+      ],
+      "useCases": [
+        "CSV cleaning, statistics, chart data and exact bounded allocation optimization."
+      ],
+      "runtime": "universal",
+      "environments": [
+        "Node.js 22+",
+        "modern browser"
+      ],
+      "source": "modules/analytics/src",
+      "entrypoints": {
+        "core": "modules/analytics/src/index.ts",
+        "browser": "modules/analytics/src/components.tsx"
+      },
+      "exports": [
+        "modules/analytics"
+      ],
+      "minimalRead": [
+        "modules/analytics/README.md",
+        "modules/analytics/src/index.ts",
+        "modules/analytics/fixtures/allocation.json"
+      ],
+      "dependencies": [],
+      "packages": {
+        "zod": "4.6.5",
+        "react": "19.3.0",
+        "papaparse": "5.7.0"
+      },
+      "optionalIntegrations": [],
+      "env": [],
+      "systemRequirements": [
+        "Node.js 22+"
+      ],
+      "integration": {
+        "steps": [
+          "Read the README and run the local example first.",
+          "Preserve module/shared package layout and install the listed dependencies.",
+          "Use server adapters only from authenticated bounded handlers; never expose provider keys in browser bundles."
+        ],
+        "routes": [],
+        "migrations": [],
+        "assets": []
+      },
+      "contracts": [
+        "modules/analytics/src/index.ts"
+      ],
+      "examples": [
+        "modules/analytics/examples/demo.ts"
+      ],
+      "fixtures": [
+        "modules/analytics/fixtures/allocation.json",
+        "modules/analytics/fixtures/events.csv"
+      ],
+      "checks": [
+        "node --import tsx modules/analytics/examples/demo.ts",
+        "npx vitest run modules/analytics/tests"
+      ],
+      "modes": {
+        "local": "Credential-free deterministic code and labeled synthetic fixtures.",
+        "live": "Same deterministic calculation on caller-supplied real data; no external provider."
+      },
+      "verification": {
+        "implementation": "implemented",
+        "local": "7 local tests passed; scoped checkout typecheck, ESLint and credential-free example passed (35 combined experience tests).",
+        "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+        "live": "not run — requires operator test credentials and authorization",
+        "record": "modules/analytics/README.md"
+      },
+      "limitations": [
+        "Exact binary allocation is capped at 20 items; not a general-purpose industrial optimizer.",
+        "No automatic currency/date coercion or imputation; missing numbers stay null."
+      ],
+      "cost": "Local computation only; no API charges.",
+      "docs": [
+        "https://www.papaparse.com/docs"
+      ],
+      "license": "MIT",
+      "provenance": "Original kit implementation and authored synthetic fixtures. Provider docs cited in README; provider terms apply to live data."
+    },
+    {
+      "schemaVersion": 1,
+      "id": "documents",
+      "title": "Document ingestion",
+      "description": "Normalize text, Markdown, PDF, DOCX and CSV with exact provenance and optional isolated OCR.",
+      "tags": [
+        "documents",
+        "pdf",
+        "ingestion",
+        "ocr"
+      ],
+      "useCases": [
+        "Upload a source corpus",
+        "Inspect exact evidence spans"
+      ],
+      "runtime": "mixed",
+      "environments": [
+        "node",
+        "browser"
+      ],
+      "source": "modules/documents/src",
+      "entrypoints": {
+        "browser": "modules/documents/src/index.ts",
+        "server": "modules/documents/src/server.ts"
+      },
+      "exports": [
+        "modules/documents"
+      ],
+      "minimalRead": [
+        "modules/documents/README.md",
+        "modules/documents/module.json",
+        "modules/documents/src/index.ts"
+      ],
+      "dependencies": [],
+      "packages": {
+        "zod": "4.6.5",
+        "mammoth": "1.13.0",
+        "papaparse": "5.7.0",
+        "pdfjs-dist": "6.4.299"
+      },
+      "optionalIntegrations": [
+        "Python OCR worker"
+      ],
+      "env": [
+        {
+          "name": "KIT_OCR_ENABLED",
+          "required": false,
+          "secret": false,
+          "when": "optional",
+          "description": "Set true only after configuring the Python OCR worker."
+        },
+        {
+          "name": "KIT_OCR_PYTHON",
+          "required": false,
+          "secret": false,
+          "when": "optional",
+          "description": "Absolute server-side Python executable path with OCR extra installed."
+        },
+        {
+          "name": "KIT_OCR_WORKER",
+          "required": false,
+          "secret": false,
+          "when": "optional",
+          "description": "Absolute path to starters/python/app/ocr_worker.py."
+        }
+      ],
+      "systemRequirements": [
+        "Node >=22; optional OCR requires Python 3.12 and Tesseract"
+      ],
+      "integration": {
+        "steps": [
+          "Read the eight-question README and select this module with kit create or kit add.",
+          "Keep server entrypoints in server routes; validate incoming boundaries and show local/live mode."
+        ],
+        "routes": [],
+        "migrations": [],
+        "assets": []
+      },
+      "contracts": [
+        "packages/contracts/src/index.ts",
+        "modules/documents/src/index.ts"
+      ],
+      "examples": [
+        "modules/documents/examples/demo.ts"
+      ],
+      "fixtures": [
+        "modules/documents/fixtures/brief.docx",
+        "modules/documents/fixtures/malformed.pdf",
+        "modules/documents/fixtures/project.md",
+        "modules/documents/fixtures/scanned.pdf",
+        "modules/documents/fixtures/scanned.png",
+        "modules/documents/fixtures/table.csv",
+        "modules/documents/fixtures/text.pdf",
+        "packages/contracts/fixtures/documents.json"
+      ],
+      "checks": [
+        "npx vitest run modules/documents/tests",
+        "node --import tsx modules/documents/examples/demo.ts"
+      ],
+      "modes": {
+        "local": "Deterministic local implementation with original synthetic fixtures; no external calls.",
+        "live": "Real configured adapters require explicit operator credentials and intent; no silent fixture fallback."
+      },
+      "verification": {
+        "implementation": "implemented",
+        "local": "Behavioral tests passed 2026-10-09; see README and final integration report.",
+        "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+        "live": "not run — requires operator test credentials and authorization",
+        "record": "modules/documents/README.md"
+      },
+      "limitations": [
+        "PDF layout/table reconstruction is approximate; mixed scanned pages require explicit OCR.",
+        "UTF-8 text only; untrusted native parsing should run in a constrained worker."
+      ],
+      "cost": "Local CPU only; hosting/persistence costs depend on deployment.",
+      "docs": [
+        "https://mozilla.github.io/pdf.js/examples/",
+        "https://github.com/mwilliamson/mammoth.js",
+        "https://www.papaparse.com/docs",
+        "modules/documents/README.md"
+      ],
+      "license": "MIT",
+      "provenance": "Original implementation and synthetic fixtures created for Hackathon Kit; third-party package licenses retained. Base revision 0fcd52a."
+    },
+    {
+      "schemaVersion": 1,
+      "id": "exports",
+      "title": "Exports and sharing",
+      "description": "Formula-safe CSV, evidence-linked PDF, QR codes and explicit expiring/revocable result links.",
+      "tags": [
+        "exports",
+        "csv",
+        "pdf",
+        "sharing",
+        "qr"
+      ],
+      "useCases": [
+        "Download reviewed results",
+        "Deliberately share a minimal result projection"
+      ],
+      "runtime": "mixed",
+      "environments": [
+        "node",
+        "browser"
+      ],
+      "source": "modules/exports/src",
+      "entrypoints": {
+        "browser": "modules/exports/src/index.ts",
+        "server": "modules/exports/src/server.ts"
+      },
+      "exports": [
+        "modules/exports"
+      ],
+      "minimalRead": [
+        "modules/exports/README.md",
+        "modules/exports/module.json",
+        "modules/exports/src/index.ts"
+      ],
+      "dependencies": [
+        "documents"
+      ],
+      "packages": {
+        "zod": "4.6.5",
+        "pdf-lib": "1.17.1",
+        "qrcode": "1.5.4"
+      },
+      "optionalIntegrations": [
+        "Persistent share store and hosted share route"
+      ],
+      "env": [],
+      "systemRequirements": [
+        "Node >=22 for PDF, QR and server sharing; CSV helpers are browser-safe"
+      ],
+      "integration": {
+        "steps": [
+          "Read the eight-question README and select this module with kit create or kit add.",
+          "Keep server entrypoints in server routes; validate incoming boundaries and show local/live mode."
+        ],
+        "routes": [],
+        "migrations": [],
+        "assets": []
+      },
+      "contracts": [
+        "packages/contracts/src/index.ts",
+        "modules/exports/src/index.ts"
+      ],
+      "examples": [
+        "modules/exports/examples/demo.ts"
+      ],
+      "fixtures": [
+        "modules/exports/fixtures/downloads/qr.svg",
+        "modules/exports/fixtures/downloads/report.pdf",
+        "modules/exports/fixtures/downloads/results.csv",
+        "modules/exports/fixtures/downloads/shared-result.html",
+        "modules/exports/fixtures/results.json"
+      ],
+      "checks": [
+        "npx vitest run modules/exports/tests",
+        "node --import tsx modules/exports/examples/demo.ts"
+      ],
+      "modes": {
+        "local": "Deterministic local implementation with original synthetic fixtures; no external calls.",
+        "live": "Real configured adapters require explicit operator credentials and intent; no silent fixture fallback."
+      },
+      "verification": {
+        "implementation": "implemented",
+        "local": "Behavioral tests passed 2026-10-09; see README and final integration report.",
+        "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+        "live": "not run — requires operator test credentials and authorization",
+        "record": "modules/exports/README.md"
+      },
+      "limitations": [
+        "Standard PDF fonts substitute unsupported glyphs; attached evidence JSON preserves Unicode.",
+        "ShareStore is ephemeral and requires a persistent equivalent for multi-instance deployments."
+      ],
+      "cost": "Local CPU only; hosting/persistence costs depend on deployment.",
+      "docs": [
+        "https://pdf-lib.js.org/docs/api/classes/pdfdocument",
+        "https://github.com/soldair/node-qrcode",
+        "modules/exports/README.md"
+      ],
+      "license": "MIT",
+      "provenance": "Original implementation and synthetic fixtures created for Hackathon Kit; third-party package licenses retained. Base revision 0fcd52a."
+    },
+    {
+      "schemaVersion": 1,
+      "id": "extraction",
+      "title": "Structured extraction",
+      "description": "Configurable labeled fields with validated values, exact evidence, ambiguity states and review history.",
+      "tags": [
+        "extraction",
+        "evidence",
+        "review"
+      ],
+      "useCases": [
+        "Extract a structured project brief",
+        "Review supported values before exporting"
+      ],
+      "runtime": "universal",
+      "environments": [
+        "node",
+        "browser"
+      ],
+      "source": "modules/extraction/src",
+      "entrypoints": {
+        "browser": "modules/extraction/src/index.ts"
+      },
+      "exports": [
+        "modules/extraction"
+      ],
+      "minimalRead": [
+        "modules/extraction/README.md",
+        "modules/extraction/module.json",
+        "modules/extraction/src/index.ts"
+      ],
+      "dependencies": [
+        "documents"
+      ],
+      "packages": {
+        "zod": "4.6.5"
+      },
+      "optionalIntegrations": [
+        "Structured AI output validated against evidence"
+      ],
+      "env": [],
+      "systemRequirements": [
+        "Node >=22 for tests; runtime helpers are browser-safe"
+      ],
+      "integration": {
+        "steps": [
+          "Read the eight-question README and select this module with kit create or kit add.",
+          "Keep server entrypoints in server routes; validate incoming boundaries and show local/live mode."
+        ],
+        "routes": [],
+        "migrations": [],
+        "assets": []
+      },
+      "contracts": [
+        "packages/contracts/src/index.ts",
+        "modules/extraction/src/index.ts"
+      ],
+      "examples": [
+        "modules/extraction/examples/demo.ts"
+      ],
+      "fixtures": [
+        "modules/extraction/fixtures/ambiguous.txt"
+      ],
+      "checks": [
+        "npx vitest run modules/extraction/tests",
+        "node --import tsx modules/extraction/examples/demo.ts"
+      ],
+      "modes": {
+        "local": "Deterministic local implementation with original synthetic fixtures; no external calls.",
+        "live": "Real configured adapters require explicit operator credentials and intent; no silent fixture fallback."
+      },
+      "verification": {
+        "implementation": "implemented",
+        "local": "Behavioral tests passed 2026-10-09; see README and final integration report.",
+        "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+        "live": "not run — requires operator test credentials and authorization",
+        "record": "modules/extraction/README.md"
+      },
+      "limitations": [
+        "Local extractor recognizes labeled lines and does not infer unlabeled semantic entities.",
+        "Date parsing requires ISO YYYY-MM-DD; currency meaning is caller supplied."
+      ],
+      "cost": "Local CPU only; hosting/persistence costs depend on deployment.",
+      "docs": [
+        "modules/extraction/README.md"
+      ],
+      "license": "MIT",
+      "provenance": "Original implementation and synthetic fixtures created for Hackathon Kit; third-party package licenses retained. Base revision 0fcd52a."
+    },
+    {
+      "schemaVersion": 1,
+      "id": "integrations",
+      "title": "Email, calendar, messaging and webhooks",
+      "description": "Local sinks plus Resend, Google Calendar OAuth, Slack posting, signed inbound events and deduplication.",
+      "tags": [
+        "email",
+        "calendar",
+        "messaging",
+        "webhooks",
+        "oauth"
+      ],
+      "useCases": [
+        "Send explicit notifications",
+        "Schedule a timed event",
+        "Handle signed inbound events"
+      ],
+      "runtime": "mixed",
+      "environments": [
+        "Node 22.23.2",
+        "Browser via separated entrypoint"
+      ],
+      "source": "modules/integrations/src",
+      "entrypoints": {
+        "browser": "modules/integrations/src/index.ts",
+        "server": "modules/integrations/src/server.ts"
+      },
+      "exports": [
+        "modules/integrations"
+      ],
+      "minimalRead": [
+        "modules/integrations/README.md",
+        "modules/integrations/module.json",
+        "modules/integrations/src/index.ts"
+      ],
+      "dependencies": [],
+      "packages": {
+        "zod": "4.6.5"
+      },
+      "optionalIntegrations": [
+        "Resend",
+        "Google Calendar",
+        "Slack"
+      ],
+      "env": [
+        {
+          "name": "RESEND_API_KEY",
+          "required": false,
+          "secret": true,
+          "when": "live",
+          "description": "RESEND_API_KEY is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "SLACK_BOT_TOKEN",
+          "required": false,
+          "secret": true,
+          "when": "live",
+          "description": "SLACK_BOT_TOKEN is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "SLACK_SIGNING_SECRET",
+          "required": false,
+          "secret": true,
+          "when": "live",
+          "description": "SLACK_SIGNING_SECRET is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "GOOGLE_CLIENT_ID",
+          "required": false,
+          "secret": false,
+          "when": "live",
+          "description": "GOOGLE_CLIENT_ID is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "GOOGLE_CLIENT_SECRET",
+          "required": false,
+          "secret": true,
+          "when": "live",
+          "description": "GOOGLE_CLIENT_SECRET is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "GOOGLE_REDIRECT_URI",
+          "required": false,
+          "secret": false,
+          "when": "live",
+          "description": "GOOGLE_REDIRECT_URI is configured explicitly; see README for adapter-specific prerequisites and scope."
+        }
+      ],
+      "systemRequirements": [
+        "Node >=22"
+      ],
+      "integration": {
+        "steps": [
+          "Read the module README and choose local or explicit live adapter.",
+          "Install manifest packages and preserve shared package imports.",
+          "Register application routes and authorization explicitly; run module checks."
+        ],
+        "routes": [
+          "Application-owned server endpoint"
+        ],
+        "migrations": [],
+        "assets": []
+      },
+      "contracts": [
+        "modules/integrations/src/index.ts"
+      ],
+      "examples": [
+        "modules/integrations/examples/demo.ts",
+        "modules/integrations/examples/sponsor-adapter.ts"
+      ],
+      "fixtures": [
+        "modules/integrations/fixtures/sample.json"
+      ],
+      "checks": [
+        "node node_modules/vitest/vitest.mjs run modules/integrations/tests",
+        "node --import tsx modules/integrations/examples/demo.ts"
+      ],
+      "modes": {
+        "local": "Credential-free deterministic fixtures or real loopback/local worker execution.",
+        "live": "Explicitly configure the documented provider/service and obtain application user intent."
+      },
+      "verification": {
+        "implementation": "implemented",
+        "local": "8 tests passed on Node 22.23.2, 2026-10-09; strict TypeScript and scoped ESLint passed; runnable local example passed.",
+        "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+        "live": "not run — requires operator test credentials and authorization",
+        "record": "modules/integrations/README.md"
+      },
+      "limitations": [
+        "Memory webhook dedupe is local; multi-instance deployments need durable atomic reservations.",
+        "Calendar supports timed events only; Slack posting needs an application outbox for reliable retries."
+      ],
+      "cost": "Local fixture mode has no external API usage. Live provider/service costs depend on the operator account and configuration.",
+      "docs": [
+        "https://resend.com/docs/api-reference/emails/send-email",
+        "https://developers.google.com/identity/protocols/oauth2/web-server",
+        "https://docs.slack.dev/authentication/verifying-requests-from-slack/"
+      ],
+      "license": "MIT",
+      "provenance": "Original implementation and synthetic fixtures authored for Hackathon Kit; no third-party content bundled. Official API references checked 2026-10-09."
+    },
+    {
+      "schemaVersion": 1,
+      "id": "jobs",
+      "title": "Local and durable background jobs",
+      "description": "Bounded job worker with progress, retries, cancellation, idempotency and SQLite restart recovery.",
+      "tags": [
+        "jobs",
+        "worker",
+        "queue",
+        "progress"
+      ],
+      "useCases": [
+        "Run long ingestion",
+        "Track media processing",
+        "Recover queued work after restart"
+      ],
+      "runtime": "node",
+      "environments": [
+        "Node 22.23.2 persistent process"
+      ],
+      "source": "modules/jobs/src",
+      "entrypoints": {
+        "browser": "modules/jobs/src/index.ts",
+        "server": "modules/jobs/src/server.ts"
+      },
+      "exports": [
+        "modules/jobs"
+      ],
+      "minimalRead": [
+        "modules/jobs/README.md",
+        "modules/jobs/module.json",
+        "modules/jobs/src/index.ts"
+      ],
+      "dependencies": [],
+      "packages": {
+        "zod": "4.6.5"
+      },
+      "optionalIntegrations": [
+        "Persistent disk container hosting"
+      ],
+      "env": [
+        {
+          "name": "JOB_DB",
+          "required": false,
+          "secret": false,
+          "when": "optional",
+          "description": "JOB_DB is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "JOB_HOST",
+          "required": false,
+          "secret": false,
+          "when": "optional",
+          "description": "JOB_HOST is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "JOB_PORT",
+          "required": false,
+          "secret": false,
+          "when": "optional",
+          "description": "JOB_PORT is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "JOB_API_TOKEN",
+          "required": false,
+          "secret": true,
+          "when": "optional",
+          "description": "JOB_API_TOKEN is configured explicitly; see README for adapter-specific prerequisites and scope."
+        }
+      ],
+      "systemRequirements": [
+        "Node >=22.13; SQLite mode needs persistent disk"
+      ],
+      "integration": {
+        "steps": [
+          "Read the module README and choose local or explicit live adapter.",
+          "Install manifest packages and preserve shared package imports.",
+          "Register application routes and authorization explicitly; run module checks."
+        ],
+        "routes": [
+          "Application registers protected jobs handler or standalone worker"
+        ],
+        "migrations": [],
+        "assets": [
+          "modules/jobs/Dockerfile"
+        ]
+      },
+      "contracts": [
+        "modules/jobs/src/index.ts"
+      ],
+      "examples": [
+        "modules/jobs/examples/demo.ts",
+        "modules/jobs/examples/worker.ts"
+      ],
+      "fixtures": [
+        "modules/jobs/fixtures/sample.json"
+      ],
+      "checks": [
+        "node node_modules/vitest/vitest.mjs run modules/jobs/tests",
+        "node --import tsx modules/jobs/examples/demo.ts"
+      ],
+      "modes": {
+        "local": "Credential-free deterministic fixtures or real loopback/local worker execution.",
+        "live": "Explicitly configure the documented provider/service and obtain application user intent."
+      },
+      "verification": {
+        "implementation": "implemented",
+        "local": "11 tests passed on Node 22.23.2, 2026-10-09; strict TypeScript and scoped ESLint passed; runnable local example passed.",
+        "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+        "live": "not run — requires operator test credentials and authorization",
+        "record": "modules/jobs/README.md"
+      },
+      "limitations": [
+        "Memory mode is non-durable; SQLite requires a persistent single-host filesystem.",
+        "At-least-once execution requires idempotent external effects and cooperative cancellation."
+      ],
+      "cost": "Local fixture mode has no external API usage. Live provider/service costs depend on the operator account and configuration.",
+      "docs": [
+        "https://nodejs.org/api/sqlite.html"
+      ],
+      "license": "MIT",
+      "provenance": "Original implementation and synthetic fixtures authored for Hackathon Kit; no third-party content bundled. Official API references checked 2026-10-09."
+    },
+    {
+      "schemaVersion": 1,
+      "id": "maps",
+      "title": "Maps and location",
+      "description": "GeoJSON display, distance filtering, Mapbox geocoding and real travel routes.",
+      "tags": [
+        "geojson",
+        "geocoding",
+        "routing"
+      ],
+      "useCases": [
+        "GeoJSON display, distance filtering, Mapbox geocoding and real travel routes."
+      ],
+      "runtime": "mixed",
+      "environments": [
+        "Node.js 22+",
+        "modern browser"
+      ],
+      "source": "modules/maps/src",
+      "entrypoints": {
+        "core": "modules/maps/src/index.ts",
+        "browser": "modules/maps/src/components.tsx",
+        "server": "modules/maps/src/server.ts"
+      },
+      "exports": [
+        "modules/maps"
+      ],
+      "minimalRead": [
+        "modules/maps/README.md",
+        "modules/maps/src/index.ts",
+        "modules/maps/fixtures/locations.json"
+      ],
+      "dependencies": [],
+      "packages": {
+        "zod": "4.6.5",
+        "react": "19.3.0"
+      },
+      "optionalIntegrations": [
+        "Mapbox"
+      ],
+      "env": [
+        {
+          "name": "MAPBOX_ACCESS_TOKEN",
+          "required": true,
+          "secret": true,
+          "when": "live",
+          "description": "Server-only provider configuration; required only for the relevant live adapter."
+        }
+      ],
+      "systemRequirements": [
+        "Node.js 22+"
+      ],
+      "integration": {
+        "steps": [
+          "Read the README and run the local example first.",
+          "Preserve module/shared package layout and install the listed dependencies.",
+          "Use server adapters only from authenticated bounded handlers; never expose provider keys in browser bundles."
+        ],
+        "routes": [],
+        "migrations": [],
+        "assets": []
+      },
+      "contracts": [
+        "modules/maps/src/index.ts"
+      ],
+      "examples": [
+        "modules/maps/examples/demo.ts",
+        "modules/maps/examples/live.ts"
+      ],
+      "fixtures": [
+        "modules/maps/fixtures/locations.json",
+        "modules/maps/fixtures/map.geojson"
+      ],
+      "checks": [
+        "node --import tsx modules/maps/examples/demo.ts",
+        "npx vitest run modules/maps/tests"
+      ],
+      "modes": {
+        "local": "Credential-free deterministic code and labeled synthetic fixtures.",
+        "live": "Configured provider adapters; never automatic fixture fallback."
+      },
+      "verification": {
+        "implementation": "implemented",
+        "local": "5 local tests passed; scoped checkout typecheck, ESLint and credential-free example passed (35 combined experience tests).",
+        "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+        "live": "not run — requires operator test credentials and authorization",
+        "record": "modules/maps/README.md"
+      },
+      "limitations": [
+        "SVG schematic GeoJSON map without raster tiles, pan or navigation guidance.",
+        "Temporary Mapbox geocoding results must not be cached or persisted."
+      ],
+      "cost": "Local mode has no API charges. Provider requests incur account-specific usage; no live calls performed.",
+      "docs": [
+        "https://docs.mapbox.com/api/search/geocoding/",
+        "https://docs.mapbox.com/api/navigation/directions/"
+      ],
+      "license": "MIT",
+      "provenance": "Original kit implementation and authored synthetic fixtures. Provider docs cited in README; provider terms apply to live data."
+    },
+    {
+      "schemaVersion": 1,
+      "id": "media",
+      "title": "Image and video input",
+      "description": "Bounded camera/upload processing, timestamped frame sampling and structured vision.",
+      "tags": [
+        "camera",
+        "vision",
+        "video"
+      ],
+      "useCases": [
+        "Bounded camera/upload processing, timestamped frame sampling and structured vision."
+      ],
+      "runtime": "mixed",
+      "environments": [
+        "Node.js 22+",
+        "modern browser"
+      ],
+      "source": "modules/media/src",
+      "entrypoints": {
+        "core": "modules/media/src/index.ts",
+        "browser": "modules/media/src/components.tsx",
+        "capture": "modules/media/src/browser.ts",
+        "server": "modules/media/src/server.ts"
+      },
+      "exports": [
+        "modules/media"
+      ],
+      "minimalRead": [
+        "modules/media/README.md",
+        "modules/media/src/index.ts",
+        "modules/media/fixtures/analysis.json"
+      ],
+      "dependencies": [],
+      "packages": {
+        "zod": "4.6.5",
+        "react": "19.3.0"
+      },
+      "optionalIntegrations": [
+        "OpenAI"
+      ],
+      "env": [
+        {
+          "name": "OPENAI_API_KEY",
+          "required": true,
+          "secret": true,
+          "when": "live",
+          "description": "Server-only provider configuration; required only for the relevant live adapter."
+        },
+        {
+          "name": "OPENAI_VISION_MODEL",
+          "required": true,
+          "secret": false,
+          "when": "live",
+          "description": "Server-only provider configuration; required only for the relevant live adapter."
+        }
+      ],
+      "systemRequirements": [
+        "Node.js 22+",
+        "HTTPS or localhost and browser media support"
+      ],
+      "integration": {
+        "steps": [
+          "Read the README and run the local example first.",
+          "Preserve module/shared package layout and install the listed dependencies.",
+          "Use server adapters only from authenticated bounded handlers; never expose provider keys in browser bundles."
+        ],
+        "routes": [],
+        "migrations": [],
+        "assets": []
+      },
+      "contracts": [
+        "modules/media/src/index.ts"
+      ],
+      "examples": [
+        "modules/media/examples/demo.ts",
+        "modules/media/examples/live.ts"
+      ],
+      "fixtures": [
+        "modules/media/fixtures/analysis.json",
+        "modules/media/fixtures/shapes.svg"
+      ],
+      "checks": [
+        "node --import tsx modules/media/examples/demo.ts",
+        "npx vitest run modules/media/tests"
+      ],
+      "modes": {
+        "local": "Credential-free deterministic code and labeled synthetic fixtures.",
+        "live": "Configured provider adapters; never automatic fixture fallback."
+      },
+      "verification": {
+        "implementation": "implemented",
+        "local": "7 local tests passed; scoped checkout typecheck, ESLint and credential-free example passed (35 combined experience tests).",
+        "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+        "live": "not run — requires operator test credentials and authorization",
+        "record": "modules/media/README.md"
+      },
+      "limitations": [
+        "JPEG/PNG/WebP <=8 MB; MP4/WebM <=50 MB and 120 seconds; <=12 sampled frames.",
+        "Vision boxes are approximate and confidence is uncalibrated; sampled frames can miss events."
+      ],
+      "cost": "Local mode has no API charges. Provider requests incur account-specific usage; no live calls performed.",
+      "docs": [
+        "https://developers.openai.com/api/docs/guides/images-vision",
+        "https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia"
+      ],
+      "license": "MIT",
+      "provenance": "Original kit implementation and authored synthetic fixtures. Provider docs cited in README; provider terms apply to live data."
+    },
+    {
+      "schemaVersion": 1,
+      "id": "realtime",
+      "title": "Realtime collaborative rooms",
+      "description": "Actual local WebSocket rooms, presence, shared votes, reconnect, dedupe and optional Supabase presence.",
+      "tags": [
+        "realtime",
+        "websocket",
+        "rooms",
+        "votes"
+      ],
+      "useCases": [
+        "Shared group decision",
+        "Live room presence",
+        "Synchronize votes"
+      ],
+      "runtime": "mixed",
+      "environments": [
+        "Node 22.23.2",
+        "Browser via separated entrypoint"
+      ],
+      "source": "modules/realtime/src",
+      "entrypoints": {
+        "browser": "modules/realtime/src/browser.ts",
+        "contracts": "modules/realtime/src/index.ts",
+        "server": "modules/realtime/src/server.ts",
+        "supabase": "modules/realtime/src/supabase.ts"
+      },
+      "exports": [
+        "modules/realtime"
+      ],
+      "minimalRead": [
+        "modules/realtime/README.md",
+        "modules/realtime/module.json",
+        "modules/realtime/src/index.ts"
+      ],
+      "dependencies": [],
+      "packages": {
+        "ws": "8.22.0",
+        "@supabase/supabase-js": "2.117.3",
+        "zod": "4.6.5"
+      },
+      "optionalIntegrations": [
+        "Supabase Realtime"
+      ],
+      "env": [
+        {
+          "name": "REALTIME_PORT",
+          "required": false,
+          "secret": false,
+          "when": "optional",
+          "description": "REALTIME_PORT is configured explicitly; see README for adapter-specific prerequisites and scope."
+        }
+      ],
+      "systemRequirements": [
+        "Node >=22"
+      ],
+      "integration": {
+        "steps": [
+          "Read the module README and choose local or explicit live adapter.",
+          "Install manifest packages and preserve shared package imports.",
+          "Register application routes and authorization explicitly; run module checks."
+        ],
+        "routes": [
+          "Separate persistent WebSocket listener"
+        ],
+        "migrations": [],
+        "assets": []
+      },
+      "contracts": [
+        "modules/realtime/src/index.ts"
+      ],
+      "examples": [
+        "modules/realtime/examples/demo.ts",
+        "modules/realtime/examples/server.ts"
+      ],
+      "fixtures": [
+        "modules/realtime/fixtures/sample.json"
+      ],
+      "checks": [
+        "node node_modules/vitest/vitest.mjs run modules/realtime/tests",
+        "node --import tsx modules/realtime/examples/demo.ts"
+      ],
+      "modes": {
+        "local": "Credential-free deterministic fixtures or real loopback/local worker execution.",
+        "live": "Explicitly configure the documented provider/service and obtain application user intent."
+      },
+      "verification": {
+        "implementation": "implemented",
+        "local": "3 tests passed on Node 22.23.2, 2026-10-09; strict TypeScript and scoped ESLint passed; runnable local example passed.",
+        "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+        "live": "not run — requires operator test credentials and authorization",
+        "record": "modules/realtime/README.md"
+      },
+      "limitations": [
+        "Local rooms require a persistent process and are lost on restart.",
+        "Supabase presence votes disappear on disconnect and need private-channel RLS."
+      ],
+      "cost": "Local fixture mode has no external API usage. Live provider/service costs depend on the operator account and configuration.",
+      "docs": [
+        "https://github.com/websockets/ws",
+        "https://supabase.com/docs/guides/realtime/presence"
+      ],
+      "license": "MIT",
+      "provenance": "Original implementation and synthetic fixtures authored for Hackathon Kit; no third-party content bundled. Official API references checked 2026-10-09."
+    },
+    {
+      "schemaVersion": 1,
+      "id": "recommendations",
+      "title": "Recommendations and group decisions",
+      "description": "Explainable filtering, weighted utility and deterministic group voting.",
+      "tags": [
+        "preferences",
+        "ranking",
+        "voting"
+      ],
+      "useCases": [
+        "Explainable filtering, weighted utility and deterministic group voting."
+      ],
+      "runtime": "universal",
+      "environments": [
+        "Node.js 22+"
+      ],
+      "source": "modules/recommendations/src",
+      "entrypoints": {
+        "core": "modules/recommendations/src/index.ts"
+      },
+      "exports": [
+        "modules/recommendations"
+      ],
+      "minimalRead": [
+        "modules/recommendations/README.md",
+        "modules/recommendations/src/index.ts",
+        "modules/recommendations/fixtures/activities.json"
+      ],
+      "dependencies": [],
+      "packages": {
+        "zod": "4.6.5"
+      },
+      "optionalIntegrations": [],
+      "env": [],
+      "systemRequirements": [
+        "Node.js 22+"
+      ],
+      "integration": {
+        "steps": [
+          "Read the README and run the local example first.",
+          "Preserve module/shared package layout and install the listed dependencies.",
+          "Use server adapters only from authenticated bounded handlers; never expose provider keys in browser bundles."
+        ],
+        "routes": [],
+        "migrations": [],
+        "assets": []
+      },
+      "contracts": [
+        "modules/recommendations/src/index.ts"
+      ],
+      "examples": [
+        "modules/recommendations/examples/demo.ts"
+      ],
+      "fixtures": [
+        "modules/recommendations/fixtures/activities.json",
+        "modules/recommendations/fixtures/conflict.json"
+      ],
+      "checks": [
+        "node --import tsx modules/recommendations/examples/demo.ts",
+        "npx vitest run modules/recommendations/tests"
+      ],
+      "modes": {
+        "local": "Credential-free deterministic code and labeled synthetic fixtures.",
+        "live": "Same deterministic calculation on caller-supplied real data; no external provider."
+      },
+      "verification": {
+        "implementation": "implemented",
+        "local": "7 local tests passed; scoped checkout typecheck, ESLint and credential-free example passed (35 combined experience tests).",
+        "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+        "live": "not run — requires operator test credentials and authorization",
+        "record": "modules/recommendations/README.md"
+      },
+      "limitations": [
+        "At most 2,000 candidates and 100 members; unanimous hard constraints may leave no result.",
+        "Similarity requires embeddings from the same model; no provider embedding calls are bundled."
+      ],
+      "cost": "Local computation only; no API charges.",
+      "docs": [],
+      "license": "MIT",
+      "provenance": "Original kit implementation and authored synthetic fixtures. Provider docs cited in README; provider terms apply to live data."
+    },
+    {
+      "schemaVersion": 1,
+      "id": "research",
+      "title": "Web research",
+      "description": "Safe source discovery and HTML extraction with DNS-pinned fetching, Tavily integration and local fixtures.",
+      "tags": [
+        "research",
+        "search",
+        "web",
+        "sources"
+      ],
+      "useCases": [
+        "Gather cited source text",
+        "Develop research flows without paid queries"
+      ],
+      "runtime": "mixed",
+      "environments": [
+        "node"
+      ],
+      "source": "modules/research/src",
+      "entrypoints": {
+        "browser": "modules/research/src/index.ts",
+        "server": "modules/research/src/server.ts"
+      },
+      "exports": [
+        "modules/research"
+      ],
+      "minimalRead": [
+        "modules/research/README.md",
+        "modules/research/module.json",
+        "modules/research/src/index.ts"
+      ],
+      "dependencies": [],
+      "packages": {
+        "zod": "4.6.5",
+        "cheerio": "1.2.0",
+        "ipaddr.js": "2.5.0"
+      },
+      "optionalIntegrations": [
+        "Tavily search"
+      ],
+      "env": [
+        {
+          "name": "TAVILY_API_KEY",
+          "required": false,
+          "secret": true,
+          "when": "live",
+          "description": "Tavily search credential"
+        }
+      ],
+      "systemRequirements": [
+        "Node >=22; network egress for explicitly configured live research"
+      ],
+      "integration": {
+        "steps": [
+          "Read the eight-question README and select this module with kit create or kit add.",
+          "Keep server entrypoints in server routes; validate incoming boundaries and show local/live mode."
+        ],
+        "routes": [],
+        "migrations": [],
+        "assets": []
+      },
+      "contracts": [
+        "packages/contracts/src/index.ts",
+        "modules/research/src/index.ts"
+      ],
+      "examples": [
+        "modules/research/examples/demo.ts"
+      ],
+      "fixtures": [
+        "modules/research/fixtures/article.html",
+        "modules/research/fixtures/search.json"
+      ],
+      "checks": [
+        "npx vitest run modules/research/tests",
+        "node --import tsx modules/research/examples/demo.ts"
+      ],
+      "modes": {
+        "local": "Deterministic local implementation with original synthetic fixtures; no external calls.",
+        "live": "Real configured adapters require explicit operator credentials and intent; no silent fixture fallback."
+      },
+      "verification": {
+        "implementation": "implemented",
+        "local": "Behavioral tests passed 2026-10-09; see README and final integration report.",
+        "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+        "live": "not run — requires operator test credentials and authorization",
+        "record": "modules/research/README.md"
+      },
+      "limitations": [
+        "HTML extraction does not execute JavaScript or bypass paywalls.",
+        "Only HTTP(S) standard ports and public unicast IP addresses are accepted."
+      ],
+      "cost": "Local mode uses CPU only; configured external providers may charge usage.",
+      "docs": [
+        "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+        "https://nodejs.org/api/http.html",
+        "modules/research/README.md"
+      ],
+      "license": "MIT",
+      "provenance": "Original implementation and synthetic fixtures created for Hackathon Kit; third-party package licenses retained. Base revision 0fcd52a."
+    },
+    {
+      "schemaVersion": 1,
+      "id": "retrieval",
+      "title": "Search and retrieval",
+      "description": "Provenance-preserving chunking, lexical/vector retrieval, embeddings and optional Supabase vector persistence.",
+      "tags": [
+        "search",
+        "retrieval",
+        "embeddings",
+        "citations"
+      ],
+      "useCases": [
+        "Search a document corpus",
+        "Produce supported extractive answers"
+      ],
+      "runtime": "mixed",
+      "environments": [
+        "node",
+        "browser"
+      ],
+      "source": "modules/retrieval/src",
+      "entrypoints": {
+        "browser": "modules/retrieval/src/index.ts",
+        "server": "modules/retrieval/src/server.ts"
+      },
+      "exports": [
+        "modules/retrieval"
+      ],
+      "minimalRead": [
+        "modules/retrieval/README.md",
+        "modules/retrieval/module.json",
+        "modules/retrieval/src/index.ts"
+      ],
+      "dependencies": [
+        "documents"
+      ],
+      "packages": {
+        "zod": "4.6.5",
+        "@supabase/supabase-js": "2.117.3"
+      },
+      "optionalIntegrations": [
+        "OpenAI embeddings",
+        "Supabase vector storage"
+      ],
+      "env": [
+        {
+          "name": "OPENAI_API_KEY",
+          "required": false,
+          "secret": true,
+          "when": "live",
+          "description": "OpenAI embeddings credential"
+        },
+        {
+          "name": "OPENAI_EMBEDDING_MODEL",
+          "required": false,
+          "secret": false,
+          "when": "live",
+          "description": "Configured compatible embedding model"
+        }
+      ],
+      "systemRequirements": [
+        "Node >=22; optional Supabase project and 1536-dimension embeddings"
+      ],
+      "integration": {
+        "steps": [
+          "Read the eight-question README and select this module with kit create or kit add.",
+          "Keep server entrypoints in server routes; validate incoming boundaries and show local/live mode."
+        ],
+        "routes": [],
+        "migrations": [
+          "modules/retrieval/migrations/020_retrieval.sql"
+        ],
+        "assets": []
+      },
+      "contracts": [
+        "packages/contracts/src/index.ts",
+        "modules/retrieval/src/index.ts"
+      ],
+      "examples": [
+        "modules/retrieval/examples/demo.ts"
+      ],
+      "fixtures": [
+        "modules/retrieval/fixtures/corpus.json",
+        "modules/retrieval/fixtures/evaluation.json"
+      ],
+      "checks": [
+        "npx vitest run modules/retrieval/tests",
+        "node --import tsx modules/retrieval/examples/demo.ts"
+      ],
+      "modes": {
+        "local": "Deterministic local implementation with original synthetic fixtures; no external calls.",
+        "live": "Real configured adapters require explicit operator credentials and intent; no silent fixture fallback."
+      },
+      "verification": {
+        "implementation": "implemented",
+        "local": "Behavioral tests passed 2026-10-09; see README and final integration report.",
+        "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+        "live": "not run — requires operator test credentials and authorization",
+        "record": "modules/retrieval/README.md"
+      },
+      "limitations": [
+        "Local index is intended for small corpora and capped at 100 documents by default.",
+        "Supabase migration and live provider behavior require operator verification."
+      ],
+      "cost": "Local mode uses CPU only; configured external providers may charge usage.",
+      "docs": [
+        "https://supabase.com/docs/guides/ai/vector-columns",
+        "https://platform.openai.com/docs/guides/embeddings",
+        "modules/retrieval/README.md"
+      ],
+      "license": "MIT",
+      "provenance": "Original implementation and synthetic fixtures created for Hackathon Kit; third-party package licenses retained. Base revision 0fcd52a."
+    },
+    {
+      "schemaVersion": 1,
+      "id": "supabase",
+      "title": "Supabase auth, CRUD and storage",
+      "description": "Separate browser/server clients, sign-in and OAuth routes, typed notes CRUD, private storage and owner RLS.",
+      "tags": [
+        "auth",
+        "database",
+        "storage",
+        "supabase"
+      ],
+      "useCases": [
+        "Add sign in",
+        "Store user-owned notes",
+        "Upload private files"
+      ],
+      "runtime": "mixed",
+      "environments": [
+        "Node 22.23.2",
+        "Browser via separated entrypoint"
+      ],
+      "source": "modules/supabase/src",
+      "entrypoints": {
+        "browser": "modules/supabase/src/browser.ts",
+        "contracts": "modules/supabase/src/index.ts",
+        "data": "modules/supabase/src/data.ts",
+        "server": "modules/supabase/src/server.ts"
+      },
+      "exports": [
+        "modules/supabase"
+      ],
+      "minimalRead": [
+        "modules/supabase/README.md",
+        "modules/supabase/module.json",
+        "modules/supabase/src/index.ts"
+      ],
+      "dependencies": [],
+      "packages": {
+        "@supabase/supabase-js": "2.117.3",
+        "@supabase/ssr": "0.12.7",
+        "zod": "4.6.5"
+      },
+      "optionalIntegrations": [
+        "Supabase hosted or local Docker",
+        "GitHub OAuth"
+      ],
+      "env": [
+        {
+          "name": "NEXT_PUBLIC_SUPABASE_URL",
+          "required": true,
+          "secret": false,
+          "when": "live",
+          "description": "NEXT_PUBLIC_SUPABASE_URL is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+          "required": true,
+          "secret": false,
+          "when": "live",
+          "description": "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "SITE_URL",
+          "required": true,
+          "secret": false,
+          "when": "live",
+          "description": "SITE_URL is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "SUPABASE_SERVICE_ROLE_KEY",
+          "required": false,
+          "secret": true,
+          "when": "live",
+          "description": "SUPABASE_SERVICE_ROLE_KEY is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "RUN_SUPABASE_INTEGRATION",
+          "required": false,
+          "secret": false,
+          "when": "live",
+          "description": "RUN_SUPABASE_INTEGRATION is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "SUPABASE_URL",
+          "required": false,
+          "secret": false,
+          "when": "live",
+          "description": "SUPABASE_URL is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "SUPABASE_PUBLISHABLE_KEY",
+          "required": false,
+          "secret": false,
+          "when": "live",
+          "description": "SUPABASE_PUBLISHABLE_KEY is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "ALLOW_HOSTED_SUPABASE_TEST",
+          "required": false,
+          "secret": false,
+          "when": "live",
+          "description": "ALLOW_HOSTED_SUPABASE_TEST is configured explicitly; see README for adapter-specific prerequisites and scope."
+        },
+        {
+          "name": "NEXT_PUBLIC_SUPABASE_EXAMPLE_MODE",
+          "required": false,
+          "secret": false,
+          "when": "optional",
+          "description": "Optional example only: fixture (default) or live; set before production build."
+        },
+        {
+          "name": "KIT_EXAMPLE_GITHUB_OAUTH",
+          "required": false,
+          "secret": false,
+          "when": "optional",
+          "description": "Set 1 only after configuring the GitHub OAuth provider and callbacks."
+        },
+        {
+          "name": "KIT_DEMO_PASSWORD",
+          "required": false,
+          "secret": true,
+          "when": "optional",
+          "description": "Explicit isolated local account seed password; never used in ordinary checks."
+        }
+      ],
+      "systemRequirements": [
+        "Node >=22; Docker only for optional local Supabase"
+      ],
+      "integration": {
+        "steps": [
+          "Read the module README and choose local or explicit live adapter.",
+          "Install manifest packages and preserve shared package imports.",
+          "Register application routes and authorization explicitly; run module checks."
+        ],
+        "routes": [
+          "Application registers protected auth route and proxy from examples"
+        ],
+        "migrations": [
+          "modules/supabase/migrations/001_notes.sql"
+        ],
+        "assets": [
+          "modules/supabase/examples/components/demo.css",
+          "modules/supabase/local/supabase/config.toml"
+        ]
+      },
+      "contracts": [
+        "modules/supabase/src/index.ts"
+      ],
+      "examples": [
+        "modules/supabase/examples/demo.ts",
+        "modules/supabase/examples/next-auth-route.ts",
+        "modules/supabase/examples/next-proxy.ts",
+        "modules/supabase/examples/app/page.tsx",
+        "modules/supabase/local/prepare.ts",
+        "modules/supabase/local/seed.ts"
+      ],
+      "fixtures": [
+        "modules/supabase/fixtures/sample.json"
+      ],
+      "checks": [
+        "node node_modules/vitest/vitest.mjs run modules/supabase/tests",
+        "node --import tsx modules/supabase/examples/demo.ts"
+      ],
+      "modes": {
+        "local": "Credential-free deterministic fixtures or real loopback/local worker execution.",
+        "live": "Explicitly configure the documented provider/service and obtain application user intent."
+      },
+      "verification": {
+        "implementation": "implemented",
+        "local": "5 tests passed on Node 22.23.2, 2026-10-09; strict TypeScript and scoped ESLint passed; runnable local example passed. One opt-in two-user Supabase integration test skipped without credentials.",
+        "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+        "live": "not run — requires operator test credentials and authorization",
+        "record": "modules/supabase/README.md"
+      },
+      "limitations": [
+        "Database RLS integration requires configured Supabase and explicit disposable-account test intent.",
+        "Lists cap at 100 notes; account-management UI is application-owned."
+      ],
+      "cost": "Local fixture mode has no external API usage. Live provider/service costs depend on the operator account and configuration.",
+      "docs": [
+        "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
+        "https://supabase.com/docs/guides/database/postgres/row-level-security",
+        "modules/supabase/examples/README.md",
+        "modules/supabase/local/README.md"
+      ],
+      "license": "MIT",
+      "provenance": "Original implementation and synthetic fixtures authored for Hackathon Kit; no third-party content bundled. Official API references checked 2026-10-09."
+    },
+    {
+      "schemaVersion": 1,
+      "id": "voice",
+      "title": "Voice input and output",
+      "description": "Browser recording, turn state, recorded transcription and speech streaming.",
+      "tags": [
+        "audio",
+        "speech",
+        "microphone"
+      ],
+      "useCases": [
+        "Browser recording, turn state, recorded transcription and speech streaming."
+      ],
+      "runtime": "mixed",
+      "environments": [
+        "Node.js 22+",
+        "modern browser"
+      ],
+      "source": "modules/voice/src",
+      "entrypoints": {
+        "core": "modules/voice/src/index.ts",
+        "browser": "modules/voice/src/components.tsx",
+        "capture": "modules/voice/src/browser.ts",
+        "server": "modules/voice/src/server.ts"
+      },
+      "exports": [
+        "modules/voice"
+      ],
+      "minimalRead": [
+        "modules/voice/README.md",
+        "modules/voice/src/index.ts",
+        "modules/voice/fixtures/transcript.json"
+      ],
+      "dependencies": [],
+      "packages": {
+        "zod": "4.6.5",
+        "react": "19.3.0"
+      },
+      "optionalIntegrations": [
+        "OpenAI"
+      ],
+      "env": [
+        {
+          "name": "OPENAI_API_KEY",
+          "required": true,
+          "secret": true,
+          "when": "live",
+          "description": "Server-only provider configuration; required only for the relevant live adapter."
+        },
+        {
+          "name": "OPENAI_TRANSCRIBE_MODEL",
+          "required": true,
+          "secret": false,
+          "when": "live",
+          "description": "Server-only provider configuration; required only for the relevant live adapter."
+        },
+        {
+          "name": "OPENAI_TTS_MODEL",
+          "required": true,
+          "secret": false,
+          "when": "live",
+          "description": "Server-only provider configuration; required only for the relevant live adapter."
+        }
+      ],
+      "systemRequirements": [
+        "Node.js 22+",
+        "HTTPS or localhost and browser media support"
+      ],
+      "integration": {
+        "steps": [
+          "Read the README and run the local example first.",
+          "Preserve module/shared package layout and install the listed dependencies.",
+          "Use server adapters only from authenticated bounded handlers; never expose provider keys in browser bundles."
+        ],
+        "routes": [],
+        "migrations": [],
+        "assets": []
+      },
+      "contracts": [
+        "modules/voice/src/index.ts"
+      ],
+      "examples": [
+        "modules/voice/examples/demo.ts",
+        "modules/voice/examples/live.ts"
+      ],
+      "fixtures": [
+        "modules/voice/fixtures/silence.json",
+        "modules/voice/fixtures/tone.wav",
+        "modules/voice/fixtures/transcript.json"
+      ],
+      "checks": [
+        "node --import tsx modules/voice/examples/demo.ts",
+        "npx vitest run modules/voice/tests"
+      ],
+      "modes": {
+        "local": "Credential-free deterministic code and labeled synthetic fixtures.",
+        "live": "Configured provider adapters; never automatic fixture fallback."
+      },
+      "verification": {
+        "implementation": "implemented",
+        "local": "9 local tests passed; scoped checkout typecheck, ESLint and credential-free example passed (35 combined experience tests).",
+        "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+        "live": "not run — requires operator test credentials and authorization",
+        "record": "modules/voice/README.md"
+      },
+      "limitations": [
+        "Turn-based recorded-file path; continuous microphone transcription is an extension recipe.",
+        "Microphone requires HTTPS/localhost and permission; hardware not exercised by unit tests."
+      ],
+      "cost": "Local mode has no API charges. Provider requests incur account-specific usage; no live calls performed.",
+      "docs": [
+        "https://developers.openai.com/api/docs/guides/speech-to-text",
+        "https://developers.openai.com/api/docs/guides/text-to-speech",
+        "https://developers.openai.com/api/docs/guides/realtime-transcription"
+      ],
+      "license": "MIT",
+      "provenance": "Original kit implementation and authored synthetic fixtures. Provider docs cited in README; provider terms apply to live data."
+    }
+  ]
+}

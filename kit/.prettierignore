@@ -1,0 +1,15 @@
+node_modules
+.next
+.kit
+package-lock.json
+uv.lock
+catalog/modules.json
+catalog/module.schema.json
+packages/contracts/schema.json
+docs/resources/source
+**/fixtures/*.json
+**/fixtures/*.csv
+
+CATALOG.md
+**/.venv
+**/.pytest_cache

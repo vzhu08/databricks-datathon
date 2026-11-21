@@ -1,0 +1,5 @@
+day,category,cost,participants
+2026-01-01,workshop,25,12
+2026-01-01,mentoring,30,8
+2026-01-02,workshop,,16
+2026-01-02,mentoring,invalid,10

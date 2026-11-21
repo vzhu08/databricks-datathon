@@ -1,0 +1,237 @@
+.kit-actions,
+.kit-toolbar,
+.kit-pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.kit-toolbar {
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.kit-toolbar input {
+  max-width: 260px;
+}
+.kit-status {
+  text-align: center;
+  padding: 24px;
+  color: var(--muted);
+}
+.kit-status h3 {
+  font-size: 15px;
+  color: var(--ink);
+}
+.kit-status p {
+  font-size: 13px;
+}
+.kit-status-icon {
+  font-size: 24px;
+}
+.kit-status-error {
+  background: #fff2ec;
+  border-radius: 10px;
+  color: #9b3d25;
+}
+.kit-status-error h3 {
+  color: inherit;
+}
+.kit-drop {
+  border: 1px dashed #a4b7a9;
+  border-radius: 12px;
+  background: #f6f9f2;
+  padding: 25px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 11px;
+}
+.kit-drop > span {
+  font-size: 25px;
+  color: var(--accent);
+}
+.kit-drop small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.kit-drop input {
+  max-width: 270px;
+  background: white;
+  font-size: 12px;
+}
+.kit-file {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 10px;
+}
+.kit-file span {
+  color: var(--muted);
+}
+progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--accent);
+}
+.kit-source {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font:
+    13px/1.85 ui-monospace,
+    SFMono-Regular,
+    monospace;
+  max-height: 440px;
+  overflow: auto;
+  padding: 22px;
+  background: #f4f6f0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 0;
+}
+.kit-source mark {
+  background: #f4dba0;
+  color: #403619;
+  box-decoration-break: clone;
+  padding: 2px 0;
+}
+.kit-edit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.kit-edit > span {
+  flex: 1;
+  min-width: 80px;
+}
+.kit-edit input {
+  min-width: 170px;
+}
+.kit-edit button {
+  font-size: 11px;
+  padding: 7px 10px;
+}
+.kit-edit label {
+  width: 100%;
+}
+.kit-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+.kit-table-scroll {
+  overflow-x: auto;
+}
+.kit-table th {
+  font-weight: 500;
+  background: #f6f7f3;
+}
+.kit-table th button {
+  color: var(--muted);
+  background: transparent;
+  padding: 14px 12px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.kit-table td {
+  padding: 16px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.kit-pagination {
+  padding-top: 15px;
+  font-size: 11px;
+  color: var(--muted);
+  justify-content: flex-end;
+}
+.kit-pagination span {
+  margin-right: auto;
+}
+.kit-pagination button {
+  font-size: 11px;
+  padding: 7px 12px;
+}
+.kit-job {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.kit-job > div {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.kit-metric {
+  padding: 19px 22px;
+  border: 1px solid var(--line);
+  background: white;
+  border-radius: 12px;
+}
+.kit-metric p {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+.kit-metric strong {
+  font-size: 31px;
+  font-weight: 550;
+  letter-spacing: -1px;
+  display: block;
+}
+.kit-metric small {
+  font-size: 10px;
+  color: var(--muted);
+  display: block;
+  margin-top: 8px;
+}
+.kit-comparison {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.kit-comparison small {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 7px;
+}
+.kit-comparison strong {
+  font-size: 22px;
+  font-weight: 500;
+}
+.kit-skeleton > div {
+  height: 12px;
+  background: linear-gradient(90deg, #edf0e9, #e0e5dc, #edf0e9);
+  border-radius: 4px;
+  margin: 12px 0;
+  animation: kit-pulse 1.7s infinite;
+}
+.kit-chat-output {
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.8;
+  padding: 20px;
+  background: #f2f6ef;
+  border-radius: 10px;
+}
+.kit-chat .kit-actions {
+  margin-top: 10px;
+}
+.kit-chat .secondary {
+  font-size: 11px;
+  padding: 8px 11px;
+}
+@keyframes kit-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kit-skeleton > div {
+    animation: none;
+  }
+}

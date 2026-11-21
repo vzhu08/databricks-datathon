@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "id": "jobs",
+  "title": "Local and durable background jobs",
+  "description": "Bounded job worker with progress, retries, cancellation, idempotency and SQLite restart recovery.",
+  "tags": ["jobs", "worker", "queue", "progress"],
+  "useCases": ["Run long ingestion", "Track media processing", "Recover queued work after restart"],
+  "runtime": "node",
+  "packages": {
+    "zod": "4.6.5"
+  },
+  "optionalIntegrations": ["Persistent disk container hosting"],
+  "limitations": [
+    "Memory mode is non-durable; SQLite requires a persistent single-host filesystem.",
+    "At-least-once execution requires idempotent external effects and cooperative cancellation."
+  ],
+  "docs": ["https://nodejs.org/api/sqlite.html"],
+  "environments": ["Node 22.23.2 persistent process"],
+  "source": "modules/jobs/src",
+  "entrypoints": {
+    "browser": "modules/jobs/src/index.ts",
+    "server": "modules/jobs/src/server.ts"
+  },
+  "exports": ["modules/jobs"],
+  "minimalRead": [
+    "modules/jobs/README.md",
+    "modules/jobs/module.json",
+    "modules/jobs/src/index.ts"
+  ],
+  "dependencies": [],
+  "env": [
+    {
+      "name": "JOB_DB",
+      "required": false,
+      "secret": false,
+      "when": "optional",
+      "description": "JOB_DB is configured explicitly; see README for adapter-specific prerequisites and scope."
+    },
+    {
+      "name": "JOB_HOST",
+      "required": false,
+      "secret": false,
+      "when": "optional",
+      "description": "JOB_HOST is configured explicitly; see README for adapter-specific prerequisites and scope."
+    },
+    {
+      "name": "JOB_PORT",
+      "required": false,
+      "secret": false,
+      "when": "optional",
+      "description": "JOB_PORT is configured explicitly; see README for adapter-specific prerequisites and scope."
+    },
+    {
+      "name": "JOB_API_TOKEN",
+      "required": false,
+      "secret": true,
+      "when": "optional",
+      "description": "JOB_API_TOKEN is configured explicitly; see README for adapter-specific prerequisites and scope."
+    }
+  ],
+  "systemRequirements": ["Node >=22.13; SQLite mode needs persistent disk"],
+  "integration": {
+    "steps": [
+      "Read the module README and choose local or explicit live adapter.",
+      "Install manifest packages and preserve shared package imports.",
+      "Register application routes and authorization explicitly; run module checks."
+    ],
+    "routes": ["Application registers protected jobs handler or standalone worker"],
+    "migrations": [],
+    "assets": ["modules/jobs/Dockerfile"]
+  },
+  "contracts": ["modules/jobs/src/index.ts"],
+  "examples": ["modules/jobs/examples/demo.ts", "modules/jobs/examples/worker.ts"],
+  "fixtures": ["modules/jobs/fixtures/sample.json"],
+  "checks": [
+    "node node_modules/vitest/vitest.mjs run modules/jobs/tests",
+    "node --import tsx modules/jobs/examples/demo.ts"
+  ],
+  "modes": {
+    "local": "Credential-free deterministic fixtures or real loopback/local worker execution.",
+    "live": "Explicitly configure the documented provider/service and obtain application user intent."
+  },
+  "verification": {
+    "implementation": "implemented",
+    "local": "11 tests passed on Node 22.23.2, 2026-10-09; strict TypeScript and scoped ESLint passed; runnable local example passed.",
+    "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+    "live": "not run \u2014 requires operator test credentials and authorization",
+    "record": "modules/jobs/README.md"
+  },
+  "cost": "Local fixture mode has no external API usage. Live provider/service costs depend on the operator account and configuration.",
+  "license": "MIT",
+  "provenance": "Original implementation and synthetic fixtures authored for Hackathon Kit; no third-party content bundled. Official API references checked 2026-10-09."
+}

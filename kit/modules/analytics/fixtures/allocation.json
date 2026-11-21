@@ -1,0 +1,47 @@
+{
+  "provenance": "Original synthetic event allocation; budget credits, benefit points; MIT",
+  "budget": 100,
+  "minItems": 2,
+  "maxItems": 3,
+  "requiredCategories": [
+    "access"
+  ],
+  "items": [
+    {
+      "id": "captions",
+      "label": "Live captions",
+      "cost": 30,
+      "value": 40,
+      "category": "access",
+      "requires": [],
+      "excludes": []
+    },
+    {
+      "id": "food",
+      "label": "Snack table",
+      "cost": 45,
+      "value": 50,
+      "category": "comfort",
+      "requires": [],
+      "excludes": []
+    },
+    {
+      "id": "mentors",
+      "label": "Mentor hours",
+      "cost": 60,
+      "value": 75,
+      "category": "learning",
+      "requires": [],
+      "excludes": []
+    },
+    {
+      "id": "signage",
+      "label": "Clear signs",
+      "cost": 10,
+      "value": 12,
+      "category": "access",
+      "requires": [],
+      "excludes": []
+    }
+  ]
+}

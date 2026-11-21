@@ -1,0 +1,137 @@
+.notes-demo {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 48px 24px 96px;
+  color: #182b27;
+  font:
+    16px/1.55 system-ui,
+    sans-serif;
+}
+.notes-demo * {
+  box-sizing: border-box;
+}
+.notes-demo h1 {
+  font-size: clamp(32px, 6vw, 48px);
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+}
+.notes-demo h2 {
+  font-size: 21px;
+  margin: 0 0 16px;
+}
+.notes-demo h3 {
+  margin-top: 0;
+  overflow-wrap: anywhere;
+}
+.notes-eyebrow {
+  color: #346958;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+}
+.notes-card {
+  border: 1px solid #cedbd5;
+  border-radius: 14px;
+  padding: 24px;
+  margin: 24px 0;
+  background: white;
+}
+.notes-demo label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.notes-demo input:not([type='checkbox']),
+.notes-demo textarea {
+  display: block;
+  width: 100%;
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid #90a69b;
+  border-radius: 6px;
+  margin-bottom: 18px;
+  color: inherit;
+  background: white;
+}
+.notes-demo textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+.notes-demo button {
+  font: inherit;
+  font-weight: 600;
+  border: 1px solid #174e3c;
+  background: #174e3c;
+  color: white;
+  border-radius: 6px;
+  padding: 9px 15px;
+  cursor: pointer;
+}
+.notes-demo button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.notes-demo button:focus-visible,
+.notes-demo input:focus-visible,
+.notes-demo textarea:focus-visible,
+.notes-demo a:focus-visible,
+.notes-demo summary:focus-visible {
+  outline: 3px solid #c98123;
+  outline-offset: 3px;
+}
+.notes-demo a {
+  color: #174e3c;
+}
+.notes-actions,
+.notes-session {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.notes-session {
+  justify-content: space-between;
+  margin-top: 28px;
+}
+.notes-session h2 {
+  margin: 0;
+}
+.notes-actions button + button,
+.notes-session button {
+  background: transparent;
+  color: #174e3c;
+}
+.notes-list {
+  list-style: none;
+  padding: 0;
+}
+.notes-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.notes-error {
+  border-left: 4px solid #ac3120;
+  padding: 12px 20px;
+  background: #fff2ed;
+  color: #7c2115;
+}
+.notes-error p {
+  overflow-wrap: anywhere;
+}
+.notes-empty {
+  border: 1px dashed #90a69b;
+  border-radius: 12px;
+  padding: 24px;
+}
+.notes-fixtures {
+  background: #eaf2eb;
+  border-radius: 10px;
+  padding: 14px 18px;
+}
+.notes-fixtures summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.notes-fixtures code {
+  overflow-wrap: anywhere;
+}

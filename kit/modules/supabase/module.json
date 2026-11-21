@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "id": "supabase",
+  "title": "Supabase auth, CRUD and storage",
+  "description": "Separate browser/server clients, sign-in and OAuth routes, typed notes CRUD, private storage and owner RLS.",
+  "tags": ["auth", "database", "storage", "supabase"],
+  "useCases": ["Add sign in", "Store user-owned notes", "Upload private files"],
+  "runtime": "mixed",
+  "packages": {
+    "@supabase/supabase-js": "2.117.3",
+    "@supabase/ssr": "0.12.7",
+    "zod": "4.6.5"
+  },
+  "optionalIntegrations": ["Supabase hosted or local Docker", "GitHub OAuth"],
+  "limitations": [
+    "Database RLS integration requires configured Supabase and explicit disposable-account test intent.",
+    "Lists cap at 100 notes; account-management UI is application-owned."
+  ],
+  "docs": [
+    "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
+    "https://supabase.com/docs/guides/database/postgres/row-level-security",
+    "modules/supabase/examples/README.md",
+    "modules/supabase/local/README.md"
+  ],
+  "environments": ["Node 22.23.2", "Browser via separated entrypoint"],
+  "source": "modules/supabase/src",
+  "entrypoints": {
+    "browser": "modules/supabase/src/browser.ts",
+    "contracts": "modules/supabase/src/index.ts",
+    "data": "modules/supabase/src/data.ts",
+    "server": "modules/supabase/src/server.ts"
+  },
+  "exports": ["modules/supabase"],
+  "minimalRead": [
+    "modules/supabase/README.md",
+    "modules/supabase/module.json",
+    "modules/supabase/src/index.ts"
+  ],
+  "dependencies": [],
+  "env": [
+    {
+      "name": "NEXT_PUBLIC_SUPABASE_URL",
+      "required": true,
+      "secret": false,
+      "when": "live",
+      "description": "NEXT_PUBLIC_SUPABASE_URL is configured explicitly; see README for adapter-specific prerequisites and scope."
+    },
+    {
+      "name": "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+      "required": true,
+      "secret": false,
+      "when": "live",
+      "description": "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is configured explicitly; see README for adapter-specific prerequisites and scope."
+    },
+    {
+      "name": "SITE_URL",
+      "required": true,
+      "secret": false,
+      "when": "live",
+      "description": "SITE_URL is configured explicitly; see README for adapter-specific prerequisites and scope."
+    },
+    {
+      "name": "SUPABASE_SERVICE_ROLE_KEY",
+      "required": false,
+      "secret": true,
+      "when": "live",
+      "description": "SUPABASE_SERVICE_ROLE_KEY is configured explicitly; see README for adapter-specific prerequisites and scope."
+    },
+    {
+      "name": "RUN_SUPABASE_INTEGRATION",
+      "required": false,
+      "secret": false,
+      "when": "live",
+      "description": "RUN_SUPABASE_INTEGRATION is configured explicitly; see README for adapter-specific prerequisites and scope."
+    },
+    {
+      "name": "SUPABASE_URL",
+      "required": false,
+      "secret": false,
+      "when": "live",
+      "description": "SUPABASE_URL is configured explicitly; see README for adapter-specific prerequisites and scope."
+    },
+    {
+      "name": "SUPABASE_PUBLISHABLE_KEY",
+      "required": false,
+      "secret": false,
+      "when": "live",
+      "description": "SUPABASE_PUBLISHABLE_KEY is configured explicitly; see README for adapter-specific prerequisites and scope."
+    },
+    {
+      "name": "ALLOW_HOSTED_SUPABASE_TEST",
+      "required": false,
+      "secret": false,
+      "when": "live",
+      "description": "ALLOW_HOSTED_SUPABASE_TEST is configured explicitly; see README for adapter-specific prerequisites and scope."
+    },
+    {
+      "name": "NEXT_PUBLIC_SUPABASE_EXAMPLE_MODE",
+      "required": false,
+      "secret": false,
+      "when": "optional",
+      "description": "Optional example only: fixture (default) or live; set before production build."
+    },
+    {
+      "name": "KIT_EXAMPLE_GITHUB_OAUTH",
+      "required": false,
+      "secret": false,
+      "when": "optional",
+      "description": "Set 1 only after configuring the GitHub OAuth provider and callbacks."
+    },
+    {
+      "name": "KIT_DEMO_PASSWORD",
+      "required": false,
+      "secret": true,
+      "when": "optional",
+      "description": "Explicit isolated local account seed password; never used in ordinary checks."
+    }
+  ],
+  "systemRequirements": ["Node >=22; Docker only for optional local Supabase"],
+  "integration": {
+    "steps": [
+      "Read the module README and choose local or explicit live adapter.",
+      "Install manifest packages and preserve shared package imports.",
+      "Register application routes and authorization explicitly; run module checks."
+    ],
+    "routes": ["Application registers protected auth route and proxy from examples"],
+    "migrations": ["modules/supabase/migrations/001_notes.sql"],
+    "assets": [
+      "modules/supabase/examples/components/demo.css",
+      "modules/supabase/local/supabase/config.toml"
+    ]
+  },
+  "contracts": ["modules/supabase/src/index.ts"],
+  "examples": [
+    "modules/supabase/examples/demo.ts",
+    "modules/supabase/examples/next-auth-route.ts",
+    "modules/supabase/examples/next-proxy.ts",
+    "modules/supabase/examples/app/page.tsx",
+    "modules/supabase/local/prepare.ts",
+    "modules/supabase/local/seed.ts"
+  ],
+  "fixtures": ["modules/supabase/fixtures/sample.json"],
+  "checks": [
+    "node node_modules/vitest/vitest.mjs run modules/supabase/tests",
+    "node --import tsx modules/supabase/examples/demo.ts"
+  ],
+  "modes": {
+    "local": "Credential-free deterministic fixtures or real loopback/local worker execution.",
+    "live": "Explicitly configure the documented provider/service and obtain application user intent."
+  },
+  "verification": {
+    "implementation": "implemented",
+    "local": "5 tests passed on Node 22.23.2, 2026-10-09; strict TypeScript and scoped ESLint passed; runnable local example passed. One opt-in two-user Supabase integration test skipped without credentials.",
+    "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+    "live": "not run \u2014 requires operator test credentials and authorization",
+    "record": "modules/supabase/README.md"
+  },
+  "cost": "Local fixture mode has no external API usage. Live provider/service costs depend on the operator account and configuration.",
+  "license": "MIT",
+  "provenance": "Original implementation and synthetic fixtures authored for Hackathon Kit; no third-party content bundled. Official API references checked 2026-10-09."
+}

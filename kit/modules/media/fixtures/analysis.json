@@ -1,0 +1,27 @@
+{
+  "summary": "Synthetic colored-shape fixture. Boxes are authored fixture coordinates, not model output.",
+  "mode": "fixture",
+  "detections": [
+    {
+      "label": "orange rectangle",
+      "confidence": 1,
+      "box": {
+        "x": 0.1,
+        "y": 0.2,
+        "width": 0.4,
+        "height": 0.6
+      }
+    },
+    {
+      "label": "blue square",
+      "confidence": 1,
+      "box": {
+        "x": 0.65,
+        "y": 0.25,
+        "width": 0.25,
+        "height": 0.5
+      }
+    }
+  ],
+  "provenance": "Authored boxes matching shapes.svg; no API inference; MIT"
+}

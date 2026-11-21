@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "id": "realtime",
+  "title": "Realtime collaborative rooms",
+  "description": "Actual local WebSocket rooms, presence, shared votes, reconnect, dedupe and optional Supabase presence.",
+  "tags": ["realtime", "websocket", "rooms", "votes"],
+  "useCases": ["Shared group decision", "Live room presence", "Synchronize votes"],
+  "runtime": "mixed",
+  "packages": {
+    "ws": "8.22.0",
+    "@supabase/supabase-js": "2.117.3",
+    "zod": "4.6.5"
+  },
+  "optionalIntegrations": ["Supabase Realtime"],
+  "limitations": [
+    "Local rooms require a persistent process and are lost on restart.",
+    "Supabase presence votes disappear on disconnect and need private-channel RLS."
+  ],
+  "docs": [
+    "https://github.com/websockets/ws",
+    "https://supabase.com/docs/guides/realtime/presence"
+  ],
+  "environments": ["Node 22.23.2", "Browser via separated entrypoint"],
+  "source": "modules/realtime/src",
+  "entrypoints": {
+    "browser": "modules/realtime/src/browser.ts",
+    "contracts": "modules/realtime/src/index.ts",
+    "server": "modules/realtime/src/server.ts",
+    "supabase": "modules/realtime/src/supabase.ts"
+  },
+  "exports": ["modules/realtime"],
+  "minimalRead": [
+    "modules/realtime/README.md",
+    "modules/realtime/module.json",
+    "modules/realtime/src/index.ts"
+  ],
+  "dependencies": [],
+  "env": [
+    {
+      "name": "REALTIME_PORT",
+      "required": false,
+      "secret": false,
+      "when": "optional",
+      "description": "REALTIME_PORT is configured explicitly; see README for adapter-specific prerequisites and scope."
+    }
+  ],
+  "systemRequirements": ["Node >=22"],
+  "integration": {
+    "steps": [
+      "Read the module README and choose local or explicit live adapter.",
+      "Install manifest packages and preserve shared package imports.",
+      "Register application routes and authorization explicitly; run module checks."
+    ],
+    "routes": ["Separate persistent WebSocket listener"],
+    "migrations": [],
+    "assets": []
+  },
+  "contracts": ["modules/realtime/src/index.ts"],
+  "examples": ["modules/realtime/examples/demo.ts", "modules/realtime/examples/server.ts"],
+  "fixtures": ["modules/realtime/fixtures/sample.json"],
+  "checks": [
+    "node node_modules/vitest/vitest.mjs run modules/realtime/tests",
+    "node --import tsx modules/realtime/examples/demo.ts"
+  ],
+  "modes": {
+    "local": "Credential-free deterministic fixtures or real loopback/local worker execution.",
+    "live": "Explicitly configure the documented provider/service and obtain application user intent."
+  },
+  "verification": {
+    "implementation": "implemented",
+    "local": "3 tests passed on Node 22.23.2, 2026-10-09; strict TypeScript and scoped ESLint passed; runnable local example passed.",
+    "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+    "live": "not run \u2014 requires operator test credentials and authorization",
+    "record": "modules/realtime/README.md"
+  },
+  "cost": "Local fixture mode has no external API usage. Live provider/service costs depend on the operator account and configuration.",
+  "license": "MIT",
+  "provenance": "Original implementation and synthetic fixtures authored for Hackathon Kit; no third-party content bundled. Official API references checked 2026-10-09."
+}

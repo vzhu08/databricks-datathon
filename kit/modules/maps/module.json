@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "id": "maps",
+  "title": "Maps and location",
+  "description": "GeoJSON display, distance filtering, Mapbox geocoding and real travel routes.",
+  "tags": ["geojson", "geocoding", "routing"],
+  "useCases": ["GeoJSON display, distance filtering, Mapbox geocoding and real travel routes."],
+  "runtime": "mixed",
+  "environments": ["Node.js 22+", "modern browser"],
+  "source": "modules/maps/src",
+  "entrypoints": {
+    "core": "modules/maps/src/index.ts",
+    "browser": "modules/maps/src/components.tsx",
+    "server": "modules/maps/src/server.ts"
+  },
+  "exports": ["modules/maps"],
+  "minimalRead": [
+    "modules/maps/README.md",
+    "modules/maps/src/index.ts",
+    "modules/maps/fixtures/locations.json"
+  ],
+  "dependencies": [],
+  "packages": {
+    "zod": "4.6.5",
+    "react": "19.3.0"
+  },
+  "optionalIntegrations": ["Mapbox"],
+  "env": [
+    {
+      "name": "MAPBOX_ACCESS_TOKEN",
+      "required": true,
+      "secret": true,
+      "when": "live",
+      "description": "Server-only provider configuration; required only for the relevant live adapter."
+    }
+  ],
+  "systemRequirements": ["Node.js 22+"],
+  "integration": {
+    "steps": [
+      "Read the README and run the local example first.",
+      "Preserve module/shared package layout and install the listed dependencies.",
+      "Use server adapters only from authenticated bounded handlers; never expose provider keys in browser bundles."
+    ],
+    "routes": [],
+    "migrations": [],
+    "assets": []
+  },
+  "contracts": ["modules/maps/src/index.ts"],
+  "examples": ["modules/maps/examples/demo.ts", "modules/maps/examples/live.ts"],
+  "fixtures": ["modules/maps/fixtures/locations.json", "modules/maps/fixtures/map.geojson"],
+  "checks": [
+    "node --import tsx modules/maps/examples/demo.ts",
+    "npx vitest run modules/maps/tests"
+  ],
+  "modes": {
+    "local": "Credential-free deterministic code and labeled synthetic fixtures.",
+    "live": "Configured provider adapters; never automatic fixture fallback."
+  },
+  "verification": {
+    "implementation": "implemented",
+    "local": "5 local tests passed; scoped checkout typecheck, ESLint and credential-free example passed (35 combined experience tests).",
+    "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+    "live": "not run \u2014 requires operator test credentials and authorization",
+    "record": "modules/maps/README.md"
+  },
+  "limitations": [
+    "SVG schematic GeoJSON map without raster tiles, pan or navigation guidance.",
+    "Temporary Mapbox geocoding results must not be cached or persisted."
+  ],
+  "cost": "Local mode has no API charges. Provider requests incur account-specific usage; no live calls performed.",
+  "docs": [
+    "https://docs.mapbox.com/api/search/geocoding/",
+    "https://docs.mapbox.com/api/navigation/directions/"
+  ],
+  "license": "MIT",
+  "provenance": "Original kit implementation and authored synthetic fixtures. Provider docs cited in README; provider terms apply to live data."
+}

@@ -1,0 +1,28 @@
+{
+  "provenance": "Synthetic original fixture; MIT",
+  "normal": {
+    "type": "ingest",
+    "input": {
+      "lines": [
+        "hello world",
+        "three"
+      ],
+      "delayMs": 0
+    },
+    "idempotencyKey": "fixture-ingest"
+  },
+  "expected": {
+    "words": 3,
+    "lines": 2
+  },
+  "empty": {
+    "type": "ingest",
+    "input": {
+      "lines": []
+    }
+  },
+  "failure": {
+    "type": "unknown",
+    "input": null
+  }
+}

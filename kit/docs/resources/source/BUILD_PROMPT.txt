@@ -1,0 +1,703 @@
+HACKATHON KIT — COMPREHENSIVE CODEX BUILD PROMPT
+Version: 2026-10-08
+Use: Give this entire prompt to the coding agent in the intended repository. Attach Hackathon_Development_Playbook(3).txt if available. This prompt includes its operational summary, so it is usable on its own.
+
+======================================================================
+1. MISSION AND CONFIRMED REQUIREMENTS
+======================================================================
+
+Build a substantial, working, exceptionally well-organized repository of reusable hackathon infrastructure, feature modules, UI components, developer tools, and project-building documentation.
+
+The intended users are a three-developer team using Codex, Claude Code, or both. They build ambitious software projects under hackathon deadlines. Future agents will often enter this repository with no prior conversation context. They must be able to discover the right capability, understand its prerequisites and limitations, extract only what they need, and use it correctly.
+
+Implement the repository. Do not stop at a proposal, folder skeleton, sample README, collection of links, or wrappers containing TODOs. This is an ambitious build that can span multiple working sessions. Maintain an executable plan and complete the requested capability set in verified increments.
+
+Confirmed choices:
+- Support BOTH creating a lean new project from selected starters/modules AND selectively adding modules to an existing project.
+- Useful paid API integrations are in scope, but optional. Installing the base kit, running the default example, and running ordinary checks must require no credentials and incur no paid API usage.
+- Include all capability categories and project documents below. "Optional module" means optional for a downstream project to install; it does NOT mean optional for you to implement.
+- Preserve the collaboration principles summarized from the supplied playbook and adapt them to the actual repository paths, commands, tools, and workflows you build.
+- The kit should be useful to both humans and coding agents, with minimal context loading and explicit navigation.
+- Keep the high-value supporting tools: module catalog, doctor command, local API playground, small evaluation runner, sanitized record/replay, and demo reset.
+- Breadth must not make every generated project heavy. Include only selected capabilities and their actual dependency closure.
+
+Success is measured by how reliably the team can build a real project with the kit, not by file count, commit count, number of agents, or the volume of documentation.
+
+======================================================================
+2. STARTUP, DECISIONS, AND IMPLEMENTATION AUTHORITY
+======================================================================
+
+Before editing:
+1. Inspect the current checkout, repository instructions, Git state, existing files, and available tooling. Preserve existing user work. If this is an existing repository, extend its actual current version.
+2. Read the supplied playbook if present. The file supplied with this prompt is authoritative over an older copy. The summary in section 11 captures the requirements if the attachment is unavailable.
+3. Create docs/implementation/PLAN.md, REQUIREMENTS.md, DECISIONS.md, and STATUS.md. Keep these concise and current. Map every requirement in this prompt to implementation, documentation, and verification evidence.
+4. Resolve architecture and shared interfaces before parallel implementation. Record decisions and meaningful tradeoffs.
+
+Use the previously proposed stack as the baseline:
+- TypeScript, React/Next.js, and a small reusable styling/component foundation.
+- Supabase for optional hosted Postgres, authentication, and object storage.
+- An optional Python/FastAPI backend for capabilities that genuinely benefit from Python.
+- Vercel deployment instructions/configuration for the web starter.
+- A portable container path for Python and long-running workers; do not silently assume a paid hosting provider for these services.
+- A Node workspace/package manager and Python packaging workflow with committed, reproducible dependency resolution. pnpm and uv are reasonable defaults; inspect compatibility before choosing and record the choice.
+- Windows contributors must have a documented usable route, such as WSL2, as well as macOS/Linux instructions. Do not claim native Windows support without testing it. Avoid unnecessary Unix-only scripts when Node/Python will work.
+
+The particular third-party packages and provider adapters are engineering decisions you may make after checking current official documentation. Use maintained stable releases, record tested versions, and commit lockfiles. Do not copy obsolete SDK syntax or guess model IDs, quotas, pricing, endpoint behavior, or product availability.
+
+Do not silently make a major decision about repository visibility, owner/license, spending, actual production hosting, or compatibility-breaking changes to an existing project. Ask a focused question when such a decision blocks work. Continue independent local implementation while waiting. No need to ask permission for routine reversible implementation choices within this specification.
+
+Develop and verify locally. Do not create accounts, publish packages, make the repository public, purchase services, send messages, or deploy public resources unless the operator has authorized that action. Live tests must be explicit, opt-in, and use the operator's configured test accounts.
+
+If subagents are available, you may delegate independent implementation and review tasks after contracts and ownership are established. Every concurrent writer needs its own branch/checkout and exclusive file scope. Shared manifests, lockfiles, registries, contracts, and global configuration have one steward. If the environment cannot provide that isolation, serialize writes. Never turn maximum agent concurrency into the objective.
+
+======================================================================
+3. REPOSITORY ARCHITECTURE AND NAVIGATION
+======================================================================
+
+Use a shallow, predictable layout. The following is the intended division of responsibility; adjust exact paths only when a documented implementation reason justifies it.
+
+Root:
+- README.md: human entry point, working quickstart, use cases, important links.
+- AGENTS.md: concise operating instructions and navigation for agents working on the kit.
+- CLAUDE.md: compatibility entry point importing the canonical AGENTS.md, with only necessary tool-specific additions.
+- CATALOG.md: generated human-readable capability index.
+- CONTRIBUTING.md: module lifecycle, checks, ownership, and integration workflow.
+- Appropriate package/workspace files, lockfiles, ignore rules, formatting and CI configuration.
+
+Directories:
+- starters/: minimal web starter, optional Python API starter, and composition recipes. Reuse shared sources rather than maintaining duplicate full applications.
+- modules/<stable-id>/: canonical feature implementation, manifest, README, examples, fixtures, and tests.
+- packages/: genuinely shared contracts, runtime helpers, and UI foundations. Keep this dependency surface small.
+- tools/: selective project creation/adoption CLI and the supporting utilities.
+- catalog/: generated machine-readable index and schemas governing module metadata.
+- examples/: integrated reference applications and independently runnable capability examples.
+- docs/start-here/: orientation, repo map, new-project and existing-project workflows.
+- docs/architecture/: boundaries, dependency directions, configuration, data flow, and ADRs.
+- docs/guides/: implementation guides, deployment, troubleshooting, testing, updating, and maintenance.
+- docs/playbooks/: canonical collaboration and hackathon-development playbooks.
+- docs/templates/: reusable documents copied into downstream projects.
+- docs/prompts/: bounded, task-specific agent prompts.
+- docs/resources/: curated external APIs/datasets and verified integration notes.
+- docs/implementation/: this kit's build plan, requirement traceability, status, and verification report.
+- tests/: cross-module, generation/adoption, and end-to-end checks.
+- .github/: useful CI, issue/PR templates, and ownership conventions if GitHub is the selected host.
+
+Separate three kinds of documentation clearly:
+A. Instructions for maintaining THIS toolkit.
+B. Templates and instructions emitted into a GENERATED PROJECT.
+C. Background reference material loaded only when needed.
+
+Do not copy the toolkit's entire AGENTS.md into a generated application. Generate project-specific instructions with the actual selected modules, paths, commands, deployment options, and ownership placeholders. Do not ship stale toolkit paths or links to files that were not exported.
+
+Discovery requirements:
+- Root README must provide distinct links for "create a project", "add to an existing project", "find a capability", and "contribute to the kit".
+- Add docs/start-here/AGENT_START.md with a brief decision tree: understand the request, inspect target constraints, search catalog, read chosen module docs/contracts, plan the dependency closure, integrate, verify, and report.
+- Include a task-to-module map: "analyze PDFs", "build a voice interface", "recommend items to a group", "add auth", "run a long job", etc.
+- Module metadata is the canonical source for generated CATALOG.md and catalog JSON. Do not maintain competing hand-edited lists.
+- Every entry identifies exact source paths, minimal read set, runtime, dependencies, setup, examples, and checks.
+- Root instructions should generally stay under about 150 lines and fit comfortably in an agent's initial context. Use links, not recursive imports of every document.
+- Add scoped AGENTS.md files only where different runtime or module rules justify them. Tell agents explicitly to inspect relevant scoped instructions; do not assume every tool loads every nested file automatically.
+- For Claude compatibility, use a nearby CLAUDE.md importing shared instructions where necessary. Verify current instruction-loading behavior with official documentation. Keep the rules in one canonical source.
+- Module dependencies form an explicit acyclic graph. Detect cycles, missing IDs, broken paths, duplicate IDs, and missing metadata.
+- Avoid generic dumping grounds such as a growing miscellaneous utils folder. Give reusable code an owner and a clear capability boundary.
+
+======================================================================
+4. REQUIRED MODULE CONTRACT AND CATALOG
+======================================================================
+
+Every capability must contain real implementation, a runnable example, meaningful tests, documentation, and a schema-validated manifest.
+
+At minimum, metadata must express:
+- Stable ID, title, short description, tags, and supported use cases.
+- Language/runtime and supported environments.
+- Canonical source, public entry points, exports, and minimal files to read.
+- Required kit modules, third-party dependencies, and optional integrations.
+- Environment variable names, which are required, which are secret, and whether needed for local or live operation.
+- System requirements such as Docker, ffmpeg, OCR binaries, or browser permissions.
+- Install/export instructions, route registrations, migrations, CSS/assets, and other integration steps.
+- Input/output contracts, examples, fixtures, and exact validation commands.
+- Credential-free local behavior versus externally backed live behavior.
+- Last locally tested version/commit or reproducible verification record; live verification separately.
+- Known limitations, supported combinations, cost characteristics, and relevant official docs.
+- License/provenance information for included third-party material.
+
+Each module README should answer, in this order:
+1. What problem does this solve, and when should I use it?
+2. What is the smallest working example?
+3. How do I add it to a fresh project or an existing project?
+4. What does the API accept and return?
+5. What prerequisites, environment variables, or credentials are needed?
+6. What changes must I make to routes, schema, storage, or UI?
+7. How do I verify it and handle expected failures?
+8. What does it depend on, and what are its limits?
+
+Record implementation status, local test status, exported-project test status, and live provider status separately. A mocked provider test is not a live verification. An implemented adapter can be labeled "implemented; local contract tests passed; live test not run" without pretending it is incomplete code or fully verified infrastructure.
+
+Types alone do not establish a contract. Validate relevant input/output boundaries at runtime. For shared Python/TypeScript APIs, establish one schema source and generated artifacts or contract tests that prevent drift. Do not hand-maintain incompatible copies.
+
+======================================================================
+5. BOTH CONSUMPTION WORKFLOWS
+======================================================================
+
+Build a small, useful CLI around the catalog and recipes. Do not invent a general-purpose framework or language.
+
+Provide commands with these semantics; exact naming may be adapted consistently:
+- kit list / kit search: discover capabilities, with human-readable and JSON output.
+- kit inspect <module>: prerequisites, dependencies, entry points, examples, and checks.
+- kit plan --target <path> --modules <ids>: read-only integration plan.
+- kit create <path> --starter <id> --modules <ids>: generate a self-contained project.
+- kit add --target <path> --modules <ids>: dry-run by default; explicit apply option.
+- kit doctor: inspect the local setup and selected integrations.
+- kit verify: run appropriate checks for the selected composition.
+- kit catalog check/build: validate manifests and regenerate indexes.
+
+New project requirements:
+- Generate a lean usable project with only chosen modules and their required dependencies.
+- Base web starter must run without Python, Docker, Supabase, or provider credentials.
+- Add Python or local services only when selected modules require them.
+- Generate correct imports, package metadata, env examples, routes, configuration, module docs, and project instructions.
+- Include a project manifest recording selected modules, source kit revision, dependency closure, and exported file hashes where useful.
+- Generated projects must install, build, and run outside the toolkit directory, without unpublished workspace references, absolute source paths, symlinks back to the kit, or access to the original checkout.
+- The project uses a local snapshot of selected code; it must not depend on automatic future changes to a moving toolkit branch.
+
+Existing project requirements:
+- Inspect the target framework and configuration and show the changes required before applying them.
+- Preserve its current behavior, instructions, dependencies, and user modifications.
+- Detect file, route, import alias, package-version, environment, and database naming conflicts.
+- Refuse unsupported automatic transformations with actionable manual integration instructions. Do not claim arbitrary-framework compatibility.
+- Clearly distinguish automatic supported adoption from manual portable-module use.
+- Never overwrite existing AGENTS.md or CLAUDE.md. Propose a small linked addition or a reviewable merge.
+- Re-running installation should avoid duplicate routes, dependencies, env entries, and files.
+- Show changed files and required checks; make the operation easy to review and revert.
+- Do not silently overwrite modified previously imported modules during an update. Explain how to compare with the recorded source revision.
+- Paths supplied to generation/adoption must be handled safely; a bad module manifest must not write outside the intended project.
+
+Do not require a hosted registry or private package publication to use either workflow.
+
+======================================================================
+6. CORE INFRASTRUCTURE TO IMPLEMENT
+======================================================================
+
+6.1 Web starter
+- Next.js/TypeScript application with a small coherent styling system.
+- Responsive shell, navigation, forms, basic accessible components, error boundaries, and route examples.
+- Server/client boundary discipline and environment validation that does not demand credentials for disabled modules.
+- Consistent API errors, request IDs, health/readiness checks with clear semantics, and useful development logging.
+- Tiny default example showing a real local transformation and optional AI processing.
+- No compulsory login wall, database, voice SDK, maps SDK, or Python service.
+
+6.2 Python backend starter
+- FastAPI, validated request/response models, health route, configuration, error handling, and concise logs.
+- Example contract-compatible call from the web starter.
+- Reproducible packaging, container build, and local dev instructions.
+- Appropriate async/concurrency handling for supported operations.
+- Separate API/worker responsibilities where jobs require durable processing; avoid blocking request handlers with heavy work.
+- Explicit CORS configuration and browser/server API URL distinctions.
+
+6.3 Shared contracts and runtime
+- Schemas for API errors, pagination where needed, job state/progress, document sources, citations, and representative results.
+- Shared normal, empty, and failure fixtures.
+- Narrow HTTP helpers with cancellation, timeouts, and retry policy.
+- Cache interfaces with bounded local implementations; explicit cache scope and invalidation.
+- Do not cache private data across users or silently retry non-idempotent actions.
+
+6.4 Supabase integration
+- Client/server setup, migrations, generated types, sample data, and reproducible local setup.
+- Optional sign-in/sign-out/session handling with a working basic route and an OAuth integration example.
+- Server-side authorization examples and row-level policies tested across distinct users.
+- Storage upload/download, signed access when appropriate, and clear file ownership.
+- Example CRUD workflow, loading/empty/error states, and clean migration stewardship.
+- Seed/reset for isolated demo/development data; destructive operations must identify the target and avoid production by default.
+- Explain where local Docker is needed and where hosted credentials can be used instead.
+
+6.5 Deployment
+- Web deployment configuration and runbook for Vercel.
+- Portable Python/worker container configuration and deployment checklist, with provider-specific details selected only when needed.
+- Environment matrix for local, preview, and production; callback URLs and frontend/backend connectivity.
+- Smoke checks, deployment commit identification, known-good version, and rollback instructions.
+- Separate documented setup from an actually tested deployment. Do not claim hosting plans, free allowances, or quotas without current verification.
+- Surface platform constraints affecting filesystem persistence, request duration, WebSockets, streaming, background work, and native binaries.
+
+6.6 Checks and CI
+- Formatting/linting, type checking, build checks, meaningful module tests, contract checks, catalog/docs validation, and selected browser smoke flows.
+- Ordinary CI uses local fixtures or local services and never spends on external APIs.
+- Optional live tests are separately invoked, clearly scoped, and report skipped prerequisites accurately.
+- Required checks correspond to the selected modules. Maintain a broader toolkit compatibility suite without forcing every user to run every capability.
+
+======================================================================
+7. FEATURE MODULES — IMPLEMENT ALL OF THESE CATEGORIES
+======================================================================
+
+Choose maintained packages and narrow interfaces. Prefer thin adapters over recreating existing SDKs. A module's live integration must have real request/response handling, not an empty interface plus a fake result.
+
+7.1 AI API utilities
+- At least OpenAI and Anthropic text-generation adapters, with capability-aware configuration.
+- Model names configurable and current documented examples selected at implementation time.
+- Structured output validation, streaming, timeout/cancellation, bounded retries/backoff, and explicit fallback policy.
+- Token/usage metadata, latency, and estimated cost when a configured dated price table is available; unknown cost must remain unknown.
+- Prompt templates with versioning, input validation, and tests for required variables.
+- Optional embeddings support for retrieval/recommendations.
+- A bounded tool-calling example with typed arguments, allowed tools, maximum iterations, and visible results.
+- Provider-specific capabilities may remain provider-specific. Do not force an inaccurate lowest-common-denominator abstraction.
+- Deterministic fake adapters for local tests, clearly marked as fixtures.
+- Keep keys and provider calls on the server unless an officially supported short-lived client credential flow is used.
+
+7.2 Document ingestion
+- Text/Markdown, PDF, DOCX, and CSV ingestion.
+- Preserve source IDs, filename, page/section/row references, and text offsets where available.
+- OCR fallback for scanned documents and images, isolated behind optional system/Python requirements.
+- Common normalized document representation.
+- Handle empty/corrupt documents, unsupported types, encoding issues, size limits, and meaningful errors.
+- Use ordinary text extraction when possible; do not OCR every PDF.
+- Include fixtures for a text PDF, scanned input, table-like data, and malformed input.
+- Document layout/table extraction limits honestly.
+
+7.3 Search and retrieval
+- Chunking that retains provenance, embeddings, similarity search, metadata filters, and deterministic lexical baseline.
+- Local small-corpus implementation and optional Supabase vector-backed implementation.
+- Stable document/chunk IDs, content hashes for incremental ingestion, and explicit embedding model/dimension compatibility.
+- Source-linked retrieval results and answer citations tied to actual retrieved passages.
+- Empty/no-relevant-evidence handling.
+- A small evaluation set and metrics for retrieval and citation validity.
+- Hybrid search or reranking as a documented optional enhancement if it materially improves the example.
+
+7.4 Structured extraction
+- Validated extraction of configurable fields such as entities, dates, requirements, clauses, and prices.
+- Missing/ambiguous values represented explicitly; do not fabricate confidence scores.
+- Evidence spans/source references and a frontend pattern for inspecting support.
+- Normalization rules, schema validation, and relevant invalid-output behavior.
+- Sample extraction schemas and a review/edit flow.
+
+7.5 Web research
+- Search-provider adapter, URL normalization/deduplication, HTML content extraction, caching, and source/date tracking.
+- Preserve original URL, retrieval time, and publication date when actually available.
+- Timeouts, result limits, and readable failure handling.
+- Restrict server-side fetching to intended HTTP(S) destinations; handle redirects and private-network destinations appropriately.
+- Local HTML/search fixtures so development does not need paid search.
+- One real search integration and a generic adapter pattern, with current setup and usage notes.
+
+7.6 Recommendations and group decisions
+- Preference schema, candidate filtering, weighted scoring, optional embedding similarity, and explanations tied to actual scoring inputs.
+- Group aggregation, voting, deterministic tie handling, and explicit hard constraints versus soft preferences.
+- Cold-start, empty candidate pool, and conflicting preference examples.
+- Small local dataset and evaluation/sanity checks.
+- Configurable generic domain; no dependence on one university's dining system.
+
+7.7 Voice
+- Browser microphone recording with clear start/stop and permission/error states.
+- Transcription adapter, TTS adapter, audio playback, and simple turn-based conversation state.
+- Cancellation and cleanup of media resources.
+- Sample audio/transcript fixtures for local development.
+- Streaming transcription/TTS where supported by the selected provider.
+- Clearly distinguish live streaming, recorded-file transcription, and prerecorded sample playback.
+- Include an extension recipe for a realtime voice loop without requiring it for the base starter.
+
+7.8 Image and video input
+- Camera/upload interface, image preprocessing/resizing, and a vision API adapter.
+- Video frame sampling with timestamps and explicit resource limits.
+- Overlay/display of structured detection or analysis results.
+- Optional native/video dependencies isolated from ordinary web setup.
+- Permission denied, unsupported media, and oversized file cases.
+
+7.9 Maps and location
+- Map display, markers, GeoJSON support, geocoding adapter, distance calculations, location filters, and route display.
+- Distinguish approximate straight-line distance from actual travel routing.
+- Local example locations/routes and a real provider-backed geocoding/routing path.
+- Attribution, provider configuration, and usage limitations documented.
+- Offline/fixture behavior must not claim to have fetched live maps or routes.
+
+7.10 Realtime collaboration
+- Room membership, presence, shared votes/results, and subscription cleanup.
+- A working local realtime path and optional Supabase-backed adapter where appropriate.
+- Reconnect behavior, duplicate event handling, room isolation, and documented persistence semantics.
+- Two-client example and an integration check.
+- Identify what requires an always-running server or external realtime service.
+
+7.11 Background jobs
+- Start/status/result/cancel interface, progress events, bounded retries, and explicit states.
+- Real local worker path and a documented deployable durable option.
+- Idempotency and failure handling for repeated requests.
+- Local in-memory mode clearly labeled as non-durable; do not deploy it as reliable serverless background processing.
+- One demonstrable long operation, such as document ingestion or media analysis.
+
+7.12 External integrations
+- Working narrow examples for email, calendar, messaging, and inbound webhooks.
+- Implement one sensible provider per category; avoid superficial support for dozens of services.
+- Email: compose/send interface, local delivery sink, and real sending adapter.
+- Calendar: read/create event interface, OAuth setup example, time zone handling, and local fixtures.
+- Messaging: a simple notification/posting adapter and local sink.
+- Webhooks: signature verification where provided, replay/duplicate handling, and normalized payload example.
+- Real outbound actions require explicit application/user intent; tests route to local sinks by default.
+- Document scopes, redirect URLs, token storage/refresh where applicable, test-account setup, and webhook development.
+- Include a sponsor API adapter template and checklist, without assuming future hackathon sponsors.
+
+7.13 Exports and sharing
+- CSV export, PDF report generation, QR code generation, and shareable result pages.
+- Source citations and key metadata retained in reports.
+- CSV formula-injection handling for untrusted values.
+- Private versus deliberately shared results separated, with an example expiring/revocable link mechanism if using server persistence.
+- Real downloadable example files and rendering checks for generated PDF content.
+
+7.14 Analytics and optimization
+- CSV/data cleaning and summary statistics with missing-value handling.
+- Configurable scoring, categorical/time-series charts, and before/after comparison.
+- At least one small real constraints-based optimization example, such as scheduling or allocation, with explicit infeasible-case handling.
+- A scenario/what-if interface using the same underlying calculation.
+- Explain units, assumptions, and interpretation; synthetic sample data must be labeled.
+
+======================================================================
+8. REUSABLE UI AND EXAMPLES
+======================================================================
+
+Implement a cohesive, accessible component/pattern collection:
+- File upload with validation, progress, preview, cancellation, and retry.
+- Streaming chat with source citations and optional suggested actions.
+- Results table with sort, filter, pagination where relevant, and export.
+- Document/source viewer with supported evidence highlighting.
+- Dashboard cards and a small useful set of chart patterns.
+- Before/after comparison.
+- Editable AI-generated result with validation and save/cancel behavior.
+- Loading skeletons, empty states, meaningful errors, and recovery actions.
+- Camera/microphone controls and permission states.
+- Job progress/status.
+- Room/voting UI.
+- Map/results layout.
+
+Provide a local gallery or equivalent preview surface showing real examples and all important states. Keep its development-only controls separate from exported product interfaces. Do not make the gallery itself an external production dependency.
+
+Use a simple configurable design-token/theme layer. Avoid hard-coded event branding and avoid imposing a single generic dashboard on every generated app. Client components must not accidentally import server SDKs, secrets, or heavy Python/native dependencies.
+
+Build at least these integrated reference compositions:
+1. Document workbench: upload -> normalize -> retrieve/extract -> inspect sources -> edit result -> export.
+2. Group decision app: preferences -> filter/rank -> votes -> shared results.
+3. Media assistant: audio/image input -> processing -> result/playback, with job status where relevant.
+
+Each reference composition has:
+- A working credential-free fixture/local mode.
+- A documented path to the real configured adapters.
+- Clear labels distinguishing sample, cached/replayed, and live results.
+- Sample inputs and expected behavior.
+- Failure and empty states.
+- A short README, exact launch instructions, and representative smoke checks.
+
+These examples compose canonical modules; they must not become duplicate implementations that drift independently.
+
+======================================================================
+9. SUPPORTING TOOLS WORTH INCLUDING
+======================================================================
+
+9.1 Doctor
+- Check runtime/package versions, selected module prerequisites, missing env-variable names, local service reachability, port conflicts, and schema/config mismatches where feasible.
+- Default checks should be local and read-only. Live provider probes require an explicit flag and must disclose whether they may incur usage.
+- Print actionable fixes and never print secret values.
+
+9.2 Local API playground
+- Exercise module endpoints/adapters using documented example payloads.
+- Show status, validated response, errors, and timing.
+- Support fixture mode and explicitly enabled live mode.
+- Bind locally by default. Do not generate an unauthenticated public dashboard exposing credentials or private requests.
+- Reuse schemas/fixtures; do not maintain a second incompatible API description.
+
+9.3 Record/replay
+- Opt-in recording of sanitized development requests/responses for deterministic replay.
+- Redact credentials, cookies, authorization headers, and sensitive fields by default.
+- Include fixture provenance and timestamps.
+- Never silently switch a failing live request into an apparently live replay.
+- Do not store raw user uploads or transcripts automatically.
+
+9.4 Evaluation runner
+- Run a small dataset through selected implementations/prompts.
+- Record configuration, dataset version, model/provider, correctness metrics appropriate to the task, latency, usage, and known/unknown estimated cost.
+- Local deterministic examples work without keys.
+- External runs opt-in with bounded case counts/concurrency and an explicit spending/usage policy.
+- Generate machine-readable results and a concise readable report.
+- Treat LLM-as-judge results as estimates, not ground truth; prefer deterministic checks when possible.
+
+9.5 Demo reset
+- Restore known sample state, clear isolated caches, and reset demo records.
+- Identify the exact target before destructive operations.
+- Restrict default behavior to local/demo state.
+- Provide safe idempotent fixtures and a clear success/failure report.
+
+Keep these tools focused. No need for a hosted developer control plane, elaborate observability platform, automatic agent scheduler, or new universal plugin framework.
+
+======================================================================
+10. DOCUMENTS AND TEMPLATES — REQUIRED CONTENT
+======================================================================
+
+Write substantive, concise docs with real paths and working commands. Empty headings are not deliverables. Templates should contain useful guidance, required fields, and a small completed example when it clarifies use.
+
+Repository navigation and architecture:
+- Root README and agent entry points.
+- Repo map, module discovery guide, catalog schema, and task-to-module map.
+- New-project guide and selective existing-project adoption guide.
+- Architecture boundaries and dependency directions.
+- Public contracts and error conventions.
+- Environment/configuration guide.
+- Tested platform/runtime compatibility matrix.
+- Module authoring guide and module README/manifest template.
+- ADR template and recorded major kit decisions.
+- Updating/vendoring guide, provenance, and third-party attribution.
+- Troubleshooting with actual likely failures and fixes.
+- Maintenance checklist: stale dependencies, SDK changes, broken links, example health, and integration re-verification.
+
+Project planning:
+- PROJECT_BRIEF.md: user, problem, evidence, core workflow, distinctive capability, rubric, constraints, non-goals, success criteria.
+- IDEA_AND_TRACK_SCORECARD.md: novelty, user value, technical credibility, demo clarity, sponsor fit, execution risk, and explicitly uncertain competition estimates.
+- ARCHITECTURE.md: selected modules, data flow, contracts, persistence, external services, and deploy path.
+- MODULE_SELECTION.md: requirement -> chosen capability -> reason -> setup -> known limitation.
+- EXECUTION_PLAN.md: milestones, dependencies, progress, decisions, surprises, checks, and next action.
+- TASK_BOARD.md and individual TASK_CARD.md template.
+- OWNERSHIP.md: lanes, actual file globs, shared-file stewards, and merge coordination.
+- API_CONTRACT.md: schemas, units, required/optional values, errors, empty cases, streaming, persistence, and fixtures.
+- INTEGRATION_NOTES.md: what was connected, credentials/scopes by name only, setup, limits, and verification.
+- DECISION_LOG.md and HANDOFF.md.
+- RISK_AND_CUT_LIST.md: likely failure, early validation, scope to cut, and owner.
+
+Building and shipping:
+- QUICKSTART.md generated for the chosen project.
+- DEVELOPMENT_PLAYBOOK.md and COLLABORATION.md adapted from section 11.
+- GIT_WORKFLOW.md: clones/worktrees, branches, queue, current-main checks, recovery, and tool handoffs.
+- TEST_PLAN.md and ACCEPTANCE.md: observed behavior, exact commands, actual results, skipped checks, and deployment status.
+- DEPLOYMENT_RUNBOOK.md: environment setup, dependencies, callbacks, smoke test, known-good revision, and rollback.
+- DEMO_RUNBOOK.md: exact judge path, sample inputs, reset, live/replay labels, and backup.
+- Adaptable two-minute and three-minute PITCH.md templates.
+- JUDGE_QA.md: credible answers about technical novelty, actual implementation, evaluation, limitations, and next steps.
+- SUBMISSION.md: problem, solution, technical work, stack, sponsor usage, event-period contributions, AI/tool credits, links, and requirements.
+- EVALUATION_REPORT.md: representative cases, baseline, metrics, latency, cost assumptions, failures, and uncertainty.
+- POST_EVENT_REVIEW.md: integration friction, waiting, failures, useful reusable pieces, and improvements.
+
+Reusable resources:
+- Curated dataset/API catalog with official links, access method, licensing/use conditions, authentication requirements, cost notes, last checked date, and intended use.
+- Verified integration notes for implemented providers, kept distinct from unverified candidates.
+- Small redistributable sample datasets/fixtures with provenance. Do not indiscriminately download large datasets or bundle restricted data.
+
+Reusable agent prompts:
+- Turn a rubric into a scoped build plan.
+- Select appropriate kit modules and produce an integration plan.
+- Bootstrap a new project from selected modules.
+- Adopt a module into an existing codebase while preserving behavior.
+- Implement one bounded task against a contract.
+- Build frontend from shared fixtures while backend work proceeds.
+- Review a specific commit/diff and report evidence.
+- Debug a failing integration boundary.
+- Evaluate AI output against representative cases.
+- Verify the actual deployed judge flow.
+- Draft the submission from implemented, verified capabilities.
+- Resume from a handoff after a context reset.
+- Switch a task between Codex and Claude Code safely.
+
+Prompts must reference the relevant project files and acceptance checks. They should not contain exaggerated claims, arbitrary agent-count targets, or instructions to ignore repository rules.
+
+======================================================================
+11. SOURCE PLAYBOOK SUMMARY AND REQUIRED ADAPTATION
+======================================================================
+
+The supplied Hackathon Development Playbook describes three developers using Codex, Claude Code, or both. Its central objective is an ambitious, working, deployed demo with little waiting and manageable integration. Zero conflicts are not promised. Humans own product decisions, interfaces, acceptance, and integration; agents implement bounded tasks.
+
+Preserve these principles:
+
+A. Ownership and concurrency
+- Three typical lanes: Product/UX; Platform/API; Core capability/AI/algorithms/evaluation.
+- One accountable human per task and one active writer per file or explicitly assigned file set.
+- One separate branch and checkout per concurrent writing session. Each developer uses a separate clone; within a clone, use worktrees for independent sessions.
+- Contracts, dependency manifests/lockfiles, root layout/styles, env examples, database migrations, and deployment config have named shared-file stewards.
+- A claim is recorded and released after integration. An announcement alone is not an enforceable lock.
+- Start with roughly one writer per developer; expand only when tasks are independent and review capacity exists. Three to six writers is an example, not a goal or a tool limit.
+- Read-only review/research may run alongside implementation. A reviewer who starts editing becomes a writer and needs a scope.
+- Worktrees do not isolate external databases, ports, credentials, deployments, or all caches. Assign distinct local resources and isolate demo data as needed.
+
+B. Task board and task cards
+- Board states: Planned, Ready, Running, Review, Queued, Merged, Verified, Blocked.
+- A Ready task has enough stable inputs to implement independently. Keep a small queue of Ready work for each developer.
+- Task cards record ID/title, human owner, agent/session, branch/checkout, base commit, dependencies, allowed and reserved paths, read-first files, observable outcome, acceptance, exact checks, non-goals, handoff, and merge/deploy authority.
+- Plan roughly 20–60 minute tasks when useful, but split by coherent outcomes and reviewability, not arbitrary time or file counts.
+- Blocked agents report the precise dependency and continue independent in-scope work.
+
+C. Contracts and fixtures
+- Agree on inputs, outputs, errors, units, required/optional fields, empty results, streaming, and persistence before parallel implementation.
+- Include normal and failure/empty fixtures shared by frontend and backend.
+- Validate relevant runtime boundaries.
+- Coordinate interface changes through the steward; pause affected work for breaking changes while unrelated work continues.
+- Clearly label mocks and integrate a real end-to-end result early.
+
+D. Agent behavior
+- Read applicable instructions, task card, contracts, fixtures, and source.
+- Confirm checkout, branch, base commit, existing changes, and allowed paths.
+- Preserve existing functionality and unrelated work.
+- Do not silently alter shared dependencies, schemas, routes, or global configuration.
+- Request the specific needed shared-file change through the owner.
+- Check normal behavior and relevant failures; report commands and actual results.
+- Keep secrets out of logs/commits and label synthetic/cached behavior.
+- Commit only task work. Push/merge/deploy according to recorded authority.
+- Handoff includes task/status, branch/commit, changed files, delivered behavior, checks, contract/env changes, limits, and next action.
+
+E. Integration
+- One ordered merge queue, with a coordinator who may rotate.
+- Review scope and behavior, update against current main in a clean checkout, and validate the combined candidate.
+- Never rebase or alter a checkout another session is actively writing.
+- After resolving conflicts or updating main, rerun affected checks.
+- Distinguish Merged from Verified; verify the core flow on the resulting main and deployment.
+- Keep integrations small and continuous.
+- If the core path breaks, pause dependent merges, repair or revert, verify recovery, and resume. Do not rewrite shared history to conceal failures.
+- Commit count and number of active agents are not productivity metrics.
+
+F. Hackathon schedule
+- 0–1 hour: demo, differentiator, contracts, ownership, deployed skeleton.
+- 1–4 hours: real end-to-end core path.
+- 4–8 hours: deployed evidence of the distinctive capability.
+- 8–16 hours: improve technical quality and product value.
+- 16–18 hours: cut weak features and converge on the demo.
+- 18–22 hours: architecture freeze, polish, reliability, evaluation.
+- 22–24 hours: feature freeze, rehearsal, backup, final verification, submission with buffer.
+- Brief demo checkpoints about every 60–90 minutes; scale to the actual event deadline.
+- Keep a known-good deployed revision and a backup recording when permitted.
+- Never present prerecorded, simulated, or manually prepared output as a live result.
+- Validate the final judge path from a fresh session and verify submission status.
+
+G. Mixed coding tools
+- Codex and Claude Code share contracts, task board, checks, queue, and handoff.
+- Keep shared rules in AGENTS.md and provide a compatible CLAUDE.md import.
+- Do not require a custom cross-tool orchestration system.
+- Stop the first writer before changing tools. Preserve a checkpoint and handoff; the next tool reads current diff and state.
+- Different tools agreeing is not a substitute for behavioral checks.
+
+Adaptation requirements:
+1. Preserve the source as a reference document if available, but put actionable current guidance in canonical repo docs.
+2. Replace illustrative old paths and commands with actual implemented paths and verified commands.
+3. Add a "Using the kit at kickoff" workflow: inspect event requirements; define judge path; search catalog; select minimal modules; inspect contracts/fixtures; generate/adopt; configure env; run doctor/checks; assign ownership; deploy the skeleton.
+4. Add "Extending a prebuilt module" guidance: reuse its contract, claim scoped files, coordinate shared changes, run its local and consumer checks, and record source revision/customizations.
+5. Add "Building with both frontend and backend agents" guidance using the kit's shared fixtures and actual contracts.
+6. Add "Before merging" guidance covering generated output, module manifest, catalog, docs, and affected downstream examples.
+7. Add "After the event" guidance for promoting useful project code back into reusable modules with provenance and tests.
+8. Clearly separate these event timelines from the longer effort of building this toolkit. The toolkit build is not subject to a fabricated 24-hour deadline.
+9. Keep collaboration rules consistent across README, AGENTS.md, CLAUDE.md, templates, task cards, and playbooks.
+10. Treat ownership records as coordination state, not an atomic distributed lock. Use a single authoritative live board/claim process; stale copies in separate branches cannot establish exclusive ownership.
+
+======================================================================
+12. PRACTICAL QUALITY AND MAINTENANCE RULES
+======================================================================
+
+- Prefer working complete capability slices over many shallow scaffolds.
+- Keep shared abstractions small and justified by actual consumers.
+- No circular dependencies, hidden global state, or mandatory heavyweight services for basic features.
+- Organize code by capability with clear server/browser/Python boundaries.
+- Keep public APIs typed and documented, comments concise, and error behavior useful.
+- Preserve user functionality when adding modules to existing projects.
+- Make fixture/live switching explicit in development, examples, and fallback demos.
+- Do not conflate a paid coding-assistant subscription with application API credentials or usage.
+- Keep external provider/model choices configurable and document tested combinations.
+- Avoid speculative support claims, unverified performance claims, and stale price/free-tier claims.
+- Generated docs and indexes must be reproducible and validated against source.
+- Include only necessary runtime dependencies in generated apps.
+- Reuse established packages rather than writing custom auth, cryptography, PDF renderers, or distributed infrastructure.
+- Keep server credentials private, validate untrusted uploads/inputs, and implement the security behavior directly relevant to each module.
+- Do not store real credentials, private documents, or personal recordings in fixtures.
+- Keep third-party notices. Ask the owner about the license for their original kit code before selecting a public release license; record the question without blocking independent development.
+- Include a short reuse/attribution guide for hackathons. Rules vary; public availability alone does not guarantee that prebuilt project work is eligible.
+- Prefer measurable setup/build/example checks over arbitrary coverage or commit-count targets.
+
+======================================================================
+13. BUILD SEQUENCE AND CONTINUITY
+======================================================================
+
+Build in dependency order and keep a usable main branch:
+
+Milestone 1: navigation, requirements map, manifests/catalog schemas, architecture decisions, collaboration docs, and minimal working starter.
+
+Milestone 2: contracts/runtime, project creation/adoption, env handling, core AI/Supabase/Python/deployment integrations, and one actual exported end-to-end slice.
+
+Milestone 3: all requested capability modules and UI patterns, with per-module examples, fixtures, tests, and setup.
+
+Milestone 4: integrated reference compositions, supporting tools, completed document/prompt templates, and tailored playbooks.
+
+Milestone 5: clean-room export/adoption tests, cross-module/browser checks, documentation/catalog audit, final requirement traceability, and honest verification report.
+
+These are checkpoints, not permission gates or excuses to leave the later requirements as a roadmap. Continue through the whole requested scope when the environment permits.
+
+Before long implementation runs, keep PLAN.md and STATUS.md sufficient for a fresh agent to resume: completed work, current branch/commit, remaining tasks, active ownership, decisions, actual failures, and exact next commands. Checkpoint at sensible boundaries. A context reset must not cause a redesign or restart.
+
+If credentials, network access, native tools, or runtime limits block a specific verification, finish other work and report the precise limitation. Do not replace an unavailable live test with a fabricated pass. Do not present a partial build as complete.
+
+======================================================================
+14. ACCEPTANCE TESTS AND COMPLETION CRITERIA
+======================================================================
+
+Verify behavior rather than merely checking that files exist.
+
+A. Cold start
+- From a fresh checkout, follow only the root README.
+- Install reproducibly and run the default example without keys, Docker, or Python.
+- Confirm disabled paid modules do not fail environment validation or initiate requests.
+
+B. New-project independence
+- Generate a web-only app, a document composition with optional Python, and another representative multi-module app.
+- Place each outside the toolkit workspace and install/build/run independently.
+- Check that only selected modules/dependencies are included and all imports/assets/docs resolve.
+- Ensure generated instructions reference real included paths and commands.
+
+C. Existing-project adoption
+- Add a module to a small existing app that already has a working route, dependencies, configuration, and agent instructions.
+- Demonstrate dry-run, conflict detection, successful supported adoption, and unchanged original behavior.
+- Re-run and confirm idempotence.
+- Verify a conflicting or unsupported target receives actionable instructions rather than destructive edits.
+
+D. Module correctness
+- Exercise normal input, an important failure, and meaningful empty/edge behavior for every capability.
+- Test contract agreement across Python/TypeScript where used.
+- Verify actual source citations and document provenance.
+- Verify relevant auth/data isolation, webhook validation, job state transitions, retries/cancellation, and streaming parsing.
+- Keep tests proportional; avoid tests that merely reproduce the implementation or assert constant strings.
+
+E. Composition and UI
+- Exercise the three reference compositions in credential-free mode.
+- Run selected browser checks for upload/results, evidence viewing, loading/error/retry, group voting, and media permission behavior where the environment allows.
+- Clearly report any browser/hardware behavior that could not be tested.
+
+F. Documentation and discoverability
+- Validate every catalog entry and internal documentation link.
+- Verify commands against real package scripts/CLIs.
+- Check that generated docs do not point to omitted kit files.
+- Conduct a fresh-context discovery exercise: starting only with README/AGENTS/catalog, identify and integrate the minimal modules for a stated task.
+- A read-only reviewer/subagent is useful here if available; otherwise perform a recorded constrained walkthrough.
+- Ensure each requirement is linked to source, docs, example, and evidence in REQUIREMENTS.md.
+
+G. Live integration accuracy
+- Identify which adapters were tested against actual services, which were tested only with local contract fixtures, and which checks were skipped for lack of prerequisites.
+- Real provider tests are not required to spend money without operator authorization.
+- A missing key is a verification limitation, not permission to leave adapter logic unimplemented.
+- Deployment runbooks/configuration may be complete while hosted deployment remains unverified; label that precisely.
+
+H. Final repository state
+- No fake success responses, nonfunctional required entry points, unexplained required TODOs, or empty mandatory modules.
+- Generated catalogs are current.
+- Dependencies/lockfiles and CI are consistent.
+- All requested documents have usable content.
+- Scope changes and unavoidable gaps are explicit.
+- The kit can be understood and used without this conversation.
+
+======================================================================
+15. FINAL HANDOFF TO THE OPERATOR
+======================================================================
+
+When implementation is finished, provide:
+1. What is implemented, grouped by capability.
+2. Exact commands to install, run the default example, create a new project, and adopt a module.
+3. Where a new human or agent should start.
+4. The actual repository map and module catalog links.
+5. Verification results with commands and scope, including generation/adoption results.
+6. A separate list of live-service/deployment checks not run.
+7. Major decisions, known limitations, and any decisions still requiring the owner.
+8. Final commit/branch when available and any remaining operational setup.
+
+Keep the chat handoff concise; put detailed evidence in docs/implementation/VERIFICATION.md. Do not merely say "all tests pass" or "production ready."
+
+Official references to verify as needed during implementation:
+- Codex agent instructions: https://learn.chatgpt.com/docs/agent-configuration/agents-md
+- Claude Code memory/imports: https://code.claude.com/docs/en/memory
+- Durable execution-plan guidance: https://developers.openai.com/cookbook/articles/codex_exec_plans
+- Supabase local development: https://supabase.com/docs/guides/local-development/cli-workflows
+- Vercel deployment environments: https://vercel.com/docs/deployments/environments
+
+Begin by inspecting the repository, reading the source playbook, establishing the plan and shared contracts, and then implementing the kit through these milestones.
+

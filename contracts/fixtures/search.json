@@ -1,0 +1,138 @@
+{
+  "mode": "synthetic",
+  "cases": [
+    {
+      "id": "stronger_evidence_beats_nearer_keyword",
+      "query": {"service": "trauma_care", "latitude": 26.45, "longitude": 74.64},
+      "facilities": [
+        {
+          "facility_id": "demo-near",
+          "vf_row_id": "demo-row-1",
+          "name": "Example Road Hospital",
+          "city": "Ajmer",
+          "district": "Ajmer",
+          "state": "Rajasthan",
+          "latitude": 26.468,
+          "longitude": 74.64,
+          "campus_status": "unverified",
+          "evidence": [
+            {
+              "evidence_id": "demo-vf-1",
+              "facility_id": "demo-near",
+              "service": "trauma_care",
+              "source_kind": "virtue_foundation",
+              "source_name": "Synthetic facility record",
+              "source_url": null,
+              "source_ref": "demo-row-1:description",
+              "excerpt": "Emergency department available. Trauma cases are referred to a specialist center.",
+              "source_date": null,
+              "observed_on": "2026-11-21",
+              "signal": "weak"
+            }
+          ]
+        },
+        {
+          "facility_id": "demo-far",
+          "vf_row_id": "demo-row-2",
+          "name": "Example District Trauma Centre",
+          "city": "Ajmer",
+          "district": "Ajmer",
+          "state": "Rajasthan",
+          "latitude": 26.55,
+          "longitude": 74.64,
+          "campus_status": "matched",
+          "evidence": [
+            {
+              "evidence_id": "demo-vf-2",
+              "facility_id": "demo-far",
+              "service": "trauma_care",
+              "source_kind": "virtue_foundation",
+              "source_name": "Synthetic facility record",
+              "source_url": null,
+              "source_ref": "demo-row-2:description",
+              "excerpt": "The district campus operates a trauma unit for road injuries.",
+              "source_date": null,
+              "observed_on": "2026-11-21",
+              "signal": "explicit"
+            },
+            {
+              "evidence_id": "demo-ext-2",
+              "facility_id": "demo-far",
+              "service": "trauma_care",
+              "source_kind": "external",
+              "source_name": "Synthetic district directory",
+              "source_url": "https://example.invalid/trauma-directory",
+              "source_ref": "entry-2",
+              "excerpt": "Example District Trauma Centre, Ajmer district campus, trauma unit.",
+              "source_date": "2025-08-01",
+              "observed_on": "2026-11-21",
+              "signal": "explicit"
+            }
+          ]
+        }
+      ],
+      "expected_baseline_top_id": "demo-near",
+      "expected": {
+        "status": "ok",
+        "reason_codes": ["weak_service_evidence"],
+        "results": [
+          {
+            "rank": 1,
+            "facility_id": "demo-far",
+            "name": "Example District Trauma Centre",
+            "distance_km": 11.1,
+            "evidence_tier": "corroborated",
+            "availability": "unknown",
+            "directions_allowed": true,
+            "evidence_ids": ["demo-vf-2", "demo-ext-2"]
+          }
+        ]
+      }
+    },
+    {
+      "id": "conflicting_campus_requires_review",
+      "query": {"service": "trauma_care", "latitude": 26.45, "longitude": 74.64},
+      "facilities": [
+        {
+          "facility_id": "demo-conflict",
+          "vf_row_id": "demo-row-3",
+          "name": "Example Hospital Annex",
+          "city": "Ajmer",
+          "district": "Ajmer",
+          "state": "Rajasthan",
+          "latitude": 26.47,
+          "longitude": 74.64,
+          "campus_status": "conflict",
+          "evidence": [
+            {
+              "evidence_id": "demo-vf-3",
+              "facility_id": "demo-conflict",
+              "service": "trauma_care",
+              "source_kind": "virtue_foundation",
+              "source_name": "Synthetic facility record",
+              "source_url": null,
+              "source_ref": "demo-row-3:description",
+              "excerpt": "The trauma unit is listed at the main campus.",
+              "source_date": null,
+              "observed_on": "2026-11-21",
+              "signal": "explicit"
+            }
+          ]
+        }
+      ],
+      "expected": {"status": "needs_review", "reason_codes": ["campus_conflict"], "results": []}
+    },
+    {
+      "id": "no_candidate_within_radius",
+      "query": {"service": "trauma_care", "latitude": 26.45, "longitude": 74.64},
+      "facilities": [],
+      "expected": {"status": "no_match", "reason_codes": ["no_candidates_in_radius"], "results": []}
+    },
+    {
+      "id": "invalid_coordinates",
+      "query": {"service": "trauma_care", "latitude": 100, "longitude": 74.64},
+      "facilities": [],
+      "expected": {"status": "invalid_input", "reason_codes": ["invalid_location"], "results": []}
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "provenance": "Synthetic original fixture; MIT",
+  "email": {
+    "from": "demo@example.test",
+    "to": [
+      "judge@example.test"
+    ],
+    "subject": "Demo ready",
+    "text": "Local fixture only"
+  },
+  "event": {
+    "summary": "Demo rehearsal",
+    "start": "2026-10-09T10:00:00-04:00",
+    "end": "2026-10-09T10:30:00-04:00",
+    "timeZone": "America/New_York"
+  },
+  "webhook": {
+    "type": "event_callback",
+    "event_id": "fixture-event-1",
+    "event": {
+      "type": "message",
+      "text": "synthetic"
+    }
+  },
+  "calendarResponse": {
+    "timeZone": "America/New_York",
+    "items": [
+      {
+        "id": "timezone-fixture",
+        "summary": "Demo rehearsal",
+        "start": {
+          "dateTime": "2026-10-09T10:00:00-04:00"
+        },
+        "end": {
+          "dateTime": "2026-10-09T10:30:00-04:00"
+        }
+      }
+    ]
+  }
+}

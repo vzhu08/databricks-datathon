@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "id": "voice",
+  "title": "Voice input and output",
+  "description": "Browser recording, turn state, recorded transcription and speech streaming.",
+  "tags": ["audio", "speech", "microphone"],
+  "useCases": ["Browser recording, turn state, recorded transcription and speech streaming."],
+  "runtime": "mixed",
+  "environments": ["Node.js 22+", "modern browser"],
+  "source": "modules/voice/src",
+  "entrypoints": {
+    "core": "modules/voice/src/index.ts",
+    "browser": "modules/voice/src/components.tsx",
+    "capture": "modules/voice/src/browser.ts",
+    "server": "modules/voice/src/server.ts"
+  },
+  "exports": ["modules/voice"],
+  "minimalRead": [
+    "modules/voice/README.md",
+    "modules/voice/src/index.ts",
+    "modules/voice/fixtures/transcript.json"
+  ],
+  "dependencies": [],
+  "packages": {
+    "zod": "4.6.5",
+    "react": "19.3.0"
+  },
+  "optionalIntegrations": ["OpenAI"],
+  "env": [
+    {
+      "name": "OPENAI_API_KEY",
+      "required": true,
+      "secret": true,
+      "when": "live",
+      "description": "Server-only provider configuration; required only for the relevant live adapter."
+    },
+    {
+      "name": "OPENAI_TRANSCRIBE_MODEL",
+      "required": true,
+      "secret": false,
+      "when": "live",
+      "description": "Server-only provider configuration; required only for the relevant live adapter."
+    },
+    {
+      "name": "OPENAI_TTS_MODEL",
+      "required": true,
+      "secret": false,
+      "when": "live",
+      "description": "Server-only provider configuration; required only for the relevant live adapter."
+    }
+  ],
+  "systemRequirements": ["Node.js 22+", "HTTPS or localhost and browser media support"],
+  "integration": {
+    "steps": [
+      "Read the README and run the local example first.",
+      "Preserve module/shared package layout and install the listed dependencies.",
+      "Use server adapters only from authenticated bounded handlers; never expose provider keys in browser bundles."
+    ],
+    "routes": [],
+    "migrations": [],
+    "assets": []
+  },
+  "contracts": ["modules/voice/src/index.ts"],
+  "examples": ["modules/voice/examples/demo.ts", "modules/voice/examples/live.ts"],
+  "fixtures": [
+    "modules/voice/fixtures/silence.json",
+    "modules/voice/fixtures/tone.wav",
+    "modules/voice/fixtures/transcript.json"
+  ],
+  "checks": [
+    "node --import tsx modules/voice/examples/demo.ts",
+    "npx vitest run modules/voice/tests"
+  ],
+  "modes": {
+    "local": "Credential-free deterministic code and labeled synthetic fixtures.",
+    "live": "Configured provider adapters; never automatic fixture fallback."
+  },
+  "verification": {
+    "implementation": "implemented",
+    "local": "9 local tests passed; scoped checkout typecheck, ESLint and credential-free example passed (35 combined experience tests).",
+    "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+    "live": "not run \u2014 requires operator test credentials and authorization",
+    "record": "modules/voice/README.md"
+  },
+  "limitations": [
+    "Turn-based recorded-file path; continuous microphone transcription is an extension recipe.",
+    "Microphone requires HTTPS/localhost and permission; hardware not exercised by unit tests."
+  ],
+  "cost": "Local mode has no API charges. Provider requests incur account-specific usage; no live calls performed.",
+  "docs": [
+    "https://developers.openai.com/api/docs/guides/speech-to-text",
+    "https://developers.openai.com/api/docs/guides/text-to-speech",
+    "https://developers.openai.com/api/docs/guides/realtime-transcription"
+  ],
+  "license": "MIT",
+  "provenance": "Original kit implementation and authored synthetic fixtures. Provider docs cited in README; provider terms apply to live data."
+}

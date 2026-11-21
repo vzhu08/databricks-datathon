@@ -1,0 +1,13 @@
+{
+  "provenance": "Synthetic original fixture; MIT",
+  "room": "demo",
+  "members": [
+    "alice",
+    "bob"
+  ],
+  "votes": {
+    "alice": "pizza",
+    "bob": "sushi"
+  },
+  "revision": 3
+}

@@ -1,0 +1,6 @@
+{
+  "name": "@hackathon-kit/runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module"
+}

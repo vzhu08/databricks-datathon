@@ -1,0 +1,54 @@
+{
+  "provenance": "Original invented venues and schematic path, arbitrary coordinates; MIT",
+  "mode": "fixture",
+  "locations": [
+    {
+      "id": "library",
+      "name": "Sample library",
+      "coordinate": [
+        -73.9855,
+        40.7535
+      ]
+    },
+    {
+      "id": "garden",
+      "name": "Sample garden",
+      "coordinate": [
+        -73.983,
+        40.757
+      ]
+    },
+    {
+      "id": "hall",
+      "name": "Sample event hall",
+      "coordinate": [
+        -73.9805,
+        40.7525
+      ]
+    }
+  ],
+  "route": {
+    "mode": "fixture",
+    "geometry": {
+      "type": "LineString",
+      "coordinates": [
+        [
+          -73.9855,
+          40.7535
+        ],
+        [
+          -73.9827,
+          40.7545
+        ],
+        [
+          -73.983,
+          40.757
+        ]
+      ]
+    },
+    "distanceMeters": 640,
+    "durationSeconds": 500,
+    "profile": "walking",
+    "attribution": "Synthetic schematic route; not navigation guidance or fetched map data"
+  }
+}

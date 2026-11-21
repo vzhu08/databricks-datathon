@@ -1,0 +1,13 @@
+# Deployment runbook
+
+**Configuration and local build are provided; no hosted deployment was performed by this build.** First generate a project and verify its exact Git revision. Review selected services, secrets, callback URLs and event budget before authorizing hosting.
+
+For web, import the generated project into Vercel or use an authorized CLI workflow from that project root. The generated vercel.json uses Next.js, npm ci and npm run build. Set the Node runtime compatible with the pinned packages. Use separate Local, Preview and Production configuration, and test with isolated preview data. See [Vercel environments](https://vercel.com/docs/deployments/environments). The initial deployment of a new project may be production: confirm target behavior in the current dashboard/CLI before running it.
+
+After explicit release authorization: identify team/project/environment/commit; configure only selected secrets; deploy; read build/runtime logs; GET /api/health and /api/ready; run the exact judge path in a fresh browser; record URL, SHA and result. Add authenticated readiness probes for enabled services. Do not infer dependency health from the default local-ready response.
+
+For Python/OCR and durable workers, build the supplied Dockerfile using the documented repository build context. Run API and workers as distinct services with bounded concurrency, health checks, explicit CORS and a persistent volume for SQLite. Choose a provider only after reviewing native binary, volume, memory and restart requirements. Do not store durable state in a function filesystem or rely on a request returning to keep a worker alive.
+
+Platform checks: [function limits](https://vercel.com/docs/functions/limitations) govern payloads, duration and package size; use direct object-storage upload for large files. SSE/streaming can run in Node. Vercel also documents [WebSocket support](https://vercel.com/docs/functions/websockets), but the bundled ws demo is a standalone server, not a verified Next upgrade integration; use its container or Supabase path. Native OCR is isolated in Python/container mode. No plan quota or free allowance is promised.
+
+Record a known-good deployment URL and Git SHA before replacing it. For a failed release, use the provider's rollback controls to that reviewed deployment, verify environment/schema compatibility, and rerun the judge path. A rollback of app code does not undo database migrations. For Vercel CLI, confirm current project then use `vercel rollback <known-good-deployment>` under release authority; document domain auto-assignment behavior before resuming promotion. Use additive migrations and backups rather than destructive resets.

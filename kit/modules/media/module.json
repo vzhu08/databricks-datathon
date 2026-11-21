@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "id": "media",
+  "title": "Image and video input",
+  "description": "Bounded camera/upload processing, timestamped frame sampling and structured vision.",
+  "tags": ["camera", "vision", "video"],
+  "useCases": [
+    "Bounded camera/upload processing, timestamped frame sampling and structured vision."
+  ],
+  "runtime": "mixed",
+  "environments": ["Node.js 22+", "modern browser"],
+  "source": "modules/media/src",
+  "entrypoints": {
+    "core": "modules/media/src/index.ts",
+    "browser": "modules/media/src/components.tsx",
+    "capture": "modules/media/src/browser.ts",
+    "server": "modules/media/src/server.ts"
+  },
+  "exports": ["modules/media"],
+  "minimalRead": [
+    "modules/media/README.md",
+    "modules/media/src/index.ts",
+    "modules/media/fixtures/analysis.json"
+  ],
+  "dependencies": [],
+  "packages": {
+    "zod": "4.6.5",
+    "react": "19.3.0"
+  },
+  "optionalIntegrations": ["OpenAI"],
+  "env": [
+    {
+      "name": "OPENAI_API_KEY",
+      "required": true,
+      "secret": true,
+      "when": "live",
+      "description": "Server-only provider configuration; required only for the relevant live adapter."
+    },
+    {
+      "name": "OPENAI_VISION_MODEL",
+      "required": true,
+      "secret": false,
+      "when": "live",
+      "description": "Server-only provider configuration; required only for the relevant live adapter."
+    }
+  ],
+  "systemRequirements": ["Node.js 22+", "HTTPS or localhost and browser media support"],
+  "integration": {
+    "steps": [
+      "Read the README and run the local example first.",
+      "Preserve module/shared package layout and install the listed dependencies.",
+      "Use server adapters only from authenticated bounded handlers; never expose provider keys in browser bundles."
+    ],
+    "routes": [],
+    "migrations": [],
+    "assets": []
+  },
+  "contracts": ["modules/media/src/index.ts"],
+  "examples": ["modules/media/examples/demo.ts", "modules/media/examples/live.ts"],
+  "fixtures": ["modules/media/fixtures/analysis.json", "modules/media/fixtures/shapes.svg"],
+  "checks": [
+    "node --import tsx modules/media/examples/demo.ts",
+    "npx vitest run modules/media/tests"
+  ],
+  "modes": {
+    "local": "Credential-free deterministic code and labeled synthetic fixtures.",
+    "live": "Configured provider adapters; never automatic fixture fallback."
+  },
+  "verification": {
+    "implementation": "implemented",
+    "local": "7 local tests passed; scoped checkout typecheck, ESLint and credential-free example passed (35 combined experience tests).",
+    "exported": "Passed 2026-10-09: standalone full recipe npm ci, types, module tests, build and local HTTP run; provider verification is separate.",
+    "live": "not run \u2014 requires operator test credentials and authorization",
+    "record": "modules/media/README.md"
+  },
+  "limitations": [
+    "JPEG/PNG/WebP <=8 MB; MP4/WebM <=50 MB and 120 seconds; <=12 sampled frames.",
+    "Vision boxes are approximate and confidence is uncalibrated; sampled frames can miss events."
+  ],
+  "cost": "Local mode has no API charges. Provider requests incur account-specific usage; no live calls performed.",
+  "docs": [
+    "https://developers.openai.com/api/docs/guides/images-vision",
+    "https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia"
+  ],
+  "license": "MIT",
+  "provenance": "Original kit implementation and authored synthetic fixtures. Provider docs cited in README; provider terms apply to live data."
+}
