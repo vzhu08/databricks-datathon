@@ -59,6 +59,44 @@ Outputs, all canonical JSON, byte-identical on rerun:
 - `geography_report.json`: coordinate flags, proposed corrections, coordinate clusters and postal context for base and external records.
 - `report.json`: denominators and counts. `manifest.json`: SHA-256 of every input and output.
 
+## Nationwide run (NAT-C01)
+
+```sh
+python -m research.matching.national --base <file> --external <batch> --output-dir <path>
+```
+
+This wraps the matching run for the full base and writes one output row for every original base row. It takes every argument of the matching run, plus:
+
+| Argument | Meaning |
+| --- | --- |
+| `--duplicate-groups` | D's duplicate-group sidecar. An array of groups, or an object holding one such array. A group is an array of row handles or an object with exactly one array of row handles. The run fails unless these groups equal the ones found in the base. |
+| `--expect-duplicate-groups` | Fail unless exactly this many identical-payload groups exist. Use 11 for facilities version 0. |
+| `--state` | Limit the run to base rows with this state label. This is the scoped pilot. |
+| `--missed-sample-size` | Limit for the sample of unmatched rows, default 50. |
+
+**Identical repeated rows.** The pinned base holds a few rows that repeat one full payload under different row handles. Matched as separate rows, each copy would count the other as a competing base row for the same reference, and a shared identifier would no longer be unique on the base side. Both effects create ambiguity that is not in the data. The nationwide run therefore groups rows whose whole payload is identical (everything except `facility_id`), matches the first handle of each group in sorted order, and copies that result to every handle in the group. The copies are interchangeable. A copy is never a second campus and never independent evidence. Rows that share an ID but differ in payload are not grouped.
+
+Outputs are the six files of the matching run, computed on one row per distinct payload, plus:
+
+- `base_rows.json`: one row per original base row in scope, in base order. `matched_as` is the handle whose result the row carries, `duplicate_group` and `duplicate_multiplicity` describe its group, and `outcome` is one of the four values below. It also lists the outcome per source, any automatically confirmed external IDs and the row's input problems.
+- `duplicate_groups.json`: every identical-payload group with its members and representative.
+- `missed_sample.json`: unmatched distinct payloads for adjudication, round-robin across states, ordered inside a state by the SHA-256 of the row handle.
+- `national_report.json`: outcome counts overall, by state and by source, input problems, source overlap, and both denominators (original rows and distinct payloads).
+- `timing.json`: load time, matching time and peak memory. It depends on the machine, so it is not listed in `manifest.json`.
+
+`batch.json` names only the representative of each group, so one reference is never confirmed for two base rows. Join `base_rows.json` on `matched_as` to reach the other handles.
+
+| Outcome | Meaning |
+| --- | --- |
+| `confirmed` | An automatic shared-identifier confirmation under the supplied identity policy. Without a policy this is always zero. |
+| `ambiguous` | At least one candidate is flagged `ambiguous_campus`, or an identifier was blocked (`identifier_not_unique`, `identifier_conflict`, `identifier_campus_conflict`). |
+| `candidate_only` | At least one candidate and neither of the above. |
+| `unmatched` | No candidate was retrieved. |
+
+Input problems are counted separately and overlap the outcomes: `name_missing`, `coordinates_missing`, and the base geography findings (`coordinates_incomplete`, `possible_swapped_axes`, `state_disagrees_with_pin` and the others listed under Geographic checks). In the by-source table, a row is `unmatched` for a source when that source returned no candidate for it, so every source row adds up to the same denominator.
+
+These are retrieval outcomes. None of them is a reviewed identity decision.
+
 ## How candidates are retrieved
 
 Names are folded (NFKC, case, punctuation), common abbreviations expanded and dotted initials joined, so `J.L.N. Govt. Hosp.` becomes `jln government hospital`. Words that describe a kind of facility (`hospital`, `government`, `district`, ...) do not count as name evidence. Name evidence has four levels:
