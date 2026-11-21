@@ -232,9 +232,10 @@ def campuses(documents, rows_by_document):
     """Distinct campus candidates across the documents of one upstream family.
 
     A name that appears once per district in every document is one campus, so
-    the two Andhra Pradesh annexes reconcile. Where one document lists several
-    centres with the same name in one district, they are branches: they stay
-    apart and merge across documents only on an identical address.
+    the two Andhra Pradesh annexes reconcile. Where the documents print more
+    than one address for a name in one district, whether inside one document or
+    one address in each, they are branches: they stay apart and merge across
+    documents only on an identical address.
     """
     # A document without a district column takes the district another document of
     # the family prints for the same centre, when exactly one district is printed.
@@ -249,13 +250,19 @@ def campuses(documents, rows_by_document):
         known = printed[(document["family"], state_key(document["state"]), _keys(row)[1])]
         return _keys(row, next(iter(known)) if len(known) == 1 else None)
 
-    branched = set()
+    branched, everywhere = set(), defaultdict(set)
     for document in documents:
         seen = defaultdict(set)
         for row in rows_by_document[document["key"]]:
             district, name, address = keys(document, row)
             seen[(document["family"], state_key(document["state"]), district, name)].add(address)
+            if address:
+                everywhere[(document["family"], state_key(document["state"]), district, name)].add(address)
         branched.update(key for key, addresses in seen.items() if len(addresses) > 1)
+    # Different addresses for one name and district are different campuses even when
+    # each document prints only one of them. They stay apart and go to review.
+    across = {key for key, addresses in everywhere.items() if len(addresses) > 1} - branched
+    branched |= across
     grouped = defaultdict(list)
     for document in documents:
         for row in rows_by_document[document["key"]]:
@@ -272,6 +279,8 @@ def campuses(documents, rows_by_document):
             flags.append("same_name_branch")
             if branch is None:
                 flags.append("same_name_branch_unreconciled")
+        if (family, state, district, name) in across:
+            flags.append("address_differs_across_documents")
         if any(len([1 for d, _ in members if d["key"] == k]) > 1 for k in keys):
             flags.append("repeated_row_in_document")
         if district and any(r["district_original"] is None for _, r in members):
@@ -305,8 +314,8 @@ def campuses(documents, rows_by_document):
                 two["possible_overlap_with"].append(one["campus_id"])
     for campus in result:
         campus["possible_overlap_with"].sort()
-        if campus["possible_overlap_with"]:
-            campus["flags"].append("possible_overlap_unreconciled")
+        if campus["possible_overlap_with"] and "address_differs_across_documents" not in campus["flags"]:
+            campus["flags"].append("possible_overlap_unreconciled")     # the address flag already queues the pair
     return result
 
 
@@ -420,6 +429,10 @@ def build(manifest, rows_for):
             queue("pmndp_same_name_branch_unreconciled", "medium",
                   "Another document lists several centres with this name in this district and this row has no "
                   "address. Decide which branch it is before using it.", campus["campus_id"])
+        if "address_differs_across_documents" in campus["flags"]:
+            queue("pmndp_address_differs_across_documents", "medium",
+                  "Documents of the same source family print different addresses for this centre name and district. "
+                  "They are kept as separate campuses. Decide whether they are one campus or two.", campus["campus_id"])
         if "possible_overlap_unreconciled" in campus["flags"]:
             queue("pmndp_possible_overlap_unreconciled", "medium",
                   "A centre with a similar place name is listed in another document of the same source family. "

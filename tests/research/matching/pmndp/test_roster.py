@@ -130,6 +130,33 @@ class RosterTests(unittest.TestCase):
         self.assertIn("same_name_branch_unreconciled", loose["flags"])
         self.assertEqual(["pmndp_same_name_branch_unreconciled"], [r["reason_code"] for r in result["batch"]["review_queue"]])
 
+    def test_one_address_per_document_does_not_merge_two_campuses(self):
+        """Each document lists the name once, at a different civic address."""
+        def two(first, second):
+            manifest = {"documents": [document("ap_est", "listing", {"serial": 0, "district": 1, "name": 2, "address": 3}),
+                                      document("ap_reg", "listing", {"serial": 0, "district": 1, "name": 2, "address": 3})]}
+            return run(manifest, {"ap_est": rows(("1", "North District", "Larkspur Area Hospital", first)),
+                                  "ap_reg": rows(("1", "North District", "Larkspur Area Hospital", second))})
+        apart = two("16 East Street", "38 West Avenue")
+        self.assertEqual(2, len(apart["campus_candidates"]))
+        self.assertEqual(2, len({c["campus_id"] for c in apart["campus_candidates"]}))
+        for campus in apart["campus_candidates"]:
+            self.assertEqual((False, ["same_name_branch", "address_differs_across_documents"]),
+                             (campus["shared_origin_overlap"], campus["flags"]))
+        first, second = apart["campus_candidates"]
+        self.assertEqual(([second["campus_id"]], [first["campus_id"]]),
+                         (first["possible_overlap_with"], second["possible_overlap_with"]))   # the relationship is recorded
+        self.assertEqual(["pmndp_address_differs_across_documents"] * 2,
+                         [r["reason_code"] for r in apart["batch"]["review_queue"]])
+        self.assertEqual({"16 East Street", "38 West Avenue"},
+                         {e["address_original"] for e in apart["batch"]["external_facilities"]})
+        semantic_check(apart["batch"], [])
+        same = two("16 East Street", "16, East  street")              # one address, written twice
+        self.assertEqual((1, True, []), (len(same["campus_candidates"]), same["campus_candidates"][0]["shared_origin_overlap"],
+                                         same["batch"]["review_queue"]))
+        one_sided = two("16 East Street", None)                        # nothing contradicts the single address
+        self.assertEqual(1, len(one_sided["campus_candidates"]))
+
     def test_zero_and_unreadable_values(self):
         result = run(*fixture())
         zero = [c for c in result["claims"] if c["kind"] == "historical_registrations" and c["value"]["patients"] == 0]
