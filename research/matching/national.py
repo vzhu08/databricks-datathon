@@ -29,6 +29,23 @@ from .run import execute
 NATIONAL_VERSION = "national-matching-1.0.0"
 OUTCOMES = ("confirmed", "ambiguous", "candidate_only", "unmatched")
 NO_STATE = "(no state label)"
+NOT_A_STATE = "(label is not a state or union territory)"
+STATES = frozenset(state_key(name) for name in (
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana",
+    "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur",
+    "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana",
+    "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Andaman and Nicobar Islands", "Chandigarh",
+    "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir", "Ladakh", "Lakshadweep",
+    "Puducherry"))
+
+
+def state_bucket(key):
+    """Report label for a folded state value. The state column of a real base also
+    holds cities, districts and stray text; those rows are counted together and
+    their text never reaches a report."""
+    if key is None:
+        return NO_STATE
+    return key if key in STATES else NOT_A_STATE
 AMBIGUOUS_REASONS = {"ambiguous_campus", "identifier_not_unique", "identifier_campus_conflict",
                      "identifier_conflict"}
 ID_KEYS = ("original_unique_id", "original_id")
@@ -281,7 +298,7 @@ def execute_national(base, external_batches, mapping=None, attributes=None, poli
             "facility_id": fid, "matched_as": matched_as,
             "duplicate_group": group["group_id"] if group else None,
             "duplicate_multiplicity": group["multiplicity"] if group else 1,
-            "state": views[fid]["state"] or NO_STATE,
+            "state": state_bucket(views[fid]["state"]),
             "outcome": _outcome(found), "candidate_count": len(found),
             "outcome_by_source": per_source,
             "confirmed_external_facility_ids": sorted(c["external_facility_id"] for c in found if c["auto_confirmed"]),

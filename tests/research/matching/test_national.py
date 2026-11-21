@@ -16,7 +16,7 @@ from research.matching.normalize import fold, state_key
 from research.matching.national import (duplicate_groups, execute_national, payload_digest,
                                         sidecar_groups)
 
-STATE, OTHER = "Synthetic State", "Other Synthetic State"
+STATE, OTHER = "Rajasthan", "Gujarat"          # real state names, invented facilities
 POLICY = {"synthetic_registry": {"base_field": "source_row.registry_id", "external_field": "source_record_id",
                                  "source_keys": ["synthetic_directory"]}}
 
@@ -176,7 +176,7 @@ class NationalRunTests(unittest.TestCase):
                          report["outcomes"])
         self.assertEqual({"unit": "distinct payloads", "confirmed": 1, "ambiguous": 1, "candidate_only": 1,
                           "unmatched": 1}, report["outcomes_distinct_payloads"])
-        state = report["by_state"]["synthetic state"]
+        state = report["by_state"]["rajasthan"]
         self.assertEqual((3, 2, 2, 1, 0), (state["original_rows"], state["distinct_payloads"], state["ambiguous"],
                                            state["candidate_only"], state["unmatched"]))
         self.assertEqual(sum(s["original_rows"] for s in report["by_state"].values()), 5)
@@ -191,6 +191,16 @@ class NationalRunTests(unittest.TestCase):
         self.assertEqual({"0": 1, "1": 4}, {k: v for k, v in report["source_overlap"].items() if k != "unit"})
         self.assertEqual(1, report["input_problems"]["by_problem"]["name_missing"])
 
+    def test_state_column_text_that_is_not_a_state_is_bucketed(self):
+        base, batch = data()
+        base[2]["source_row"]["state"] = "North Town"                    # a city in the state column
+        base[3]["source_row"]["state"] = None
+        report = run(base, batch)["national_report"]
+        self.assertEqual({"rajasthan", "gujarat", "(label is not a state or union territory)", "(no state label)"},
+                         set(report["by_state"]))
+        self.assertEqual(1, report["by_state"]["(label is not a state or union territory)"]["original_rows"])
+        self.assertEqual(5, sum(s["original_rows"] for s in report["by_state"].values()))
+
     def test_missed_sample_is_repeatable_and_never_lists_a_copy_twice(self):
         base, batch = data()
         extra = base_row(6, name="Quillon Sanatorium", city="West Town", state=STATE)
@@ -204,13 +214,13 @@ class NationalRunTests(unittest.TestCase):
 
     def test_state_scope_keeps_copies_together(self):
         base, batch = data()
-        result = run(base, batch, state="SYNTHETIC  STATE")
+        result = run(base, batch, state="RAJASTHAN ")
         self.assertEqual(["synthetic:base:001", "synthetic:base:002", "synthetic:base:003"],
                          [r["facility_id"] for r in result["base_rows"]])
         report = result["national_report"]
         self.assertEqual((3, 2, 5), (report["denominators"]["original_rows"], report["denominators"]["distinct_payloads"],
                                      report["denominators"]["original_rows_in_base_file"]))
-        self.assertEqual("synthetic state", report["scope"]["state"])
+        self.assertEqual("rajasthan", report["scope"]["state"])
         with self.assertRaisesRegex(MatchingError, "no base row carries"):
             run(base, batch, state="Nowhere")
 
