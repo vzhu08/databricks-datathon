@@ -31,6 +31,10 @@ OUTCOMES = ("confirmed", "ambiguous", "candidate_only", "unmatched")
 NO_STATE = "(no state label)"
 AMBIGUOUS_REASONS = {"ambiguous_campus", "identifier_not_unique", "identifier_campus_conflict",
                      "identifier_conflict"}
+ID_KEYS = ("original_unique_id", "original_id")
+GEOGRAPHY_FLAGS = {"state_conflict", "place_conflict", "pin_conflict", "coordinates_far_apart"}
+BASE_GEOGRAPHY_PROBLEMS = {"state_disagrees_with_pin", "district_disagrees_with_pin", "address_pin_disagrees"}
+CONFLICTS = ("competing_campuses", "candidate_geography_conflict", "base_geography_disagreement")
 RUN_OUTPUTS = ("batch", "candidates", "review_worksheet", "geography_report", "report")
 NATIONAL_OUTPUTS = ("base_rows", "duplicate_groups", "missed_sample", "national_report")
 
@@ -63,23 +67,29 @@ def sidecar_groups(sidecar):
 
     Accepts an array of groups, or an object holding exactly one such array.
     A group is an array of row handles, or an object with exactly one array of
-    row handles and optional `original_id` and `multiplicity` declarations.
-    Returns one {"handles", "original_id", "multiplicity", "other_fields"} per group.
+    row handles and optional declarations: the original ID (`original_unique_id`
+    or `original_id`), `multiplicity` and `source_row_sha256`.
+    Returns one {"handles", "original_id", "multiplicity", "source_row_sha256", "other_fields"} per group.
     """
     def group(value, path):
-        declared = {"original_id": None, "multiplicity": None, "other_fields": []}
+        declared = {"original_id": None, "multiplicity": None, "source_row_sha256": None, "other_fields": []}
         if isinstance(value, dict):
             lists = [k for k, v in value.items() if isinstance(v, list) and v and all(isinstance(x, str) for x in v)]
             require(len(lists) == 1, path, "a group object needs exactly one array of row handles")
-            if "original_id" in value:
-                require(isinstance(value["original_id"], str) and bool(value["original_id"]), f"{path}.original_id",
+            id_keys = [k for k in ID_KEYS if k in value]
+            require(len(id_keys) <= 1, path, "a group declares its original ID once")
+            for key in id_keys:
+                require(isinstance(value[key], str) and bool(value[key]), f"{path}.{key}",
                         "the declared original ID must be nonempty text")
-                declared["original_id"] = value["original_id"]
+                declared["original_id"] = value[key]
+            if "source_row_sha256" in value:
+                require(isinstance(value["source_row_sha256"], str), f"{path}.source_row_sha256", "expected a SHA-256 text")
+                declared["source_row_sha256"] = value["source_row_sha256"]
             if "multiplicity" in value:
                 require(isinstance(value["multiplicity"], int) and not isinstance(value["multiplicity"], bool),
                         f"{path}.multiplicity", "the declared multiplicity must be an integer")
                 declared["multiplicity"] = value["multiplicity"]
-            declared["other_fields"] = sorted(set(value) - {"original_id", "multiplicity", lists[0]})
+            declared["other_fields"] = sorted(set(value) - {*ID_KEYS, "multiplicity", "source_row_sha256", lists[0]})
             value = value[lists[0]]
         require(isinstance(value, list) and len(value) > 1 and all(isinstance(x, str) and x for x in value)
                 and len(set(value)) == len(value), path, "a group needs two or more distinct row handles")
@@ -99,12 +109,18 @@ def sidecar_groups(sidecar):
 
 def check_sidecar(sidecar, groups, index, id_selector):
     """D's sidecar must describe exactly the groups found in the base. A declared
-    original ID must be the ID every member row carries. Returns the names of
+    original ID must be the ID every member row carries, and a declared row hash
+    must be the hash of every member's original row. Returns the names of
     sidecar fields this check does not verify."""
     declared = sidecar_groups(sidecar)
     require({g["handles"] for g in declared} == {frozenset(g["members"]) for g in groups}, "duplicate_groups",
             "the sidecar disagrees with the identical-payload groups found in the base")
     for position, item in enumerate(declared):
+        if item["source_row_sha256"] is not None:
+            for handle in sorted(item["handles"]):
+                require("source_row" in index[handle] and digest(index[handle]["source_row"]) == item["source_row_sha256"],
+                        f"duplicate_groups[{position}].source_row_sha256",
+                        "differs from the hash of the group's original row")
         if item["original_id"] is None:
             continue
         path = f"duplicate_groups[{position}].original_id"
@@ -137,17 +153,33 @@ def _outcome(candidates):
     return "candidate_only"
 
 
+def _conflicts(candidates, problems):
+    """Campus conflicts on one base row. They overlap the outcomes and each other."""
+    found = set()
+    if any("ambiguous_campus" in c["flags"] for c in candidates):
+        found.add("competing_campuses")
+    if any(GEOGRAPHY_FLAGS & set(c["flags"]) for c in candidates):
+        found.add("candidate_geography_conflict")
+    if BASE_GEOGRAPHY_PROBLEMS & set(problems):
+        found.add("base_geography_disagreement")
+    return sorted(found)
+
+
 def _tally(rows, key):
     """Outcome counts per `key(row)` with both denominators."""
     table = {}
     for row in rows:
         for label in key(row):
             entry = table.setdefault(label, {"original_rows": 0, "distinct_payloads": 0, "rows_with_input_problem": 0,
-                                             **{outcome: 0 for outcome in OUTCOMES}})
+                                             **{outcome: 0 for outcome in OUTCOMES},
+                                             "rows_with_any_conflict": 0, **{c: 0 for c in CONFLICTS}})
             entry["original_rows"] += 1
             entry["distinct_payloads"] += row["facility_id"] == row["matched_as"]
             entry["rows_with_input_problem"] += bool(row["input_problems"])
             entry[row["outcome"]] += 1
+            entry["rows_with_any_conflict"] += bool(row["conflicts"])
+            for conflict in row["conflicts"]:
+                entry[conflict] += 1
     return dict(sorted(table.items()))
 
 
@@ -254,6 +286,7 @@ def execute_national(base, external_batches, mapping=None, attributes=None, poli
             "outcome_by_source": per_source,
             "confirmed_external_facility_ids": sorted(c["external_facility_id"] for c in found if c["auto_confirmed"]),
             "input_problems": sorted(problems.get(matched_as, ())),
+            "conflicts": _conflicts(found, problems.get(matched_as, ())),
         })
     require(len(rows) == len(in_scope) and len({r["facility_id"] for r in rows}) == len(rows), "base_rows",
             "every original row in scope must have exactly one output row")
@@ -295,6 +328,13 @@ def execute_national(base, external_batches, mapping=None, attributes=None, poli
         "input_problems": {"unit": "original rows; a row can have several problems and also have candidates",
                            "rows_with_any": sum(bool(r["input_problems"]) for r in rows),
                            "by_problem": dict(sorted(Counter(p for r in rows for p in r["input_problems"]).items()))},
+        "conflicts": {"unit": "original rows; a row can have several conflicts, and each also has an outcome",
+                      "rows_with_any": sum(bool(r["conflicts"]) for r in rows),
+                      **{c: sum(c in r["conflicts"] for r in rows) for c in CONFLICTS},
+                      "meaning": {"competing_campuses": "a candidate is flagged ambiguous_campus",
+                                  "candidate_geography_conflict": "a candidate disagrees on state, place, PIN or distance",
+                                  "base_geography_disagreement": "the row's own state, district or address PIN "
+                                                                 "disagrees with its PIN field or the postal directory"}},
         "by_state": _tally(rows, lambda r: [r["state"]]),
         "by_source": by_source,
         "source_overlap": {"unit": "original rows by number of sources that returned a candidate",

@@ -69,7 +69,7 @@ This wraps the matching run for the full base and writes one output row for ever
 
 | Argument | Meaning |
 | --- | --- |
-| `--duplicate-groups` | D's duplicate-group sidecar. An array of groups, or an object holding one such array. A group is an array of row handles, or an object with exactly one array of row handles and optional `original_id` and `multiplicity`. The run fails unless these groups equal the ones found in the base, each declared `multiplicity` equals the number of handles, and each declared `original_id` is the ID every member row carries (the ID column comes from `--source-metadata`). Other fields are not verified and are listed in the report. |
+| `--duplicate-groups` | D's duplicate-group sidecar. An array of groups, or an object holding one such array. A group is an array of row handles, or an object with exactly one array of row handles (`facility_ids` in D's file) and optional `original_unique_id` (or `original_id`), `multiplicity` and `source_row_sha256`. The run fails unless these groups equal the ones found in the base, each declared multiplicity equals the number of handles, each declared original ID is the ID every member row carries (the ID column comes from `--source-metadata`), and each declared row hash is the hash of every member's original row. Other fields (`group_id`, `meaning`) are not verified and are listed in the report. |
 | `--expect-duplicate-groups` | Fail unless exactly this many identical-payload groups exist. Use 11 for facilities version 0. |
 | `--state` | Limit the run to base rows with this state label. This is the scoped pilot. |
 | `--missed-sample-size` | Limit for the sample of unmatched rows, default 50. |
@@ -82,7 +82,7 @@ With `--source-metadata`, the metadata must record `base_file_sha256` and it mus
 
 Outputs are the six files of the matching run, computed on one row per distinct payload, plus:
 
-- `base_rows.json`: one row per original base row in scope, in base order. `matched_as` is the handle whose result the row carries, `duplicate_group` and `duplicate_multiplicity` describe its group, and `outcome` is one of the four values below. It also lists the outcome per source, any automatically confirmed external IDs and the row's input problems.
+- `base_rows.json`: one row per original base row in scope, in base order. `matched_as` is the handle whose result the row carries, `duplicate_group` and `duplicate_multiplicity` describe its group, and `outcome` is one of the four values below. It also lists the outcome per source, any automatically confirmed external IDs, the row's input problems and its campus conflicts.
 - `duplicate_groups.json`: every identical-payload group with its members and representative.
 - `missed_sample.json`: unmatched distinct payloads for adjudication, round-robin across states, ordered inside a state by the SHA-256 of the row handle.
 - `national_report.json`: outcome counts overall, by state and by source, input problems, source overlap, and both denominators (original rows and distinct payloads).
@@ -99,9 +99,22 @@ Outputs are the six files of the matching run, computed on one row per distinct 
 
 Input problems are counted separately and overlap the outcomes: `name_missing`, `coordinates_missing`, and the base geography findings (`coordinates_incomplete`, `possible_swapped_axes`, `state_disagrees_with_pin` and the others listed under Geographic checks). In the by-source table, a row is `unmatched` for a source when that source returned no candidate for it, so every source row adds up to the same denominator.
 
+Campus conflicts are also counted separately, overall and by state, and overlap the outcomes and each other. Rows without a recognised state label are counted under `(no state label)`.
+
+| Conflict | Meaning |
+| --- | --- |
+| `competing_campuses` | A candidate is flagged `ambiguous_campus`: several campuses fit the row, or several rows fit one campus. |
+| `candidate_geography_conflict` | A candidate disagrees with the row on state, place, PIN or distance. |
+| `base_geography_disagreement` | The row's own state, district or address PIN disagrees with its PIN field or the postal directory. |
+
+Every conflict has an open item in the review queue of `batch.json` with its reason code. The run completes with those items unresolved.
+
 These are retrieval outcomes. None of them is a reviewed identity decision.
 
 ## How candidates are retrieved
+
+Text is compared after folding: Unicode NFKC, case folding, accents on Latin letters removed (`Rājasthān` equals `Rajasthan`), `&` read as `and`, punctuation to spaces. Marks in other scripts are kept, because in Indic scripts they are part of the word. Since `matching-1.1.0` the old and merged names of Dadra and Nagar Haveli and Daman and Diu are one state key.
+
 
 Names are folded (NFKC, case, punctuation), common abbreviations expanded and dotted initials joined, so `J.L.N. Govt. Hosp.` becomes `jln government hospital`. Words that describe a kind of facility (`hospital`, `government`, `district`, ...) do not count as name evidence. Name evidence has four levels:
 

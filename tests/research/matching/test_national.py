@@ -12,6 +12,7 @@ from pathlib import Path
 from matching_fixtures import ROOT, base_row, envelope, ext, mapping, snapshot
 
 from research.matching.common import MatchingError, digest
+from research.matching.normalize import fold, state_key
 from research.matching.national import (duplicate_groups, execute_national, payload_digest,
                                         sidecar_groups)
 
@@ -42,6 +43,21 @@ def run(base, batch, **kwargs):
     return execute_national(base, [batch], mapping=kwargs.pop("mapping", mapping(base)), **kwargs)
 
 
+class AccentTests(unittest.TestCase):
+    def test_latin_accents_do_not_create_state_conflicts(self):
+        """Public references spell states with macrons; the base does not."""
+        for plain, accented in (("Rajasthan", "Rājasthān"), ("Bihar", "Bihār"), ("Tamil Nadu", "Tamil Nādu"),
+                                ("Dadra and Nagar Haveli and Daman and Diu", "Dādra and Nagar Haveli and Damān and Diu")):
+            self.assertEqual(state_key(plain), state_key(accented))
+        self.assertEqual(state_key("Daman and Diu"), state_key("Dadra & Nagar Haveli"))
+        self.assertEqual("राजस्थान", fold("राजस्थान"))            # marks in other scripts are part of the word
+        base = [base_row(1, name="Larkspur Hospital", city="North Town", state="Rajasthan")]
+        externals = [ext(1, "Larkspur Hospital", snapshot(), city="North Town", state="Rājasthān")]
+        pair = run(base, envelope([snapshot()], externals))["candidates"][0]
+        self.assertEqual("agree", pair["signals"]["state"])
+        self.assertNotIn("state_conflict", pair["flags"])
+
+
 class DuplicateGroupTests(unittest.TestCase):
     def test_groups_come_from_identical_payloads_only(self):
         base, _ = data()
@@ -56,14 +72,15 @@ class DuplicateGroupTests(unittest.TestCase):
     def test_sidecar_must_agree_with_the_base(self):
         base, batch = data()
         handles = ["synthetic:base:002", "synthetic:base:001"]
-        good = [{"original_id": "R-1", "multiplicity": 2, "row_handles": handles, "payload_sha256": "not checked"}]
+        good = [{"original_unique_id": "R-1", "multiplicity": 2, "facility_ids": handles, "group_id": "not checked",
+                 "source_row_sha256": digest(base[0]["source_row"]), "meaning": "Interchangeable occurrences."}]
         metadata = {"mapping": {"id": "registry_id", "name": "name", "state": "state"}, "row_count": 5,
                     "base_file_sha256": digest(base)}
         for sidecar in (good, {"groups": good}):
             self.assertEqual([frozenset(handles)], [g["handles"] for g in sidecar_groups(sidecar)])
             detail = execute_national(base, [batch], source_metadata=metadata, duplicate_sidecar=sidecar)[
                 "national_report"]["identical_payload_groups_detail"]
-            self.assertEqual(("agrees with the base", ["payload_sha256"]),
+            self.assertEqual(("agrees with the base", ["group_id", "meaning"]),
                              (detail["sidecar"], detail["sidecar_fields_not_verified"]))
         run(base, batch, duplicate_sidecar=[sorted(handles)])           # bare handle arrays declare nothing else
         with self.assertRaisesRegex(MatchingError, "sidecar disagrees"):
@@ -86,6 +103,10 @@ class DuplicateGroupTests(unittest.TestCase):
             with_metadata([{"original_id": "R-999", "multiplicity": 2, "row_handles": handles}])
         with self.assertRaisesRegex(MatchingError, "multiplicity differs"):
             with_metadata([{"original_id": "R-1", "multiplicity": 999, "row_handles": handles}])
+        with self.assertRaisesRegex(MatchingError, "differs from the original ID"):
+            with_metadata([{"original_unique_id": "R-3", "facility_ids": handles}])
+        with self.assertRaisesRegex(MatchingError, "hash of the group's original row"):
+            with_metadata([{"original_unique_id": "R-1", "facility_ids": handles, "source_row_sha256": "0" * 64}])
         with self.assertRaisesRegex(MatchingError, "must be an integer"):
             with_metadata([{"original_id": "R-1", "multiplicity": "2", "row_handles": handles}])
         with self.assertRaisesRegex(MatchingError, "cannot be verified"):      # no ID column is known without metadata
