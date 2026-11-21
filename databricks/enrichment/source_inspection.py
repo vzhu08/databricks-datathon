@@ -9,6 +9,7 @@ from pathlib import Path
 
 from common import canonical, digest, require, stable_id
 from delta_store import identifier, volume_path
+from occurrence_keys import map_occurrences
 from validation import base_check
 
 
@@ -30,8 +31,13 @@ def json_value(value):
     return value
 
 
-def map_base(rows, id_column, source_identity, allow_surrogate=False):
+def map_base(rows, id_column, source_identity, allow_surrogate=False, *, id_policy=None, source_version=None):
     """Lossless original rows are nested under source_row; no row drops or joins."""
+    if id_policy is not None:
+        require(not allow_surrogate, "id_policy", "occurrence policy cannot be combined with generic surrogates")
+        base, _ = map_occurrences([json_value(row) for row in rows], id_column, source_identity, source_version, id_policy)
+        base_check(base)
+        return base
     if id_column is None:
         require(allow_surrogate, "mapping.id", "no ID selected; explicitly approve a raw-row surrogate")
     base = []
@@ -140,7 +146,10 @@ def verify_base_export(base, metadata):
     require(all(isinstance(row.get("source_row"), dict) for row in base), "base", "missing preserved source_row")
     raw = sorted((row["source_row"] for row in base), key=canonical)
     require(digest(raw) == metadata["source_rows_sha256"], "base", "original fields/text changed since source inspection")
+    if metadata.get("id_policy") is not None:
+        require("mapping" in metadata, "id_policy", "reviewed occurrence metadata requires the original mapping")
     if "mapping" in metadata:
         expected = map_base(raw, metadata["mapping"].get("id"), metadata["original_table"],
-                            allow_surrogate=metadata["mapping"].get("id") is None)
+                            allow_surrogate=metadata["mapping"].get("id") is None,
+                            id_policy=metadata.get("id_policy"), source_version=metadata.get("observed_delta_version"))
         require(base == expected, "base", "mapped IDs/order differ from source mapping")

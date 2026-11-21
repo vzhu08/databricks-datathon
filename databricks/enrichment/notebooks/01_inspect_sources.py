@@ -8,16 +8,17 @@ import json
 import sys
 
 for name, default in {
-    "repo_root": "", "original_table": "", "postal_table": "", "source_version": "",
+    "repo_root": "", "original_table": "", "postal_table": "", "source_version": "", "postal_version": "",
     "output_path": "", "mapping_json": "{}", "postal_mapping_json": "{}",
-    "allow_surrogate": "false", "max_rows": "500000",
+    "allow_surrogate": "false", "id_policy": "", "max_rows": "500000",
 }.items():
     dbutils.widgets.text(name, default)
 repo_root = dbutils.widgets.get("repo_root")
 assert repo_root.startswith("/Workspace/"), "Set the absolute Workspace Git folder path"
 sys.path.insert(0, repo_root + "/databricks/enrichment")
 from common import canonical
-from source_inspection import inspect_table, map_base, profile_rows, write_new_json
+from source_inspection import inspect_table, json_value, map_base, profile_rows, verify_base_export, write_new_json
+from occurrence_keys import map_occurrences
 
 # COMMAND ----------
 version_text = dbutils.widgets.get("source_version")
@@ -32,11 +33,20 @@ print(json.dumps({"source_metadata": source_metadata,
 mapping = json.loads(dbutils.widgets.get("mapping_json"))
 assert mapping, "Enter observed mapping_json (e.g. id/name/state/type/pin/evidence column names)"
 profile = profile_rows(source_rows, mapping)
+id_policy = dbutils.widgets.get("id_policy") or None
 base = map_base(source_rows, mapping.get("id"), source_metadata["original_table"],
-                dbutils.widgets.get("allow_surrogate") == "true")
+                dbutils.widgets.get("allow_surrogate") == "true", id_policy=id_policy,
+                source_version=source_metadata["observed_delta_version"])
 output = dbutils.widgets.get("output_path").rstrip("/")
 source_metadata["mapping"] = mapping
+if id_policy:
+    source_metadata["id_policy"] = id_policy
+    _, groups = map_occurrences(json_value(source_rows), mapping.get("id"), source_metadata["original_table"],
+                                source_metadata["observed_delta_version"], id_policy)
+    source_metadata["duplicate_groups_artifact"] = output + "/duplicate_groups.json"
+    source_metadata["duplicate_groups_sha256"] = write_new_json(output + "/duplicate_groups.json", groups)
 source_metadata["source_profile"] = profile
+verify_base_export(base, source_metadata)
 source_metadata["base_artifact"] = output + "/base.json"
 source_metadata["base_file_sha256"] = write_new_json(output + "/base.json", base)
 write_new_json(output + "/source_metadata.json", source_metadata)
@@ -46,7 +56,9 @@ print(json.dumps({"base_rows": len(base), "profile": profile,
 # COMMAND ----------
 postal_table = dbutils.widgets.get("postal_table")
 if postal_table:
+    postal_version_text = dbutils.widgets.get("postal_version")
     postal_rows, postal_metadata = inspect_table(spark, postal_table,
+                                                version=int(postal_version_text) if postal_version_text else None,
                                                 max_rows=int(dbutils.widgets.get("max_rows")))
     postal_mapping = json.loads(dbutils.widgets.get("postal_mapping_json"))
     postal_metadata["profile"] = profile_rows(postal_rows, postal_mapping)

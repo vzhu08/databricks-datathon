@@ -109,6 +109,8 @@ The source is read-only. `base.json` uses `facility_id` plus `source_row`, conta
 
 When no usable source ID exists, `allow_surrogate=true` explicitly permits `stable_id("base", original_table, canonical_source_row)` after review. Content changes yield a new surrogate. Identical duplicate raw rows cannot acquire stable distinct identities without another source locator; export fails rather than using row order or silently dropping them. A new original-source revision/base hash requires a separately reviewed output schema; existing published runs cannot silently rebind base IDs/text.
 
+The explicitly reviewed VF version-0 exception uses interchangeable occurrence handles to preserve identical-row multiplicity. It does not assign physical source identities or cross-version continuity. See [NATIONAL_BASE.md](NATIONAL_BASE.md) for its narrow opt-in, private export, replay and consumer requirements; default duplicate rejection is unchanged.
+
 Inspection defaults to a maximum of 500,000 rows (hard cap 1,000,000) and does one bounded collection. Missing Delta history is recorded as `single_read_export`, with an exact export hash; no revision is invented and subsequent runs use the export. Validation/staging also use driver memory: this is a bounded sprint implementation for the national batches, not an unbounded distributed ingest service. Operational manifest history and ledgers are stored in one JSON state row, suitable for this finite sprint. Move to an independently reviewed scalable metadata design before sustained large-volume use.
 
 ## Publication, consumers, failure and recovery
