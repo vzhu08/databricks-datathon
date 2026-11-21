@@ -28,14 +28,28 @@ python -m research.matching.run --base <file> --external <batch> --output-dir <p
 | `--base` | D's base adapter file: a JSON array of objects with a unique nonempty `facility_id`. |
 | `--external` | A contract envelope from A or B. Repeat it for several. Identical rows deduplicate; a different payload under one ID fails. |
 | `--output-dir` | Keep real runs under ignored `data/local/matching/`. It must not be a directory that holds an input. |
-| `--base-mapping` | JSON object from role to the base column D observed. Roles: `name`, `alt_names`, `address`, `city`, `district`, `state`, `pin`, `latitude`, `longitude`, `phone`, `type`. Dot paths reach into `source_row`. |
+| `--source-metadata` | D's `source_metadata.json` for this base (written by notebook 01 or `prepare_local_export.py`). Its observed mapping supplies `name`, `state`, `type`, `pin`, `latitude`, `longitude`. The row count must equal the base file's. |
+| `--base-mapping` | JSON object from role to the base column D observed. Adds to or overrides the roles from `--source-metadata`; D's mapping has no address, city, district, phone or alias role, so supply those here. Roles: `name`, `alt_names`, `address`, `city`, `district`, `state`, `pin`, `latitude`, `longitude`, `phone`, `type`. Dot paths reach into `source_row`. |
 | `--external-attributes` | Optional sidecar keyed by `external_facility_id` with `aliases`, `phones`, `district`. These values exist only in a producer's raw artifact; the contract has no column for them. |
 | `--identity-policy` | D-format namespace policy. Without it no identifier is used and nothing confirms automatically. |
 | `--postal`, `--postal-mapping` | Postal directory rows and their observed column mapping (`pin`, `state`, `district`). |
 | `--config` | JSON object overriding the retrieval settings listed below. |
 | `--sample-size` | Review sample limit, default 50. |
 
-A real export nests original columns under `source_row`. With that shape the run stops unless `--base-mapping` is supplied: no source column is ever guessed. The shared synthetic base already uses role names as keys, so it runs without a mapping. See `examples/` for the file shapes.
+A real export nests original columns under `source_row`. With that shape the run stops unless `--source-metadata` or `--base-mapping` is supplied: no source column is ever guessed.
+
+With D's prepared package and A's Rajasthan extract the pilot run is:
+
+```sh
+python -m research.matching.run \
+  --base data/local/base-exports/NEW_RUN/base.json \
+  --source-metadata data/local/base-exports/NEW_RUN/source_metadata.json \
+  --base-mapping data/local/matching/base-mapping-extra.json \
+  --external data/local/acquisition/rajasthan-v1/explicit.json \
+  --output-dir data/local/matching/rajasthan-explicit-v1
+```
+
+`NEW_RUN` and the extra mapping are placeholders until an authorized export exists. Add `--external .../additional_review.json` for recall, or the national batch for a full pass. The shared synthetic base already uses role names as keys, so it runs without a mapping. See `examples/` for the file shapes.
 
 Outputs, all canonical JSON, byte-identical on rerun:
 

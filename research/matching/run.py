@@ -17,7 +17,8 @@ from pathlib import Path
 from research.geography.postal import aggregate
 from research.geography.report import base_reviews, cluster_reviews, screen
 from . import MATCHER_VERSION
-from .base_adapter import base_views, check_mapping, default_mapping, external_views
+from .base_adapter import (base_views, check_mapping, default_mapping, external_views,
+                           mapping_from_source_metadata)
 from .candidates import generate, settings
 from .common import (MatchingError, base_check, canonical, combine_external, counts, digest, empty,
                      field_value, file_digest, load, require, schema_check, write_json)
@@ -52,11 +53,17 @@ def cross_check(batch, base_index, external_ids):
 
 
 def execute(base, external_batches, mapping=None, attributes=None, policy=None, postal=None,
-            postal_mapping=None, config=None, sample_size=50):
-    """Pure function behind the CLI: returns every output as plain data."""
+            postal_mapping=None, config=None, sample_size=50, source_metadata=None):
+    """Pure function behind the CLI: returns every output as plain data.
+
+    `source_metadata` is D's metadata for this base; `mapping` adds or overrides
+    roles D's mapping does not carry (address, city, district, phone, alt_names).
+    """
     base_index = base_check(base)
     base_digest = digest(base)
     external = combine_external(external_batches)
+    if source_metadata is not None:
+        mapping = {**mapping_from_source_metadata(source_metadata, base), **(mapping or {})}
     mapping = check_mapping(mapping, base) if mapping is not None else default_mapping(base)
     policy = check_policy(policy or {})
     config = settings(config)
@@ -134,7 +141,9 @@ def main(argv=None):
     parser.add_argument("--external", required=True, action="append",
                         help="Contract v1.0.0 producer envelope; repeat for A and B batches")
     parser.add_argument("--output-dir", required=True, help="Directory for outputs; keep real runs under data/local/")
-    parser.add_argument("--base-mapping", help="JSON object: role -> observed base column (dot paths allowed)")
+    parser.add_argument("--source-metadata", help="D's source_metadata.json for this base; supplies the observed mapping")
+    parser.add_argument("--base-mapping", help="JSON object: role -> observed base column (dot paths allowed). "
+                                               "Adds to or overrides roles from --source-metadata")
     parser.add_argument("--external-attributes", help="JSON sidecar keyed by external_facility_id: aliases, phones, district")
     parser.add_argument("--identity-policy", help="D-format namespace policy enabling shared-identifier confirmation")
     parser.add_argument("--postal", help="JSON array of postal directory rows")
@@ -145,17 +154,18 @@ def main(argv=None):
     try:
         optional = lambda path: load(path) if path else None
         inputs = {"base": args.base, "external": args.external, "base_mapping": args.base_mapping,
+                  "source_metadata": args.source_metadata,
                   "external_attributes": args.external_attributes, "identity_policy": args.identity_policy,
                   "postal": args.postal, "postal_mapping": args.postal_mapping, "config": args.config}
         out = Path(args.output_dir)
-        named = [args.base] + args.external + [p for p in (args.base_mapping, args.external_attributes,
+        named = [args.base] + args.external + [p for p in (args.base_mapping, args.source_metadata, args.external_attributes,
                  args.identity_policy, args.postal, args.postal_mapping, args.config) if p]
         require(out.resolve() not in {Path(p).resolve().parent for p in named}, "output-dir",
                 "must not be a directory that holds an input file")
         result = execute(load(args.base), [load(p) for p in args.external], optional(args.base_mapping),
                          optional(args.external_attributes), optional(args.identity_policy),
                          optional(args.postal), optional(args.postal_mapping), optional(args.config),
-                         args.sample_size)
+                         args.sample_size, optional(args.source_metadata))
         hashes = {name: write_json(out / f"{name}.json", result[name])
                   for name in ("batch", "candidates", "review_worksheet", "geography_report", "report")}
         manifest = {"matcher_version": MATCHER_VERSION,

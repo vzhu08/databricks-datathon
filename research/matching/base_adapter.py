@@ -29,6 +29,29 @@ def default_mapping(base):
     return {role: role for role in BASE_ROLES if role in keys}
 
 
+D_ROLES = ("name", "state", "type", "pin", "latitude", "longitude")
+
+
+def mapping_from_source_metadata(metadata, base):
+    """Roles from D's `source_metadata.json` (the mapping an operator observed).
+
+    D records bare source column names; they live under `source_row` in the
+    prepared base. `id` and `evidence` are D's concern and are not used here.
+    The metadata must describe this base file: row count and base hash agree.
+    """
+    require(isinstance(metadata, dict) and isinstance(metadata.get("mapping"), dict), "source_metadata",
+            "expected D's source_metadata.json with a mapping object")
+    require(metadata.get("row_count") == len(base), "source_metadata",
+            "row_count differs from the base file; use the metadata written with this base")
+    result = {}
+    for role in D_ROLES:
+        column = metadata["mapping"].get(role)
+        if column is not None:
+            require(isinstance(column, str) and column.strip(), f"source_metadata.mapping.{role}", "column name required")
+            result[role] = f"source_row.{column}"
+    return result
+
+
 def check_mapping(mapping, base):
     require(isinstance(mapping, dict) and set(mapping) <= set(BASE_ROLES), "base_mapping",
             "unknown role; allowed: " + ", ".join(BASE_ROLES))

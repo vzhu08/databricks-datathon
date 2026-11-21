@@ -11,7 +11,7 @@ from pathlib import Path
 from matching_fixtures import (ROOT, base_row, by_pair, envelope, ext, mapping, match_for, snapshot)
 from merge import plan_merge
 
-from research.matching.common import MatchingError, digest, load, stable_id
+from research.matching.common import MatchingError, digest, load, stable_id  # noqa: E402
 from research.matching.normalize import name_evidence, phone_keys, pin_key, state_key, tokens
 from research.matching.run import execute
 
@@ -49,6 +49,28 @@ class SharedFixtureTests(unittest.TestCase):
             execute(base, [envelope([snapshot()], [])], mapping={"hospital_name": "source_row.name"})
         with self.assertRaisesRegex(MatchingError, "no base row has"):
             execute(base, [envelope([snapshot()], [])], mapping={"name": "source_row.title"})
+
+
+class SourceMetadataTests(unittest.TestCase):
+    def test_d_prepared_package_supplies_the_mapping(self):
+        sys.path.insert(0, str(ROOT / "databricks/enrichment"))
+        from source_inspection import map_base
+        rows = [{"source_id": "0007", "source_name": "Larkspur Hospital", "st": "Synthetic State", "town": "North Town"},
+                {"source_id": "0008", "source_name": "Marigold Hospital", "st": "Synthetic State", "town": "North Town"}]
+        base = map_base(rows, "source_id", "synthetic.fixture.facilities")
+        metadata = {"mapping": {"id": "source_id", "name": "source_name", "state": "st", "evidence": []},
+                    "row_count": 2}
+        externals = [ext(1, "Larkspur Hospital", snapshot(), city="North Town", state="Synthetic State")]
+        result = execute(base, [envelope([snapshot()], externals)], source_metadata=metadata,
+                         mapping={"city": "source_row.town"})
+        self.assertEqual(["city", "name", "state"], result["report"]["base_mapping_roles"])
+        pair = by_pair(result)[("0007", "synthetic:external:001")]   # leading-zero ID kept as text
+        self.assertEqual(("agree", "agree"), (pair["signals"]["state"], pair["signals"]["place"]))
+        self.assertEqual(rows[0], base[0]["source_row"])
+        with self.assertRaisesRegex(MatchingError, "row_count differs"):
+            execute(base, [envelope([snapshot()], externals)], source_metadata=dict(metadata, row_count=3))
+        with self.assertRaisesRegex(MatchingError, "mapping object"):
+            execute(base, [envelope([snapshot()], externals)], source_metadata={"row_count": 2})
 
 
 class CandidateTests(unittest.TestCase):
