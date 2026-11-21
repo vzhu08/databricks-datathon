@@ -9,8 +9,10 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 import json
+import os
 from pathlib import Path
 import re
+import tempfile
 import unicodedata
 
 from .common import AcquisitionError, canonical, digest, envelope, file_digest, read_json, review, validate, write_json
@@ -108,6 +110,40 @@ def exact_name_overlap(reference, regional):
             "confirmed_campuses": 0, "rows": rows}
 
 
+def publish_reference(output, payloads):
+    """Publish a complete reference or verify a previous identical release."""
+    output = Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if not output.exists():
+        with tempfile.TemporaryDirectory(prefix=".adip-", dir=output.parent) as temp:
+            stage = Path(temp) / "reference"
+            for name, data in payloads.items():
+                write_json(stage / name, data)
+            try:
+                stage.rename(output)
+                return
+            except OSError:
+                if not output.is_dir():
+                    raise
+    if (not output.is_dir() or set(p.name for p in output.iterdir()) != set(payloads)
+            or any((output / name).read_bytes() != canonical(data) + b"\n" for name, data in payloads.items())):
+        raise AcquisitionError("adip_existing_output_not_identical")
+
+
+def publish_overlap(destination, result):
+    """Preserve existing files, including an accidentally selected input batch."""
+    destination = Path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".adip-overlap-", dir=destination.parent) as temp:
+        staged = Path(temp) / "overlap.json"
+        write_json(staged, result)
+        try:
+            os.link(staged, destination)
+        except FileExistsError:
+            if not destination.is_file() or file_digest(destination) != file_digest(staged):
+                raise AcquisitionError("adip_existing_overlap_not_identical")
+
+
 def build(pdf, acquisition_metadata, audit_path, output):
     import pdfplumber
     metadata, audit = read_json(acquisition_metadata), read_json(audit_path)
@@ -148,13 +184,7 @@ def build(pdf, acquisition_metadata, audit_path, output):
     payloads = {"batch.json": batch, "institutions.json": sidecar, "report.json": report}
     payloads["manifest.json"] = {"files": {name: digest(canonical(data) + b"\n") for name, data in payloads.items()},
                                  "raw_sha256": raw_hash, "audit_sha256": file_digest(audit_path)}
-    output = Path(output)
-    if output.exists():
-        if set(p.name for p in output.iterdir()) != set(payloads) or any((output / name).read_bytes() != canonical(data) + b"\n" for name, data in payloads.items()):
-            raise AcquisitionError("adip_existing_output_not_identical")
-    else:
-        # All parsing, audit checks and contract validation precede artifact writes.
-        for name, data in payloads.items(): write_json(output / name, data)
+    publish_reference(output, payloads)
     return report
 
 
@@ -171,4 +201,4 @@ if __name__ == "__main__":
         p.error("Supply both --explicit-batch and --overlap-output")
     print(json.dumps(build(a.pdf, a.metadata, a.audit, a.output_dir), indent=2))
     if a.explicit_batch:
-        write_json(a.overlap_output, exact_name_overlap(read_json(a.output_dir / "batch.json"), read_json(a.explicit_batch)))
+        publish_overlap(a.overlap_output, exact_name_overlap(read_json(a.output_dir / "batch.json"), read_json(a.explicit_batch)))

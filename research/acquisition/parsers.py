@@ -46,7 +46,7 @@ def load_features(path, source):
                 for info in infos:
                     name = info.filename
                     parts = PurePosixPath(name).parts
-                    if (name.startswith("/") or ".." in parts or "\\" in name or ":" in name
+                    if (info.orig_filename != name or name.startswith("/") or ".." in parts or "\\" in name or ":" in name
                             or stat.S_ISLNK(info.external_attr >> 16) or info.flag_bits & 1):
                         raise AcquisitionError("unsafe_archive_path_or_type")
                 candidates = [n for n in names if n.lower().endswith(".geojson")]

@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from research.acquisition.common import AcquisitionError, ROOT, file_digest, read_json
 from research.acquisition.fetch import Fetcher
-from research.acquisition.run import acquire, provenance, run, verify_saved
+from research.acquisition.run import acquire, acquire_writer_lock, provenance, run, verify_saved
 from fixtures import feature, geojson, landing, osm_archive
 
 
@@ -92,6 +92,16 @@ class FetchTests(unittest.TestCase):
 
 
 class PipelineTests(unittest.TestCase):
+    def test_writer_lock_blocks_second_handle_then_releases(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / ".writer.lock"
+            with path.open("a+b") as first, path.open("a+b") as second:
+                acquire_writer_lock(first)
+                with self.assertRaisesRegex(AcquisitionError, "output_directory_busy"):
+                    acquire_writer_lock(second)
+            with path.open("a+b") as reopened:
+                acquire_writer_lock(reopened)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
