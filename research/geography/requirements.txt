@@ -1,0 +1,6 @@
+# Only for the live public-data steps of ACQ-C02. Sampling, measuring and the tests run without them
+# (one reader test is skipped when pyarrow is absent).
+pyarrow==26.0.1    # overture_read: bounded reads of the release's parquet files
+s2sphere==0.2.5    # open_buildings: level-6 S2 cell for a coordinate
+mgrs==1.7.1        # imagery: Sentinel-2 tile for a coordinate
+rasterio==1.5.2    # imagery: one classification value at a point
