@@ -1,0 +1,5 @@
+{
+  "national.json": {"sha256": "4b5900bad2a57a179d03a6eab88f283db4f44d62a7a13b57ea77c6d445e951aa", "external_facilities": 146847, "source_snapshots": 2, "review_queue": 172},
+  "explicit.json": {"sha256": "de9f6d9ebd163680af00ba1482cc6b868f57a46e2091be3c876e1a4f08c15c31", "external_facilities": 8191, "source_snapshots": 2, "review_queue": 0},
+  "additional_review.json": {"sha256": "a1e43991463114c4a3dd55d7e374af9c4413cea2114299fbd129c1be27e5228b", "external_facilities": 13707, "source_snapshots": 2, "review_queue": 13707}
+}

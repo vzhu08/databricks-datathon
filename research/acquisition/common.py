@@ -62,6 +62,26 @@ def write_json(path, data):
     atomic_bytes(path, canonical(data) + b"\n")
 
 
+def publish_json_directory(output, payloads, conflict_reason):
+    """Publish a complete reference or verify a previous identical release."""
+    output = Path(output).resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if not output.exists():
+        with tempfile.TemporaryDirectory(prefix=".reference-", dir=output.parent) as temp:
+            stage = Path(temp) / "reference"
+            for name, data in payloads.items():
+                write_json(stage / name, data)
+            try:
+                stage.rename(output)
+                return
+            except OSError:
+                if not output.is_dir():
+                    raise
+    if (not output.is_dir() or set(p.name for p in output.iterdir()) != set(payloads)
+            or any((output / name).read_bytes() != canonical(data) + b"\n" for name, data in payloads.items())):
+        raise AcquisitionError(conflict_reason)
+
+
 def safe_url(url):
     """Logs never include userinfo, query strings, or fragments."""
     p = urlsplit(url)

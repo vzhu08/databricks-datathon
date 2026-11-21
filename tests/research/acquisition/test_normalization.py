@@ -2,6 +2,7 @@ import copy
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -143,7 +144,9 @@ class FormatTests(unittest.TestCase):
     def test_unsafe_archive_paths(self):
         for name in ("../escape.txt", "/absolute.txt", "a/../../escape.txt", "a\\escape.txt", "C:escape"):
             with self.subTest(name=name):
-                data, _ = osm_archive([feature()], {name: "malicious"})
+                # Write the literal POSIX archive name even when running on Windows.
+                with patch("zipfile.os.sep", "/"):
+                    data, _ = osm_archive([feature()], {name: "malicious"})
                 with self.assertRaises(AcquisitionError): self.load(data)
 
     def test_html_schema_drift_nan_and_empty_are_rejected(self):
