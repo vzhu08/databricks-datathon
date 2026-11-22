@@ -15,6 +15,7 @@ expiry or a reset can never leave an earlier result on the screen.
 The wording functions at the top are plain Python and are tested without Streamlit.
 """
 import html
+import time
 
 if __package__:  # imported as app.patient_ui by the repository's tests
     from .patient_intake import POLICY_VERSION, PatientIntakeService
@@ -41,10 +42,12 @@ EMERGENCY = "If this could be an emergency, call 112 now. Do not wait for this s
 NOT_A_DOCTOR = ("This is an automated assessment from that provider. It is not a diagnosis, a "
                 "prescription or a doctor's order.")
 NOTICE = (
-    "What you write is kept in this server's memory for this visit only. It is cleared when you press "
-    "Start over, and in any case {minutes} minutes after you begin.",
+    "What you write is kept in this server's memory for this visit only. This server's copy is cleared when you "
+    "press Start over, and in any case {minutes} minutes after you begin. An open page clears itself at that "
+    "moment. If your device is asleep or offline then, the page clears as soon as it reconnects.",
     "Nothing you write is put in the page address, saved in your browser or offered as a download.",
-    "Nothing is sent outside this server unless you agree to it on a later step, which names who receives it.",
+    "Nothing is sent outside this server unless you agree to it on a later step, which names who receives it. "
+    "Clearing this server's copy does not by itself delete what a provider has already received.",
     "This screen cannot examine you. It does not replace a doctor.",
 )
 SWITCHED_OFF = ("Symptom assessment is switched off on this server. No assessment provider has been approved "
@@ -58,7 +61,7 @@ URGENCY = {
     "self_care": "Self-care may be enough",
 }
 UNAVAILABLE = {
-    "unavailable": "The assessment service could not be reached, or none is set up on this server.",
+    "unavailable": "The assessment service could not be reached or did not answer.",
     "timeout": "The assessment service took too long to answer.",
     "rate_limited": "The assessment service is handling too many requests at the moment.",
     "budget_exhausted": "This visit has used all the assessment requests it is allowed.",
@@ -68,8 +71,8 @@ UNAVAILABLE = {
 }
 UNSUPPORTED = {
     "unsupported_context": "This assessment does not cover the age or language you entered.",
-    "unsupported_correction": ("You marked something the provider understood from your words as wrong or unsure, "
-                               "and this assessment cannot yet take that correction into account."),
+    "unsupported_correction": ("Your answers about what the provider understood from your words left something "
+                               "unconfirmed or in conflict, and this assessment cannot yet resolve that."),
     "interview_limit": "This assessment reached its limit of follow-up questions without a result.",
     "unsupported": "The assessment provider cannot assess this description.",
 }
@@ -81,9 +84,10 @@ DESTINATION = {
     "assessment_blocked": "Your result changed before the hospital check finished, so nothing is shown.",
 }
 ENDED = {
-    "expired": "Your visit reached its time limit and everything you wrote was cleared. Start again when you are ready.",
-    "reset": "Everything you wrote was cleared.",
-    "deleted": "Everything you wrote was cleared.",
+    "expired": ("Your visit reached its time limit and everything you wrote was cleared from this server. "
+                "Start again when you are ready."),
+    "reset": "Everything you wrote was cleared from this server.",
+    "deleted": "Everything you wrote was cleared from this server.",
 }
 NO_PROVIDER = "No assessment provider is set up on this server, so your description was not sent anywhere."
 OUT_OF_DATE = "That step was out of date, so it was not used. This is the current state of your visit."
@@ -93,7 +97,14 @@ STOPPED = ("The assessment provider ended this assessment with the message above
            "causes and no place to go. You can change your description or start over.")
 QUESTION_WITHHELD = "The assessment provider asked a question this screen cannot show, so it was withheld."
 KINDS = ("single", "multiple", "text", "evidence_review", "item_presence", "quantity", "catalog_selection")
-FAILED = "That step could not be completed on this server. Nothing new was sent or assessed."
+FAILED = ("That step could not be completed, and whether it went through could not be confirmed. What you see "
+          "now is the current state of your visit.")
+UNCONFIRMED = ("No result could be confirmed, and any earlier result has been withdrawn. Your description may still "
+               "have reached the assessment provider. If you are worried, see a doctor.")
+NOT_ASSESSED = "No assessment was made. If you are worried, see a doctor."
+ENGLISH_ONLY = "Write in English. This assessment does not support other languages yet."
+PROVIDER_COPY = ("Starting over clears this server's copy. It does not by itself delete what the provider has "
+                 "already received.")
 PRESENCE = {"present": "you have this", "absent": "you do not have this", "unknown": "not clear"}
 TEMPORALITY = {"current": "now", "historical": "in the past", "unknown": "timing not clear"}
 
@@ -294,7 +305,7 @@ def _begin(st):
         service, provider = compose()
         session = PatientSession(notice_version=NOTICE_VERSION, ttl_seconds=TTL_SECONDS)
         handle = session.open(consent=True, notice_version=NOTICE_VERSION)
-        box.update(session=session, handle=handle, service=service, provider=provider)
+        box.update(session=session, handle=handle, service=service, provider=provider, opened=time.monotonic())
     _act(st, action)
 
 
@@ -384,8 +395,8 @@ def _describe(st, box, said):
                      help="For example what you feel, where, since when, and what makes it better or worse.")
         st.number_input("Age in years (optional)", min_value=0, max_value=120, step=1,
                         value=said[1] if said else None, key=f"pt-age-{key}")
-        st.caption("Saving does not send your words anywhere. Changing your description later clears any result "
-                   "and asks for your agreement again.")
+        st.caption(ENGLISH_ONLY + " Saving does not send your words anywhere. Changing your description later "
+                   "clears any result and asks for your agreement again.")
         st.form_submit_button("Save and continue", type="primary", on_click=_save, args=(st,))
     if said:
         st.button("Keep what I wrote before", on_click=_edit, args=(st, False))
@@ -467,6 +478,21 @@ def _result(st, box, view):
         st.button("I have read this. Check for a reviewed hospital", on_click=_check_hospitals, args=(st,))
 
 
+def expiry_delay(opened, now, ttl):
+    """Seconds until an open page must look again: just after the visit's time limit, never sooner than one second."""
+    return max(1.0, ttl - (now - opened) + 1.0)
+
+
+def _watch_expiry(st, box):
+    """Clear an idle open page at the time limit. One timed check, not a poll: nothing is sent while waiting."""
+    @st.fragment(run_every=expiry_delay(box.get("opened", time.monotonic()), time.monotonic(), TTL_SECONDS))
+    def check():
+        current = st.session_state.get(STATE_KEY, {})
+        if "session" in current and current["session"].status != "active":
+            st.rerun()  # the whole page: the next draw finds the encounter gone and shows only the notice
+    check()
+
+
 def render():
     """Draw the patient screen for the current server state. Called by app.py on every run."""
     import streamlit as st
@@ -491,6 +517,7 @@ def render():
         return
 
     box["revision"] = view["revision"]
+    _watch_expiry(st, box)
     said = _statement(box["handle"])
     now = step(view, has_statement=said is not None, editing=box.get("editing", False))
     if box["provider"] is None:
@@ -506,7 +533,7 @@ def render():
         st.subheader("Send your description for assessment?")
         st.markdown(f"To assess it, your description, your age and your answers to any follow-up questions are sent "
                     f"to **{plain(box['provider'])}**. "
-                    "Nothing is sent until you agree, and you can withdraw your agreement afterwards.")
+                    "Nothing is sent until you agree, and you can withdraw your agreement afterwards. " + PROVIDER_COPY)
         st.button("I agree. Send it for assessment", type="primary", on_click=_agree_and_send, args=(st,))
     elif now == "send":
         st.subheader("Ready to assess")
@@ -522,19 +549,20 @@ def render():
         st.caption(plain(f"Message from {view.get('provider_id')}, version {view.get('provider_version')}.") + " " + STOPPED)
     elif now == "withheld":
         st.subheader("A question could not be shown")
-        st.markdown(QUESTION_WITHHELD + " No assessment was made. Change your description or start over.")
+        st.markdown(QUESTION_WITHHELD + " No result is available. Change your description or start over.")
     elif now == "unsupported":
         st.subheader("This could not be assessed")
         st.markdown(reason_line(view))
-        st.markdown("No assessment was made. If you are worried, see a doctor.")
+        st.markdown("No assessment result was given. If you are worried, see a doctor.")
     elif now == "assessment_in_progress":
         st.subheader("An assessment did not finish")
-        st.markdown("The last request was interrupted and gave no result. Change your description or start over.")
+        st.markdown("The last request was interrupted, and its result could not be confirmed. Your description may "
+                    "have been sent. Change your description or start over.")
     elif now == "unavailable":
         st.subheader("No assessment is available")
+        # "Not sent" is said only where the runtime proves it: this server has no provider at all.
         st.markdown(NO_PROVIDER if box["provider"] is None else reason_line(view))
-        st.markdown("No assessment was made" + ("" if box["provider"] is None else ", and any earlier result has been withdrawn")
-                    + ". If you are worried, see a doctor.")
+        st.markdown(NOT_ASSESSED if box["provider"] is None else UNCONFIRMED)
         if box["provider"] is not None and view.get("reason") in ("unavailable", "timeout", "rate_limited"):
             st.button("Try again", on_click=_send, args=(st,))
 

@@ -139,6 +139,28 @@ class WordingTests(unittest.TestCase):
         self.assertEqual(found["destinations"], ["campus-a"])
         self.assertIn("phone before you travel", found["text"])
 
+    def test_failure_words_never_claim_that_nothing_was_sent(self):
+        spoken = [words.FAILED, words.UNCONFIRMED, *words.UNAVAILABLE.values(), *words.UNSUPPORTED.values(),
+                  words.QUESTION_WITHHELD, words.STOPPED, words.OUT_OF_DATE]
+        for sentence in spoken:
+            for claim in ("nothing new was sent", "was not sent", "no assessment was made", "not been sent"):
+                self.assertNotIn(claim, sentence.lower(), sentence)
+        self.assertIn("may still have reached", words.UNCONFIRMED)
+        # The one "not sent" sentence belongs to the case the runtime proves: no provider on this server.
+        self.assertIn("not sent anywhere", words.NO_PROVIDER)
+        # Unresolved evidence is not blamed on the patient: confirming two conflicting readings also ends here.
+        for blame in ("you marked", "wrong or unsure"):
+            self.assertNotIn(blame, words.UNSUPPORTED["unsupported_correction"].lower())
+        # Clearing is claimed for this server only.
+        for sentence in words.ENDED.values():
+            self.assertIn("from this server", sentence)
+        self.assertIn("does not by itself delete", words.PROVIDER_COPY)
+
+    def test_an_idle_page_is_told_to_look_again_just_after_the_time_limit(self):
+        self.assertEqual(words.expiry_delay(opened=100.0, now=100.0, ttl=900), 901.0)
+        self.assertEqual(words.expiry_delay(opened=100.0, now=700.0, ttl=900), 301.0)
+        self.assertEqual(words.expiry_delay(opened=100.0, now=5000.0, ttl=900), 1.0)
+
     def test_text_from_a_patient_or_provider_cannot_become_markup(self):
         self.assertEqual(words.plain("[x](https://a.invalid) <b> ![i](u)"),
                          "\\[x\\]\\(https\\:\\/\\/a\\.invalid\\) \\<b\\> \\!\\[i\\]\\(u\\)".replace("\\/", "/"))
@@ -235,6 +257,8 @@ class ScreenTests(unittest.TestCase):
         text = self.shown(app)
         self.assertIn("No assessment is available", text)
         self.assertIn(self.screen.NO_PROVIDER, text)
+        self.assertIn(self.screen.NOT_ASSESSED, text)
+        self.assertNotIn(self.screen.UNCONFIRMED, text)
         self.assertIn(STATEMENT, [element.value for element in app.text])
         for invented in ("Possible causes", "How sure this is", "Where to go", "Assessed by"):
             self.assertNotIn(invented, text)
@@ -339,6 +363,9 @@ class ScreenTests(unittest.TestCase):
         text = self.shown(app)
         self.assertIn("No assessment is available", text)
         self.assertIn(self.screen.UNAVAILABLE["unavailable"], text)
+        self.assertIn(self.screen.UNCONFIRMED, text)
+        self.assertNotIn("No assessment was made", text)
+        self.assertNotIn("not sent", text)
         for stale in ("Invented guidance text", "Invented cause one", "Where to go"):
             self.assertNotIn(stale, text)
         app = self.press(app, "Try again")

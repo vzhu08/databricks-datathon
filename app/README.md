@@ -31,6 +31,15 @@ What it will not do:
   `provider_unavailable`. There is no scripted story, sample picker or fixture fallback.
 - **No stale result.** An edit, a withdrawn agreement, a failed or out-of-date step, an expiry and
   Start over all leave only what the runtime holds now. The screen keeps no copy of a result.
+- **No text left on an idle page.** An open page is told to look again one second after the visit's
+  time limit and then shows only the opening notice, with no action from the patient. It is one
+  timed check, not a poll. A device that is asleep or offline at that moment clears when it
+  reconnects, and the notice says so.
+- **No claim that nothing was sent** after a failure, a timeout or an interrupted request. The
+  screen says a result could not be confirmed and that the description may have reached the
+  provider. "Not sent anywhere" is said only when this server has no provider at all.
+- **No claim about a provider's copy.** Start over and expiry are described as clearing this
+  server's copy. The agree step says that does not delete what a provider has already received.
 - **No repeat on redraw.** Runtime calls happen in button handlers. Drawing the page again never
   repeats a consent, an assessment or an answer.
 - **No patient text outside the encounter.** Nothing goes in the URL, browser storage, a download
