@@ -127,6 +127,39 @@ python -m research.website_evidence.specialists --rows PRIVATE/sample_rows.json 
   --run PRIVATE/specialists_run.psv --crawl CC-MAIN-2026-39 --out PRIVATE/out
 ```
 
+### Wider run: hospital-type sites (same crawl, final rules)
+
+After the sample, the counter was run on 4,094 more domains whose VF row name looks like a hospital,
+medical college, diagnostic or specialty centre (dental, eye, IVF, skin and AYUSH names were left
+out; in the sample those rows held 87% of specialist hits). Rows counted are the 5,508 whose every
+domain was read.
+
+| Rows (n = 5,508) | Rows | Share |
+|---|---:|---:|
+| No readable HTML capture | 3,330 | 60% |
+| Readable site, no doctor or department page archived | 684 | 12% |
+| Doctor page archived, no named doctor | 355 | 6% |
+| **Site lists named doctors** | **1,139** | **21%** |
+| of which at least one of the five specialties | 497 | 9.0% |
+| Orthopaedics / radiology / nephrology / neurosurgery / emergency-trauma | 329 / 171 / 163 / 161 / 69 | |
+
+Final rules (also re-run on the sample, where 121 rows now list a target specialty, down from 142):
+an entry is skipped when it is a dental, ENT, physiotherapy or AYUSH doctor, a menu or form, or a
+blog byline; and only the **first** specialty named after the name counts, so a later "Department of
+Orthopaedics" heading is not credited to a nephrologist. Sample agreement under these rules:
+nephrologist and dialysis quote 65% (20 of 31), radiologist and MRI 25%, trauma specialists and
+trauma quote 30%.
+
+Hand check of 50 random pairs from the wider run: 40 correct (80%). Remaining misses: another
+specialty in the same entry (neurologist, urologist, gynaecologist, occupational therapist), event
+or paragraph text, and filter headings. An earlier check of the second rule set across the wider
+run gave 73%, which is why the first-specialty rule was added.
+
+**Nephrologist but no dialysis quote (15 sample rows).** Reading up to ten more archived pages per
+site: 1 row gains an own-site dialysis sentence, 3 have weaker wording (patient story, blog,
+doctor profile), 4 are chain sites whose dialysis pages belong to another campus or the network,
+and 7 have no dialysis wording archived. A nephrologist listing alone is a pointer, not evidence.
+
 ## Limits and next steps
 
 - **One crawl only.** Most misses are domains Common Crawl did not visit in that crawl. Adding two
