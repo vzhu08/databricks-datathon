@@ -36,16 +36,38 @@ With no observations argument the scorer reports all 35 as `NOT_RUN` and exits n
 
 ## Server observer binding
 
-Run the offline smoke check from a clone containing the four source commits named in [smoke.py](../../tests/patient_intake_audit/smoke.py). For an assembled candidate, supply the repository and commit recorded by its owner.
+Run the offline backend replay from a clone containing the six component heads and merged foundation commit named in [smoke.py](../../tests/patient_intake_audit/smoke.py). The default run exports the complete foundation app and adds N’s pinned provider package. It verifies the M/O/P/Q ancestry and checks that R has no application changes. To replay a single composed commit, supply its repository and SHA.
 
 ```sh
 python3 -B tests/patient_intake_audit/smoke.py
 python3 -B tests/patient_intake_audit/smoke.py --repo "$COMPOSITION_REPO" --commit "$COMPOSITION_SHA"
 ```
 
-The worker calls M’s service, Q’s interview reducer, O’s session and P’s handoff with an independent scripted provider at M’s normalized response boundary. The handoff controls use a test order scoped to the exact handle and revision and wrap P’s real ranker to count calls. The worker blocks Python socket operations and subprocess launches. The report names the source pins, interpreter, provider stub, packet and observer hashes, unavailable cases and disagreements on observed fields. Exit zero means the measurements it collected agreed with the frozen expectations.
+The worker calls M’s service, Q’s interview reducer, O’s session and P’s handoff. Synthetic replies go through N’s real transport with an injected offline exchange. Two terminal cases additionally use N’s prebound MGP adapter with a documented synthetic early alert and an empty response. Per-case counters cover physical mock exchange starts, actual finder and ranker entries, route-adapter entries, route HTTP transport and Python socket attempts. The socket and subprocess guards apply during the case and its cleanup. Positive controls run separately against a local ranker, disabled route adapter, mocked HTTPS connections (including N’s worker thread), and an intercepted socket operation. The report records these controls, per-case measurements, missing fields and disagreements. A zero exit code means the observed assertions agreed. The frozen scorer keeps incomplete cases in the denominator.
 
-The first run on R’s `48e73ed84f6cb2f19f7aca929d8741ec48c955cd` captured 56 of 186 fields across 18 of 35 cases. Seventeen cases had no bound observer, and every exercised case still had missing observations. The measurements cover normalized provider calls, API state and the synthetic handoff. Browser wording, privacy surfaces, external route-provider starts, physical provider transport and interpretation of new symptom text remain unmeasured by this runner. The scripted provider supplies the fictional evidence and questions. The final engineering replay requires the integrated patient entry point. [R’s composition receipt](https://github.com/vzhu08/databricks-datathon/issues/229#issuecomment-7076393528)
+### Offline backend results
+
+The run on local composition `293669a68eab96bb28ee9087ec442a8082cd5b6a`, app tree `4d02d9eef77ceb9ded478158ab138b10ecd0e825`, measured **165/186 fields across all 35 frozen cases**. Fifteen cases passed their complete engineering scenario. Twenty had partial coverage and scored `NOT_RUN`. There were zero failed cases. The default manifest run on Python 3.9.6 and single-commit run on Python 3.12.14 produced identical observations. The earlier [56-field receipt](https://github.com/vzhu08/databricks-datathon/issues/230#issuecomment-7076415191) used the previous provider head and observer.
+
+| Fully observed scenarios | Case IDs |
+| --- | --- |
+| Interview and evidence handling | `novel-intake`, `negated`, `historical`, `unknown`, `omitted`, `unconfirmed-extraction` |
+| User input, consent and authority | `instruction-shaped-text`, `client-ready`, `symptom-is-not-order`, `consent` |
+| Operations and handoff | `new-turn-recovery`, `late-first-response`, `concurrent-submit`, `valid-reviewed-handoff`, `missing-origin-permission` |
+
+| Partially observed scenarios | Missing observation or event |
+| --- | --- |
+| `qualified-completion`, `contradiction` | Rendered uncertainty and the unresolved-evidence message, respectively. |
+| `unsupported-age`, `unsupported-language` | Rendered eligibility stop. Edit returned `unsupported` for each. Calling consent and assess afterward returned `draft` both times, with zero exchange starts. |
+| `provider-emergency`, `terminated-empty` | Rendered urgency and terminal message. The early emergency remained `urgent`. The empty survey remained `unsupported` after continuation, with zero further exchanges. |
+| `malformed-provider`, `no-configuration`, `outage-after-success` | Rendered unavailable/review message. The outage also needs observation of whether the earlier successful result remains on screen. The missing-configuration run exercises the service with no provider. |
+| `same-count-edit`, `reset-in-flight`, `expired-session` | Visibility of the prior result. Expiry also needs inspection for disclosures after returning through the client. |
+| `cross-session-answer`, `cross-encounter-receipt`, `shared-cache` | Cross-session disclosure in independent browser contexts. Server views in both wrong-handle scenarios were unchanged. |
+| `budget-exhausted`, `question-loop` | Rendered quota stop and follow-up limit message. |
+| `privacy-sinks` | Aggregate canary count and complete surface coverage. App logs and the captured traceback stream had zero matches after successful synthetic calibration. Telemetry, URL/history, rendered errors, local storage, session storage, IndexedDB, cache storage and client assets still require captures through the integrated entry point. |
+| `provider-instruction-text`, `no-eligible-campus` | All numerical fields were observed, but two requested events remain unavailable. The first requires rendering the provider’s label. The second requires enabling routing permission, which P’s local-only handoff cannot accept. |
+
+The 35 cases started 50 offline mock exchanges. Three scenarios each entered the finder once. The verified order and the local search without external lookup permission returned the eligible fictional campus. The unconfirmed campus eligibility check returned no destination. No case entered the route adapter, route HTTP transport or default provider HTTPS exchange, attempted a socket operation or launched a subprocess. The `novel-intake` case verifies verbatim text reaches the mock exchange and that the patient can review a supplied fact. Fresh-input clinical interpretation, provider suitability in India, and patient-facing release remain unevaluated.
 
 ## Clinical evaluation for a release decision
 

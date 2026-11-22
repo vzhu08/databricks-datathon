@@ -15,22 +15,33 @@ from score import case_result, load_cases
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
+BASE = "462e648dd79d3b1fd520d6c2479891f43e582612"
 PINS = {
-    "M": ("6883c439716a42d78521df11e735e08e98415376", "patient_intake", ["__init__", "contracts", "service"]),
-    "Q": ("b2e186b384f7c15d438efae874e3ee9417080f46", "patient_intake", ["interview", "evidence"]),
-    "O": ("1c7640d6a38fc27bf18d9593f46f7426472bc41f", "patient_intake", ["session", "privacy"]),
-    "P": ("45666fe0275074c6bcc87f97ca7289ce0a531051", "patient_intake", ["handoff"]),
+    "M": "6883c439716a42d78521df11e735e08e98415376",
+    "N": "b741e9248d93d479aca412788dad9a4aa731bbda",
+    "O": "1c7640d6a38fc27bf18d9593f46f7426472bc41f",
+    "P": "d5ab8b3883d001b22df664b9b4ab178f07ed6591",
+    "Q": "b2e186b384f7c15d438efae874e3ee9417080f46",
+    "R": "55b52418533fe7ac1be76108a4888dc88d99ce3f",
 }
-RANKING = ["__init__", "evidence", "location", "search", "urgency"]
 
 
-def stage(root, commit, package, modules):
-    directory = root / package
-    directory.mkdir(exist_ok=True)
-    for module in modules:
-        path = f"app/{package}/{module}.py"
-        source = subprocess.check_output(["git", "show", f"{commit}:{path}"], cwd=ROOT)
-        (directory / f"{module}.py").write_bytes(source)
+def export(repo, root, commit, path):
+    archive = subprocess.check_output(["git", "archive", "--format=zip", commit, path], cwd=repo)
+    with ZipFile(io.BytesIO(archive)) as snapshot:
+        snapshot.extractall(root)
+
+
+def stage_components(repo, root):
+    for name in ("M", "O", "P", "Q"):
+        subprocess.run(["git", "merge-base", "--is-ancestor", PINS[name], BASE], cwd=repo, check=True)
+    for name in ("N", "R"):
+        paths = subprocess.check_output(
+            ["git", "diff", "--name-only", BASE + "..." + PINS[name], "--", "app"], cwd=repo, text=True)
+        if any(name != "N" or not path.startswith("app/patient_intake/providers/") for path in paths.splitlines()):
+            raise ValueError("Unaccounted app change in component")
+    export(repo, root, BASE, "app")
+    export(repo, root, PINS["N"], "app/patient_intake/providers")
 
 
 def main():
@@ -45,16 +56,12 @@ def main():
             commit = subprocess.check_output(
                 ["git", "rev-parse", "--verify", "--end-of-options", args.commit + "^{commit}"],
                 cwd=args.repo, text=True).strip()
-            archive = subprocess.check_output(["git", "archive", "--format=zip", commit, "app"], cwd=args.repo)
-            with ZipFile(io.BytesIO(archive)) as snapshot:
-                snapshot.extractall(app)
-            app = app / "app"
+            export(args.repo, app, commit, "app")
             provenance = {"composition": commit}
         else:
-            for commit, package, modules in PINS.values():
-                stage(app, commit, package, modules)
-            stage(app, PINS["P"][0], "ranking", RANKING)
-            provenance = {"components": {key: value[0] for key, value in PINS.items()}}
+            stage_components(args.repo, app)
+            provenance = {"base": BASE, "components": PINS}
+        app = app / "app"
         observer = HERE / "runtime_binding.py"
         run = subprocess.run([sys.executable, "-I", "-S", "-B", str(observer), "--app", str(app)],
                              capture_output=True, text=True)
@@ -66,8 +73,8 @@ def main():
             raise SystemExit("Incomplete case inventory")
         checks = [case_result(case, rows[case["id"]]) for case in cases]
         differences = {r["id"]: r["failed"] for r in checks if r["failed"]}
-        report.update(**provenance, observed_field_disagreements=differences,
-                      python=sys.version.split()[0], provider="audit-stub/v1",
+        report.update(**provenance, case_coverage=checks, observed_field_disagreements=differences,
+                      python=sys.version.split()[0], provider="audit-stub/v2 and prebound MGP terminal fixtures",
                       packet_sha256=hashlib.sha256((HERE / "cases.v1.json").read_bytes()).hexdigest(),
                       observer_sha256=hashlib.sha256(observer.read_bytes()).hexdigest())
         print(json.dumps(report, indent=2))
