@@ -12,12 +12,15 @@ The mode is named at the top of the screen (`Data: demonstration`, `Data: real r
 
 | Setting | Mode |
 | --- | --- |
-| `FIND_CARE_DATA=demo`, or no warehouse setting at all | Demonstration on the six invented facilities in `demo_facilities.json` |
-| `FIND_CARE_DATA=warehouse`, or any warehouse setting present | Real records through `search_warehouse` |
+| `FIND_CARE_DATA=demo`, or none of the five warehouse settings present | Demonstration on the six invented facilities in `demo_facilities.json` |
+| `FIND_CARE_DATA=warehouse`, or any of the five warehouse settings present | Real records through `search_warehouse` |
 
-A warehouse that is only partly configured is a setup problem, never a fallback to invented data.
-The screen names each missing setting (`DATABRICKS_WAREHOUSE_ID`, `DATABRICKS_PREPARED_TABLE`, and
-the host and client credentials Databricks Apps supplies) without repeating any value, and stops.
+The five warehouse settings are `DATABRICKS_WAREHOUSE_ID`, `DATABRICKS_PREPARED_TABLE`,
+`DATABRICKS_HOST`, `DATABRICKS_CLIENT_ID` and `DATABRICKS_CLIENT_SECRET`. Databricks Apps supplies
+the last three to every app, so a deployed app is a demonstration only because `app.yaml` says
+`FIND_CARE_DATA=demo`. A warehouse that is only partly configured, including the host or the
+credentials on their own, is a setup problem and never a fallback to invented data. The screen
+names each missing setting without repeating any value, and stops.
 A table that cannot be read gives "The facility records cannot be reached right now."
 
 ## What each mode shows

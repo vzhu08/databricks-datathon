@@ -49,10 +49,10 @@ _TABLE = re.compile(r"[\w-]+\.[\w-]+\.[\w-]+")
 def data_mode(environ):
     """Where the screen gets its facilities: {"mode": "demo" | "warehouse" | "setup", "problems": [...]}.
 
-    FIND_CARE_DATA chooses it outright. Left unset, the screen is a demonstration only when no
-    warehouse setting is present at all: any warehouse setting means the real records were intended,
-    so whatever is missing is reported instead of quietly showing invented facilities. Setting
-    values are never repeated in a problem line.
+    FIND_CARE_DATA chooses it outright. Left unset, the screen is a demonstration only when none of
+    the five warehouse settings is present: the host or the app's credentials alone already mean the
+    real records were intended, so whatever is missing is reported instead of quietly showing
+    invented facilities. Setting values are never repeated in a problem line.
     """
     def has(name):
         return bool(str(environ.get(name) or "").strip())
@@ -60,8 +60,7 @@ def data_mode(environ):
     chosen = str(environ.get(DATA_SETTING) or "").strip().lower()
     if chosen not in ("", "demo", "warehouse"):
         return {"mode": "setup", "problems": [f"{DATA_SETTING} must be demo or warehouse."]}
-    if chosen == "demo" or (not chosen and not any(
-            has(name) for name in ("DATABRICKS_WAREHOUSE_ID", "DATABRICKS_PREPARED_TABLE"))):
+    if chosen == "demo" or (not chosen and not any(has(name) for name in WAREHOUSE_SETTINGS)):
         return {"mode": "demo", "problems": []}
     problems = [f"{name} is not set. {fix}" for name, fix in WAREHOUSE_SETTINGS.items() if not has(name)]
     if has("DATABRICKS_PREPARED_TABLE") and not _TABLE.fullmatch(str(environ["DATABRICKS_PREPARED_TABLE"]).strip()):

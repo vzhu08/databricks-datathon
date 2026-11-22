@@ -108,6 +108,18 @@ class WordingTests(unittest.TestCase):
                 self.assertEqual(1, len(mode["problems"]), missing)
                 self.assertTrue(mode["problems"][0].startswith(missing + " is not set."), mode["problems"])
         self.assertEqual("setup", words.data_mode({"FIND_CARE_DATA": "warehouse"})["mode"])
+        # Any one of the five settings on its own means the real records were intended.
+        host = {"DATABRICKS_HOST": WAREHOUSE["DATABRICKS_HOST"]}
+        identity = {name: WAREHOUSE[name] for name in ("DATABRICKS_CLIENT_ID", "DATABRICKS_CLIENT_SECRET")}
+        for present in (host, identity, {**host, **identity}, *({name: WAREHOUSE[name]} for name in WAREHOUSE)):
+            mode = words.data_mode(present)
+            self.assertEqual("setup", mode["mode"], sorted(present))
+            self.assertEqual([name + " is not set." for name in WAREHOUSE if name not in present],
+                             [problem.split(" is not set.")[0] + " is not set." for problem in mode["problems"]])
+            self.assertEqual("demo", words.data_mode({**present, "FIND_CARE_DATA": "demo"})["mode"], sorted(present))
+            for value in present.values():
+                self.assertNotIn(value, " ".join(mode["problems"]))
+        self.assertEqual("demo", words.data_mode({name: "  " for name in WAREHOUSE})["mode"])
         self.assertEqual(["FIND_CARE_DATA must be demo or warehouse."],
                          words.data_mode({**WAREHOUSE, "FIND_CARE_DATA": "live"})["problems"])
         shaped = words.data_mode({**WAREHOUSE, "DATABRICKS_PREPARED_TABLE": "private_schema.private_table"})
@@ -356,8 +368,31 @@ class ScreenTests(unittest.TestCase):
             self.assertEqual([], [button.key for button in app.button])
             for value in WAREHOUSE.values():
                 self.assertNotIn(value, self._everything(app))
-        app = self._app(DATABRICKS_WAREHOUSE_ID="test-warehouse")  # what app.yaml alone would give
+        app = self._app(DATABRICKS_WAREHOUSE_ID="test-warehouse")
         self.assertIn("DATABRICKS\\_PREPARED\\_TABLE is not set", self._text(app))
+
+    def test_the_host_or_the_credentials_alone_are_a_setup_problem_not_a_demonstration(self):
+        host = {"DATABRICKS_HOST": "https://made-up-workspace.example.invalid"}
+        identity = {"DATABRICKS_CLIENT_ID": "made-up-client", "DATABRICKS_CLIENT_SECRET": "made-up-secret"}
+        for present in (host, identity, {**host, **identity}):
+            app = self._app(**present)
+            text = self._text(app)
+            self.assertIn("Data: not available.", text, sorted(present))
+            for name in WAREHOUSE:
+                said = name.replace("_", "\\_") + " is not set"
+                (self.assertNotIn if name in present else self.assertIn)(said, text, sorted(present))
+            self.assertNotIn("Data: demonstration.", text)
+            self.assertNotIn("invented facilities, not the real records", text)
+            self.assertEqual([], [button.key for button in app.button])  # no examples and no search form
+            self.assertEqual(0, len(app.text_input) + len(app.radio))
+            everything = self._everything(app)
+            for value in present.values():
+                self.assertNotIn(value, everything)
+            self._assert_nothing_restricted(app)
+            # Choosing the demonstration outright still works beside the same settings.
+            app = self._app(**present, FIND_CARE_DATA="demo")
+            self.assertIn("Data: demonstration.", self._text(app))
+            self.assertEqual(3, len([button for button in app.button if str(button.key).startswith("example-")]))
 
     def test_a_warehouse_read_failure_reports_unavailable_and_recommends_nothing(self):
         app = self._app(FakeWarehouse(error=ConnectionError("Example Regional Hospital")), **WAREHOUSE)
