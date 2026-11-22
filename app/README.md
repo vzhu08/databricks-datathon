@@ -285,8 +285,8 @@ FIND_CARE_DATA=demo streamlit run app.py
 
 `FIND_CARE_DATA=demo` is the explicit synthetic mode, and `app.yaml` sets the same value for a
 deployed app. Expected startup: Streamlit prints a local address, and the page opens on **Check
-symptoms** with the title **Check your symptoms**. Choose **Find care (demonstration)** at the top
-of the page. The page then shows the title **Find care**, a band reading **Data: demonstration.
+symptoms** with the title **Check your symptoms**. Choose **Find care** at the top of the page, then
+**Simulated scenarios** under **Find care mode**. The page then shows a band reading **Data: demonstration.
 This screen is running on invented campuses and six invented facilities, not the real records.**,
 and a form already set to Recommend a campus, Dialysis, Routine and Central.
 
@@ -388,11 +388,11 @@ the order: the screen words what the search returns.
 python -m unittest tests.find_care.test_find_care
 ```
 
-The command runs 33 tests. Seventeen wording and rule tests run on the shared fixture. Fourteen screen tests drive the app through
+The command runs 39 tests. Seventeen wording and rule tests run on the shared fixture. Twenty screen tests drive the app through
 Streamlit's test harness, including a stub warehouse whose v0 answer is `ok` only because a record
 states the service, a half-configured warehouse, a read failure, and a request changed after its
 answer. Two more copy `app/` to an empty folder, answer the demonstration example there, and start
-the server with the command in `app.yaml`. The sixteen tests that need Streamlit are skipped when it
+the server with the command in `app.yaml`. The twenty-two tests that need Streamlit are skipped when it
 is not installed.
 
 ## Design review
