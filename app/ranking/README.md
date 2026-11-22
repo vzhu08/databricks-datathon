@@ -28,3 +28,13 @@ Each service decision carries a `status` of `yes`, `no`, or `unconfirmed`. Put t
 ## Response
 
 Valid requests emit one JSON object on stdout and exit 0. `ok` returns scored campuses with the travel value, factors, weights, source date, and availability. Availability stays `unknown`. `needs_confirmation` returns unscored leads with reasons. `no_match` means this request had no eligible result or confirmation lead in the supplied candidate pool. A malformed request writes an `invalid_input` JSON diagnostic to stderr and exits 2.
+
+## Individual Find care selection
+
+Call `select_individual(service, candidates, *, allocation=None, emergency=False, withheld_summary=None)` from `ranking.individual` in the packaged app. Use the current request’s server-produced allocator result and the candidate fields already cleared for the receiving audience. Each candidate has a stable `key`, optional `name` and `area`, separate mapper `location` and `service` claims, and an established `source_scope`. Optional observations are `availability`, `travel` (sourced ordinary-car minutes) and `distance_km` from the same origin. Missing observations stay unknown.
+
+For a private edition, retain original occurrences with a left join on the pinned occurrence key and requested service. For synthetic cards, bind the mapper’s `(result_group, index)` within the same response and retain the card's ID. Unconfirmed service and missing secondary evidence can both yield a lead. For the judge-facing warehouse path, pass only the mapper’s already-cleared `summary` as `withheld_summary` with an empty candidate list.
+
+Display and export the returned decision together. A supported allocator preview carries the allocator’s chosen option, source and mode. A reviewed real assignment also needs a matching cleared campus projection. For a provisional result, use the selected candidate’s two claim objects, `reason`, `missing` and `next_action` for the confirmation note. A location-only lead requests branch and service verification. The selector performs no network or storage operations.
+
+For example, the invented Campus A fixture reports “dialysis unit” in `procedures`. The claim has one source family, a reported locality, an unknown observation date and unknown staffed availability. A private projection explicitly classified as VF-only yields **Provisional · VF only** and a confirmation note. The public synthetic demo uses **Provisional** and displays its synthetic origin. Both preserve the source field and leave the road time unknown.
