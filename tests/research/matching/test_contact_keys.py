@@ -87,6 +87,20 @@ class JoinTest(unittest.TestCase):
                      ext("e2", "Asha Devi Hospital", phones=["+919829012345"])])
         self.assertEqual({r["outcome"] for r in rows}, {"competing"})
 
+    def test_two_vf_rows_on_one_outside_record_compete(self):
+        # Same institution, two campuses, different unique keys, one outside record.
+        bases = [vf("v1", "Asha Devi Hospital", hosts=["ashadevi.example"]),
+                 vf("v2", "Asha Devi Hospital", emails=["office@ashadevi-trust.example"])]
+        rows = join(bases, [ext("e1", "Asha Devi Hospital", hosts=["ashadevi.example"],
+                               emails=["office@ashadevi-trust.example"])])
+        self.assertEqual({r["outcome"] for r in rows}, {"competing"})
+
+    def test_state_only_agreement_is_not_enough(self):
+        rows = join([vf("v1", "Asha Devi Hospital", hosts=["a.example"], pin=None)],
+                    [ext("e1", "Asha Devi Hospital", hosts=["a.example"], pin=None)])
+        self.assertEqual(rows[0]["geography"], "state_only")
+        self.assertEqual(rows[0]["outcome"], "geo_unknown")
+
 
 if __name__ == "__main__":
     unittest.main()

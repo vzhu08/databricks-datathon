@@ -28,9 +28,10 @@ A pair counts as `would_confirm` only when all of these hold:
    chains: `fortishealthcare.com` is on 14 VF rows and 5 NHP records, so it never confirms.
 3. **Only VF's official fields propose a match:** `officialPhone`, `officialWebsite`, `email`.
    The list fields often carry other facilities' directory pages, so they only block.
-4. **Geography agrees.** At least one of state, PIN or distance (5 km) can be compared and none
-   disagrees. No comparable geography means review.
-5. **One partner.** The VF row reaches only one record in that source.
+4. **Geography agrees.** PIN or distance (5 km) agrees and nothing disagrees. State alone, or no
+   comparable geography, means review.
+5. **One partner each way.** The VF row reaches only one record in that source, and that record
+   is reached by no other VF row (added after Oliver's synthetic two-campus case).
 6. **Names carry some evidence** (`normalize.name_evidence` is not `none`). Otherwise the pair
    goes to review.
 
@@ -109,3 +110,13 @@ python3 -m research.matching.contact_keys --base <base.json> \
 `base.json` is the prepared base export (original VF rows with `source_row`). The NHP TSV is
 the contact columns of the 1,237 NHP records that have any phone, website or email, taken from
 the mirror GeoJSON at the URL recorded in the matching handoff provenance (`NHP_Hospital_Directory_2025.geojson`, read 2026-11-22; its hash was not re-checked against `058ca806…2e47`).
+
+## Revision 1 (after Oliver's review on #212)
+
+Oliver showed two same-name rows with different unique keys could both reach one outside record
+and both pass with state-only geography. Fixed: reverse partner count and state-only now go to
+review. On the real data this moves 1 pair (Mallige Hospital / Mallige Medical Centre, state
+only) out of would-confirm; the reverse-partner rule moves none. New totals: NHP 40, Wikidata 74,
+**110 distinct VF rows**. Of the would-confirm pairs, NHP 40 of 40 agree on PIN; Wikidata 8 of 74
+agree on PIN and 66 rest on the 5 km distance check alone, which does not separate two campuses
+of one institution in the same city. These remain identity leads for Vincent's validation (#57).

@@ -9,7 +9,9 @@ under the same rule `decide.auto_confirmation` uses for identifiers:
 * the key sits on exactly one VF original row (counted over every phone,
   website and email value of every row, not only the official ones) and on
   exactly one record of the outside source;
-* geography does not disagree (state, PIN, distance when both have points);
+* PIN or distance agrees and nothing disagrees (state alone is not enough);
+* one partner each way: the VF row reaches one outside record and that record
+  is reached by no other VF row;
 * the key is not a shared kind of value: toll-free or short numbers,
   aggregator / social / directory hosts, generic government portals.
 
@@ -274,21 +276,26 @@ def geography(vf, ext, far_km=5.0):
         checks.append(_km(vf["point"], ext["point"]) <= far_km)
     if not checks:
         return "unknown"
-    return "agree" if all(checks) else "conflict"
+    if not all(checks):
+        return "conflict"
+    # State alone cannot tell two campuses of one institution apart.
+    return "agree" if len(checks) > 1 or not (vf["state"] and ext.get("state")) else "state_only"
 
 
 def join(vf_rows, externals, key_set="official"):
     """Exact joins of VF keys against one outside list.
 
     Returns per-pair rows with an `outcome`:
-      would_confirm   key unique on both sides, at least one geography check
-                      (state, PIN or distance) agrees and none disagrees,
+      would_confirm   key unique on both sides, PIN or distance agrees (state
+                      alone is not enough) and nothing disagrees, each side has
+                      exactly one partner,
                       the VF row has no second outside record, and the names
                       carry at least weak evidence;
       not_unique      key shared by several VF rows or several outside records;
       geo_conflict    state, PIN or distance disagrees;
-      geo_unknown     no geography can be compared (review, never confirm);
-      competing       the VF row reaches more than one outside record;
+      geo_unknown     no geography, or only state, can be compared (review);
+      competing       the VF row reaches more than one outside record, or the
+                      outside record is reached by more than one VF row;
       name_disagrees  everything else holds but the names share no evidence
                       (`normalize.name_evidence` level 'none'): review, never confirm."""
     vf_count = {k: Counter() for k in KINDS}
@@ -311,6 +318,7 @@ def join(vf_rows, externals, key_set="official"):
                 for ei in index[k].get(key, ()):
                     pairs[(vi, ei)]["keys"].append((k, key, vf_count[k][key], ext_count[k][key]))
     reach = Counter(vi for vi, _ in pairs)
+    reverse = Counter(ei for _, ei in pairs)
     rows = []
     for (vi, ei), p in sorted(pairs.items()):
         v, e = vf_rows[vi], externals[ei]
@@ -321,9 +329,9 @@ def join(vf_rows, externals, key_set="official"):
             outcome = "not_unique"
         elif geo == "conflict":
             outcome = "geo_conflict"
-        elif geo == "unknown":
+        elif geo in ("unknown", "state_only"):
             outcome = "geo_unknown"
-        elif reach[vi] > 1:
+        elif reach[vi] > 1 or reverse[ei] > 1:
             outcome = "competing"
         elif name_level == "none":
             outcome = "name_disagrees"
