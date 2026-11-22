@@ -22,7 +22,7 @@ def plan():
         "schema_version": "storm-plan-v1",
         "geography": {"name": "Invented district", "selection": "Invented for the tests.",
                       "source": "Invented coordinates.", "verification": "None.", "venue": "Tests only",
-                      "location_basis": "public_roster",
+                      "location_basis": "public_source",
                       "roster_sha256": "ab" * 32,
                       "attribution": [{"text": "Example map credit", "url": "https://example.invalid/copyright"}]},
         "scenario": {"seed": 3, "priorities": ["emergency", "urgent", "routine"], "horizon": "One invented shift.",
@@ -35,9 +35,11 @@ def plan():
                         "url": "https://example.invalid/node/1"}},
             {"id": "F2", "label": "Invented clinic two", "latitude": 10.2, "longitude": 20.3,
              "precision": "campus_anchor", "resources": [{"service": "dialysis", "slots": 1},
-                                                         {"service": "mri", "slots": 2}]},
+                                                         {"service": "mri", "slots": 2}],
+             "source": {"publisher": "Example publisher", "license": "Example licence"}},
             {"id": "F3", "label": "Invented clinic three", "latitude": 10.1, "longitude": 20.1,
-             "precision": "area", "resources": []},
+             "precision": "area", "resources": [],
+             "source": {"publisher": "Another publisher", "license": "Example licence"}},
         ],
         "patients": [
             {"id": "P1", "priority": "routine", "service": "dialysis", "latitude": 10.01, "longitude": 20.01},
@@ -74,7 +76,15 @@ def changed(change):
     return found
 
 
+TEST_ROSTER = "ab" * 32  # the invented plans count as an approved roster only inside these tests
+
+
 class PlanTests(unittest.TestCase):
+    def setUp(self):
+        approved = mock.patch.object(storm_plan, "APPROVED_ROSTERS", {TEST_ROSTER})
+        approved.start()
+        self.addCleanup(approved.stop)
+
     def test_every_figure_is_counted_from_the_assignments(self):
         found = storm_plan.view(storm_plan.checked(plan()))
         nearest, best = found["results"]
@@ -213,7 +223,8 @@ class PlanTests(unittest.TestCase):
         for words in ("Real facility locations · simulated patients, services, staffed places and travel",
                       "4 of 6 placed", "5 of 6 placed", "Mapped facility point", "Campus simulation anchor",
                       "Area only", "None of these is a building entrance", "Example map credit",
-                      "Example publisher (node/1)", "Example licence", "Not given", "Roster SHA-256", "Tests only",
+                      "Example publisher (node/1)", "Example licence", "Another publisher", "Roster SHA-256",
+                      "Tests only",
                       "No roads or background map are drawn"):
             self.assertIn(words, page)
         self.assertIn("simulated", storm_plan.NOTICE)
@@ -222,23 +233,71 @@ class PlanTests(unittest.TestCase):
         self.assertNotIn("http://", page.replace("http://www.w3.org", ""))
 
     def test_generated_sites_are_never_presented_as_real(self):
-        found = changed(lambda plan_: plan_["geography"].update(location_basis="synthetic"))
-        page = storm_plan.markup(storm_plan.checked(found))
+        def producer_fixture(found):  # the shape of the planner's default, synthetic output
+            found["geography"].update(location_basis="synthetic", attribution=[])
+            found["geography"].pop("roster_sha256")
+            for facility in found["facilities"]:
+                facility["precision"] = "point" if facility["precision"] != "area" else "area"
+                facility.pop("source")
+
+        found = storm_plan.checked(changed(producer_fixture))
+        page = storm_plan.markup(found)
         self.assertFalse(storm_plan.real(found))
         self.assertIn('data-locations="simulated"', page)
         self.assertIn("no real place is shown", page)
         self.assertIn(storm_plan.SITES_NOTE, page)
         self.assertIn("Where the simulated sites are", page)
+        self.assertIn("Not given", page)
         self.assertNotIn("Real facility locations", page)
         self.assertNotIn("Where the facilities are", page)
         self.assertEqual(storm_plan.choice(found), "Planning simulation: 6 simulated patients, simulated sites")
         self.assertIn("no actual hospital is represented", storm_plan.NOTICE_SYNTHETIC)
         self.assertNotIn("locations are real", storm_plan.NOTICE_SYNTHETIC)
-        # A file that does not say which it is, is refused: the page will not guess.
-        with self.assertRaises(KeyError):
-            storm_plan.checked(changed(lambda plan_: plan_["geography"].pop("location_basis")))
         self.assertTrue(storm_plan.real(plan()))
         self.assertIn('data-locations="real"', storm_plan.markup(plan()))
+
+    def test_only_the_approved_public_roster_with_its_provenance_is_shown_as_real(self):
+        def pending(found):
+            found["geography"]["location_basis"] = "pending_review"
+
+        def unstated(found):
+            del found["geography"]["location_basis"]
+
+        def no_pin(found):
+            del found["geography"]["roster_sha256"]
+
+        def other_roster(found):
+            found["geography"]["roster_sha256"] = "cd" * 32
+
+        def no_credit(found):
+            found["geography"]["attribution"] = []
+
+        def generic_point(found):
+            found["facilities"][0]["precision"] = "point"
+
+        def no_source(found):
+            del found["facilities"][1]["source"]
+
+        def half_source(found):
+            del found["facilities"][2]["source"]["license"]
+
+        for change in (pending, unstated, no_pin, other_roster, no_credit, generic_point, no_source, half_source):
+            with self.subTest(change=change.__name__), self.assertRaises((ValueError, KeyError)):
+                storm_plan.checked(changed(change))
+        storm_plan.checked(plan())
+        # Outside these tests the invented plan is not an approved roster, whatever it claims.
+        with mock.patch.object(storm_plan, "APPROVED_ROSTERS", {"b6" * 32}), self.assertRaises(ValueError):
+            storm_plan.checked(plan())
+        # The one roster approved in the code is the Pune public-source roster read back on the issue.
+        self.assertEqual(type(storm_plan.APPROVED_ROSTERS), set)
+
+    def test_the_code_approves_exactly_the_pune_roster(self):
+        self.addCleanup(mock.patch.stopall)
+        mock.patch.stopall()
+        self.assertEqual(storm_plan.APPROVED_ROSTERS,
+                         {"b62f377a61f9dee796ff0a4c56afcad96195a3ad196c1e4806dcc8c119e63f35"})
+        with self.assertRaises(ValueError):
+            storm_plan.checked(plan())
 
     def test_words_from_the_file_cannot_add_markup(self):
         def hostile(found):
@@ -289,6 +348,9 @@ class ScreenTests(unittest.TestCase):
         self.file = Path(folder) / "plan.json"
         import storm_plan as bare_plan
         self.plan = bare_plan
+        approved = mock.patch.object(bare_plan, "APPROVED_ROSTERS", {TEST_ROSTER})
+        approved.start()
+        self.addCleanup(approved.stop)
         placed = mock.patch.object(bare_plan, "FILE", self.file)
         placed.start()
         self.addCleanup(placed.stop)

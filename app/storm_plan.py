@@ -33,7 +33,16 @@ NOTICE_SYNTHETIC = ("Planning simulation on a test geography. Everything on this
                     "sites and where they are: no district and no actual hospital is represented. The patients, "
                     "their needs and urgency, the services, the staffed places and the travel times are simulated "
                     "too.")
-SYNTHETIC = "synthetic"  # geography.location_basis for generated sites; any other value names a real roster
+# geography.location_basis is one of exactly two values. Generated sites say "synthetic" and are shown as
+# simulated. Real locations say "public_source" and are shown as real only when the file also carries the
+# SHA-256 of a roster approved here, a map credit, and for every facility a cleared precision class and
+# its publisher and licence. Anything else is refused, so no other file can appear under the real label.
+SYNTHETIC, PUBLIC = "synthetic", "public_source"
+APPROVED_ROSTERS = {
+    # Pune public-source planning roster, 12 venue-cleared sites (issue 323; read back independently there).
+    "b62f377a61f9dee796ff0a4c56afcad96195a3ad196c1e4806dcc8c119e63f35",
+}
+CLEARED_PRECISION = ("mapped_point", "campus_anchor", "area")
 SITES_NOTE = "The sites are generated for the test geography. No real place is shown."
 LABEL = "Real facility locations · simulated patients, services, staffed places and travel"
 LABEL_SYNTHETIC = "Simulated sites, patients, services, staffed places and travel · no real place is shown"
@@ -130,8 +139,16 @@ def checked(plan):
     if plan["schema_version"] != SCHEMA:
         raise ValueError("unknown plan version")
     place, scenario = plan["geography"], plan["scenario"]
-    for key in ("name", "selection", "source", "verification", "location_basis"):
+    for key in ("name", "selection", "source", "verification"):
         _text(place[key], "geography " + key)
+    basis = place["location_basis"]
+    if basis not in (SYNTHETIC, PUBLIC):
+        raise ValueError("the location basis is neither synthetic nor public_source")
+    if basis == PUBLIC:
+        if place.get("roster_sha256") not in APPROVED_ROSTERS:
+            raise ValueError("real locations need the hash of an approved roster")
+        if not place.get("attribution"):
+            raise ValueError("real locations need a map credit")
     for credit in place.get("attribution", []):
         _text(credit["text"], "attribution")
         if not _text(credit["url"], "attribution link").startswith("https://"):
@@ -148,6 +165,8 @@ def checked(plan):
         _number(facility["longitude"], "longitude", -180, 180)
         if facility["precision"] not in PRECISION:
             raise ValueError("unknown location precision")
+        if basis == PUBLIC and (facility["precision"] not in CLEARED_PRECISION or not facility.get("source")):
+            raise ValueError("a real location needs a cleared precision class and its source")
         origin = facility.get("source")
         if origin is not None:
             _text(origin["publisher"], "source publisher")
@@ -222,7 +241,7 @@ def load(path=None):
 
 def real(plan):
     """Whether the file says its facility locations are real. Generated sites are never presented as real."""
-    return plan["geography"]["location_basis"].strip().lower() != SYNTHETIC
+    return plan["geography"]["location_basis"] == PUBLIC
 
 
 def _minutes(value):
