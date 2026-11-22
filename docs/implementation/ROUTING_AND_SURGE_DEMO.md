@@ -1,5 +1,9 @@
 # Hospital routing and storm-surge demo
 
+## Current judge demonstration
+
+The user selected a real-data demonstration. [Andrew’s implementation assignment](https://github.com/vzhu08/databricks-datathon/issues/252) and [B’s evidence requirements](https://github.com/vzhu08/databricks-datathon/issues/239#issuecomment-7076269228) govern what judges see. Present actual facility evidence with its source, date and geographic precision. Use only audience-cleared data. Any crisis replay must use observed historical demand, capacity and travel inputs at compatible times and locations. The original synthetic storm exercise below remains a reproducible engineering test.
+
 ## Ownership and delivery
 
 Oliver owns integration and model decisions. The user makes executive decisions in Oliver's main chat. Vincent runs data acquisition and refinement and distributes work in that lane. Andrew owns all UI and UX design and implementation. Developer D covers the independent replay check while Ayush is unavailable. Work and results are recorded on the [team board](OWNERSHIP.md) and [integration issue](https://github.com/vzhu08/databricks-datathon/issues/40). Oliver makes the final call on every merge, revert, branch retirement and release, including data changes. Each orchestrator has one five-minute board checker on their own account, through November 22, 2026 at 12:30 p.m. Eastern unless the user changes it.
