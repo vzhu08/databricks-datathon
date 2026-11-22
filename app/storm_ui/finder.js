@@ -311,9 +311,10 @@
   /*
    * Shows a response after checking every part the page reads. A response that fails the check, or
    * that still cannot be drawn, leaves the previous view on screen with the reason above it.
-   * `adopt` records the new source and runs only once the response is accepted.
+   * `describe` words the request and `adopt` records the new source. Both run only once the response
+   * has passed the check, so nothing reads a response that has not been validated.
    */
-  function show(envelope, note, adopt) {
+  function show(envelope, describe, adopt) {
     var found = F.problems(envelope);
     if (found.length) {
       showError("This response can't be shown. " + found.join(" ") + " Choose the output of python -m app.ranking for a request with routing." +
@@ -322,7 +323,9 @@
     }
     var previous = { envelope: current.envelope, note: current.note, names: current.names, fileName: current.fileName,
       source: session.source(), request: session.request() };
+    var note;
     try {
+      note = describe();
       adopt();
       draw(envelope, note);
     } catch (error) {
@@ -371,7 +374,7 @@
     if (!example) return;
     session.intend();
     $("search-status").textContent = "";
-    show(example.response, requestWords(example.response, example.request), function () {
+    show(example.response, function () { return requestWords(example.response, example.request); }, function () {
       current.names = bundle.names || {};
       current.fileName = null;
       session.adopt("example", example.request);
@@ -388,7 +391,7 @@
         showError("This file can't be shown because it is not JSON. Choose the output of python -m app.ranking for a request with routing.");
         return;
       }
-      var shown = show(envelope, "Showing " + file.name + ". " + requestWords(envelope, null), function () {
+      var shown = show(envelope, function () { return "Showing " + file.name + ". " + requestWords(envelope, null); }, function () {
         current.names = {};
         current.fileName = file.name;
         session.adopt("file", null); // A response file carries no request, so it cannot be searched again.
@@ -427,7 +430,7 @@
     }
     Promise.resolve().then(function () { return transport(ticket.request); }).then(function (envelope) {
       finish(function () {
-        var shown = show(envelope, requestWords(envelope, ticket.request), function () {
+        var shown = show(envelope, function () { return requestWords(envelope, ticket.request); }, function () {
           current.fileName = null;
           session.adopt("search", ticket.request);
         });

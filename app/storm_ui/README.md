@@ -120,7 +120,11 @@ only from the Search button, and (with Node.js) that every campus in a response 
 that the ranked order and figures are the backend's own, that minutes and kilometres are never
 mixed, that malformed nested entries are refused, that reserve reasons are kept apart from provider
 errors, and that the search session drops a late success or failure after a view change, leaves a
-response-only file unsearchable, and recovers from an invalid row with a successful retry. The check that the committed examples are current runs when `app.travel` is importable.
+response-only file unsearchable, and recovers from an invalid row with a successful retry. When
+Playwright is installed, `tests/storm_ui/finder_browser_check.js` also drives the page in headless
+Chromium through both entry points, a response file and a search with a stand-in transport: a null
+response, a non-object, a malformed row and a failed call are each reported, leave the open view in
+place and are followed by a valid result. The check that the committed examples are current runs when `app.travel` is importable.
 
 ## Design notes
 

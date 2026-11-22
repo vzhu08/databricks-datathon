@@ -18,6 +18,12 @@ def _has_travel():
         return False
 
 
+def _has_playwright():
+    if not shutil.which("node"):
+        return False
+    return subprocess.run(["node", "-e", "require.resolve('playwright')"], capture_output=True).returncode == 0
+
+
 class FinderUiTests(unittest.TestCase):
     def _bundle(self):
         text = build_finder.TARGET.read_text(encoding="utf-8")
@@ -58,6 +64,13 @@ class FinderUiTests(unittest.TestCase):
                                 capture_output=True, text=True)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertRegex(result.stdout, r"ok \d+ checks")
+
+    @unittest.skipUnless(_has_playwright(), "Node.js with Playwright is needed for the browser check")
+    def test_file_and_search_paths_in_a_browser(self):
+        result = subprocess.run(["node", str(ROOT / "tests/storm_ui/finder_browser_check.js")], cwd=ROOT,
+                                capture_output=True, text=True, timeout=120)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertRegex(result.stdout, r"ok \d+ browser checks")
 
 
 if __name__ == "__main__":
