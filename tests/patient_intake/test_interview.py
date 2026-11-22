@@ -245,5 +245,125 @@ class InterviewTests(unittest.TestCase):
             limited.answer(current, question, question["issuance_id"], "reported")
 
 
+class VersionedQuestionTests(unittest.TestCase):
+    def setUp(self):
+        self.interview = interview.start("  Invented description.  ", {"age_years": 27, "language": "en-IN"})
+
+    @staticmethod
+    def proposal(kind, **fields):
+        return {"schema": "patient-question.v2", "id": "private-provider-question",
+                "kind": kind, "prompt": "Invented prompt", "options": [], **fields}
+
+    @staticmethod
+    def issue(proposal, data, issuance="current-issuance"):
+        return {**interview.prepare_question(proposal, data), "issuance_id": issuance}
+
+    def test_an_explicit_skip_consumes_only_an_optional_current_question(self):
+        optional = self.issue(self.proposal("text", optional=True), self.interview)
+        view = interview.question_view(optional)
+        self.assertTrue(view["optional"])
+        with self.assertRaisesRegex(ValueError, "question has changed"):
+            interview.answer(self.interview, optional, "stale", {"skip": True})
+        with self.assertRaises(ValueError):
+            interview.answer(self.interview, optional, view["issuance_id"], None)
+        skipped = interview.answer(self.interview, optional, view["issuance_id"], {"skip": True})
+        self.assertIsNone(skipped["answers"][0]["answer"])
+        self.assertIs(skipped["answers"][0]["skipped"], True)
+        self.assertFalse(skipped["patient_evidence"])
+
+        proposed_evidence = {
+            "id": "review", "kind": "evidence_review", "prompt": "Review",
+            "options": [{"id": key, "label": key} for key in ("confirm", "uncertain", "disagree")],
+            "evidence": {"concept_id": "invented-concept", "label": "Invented observation",
+                         "presence": "present", "temporality": "current", "source_ref": view["issuance_id"]},
+        }
+        with self.assertRaisesRegex(ValueError, "current statement"):
+            self.issue(proposed_evidence, skipped)
+        required = self.issue(self.proposal("text"), self.interview)
+        with self.assertRaisesRegex(ValueError, "required question"):
+            interview.answer(self.interview, required, "current-issuance", {"skip": True})
+
+    def test_item_statuses_use_each_items_actual_choices(self):
+        items = [
+            {"id": "one", "label": "Invented item one", "required": True,
+             "choices": [{"id": "present", "label": "Reported"}, {"id": "absent", "label": "Not reported"}]},
+            {"id": "two", "label": "Invented item two", "required": True,
+             "choices": [{"id": "unknown", "label": "Unsure"}]},
+            {"id": "three", "label": "Optional item", "required": False,
+             "choices": [{"id": "present", "label": "Reported"}]},
+        ]
+        question = self.issue(self.proposal("item_presence", items=items), self.interview)
+        view = interview.question_view(question)
+        self.assertEqual(view["items"], items)
+        view["items"][0]["choices"].clear()
+        answers = {"items": [{"id": "two", "presence": "unknown"}, {"id": "one", "presence": "absent"}]}
+        result = interview.answer(self.interview, question, view["issuance_id"], answers)
+        self.assertEqual(result["answers"][0]["answer"], {"items": list(reversed(answers["items"]))})
+        self.assertEqual(result["patient_evidence"], [])
+        answers["items"][1]["presence"] = "unknown"
+        with self.assertRaisesRegex(ValueError, "status shown"):
+            interview.answer(self.interview, question, view["issuance_id"], answers)
+        self.assertEqual(self.interview["answers"], [])
+
+    def test_quantity_uses_unit_specific_range_and_explicit_precision(self):
+        units = [{"id": "short-unit", "label": "Short unit", "min": 1, "max": 12, "integer_only": True},
+                 {"id": "long-unit", "label": "Long unit", "min": 0.5, "max": 2.5, "integer_only": False}]
+        question = self.issue(self.proposal("quantity", units=units), self.interview)
+        self.assertEqual(interview.question_view(question)["units"], units)
+        value = {"value": 2.5, "unit_id": "long-unit"}
+        result = interview.answer(self.interview, question, "current-issuance", value)
+        self.assertEqual(result["answers"][0]["answer"], value)
+        with self.assertRaisesRegex(ValueError, "within the range"):
+            interview.answer(self.interview, question, "current-issuance", {"value": 2.5, "unit_id": "short-unit"})
+        with self.assertRaisesRegex(ValueError, "units are unavailable"):
+            self.issue(self.proposal("quantity", units=[{k: v for k, v in units[0].items() if k != "integer_only"}]),
+                       self.interview)
+
+    def test_catalog_projection_and_provenance_bind_to_current_interview_and_choices(self):
+        choices = [{"id": "local-a", "label": "Invented entry A"}, {"id": "local-b", "label": "Invented entry B"}]
+        catalog = {"id": "private-catalog", "edition": "private-edition"}
+        proposal = self.proposal("catalog_selection", catalog=catalog, selection="multiple", options=choices)
+        question = self.issue(proposal, self.interview)
+        view = interview.question_view(question)
+        self.assertEqual(view["options"], choices)
+        self.assertEqual(view["selection"], "multiple")
+        self.assertNotIn("catalog", view)
+        self.assertNotIn("catalog_context", view)
+        self.assertNotIn("private-", json.dumps(view))
+        result = interview.answer(self.interview, question, view["issuance_id"], ["local-b", "local-a"])
+        self.assertEqual(result["answers"][0]["answer"], ["local-a", "local-b"])
+        self.assertEqual(result["answers"][0]["catalog"], catalog)
+        self.assertEqual(result["source"], self.interview["source"])
+        self.assertEqual(result["patient_evidence"], [])
+        for ids in (["vendor-id"], ["local-a", "local-a"], ["Invented entry B"], []):
+            with self.subTest(ids=ids), self.assertRaises(ValueError):
+                interview.answer(self.interview, question, view["issuance_id"], ids)
+        changed = {**self.interview, "context": {"age_years": 27, "language": "en"}}
+        with self.assertRaisesRegex(ValueError, "catalog has changed"):
+            interview.answer(changed, question, view["issuance_id"], ["local-a"])
+        new = interview.start("Revised invented description.", self.interview["context"])
+        with self.assertRaisesRegex(ValueError, "question has changed"):
+            interview.answer(new, question, view["issuance_id"], ["local-a"])
+        current = self.issue({**proposal, "options": choices[1:]}, self.interview, issuance="new-catalog-issue")
+        with self.assertRaisesRegex(ValueError, "question has changed"):
+            interview.answer(self.interview, current, view["issuance_id"], ["local-a"])
+        with self.assertRaises(ValueError):
+            interview.answer(self.interview, current, "new-catalog-issue", ["local-a"])
+
+    def test_unrepresentable_metadata_is_withheld_without_partial_issuance(self):
+        for question in (
+            self.proposal("text", schema="future-question"),
+            self.proposal("text", optional=1),
+            self.proposal("item_presence", items=[{"id": "one", "label": "One", "required": True,
+                                                  "choices": [{"id": "other", "label": "Other"}]}]),
+            self.proposal("catalog_selection", selection="single", catalog={"id": "catalog"},
+                          options=[{"id": "one", "label": "One"}]),
+            self.proposal("catalog_selection", selection="single", catalog={"id": "catalog", "edition": "v1"},
+                          options=[{"id": str(i), "label": "Invented entry"} for i in range(17)]),
+        ):
+            with self.subTest(kind=question["kind"]), self.assertRaises(ValueError):
+                self.issue(question, self.interview)
+
+
 if __name__ == "__main__":
     unittest.main()
