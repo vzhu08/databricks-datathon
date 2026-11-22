@@ -7,6 +7,8 @@ Use GitHub repository issues and this board for all team communication. Record a
 
 ## Hosted presenter app
 
+Oliver owns the [judge-facing README and pipeline visuals](https://github.com/vzhu08/databricks-datathon/issues/319) through submission. L prepares documentation PRs under Oliver. When a release changes the judge’s click path, evidence counts, data or provider mode, recommendation, access or screenshots, post its receipt on #319 and reconcile the README to the signed-in app. Check it during the existing board review and before submission. [Video coordination](https://github.com/vzhu08/databricks-datathon/issues/305)
+
 Oliver deployed Andrew’s Check symptoms and Find care screens and verified both in the signed-in presenter browser. Find care uses six synthetic facilities and the assessment provider is off. [Live Databricks app](https://vf-find-care-7474658456464525.aws.databricksapps.com/) · [Browser verification](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7081145145)
 
 Andrew’s Find Care UI chat owns the third page for the accepted synthetic storm replay on `codex/andrew-hosted-storm-page`. Oliver owns merge, deployment and verification on the live app. Vincent continues the independent location work. [Assignment and acceptance checks](https://github.com/vzhu08/databricks-datathon/issues/301)
