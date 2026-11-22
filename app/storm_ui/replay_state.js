@@ -15,20 +15,114 @@
   var SCHEMA = "storm-replay-v1";
   var BEFORE_START = -1;
 
+  function isObject(value) { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
+  function isNumber(value) { return typeof value === "number" && isFinite(value); }
+  function isText(value) { return typeof value === "string" && value.length > 0; }
+  function isCount(value) { return isObject(value) && isNumber(value.used) && isNumber(value.free); }
+
+  /* Why a file cannot be shown. An empty list means every part the page reads is present and well formed. */
   function problems(replay) {
     var found = [];
-    if (!replay || typeof replay !== "object") return ["The file is not a replay object."];
+    if (!isObject(replay)) return ["The file is not a replay object."];
     if (replay.schema_version !== SCHEMA) found.push("Expected schema_version " + SCHEMA + ".");
     if (replay.synthetic !== true) found.push("The replay is not labelled synthetic.");
     ["campuses", "origins", "requests"].forEach(function (name) {
       if (!Array.isArray(replay[name])) found.push("Missing list: " + name + ".");
     });
-    var policies = replay.policies && typeof replay.policies === "object" ? Object.keys(replay.policies) : [];
+    var policies = isObject(replay.policies) ? Object.keys(replay.policies) : [];
     if (policies.length < 2) found.push("Expected at least two policies to compare.");
     policies.forEach(function (name) {
-      if (!Array.isArray(replay.policies[name].events)) found.push("Policy " + name + " has no events.");
+      if (!isObject(replay.policies[name]) || !Array.isArray(replay.policies[name].events)) found.push("Policy " + name + " has no events.");
     });
+    if (found.length) return found;
+
+    var campuses = {}, pools = {}, origins = {}, requests = {};
+    replay.campuses.forEach(function (campus, i) {
+      if (!isObject(campus) || !isText(campus.id)) { found.push("Campus " + (i + 1) + " has no id."); return; }
+      if (!isNumber(campus.latitude) || !isNumber(campus.longitude)) found.push("Campus " + campus.id + " has no position.");
+      if (!Array.isArray(campus.resources)) { found.push("Campus " + campus.id + " has no resources list."); return; }
+      campuses[campus.id] = true;
+      campus.resources.forEach(function (pool, j) {
+        var where = "Campus " + campus.id + " resource " + (j + 1);
+        if (!isObject(pool) || !isText(pool.id) || !isText(pool.service)) { found.push(where + " has no id or service."); return; }
+        if (pool.slots !== null && !isNumber(pool.slots)) found.push(where + " has a slot count that is not a number.");
+        if (pool.tools !== undefined && !Array.isArray(pool.tools)) found.push(where + " has tools that are not a list.");
+        if (["known", "unknown", "stale"].indexOf(pool.capacity_status) === -1) found.push(where + " has no recognised capacity status.");
+        pools[pool.id] = true;
+      });
+    });
+    replay.origins.forEach(function (origin, i) {
+      if (!isObject(origin) || !isText(origin.id)) { found.push("Origin " + (i + 1) + " has no id."); return; }
+      if (!isNumber(origin.latitude) || !isNumber(origin.longitude)) found.push("Origin " + origin.id + " has no position.");
+      origins[origin.id] = true;
+    });
+    replay.requests.forEach(function (request, i) {
+      if (!isObject(request) || !isText(request.id)) { found.push("Request " + (i + 1) + " has no id."); return; }
+      var where = "Request " + request.id;
+      if (!isNumber(request.arrival_minute)) found.push(where + " has no arrival minute.");
+      if (!isNumber(request.max_travel_minutes)) found.push(where + " has no travel limit.");
+      if (!origins[request.origin_id]) found.push(where + " names an origin that is not in the file.");
+      if (!isText(request.service) || !isText(request.urgency)) found.push(where + " has no service or urgency.");
+      if (request.required_tools !== undefined && !Array.isArray(request.required_tools)) found.push(where + " has tools that are not a list.");
+      requests[request.id] = true;
+    });
+    // Events are checked only against a sound cast list, so one broken campus is reported once.
+    if (found.length) return found.length > 4 ? found.slice(0, 4).concat(["And " + (found.length - 4) + " more problems."]) : found;
+    policies.forEach(function (name) {
+      var policy = replay.policies[name];
+      policy.events.forEach(function (event, i) {
+        var where = "Policy " + name + " event " + (i + 1);
+        if (!isObject(event) || !requests[event.request_id]) { found.push(where + " names a request that is not in the file."); return; }
+        if (!isNumber(event.minute)) found.push(where + " has no minute.");
+        if (!origins[event.origin_id]) found.push(where + " names an origin that is not in the file.");
+        if (!isText(event.service) || !isText(event.urgency)) found.push(where + " has no service or urgency.");
+        if (event.excluded_pool_counts !== undefined && !isObject(event.excluded_pool_counts)) found.push(where + " has excluded pool counts that are not an object.");
+        if (event.eligible_campuses !== undefined && !Array.isArray(event.eligible_campuses)) found.push(where + " has eligible campuses that are not a list.");
+        if (event.status === "assigned") {
+          if (!campuses[event.campus_id]) found.push(where + " names a campus that is not in the file.");
+          if (!pools[event.resource_id]) found.push(where + " names a resource that is not in the file.");
+          if (!isNumber(event.travel_minutes) || !isNumber(event.extra_travel_minutes)) found.push(where + " has no travel minutes.");
+          if (event.extra_travel_minutes > 0 && (!campuses[event.nearest_campus_id] || !isNumber(event.nearest_feasible_minutes))) {
+            found.push(where + " has a detour without its fastest campus.");
+          }
+          if (!isCount(event.resource_before) || !isCount(event.resource_after)) found.push(where + " has no slot counts before and after.");
+        } else if (event.status === "unassigned") {
+          if (!isText(event.reason)) found.push(where + " is not served but gives no reason.");
+        } else {
+          found.push(where + " has no recognised status.");
+        }
+      });
+      if (policy.capacity_events !== undefined && !Array.isArray(policy.capacity_events)) {
+        found.push("Policy " + name + " has capacity events that are not a list.");
+        return;
+      }
+      (policy.capacity_events || []).forEach(function (change, i) {
+        var where = "Policy " + name + " capacity change " + (i + 1);
+        if (!isObject(change) || !pools[change.resource_id]) { found.push(where + " names a resource that is not in the file."); return; }
+        if (!isNumber(change.minute) || !isNumber(change.lost_free_slots)) found.push(where + " has no minute or slot count.");
+        if (!isCount(change.resource_after)) found.push(where + " has no slot counts after the change.");
+      });
+    });
+    if (!found.length) {
+      // Last guard: derive every state the page can show. Anything that still fails is reported, not drawn.
+      try { rehearse(replay); } catch (error) { found.push("Part of the replay could not be read."); }
+    }
+    if (found.length > 4) found = found.slice(0, 4).concat(["And " + (found.length - 4) + " more problems."]);
     return found;
+  }
+
+  /* Derives every state the page can reach, so a file that cannot be drawn fails before it is opened. */
+  function rehearse(replay) {
+    var names = Object.keys(replay.policies);
+    var last = lastMinute(replay);
+    names.forEach(function (name) {
+      minutes(replay).forEach(function (minute) { stateAt(replay, name, minute); });
+      replay.requests.forEach(function (request) { explain(replay, name, request.id, last); });
+      finalCheck(replay, name);
+    });
+    for (var i = 0; i < names.length; i += 1) {
+      for (var j = i + 1; j < names.length; j += 1) summary(replay, names[i], names[j], names[i], names[j]);
+    }
   }
 
   function resources(replay) {
@@ -188,6 +282,58 @@
     return { request: request, event: event, protected_pool: pool, protected_use: use };
   }
 
+  /* Request by request, where two policies ended differently at `minute`. Totals alone cannot show this. */
+  function compare(replay, policyA, policyB, minute) {
+    function outcomes(policyName) {
+      var index = {};
+      replay.policies[policyName].events.forEach(function (event) {
+        if (event.minute <= minute) index[event.request_id] = event;
+      });
+      return index;
+    }
+    var a = outcomes(policyA), b = outcomes(policyB);
+    var result = { differing: [], served_only_first: [], served_only_second: [], served_differently: [] };
+    replay.requests.forEach(function (request) {
+      var x = a[request.id], y = b[request.id];
+      if (!x && !y) return;
+      if (!x || !y) { result.differing.push(request.id); return; }
+      if (x.status !== y.status) {
+        result.differing.push(request.id);
+        (x.status === "assigned" ? result.served_only_first : result.served_only_second).push(request.id);
+      } else if (x.status === "assigned" && (x.campus_id !== y.campus_id || x.resource_id !== y.resource_id ||
+                 x.travel_minutes !== y.travel_minutes)) {
+        result.differing.push(request.id);
+        result.served_differently.push(request.id);
+      }
+    });
+    result.identical = result.differing.length === 0;
+    return result;
+  }
+
+  /*
+   * The end-of-shift sentence. Totals are stated as totals. Any statement about individual requests
+   * comes from comparing their outcomes one by one, never from equal counts or equal minutes.
+   */
+  function summary(replay, policyA, policyB, nameA, nameB) {
+    var last = lastMinute(replay);
+    var a = stateAt(replay, policyA, last).metrics, b = stateAt(replay, policyB, last).metrics;
+    var each = compare(replay, policyA, policyB, last);
+    function minutesText(n) { return n + (n === 1 ? " minute" : " minutes"); }
+    var text = nameA + " served " + a.assigned + " of " + a.requested + " requests. " +
+      nameB + " served " + b.assigned + " of " + b.requested + ".";
+    var gap = b.extra_travel_minutes - a.extra_travel_minutes;
+    if (gap !== 0) text += " " + (gap > 0 ? nameB : nameA) + " added " + minutesText(Math.abs(gap)) + " of travel in total.";
+    if (each.identical) {
+      text += " Every request had the same outcome under both: the same campus, the same slot pool and the same travel time.";
+    } else {
+      text += " " + each.differing.length + (each.differing.length === 1 ? " request" : " requests") +
+        " had a different outcome under the two policies: " + each.differing.join(", ") + ".";
+      if (each.served_only_first.length) text += " Served only under " + nameA + ": " + each.served_only_first.join(", ") + ".";
+      if (each.served_only_second.length) text += " Served only under " + nameB + ": " + each.served_only_second.join(", ") + ".";
+    }
+    return text;
+  }
+
   /* Differences between totals derived from events and the totals the replay file reports. */
   function finalCheck(replay, policyName) {
     var supplied = replay.policies[policyName].metrics || {};
@@ -224,6 +370,6 @@
     SCHEMA: SCHEMA, BEFORE_START: BEFORE_START,
     problems: problems, resources: resources, minutes: minutes, lastMinute: lastMinute,
     nextMinute: nextMinute, previousMinute: previousMinute, stateAt: stateAt, explain: explain,
-    protectedPool: protectedPool, finalCheck: finalCheck,
+    protectedPool: protectedPool, finalCheck: finalCheck, compare: compare, summary: summary, rehearse: rehearse,
   };
 });

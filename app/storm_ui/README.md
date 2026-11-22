@@ -17,6 +17,10 @@ To show a replay with another seed or setting, write it and open it with **Open 
 python -m app.simulation --scenario overload --seed 23 --detour-minutes 10 > /tmp/replay.json
 ```
 
+A file is checked before it replaces what is open: the lists, every campus, resource, origin and
+request, and every event and capacity change. If any part is missing or malformed the page names
+the problem and keeps the replay that was open, at the same minute.
+
 ## What is on the page
 
 1. **Setup.** Scenario (storm, no surge, overload, arrivals reversed, slot count unknown at A, slot
@@ -36,8 +40,10 @@ python -m app.simulation --scenario overload --seed 23 --detour-minutes 10 > /tm
    a row, a line or a marker fills **Why this campus**: where it went and how far, the faster
    campus it passed over and the slot that detour kept free, whether that slot was later used, the
    slot counts before and after, the campuses that were usable, and why other pools were ruled out.
-5. **End of shift.** Appears only at the last minute: one sentence, a comparison table, and a line
-   saying whether the totals counted from events equal the totals stored in the replay file.
+5. **End of shift.** Appears only at the last minute: a comparison table, a line saying whether
+   the totals counted from events equal the totals stored in the replay file, and a short summary.
+   The summary states totals as totals. Anything it says about individual requests comes from
+   comparing their outcomes one by one, so equal totals are never described as the same result.
 6. **Text-only view.** Replaces each map with an ordered log of what happened and a table of
    staffed slots by campus. It carries the same information as the map.
 
@@ -94,7 +100,9 @@ python -m unittest discover -s tests/storm_ui
 The tests confirm that the committed bundle matches the simulation, that its default replay equals
 `contracts/fixtures/storm_replay.json`, that the page loads nothing from the network, and (with
 Node.js installed) that no state shows information from a later minute, that slot counts reconcile
-with the events, and that derived totals equal the replay's own totals in all 24 bundled replays.
+with the events, that derived totals equal the replay's own totals in all 24 bundled replays, that
+malformed nested data is refused with a reason, and that a replay with equal totals but different
+people served is reported as different.
 
 For the finder page the tests confirm that the examples are invented and hold no candidate records
 or key, that the page files contain no network call, timer or storage, that the transport is called
