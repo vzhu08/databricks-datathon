@@ -273,3 +273,19 @@ campus mapping, eligibility, partial/no-route/unknown states, retries, rate and
 in-flight bounds, receipt idempotency, UTC rollover, finite reservations,
 privilege rejection, same-operation deduplication and closed gates. Fixture
 success, live-provider validation, deployment and submission are separate.
+
+## Hosted Find care handoff
+
+In the deployed app, import `demo_car_travel` from `travel.hosted`. In the repository, use `app.travel.hosted`. On a traffic submission, bind the selected scenario origin to the server-built synthetic snapshot:
+
+```python
+request, snapshot = demo_capacity_inputs(origin_id=origin_id)
+travel = demo_car_travel(request, snapshot, origin_id=origin_id)
+recommendation = recommend_capacity(request, {**snapshot, "travel": travel})
+```
+
+The snapshot must carry the matching `origin_id`. The adapter resolves points from the fictional Jaipur scenario and checks any supplied campus coordinates against that edition. Each campus has an observation with status, decimal minutes, source, outcome and reason. A successful duration describes an ordinary car driving between simulated places. An unavailable or no-route observation has null minutes. Use the entire returned map, including failures, before selecting a destination. One process-scoped adapter owns the thread pool. Submit once per explicit search and retain no completed provider result across users.
+
+**Hosted quota prerequisite.** Databricks Apps discards its local filesystem on restart. Replicas have separate local filesystems. The adapter therefore refuses instance-local SQLite in an Apps runtime even when configured as single-host. Copying SQLite to or from a Volume cannot coordinate concurrent admissions. Oliver can review a single durable admission service or a shared PostgreSQL ledger on Lakebase. A replacement must serialize admissions per account/product across workers, preserve charged attempts (including the five Explorer calls), reservations, rate windows, in-flight permits, cooldowns and the safety margin, and pass restart and two-replica tests before enabling hosted sends. [Databricks app state](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/key-concepts) · [Lakebase app resources](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/lakebase).
+
+For an authorized single-host adapter smoke, the existing settings above still apply: a server-only TomTom secret, verified Maps v1 entitlement and account scope, explicit call caps, durable pre-provisioned ledger, and a reserved validation run. The hosted key alone cannot enable traffic. Oliver owns provisioning and account-specific Evaluation display clearance; Andrew owns attribution on the rendered result.

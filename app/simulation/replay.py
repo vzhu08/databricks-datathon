@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import asdict, dataclass
+from decimal import Decimal
 from itertools import groupby
 from operator import attrgetter
 from math import ceil
@@ -19,7 +20,7 @@ PROTECTED_PROFILES = (("dialysis", ("monitored",), 20),)
 class Option:
     campus: Campus
     resource: Resource
-    travel: int
+    travel: int | Decimal
 
 
 def _supports(resource: Resource, service: str, tools: tuple[str, ...]) -> bool:
@@ -68,8 +69,9 @@ def _losses(campuses: tuple[Campus, ...], origin: Origin, request: Request,
     return losses
 
 
-def _event(request: Request, origin: Origin, campuses: tuple[Campus, ...],
-           remaining: dict[str, int | None], used: Counter, policy: str, cap: int) -> dict:
+def preview_assignment(request: Request, origin: Origin, campuses: tuple[Campus, ...],
+                       remaining: dict[str, int | None], policy: str, cap: int | Decimal) -> dict:
+    """Choose from the current snapshot without reserving or consuming a slot."""
     options, excluded = _options(campuses, origin, request, remaining)
     event = {"request_id": request.id, "minute": request.arrival_minute, "origin_id": origin.id,
              "service": request.service, "urgency": request.urgency,
@@ -102,15 +104,26 @@ def _event(request: Request, origin: Origin, campuses: tuple[Campus, ...],
     free = remaining[resource.id]
     if free is None or resource.slots is None or free <= 0:
         raise ValueError("Assignment requires known positive staffed capacity")
-    already_used = used[resource.id]
-    used[resource.id] += 1
-    remaining[resource.id] = free - 1
-    event.update(status="assigned", reason=reason, campus_id=chosen.campus.id,
+    event.update(status="recommended", reason=reason, campus_id=chosen.campus.id,
                  resource_id=resource.id, travel_minutes=chosen.travel,
                  nearest_feasible_minutes=nearest.travel, nearest_campus_id=nearest.campus.id,
-                 extra_travel_minutes=chosen.travel - nearest.travel,
-                 resource_before={"used": already_used, "free": free},
-                 resource_after={"used": already_used + 1, "free": free - 1})
+                 extra_travel_minutes=chosen.travel - nearest.travel)
+    event["nearest_resource_id"] = nearest.resource.id
+    return event
+
+
+def _event(request: Request, origin: Origin, campuses: tuple[Campus, ...],
+           remaining: dict[str, int | None], used: Counter, policy: str, cap: int) -> dict:
+    event = preview_assignment(request, origin, campuses, remaining, policy, cap)
+    event.pop("nearest_resource_id", None)
+    if event["status"] == "recommended":
+        resource_id = event["resource_id"]
+        free, already_used = remaining[resource_id], used[resource_id]
+        used[resource_id] += 1
+        remaining[resource_id] = free - 1
+        event.update(status="assigned",
+                     resource_before={"used": already_used, "free": free},
+                     resource_after={"used": already_used + 1, "free": free - 1})
     return event
 
 
