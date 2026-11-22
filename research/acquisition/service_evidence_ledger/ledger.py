@@ -289,6 +289,9 @@ def build(base, occurrences, decisions, packages=(), national=True, statements_c
               "expected_original_field_spans": EXPECTED_SPANS,
               "verified_original_field_spans": measured_spans if statements_complete else None,
               "loaded_observations": len(observations), "source_editions": len(editions),
+              "loaded_observations_by_modality": dict(sorted(Counter(r["raw"]["modality"] for r in observations).items())),
+              "source_object_editions": len({(r["raw"]["edition_id"], r["raw"]["source_facility_id"]) for r in observations}),
+              "unlinked_observations": sum(not r["raw"]["target_links"] for r in observations),
               "confirmed_campus_modality_claim_groups": len(groups),
               "comparable_conflicted_groups": sum(bool(g["comparable_polarity_conflicts"]) for g in groups),
               "shared_wording_groups": len(repeats), "independent_accuracy": None,
@@ -299,7 +302,8 @@ def build(base, occurrences, decisions, packages=(), national=True, statements_c
               "family_coverage": [{"family": family, "state": state, "service": service,
                                    "linked_occurrence_modality_pairs": sum(states[f] == state and s == service for f, s in pairs)}
                                   for family, pairs in sorted(family_pairs.items(), key=lambda item: str(item[0]))
-                                  for state in sorted(count_by_state) for service in SERVICES],
+                                  for state in sorted(count_by_state)
+                                  for service in sorted(set(SERVICES) | {r["raw"]["modality"] for r in observations})],
               "limitations": ["Read-only baseline decisions; observations do not authorize service transitions.",
                               "Distinct families do not establish independence without a review.",
                               "Different or unknown date scopes are retained without automatic conflict resolution."]}

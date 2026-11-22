@@ -72,3 +72,20 @@ Lane gains count linked **occurrence/modality leads**, including candidate/unres
 ## Storage and handoff
 
 Store an authorized edition under a content-addressed directory in `workspace.default.datathon_vf_research_intake`; preserve previous editions. If the receiving profile is read-only, hand the edition to Vincent's existing writer, retain ownership of the receipt and verify the eventual download. Record exact manifests, files, hashes/counts, access blockers and local-only disposition on #163 and #160. Fixture checks, local national replay, live Volume readback, Delta publication and submission are distinct receipts. This CLI performs neither remote writes nor Delta jobs.
+
+## First external adapter: J's HOT/OSM packet
+
+`hot_adapter` consumes J's pinned `hot-20261009-v2` manifest `f8b21b0396a06417178f45ba1381b64767766a4a4eb920dbb6676b9aae8a68a4`. It preserves every source row and all original locators, including name-only, broad specialty and generic capability categories. These categories are never promoted to onsite service evidence. OSM remains one shared originating family under its attribution/ODbL terms. The source map capture date never becomes a service-effective date.
+
+The adapter joins only the same typed OSM ID in the same pinned snapshot to existing `joint` candidates. It expands retrieval representatives back to every original occurrence, including both identical rows. Retained and pre-cut candidates remain distinguished in each link's untouched `frozen_candidate` trace. No new matcher runs or confirmed campuses are created. The result is an attributed candidate lead, including when the evidence merely appears in a name. J's NHSRC state totals remain context outside the facility-claim ledger because they have no named campuses or campus join keys.
+
+```sh
+python -m research.acquisition.service_evidence_ledger.hot_adapter \
+  --packet PRIVATE/hot-20261009-v2 \
+  --packet-sha256 f8b21b0396a06417178f45ba1381b64767766a4a4eb920dbb6676b9aae8a68a4 \
+  --intake-manifest PRIVATE/intake-manifest.json \
+  --intake-sha256 b2c5f30d4e517ff1589f64f316756fbbca502a05a7debc3329a4eed9c6b0a2fa \
+  --joint-dir PRIVATE/vf-joint-matching --out PRIVATE/j-hot-lane.json
+```
+
+Pass the output and its printed SHA-256 to the main build with `--lane`. The original statement packet is still required before measuring new leads over VF text. A replay with this lane retains the same 10,088 originals and 30,264 baseline decisions.
