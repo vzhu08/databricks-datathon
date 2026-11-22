@@ -159,12 +159,14 @@ def decision(data):
         "eligible": d["point_rank"]["eligible_destinations_in_cases"],
         "next_check": d["verify"]["highest_value_fact"],
         "policies": [
-            ("Rank by distance and detour", d["point_rank"]["status"]),
-            ("Penalise weak evidence", f"{d['quality_penalty']['status']} Provenance: "
-                                       f"{d['quality_penalty']['provenance']} Recency: {d['quality_penalty']['recency']} "
-                                       f"Conflict: {d['quality_penalty']['conflict']}"),
-            ("Best and worst case range", f"{d['range_rank']['status']} {d['range_rank']['reason']}"),
-            ("Shortlist and verify", d["verify"]["status"]),
+            # Each rule's result as separate lines: the edition's statuses are not always full sentences.
+            ("Rank by distance and detour", [d["point_rank"]["status"]]),
+            ("Penalise weak evidence", [d["quality_penalty"]["status"],
+                                        f"Provenance: {d['quality_penalty']['provenance']}",
+                                        f"Recency: {d['quality_penalty']['recency']}",
+                                        f"Conflict: {d['quality_penalty']['conflict']}"]),
+            ("Best and worst case range", [d["range_rank"]["status"], d["range_rank"]["reason"]]),
+            ("Shortlist and verify", [d["verify"]["status"]]),
         ],
         "evaluation": (f"{count(e['scored_requests'], 'request')} could be scored, so the "
                        f"{joined(unknown_rates)} {'is' if len(unknown_rates) == 1 else 'are'} unknown."

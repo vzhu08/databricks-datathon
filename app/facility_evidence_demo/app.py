@@ -119,7 +119,8 @@ def public(view):
 
 def policies(view):
     d = view["decision"]
-    body = "".join(f'<tr><th scope="row">{esc(name)}</th><td>{esc(result)}</td></tr>' for name, result in d["policies"])
+    body = "".join(f'<tr><th scope="row">{esc(name)}</th><td>{"<br>".join(esc(line) for line in lines)}</td></tr>'
+                   for name, lines in d["policies"])
     show('<section class="fe-sec"><h2>How each ranking rule handles this evidence</h2>'
          f'<table class="fe-policies"><tbody>{body}</tbody></table>'
          f'<p class="fe-quiet">{esc(d["evaluation"])}</p></section>')
