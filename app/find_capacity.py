@@ -105,11 +105,18 @@ def run(service, urgency, origin_id, needs_tool, traffic, *, provider=None, trav
         decision = row["services"][service]
         evidence = {"source_date": decision.get("source_date"),
                     "families": list(decision.get("independent_families") or [])}
+    roster = []  # the same campuses and the same evidence the model read for this request, kept for a fallback lead
+    for row in snapshot["candidates"]:
+        pools = [pool for pool in snapshot.get("capacity", {}).get(row["facility_id"], ())
+                 if pool.get("service") == service and set(tools).issubset(pool.get("tools", ()))]
+        roster.append({"facility_id": row["facility_id"], "decision": dict(row["services"].get(service) or {}),
+                       "pools": [{k: pool.get(k) for k in ("status", "free_slots", "source")} for pool in pools]})
     return {"asked": {"service": service, "urgency": urgency, "origin_id": origin_id,
                       "needs_tool": bool(tools), "traffic": bool(traffic)},
+            "as_of": snapshot.get("as_of"), "roster": roster,
             "travel_kind": kind, "max_minutes": request["max_travel_minutes"],
             "detour_minutes": request["detour_minutes"], "evidence": evidence,
-            "travel_rows": {key: {k: row.get(k) for k in ("status", "minutes", "reason", "outcome", "requested_at")}
+            "travel_rows": {key: {k: row.get(k) for k in ("status", "minutes", "source", "reason", "outcome", "requested_at")}
                             for key, row in snapshot["travel"].items()},
             "result": result}
 
