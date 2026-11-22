@@ -6,17 +6,17 @@ from decimal import Decimal
 
 if __package__:
     from .ranking.urgency import rank_campuses
-    from .simulation.replay import preview_assignment
+    from .simulation.replay import PROTECTED_PROFILES, preview_assignment
     from .simulation.scenario import SERVICES, URGENCY_ORDER, Campus, Origin, Request, Resource, make_scenario
 else:  # Databricks Apps packages and runs app/ as its root.
     from ranking.urgency import rank_campuses
-    from simulation.replay import preview_assignment
+    from simulation.replay import PROTECTED_PROFILES, preview_assignment
     from simulation.scenario import SERVICES, URGENCY_ORDER, Campus, Origin, Request, Resource, make_scenario
 
 
 _SNAPSHOT_MODES = ("synthetic", "reviewed")
 _OBSERVATION_STATES = ("known", "unknown", "stale", "unavailable")
-_FAILURES = ("travel_unavailable", "travel_stale", "travel_unknown", "travel_invalid")
+_FAILURES = ("travel_unavailable", "travel_stale", "travel_unknown", "travel_invalid", "travel_no_route")
 _DEMO_DAY = "2026-11-22"
 
 
@@ -55,6 +55,10 @@ def _request_inputs(request):
 def _travel_minutes(row):
     if not isinstance(row, dict) or row.get("status") == "unknown":
         return None, "travel_unknown"
+    if (row.get("status") == "unavailable" and row.get("outcome") == "no_route"
+            and row.get("reason") == "no_route_found" and "minutes" in row
+            and row["minutes"] is None and _reference(row.get("source"))):
+        return None, "travel_no_route"
     if row.get("status") in ("stale", "unavailable"):
         return None, "travel_" + row["status"]
     minutes = _minutes(row.get("minutes"))
@@ -82,6 +86,27 @@ def _resources(rows, request, decision, sources):
     return tuple(resources)
 
 
+def _unverified_profiles(request, decision, pools, minutes, travel_reason):
+    """Find alternatives that could make a last-slot claim untrue."""
+    if request.urgency == "highest" or travel_reason == "travel_no_route":
+        return set()
+    uncertain = set()
+    for service, tools, catchment in PROTECTED_PROFILES:
+        if (service != request.service or set(tools).issubset(request.required_tools)
+                or (minutes is not None and minutes > catchment)):
+            continue
+        if not all(decision.get("capabilities", {}).get(tool) == "yes" for tool in tools):
+            continue
+        matching = [pool for pool in pools if set(tools).issubset(pool.tools)]
+        # A reviewed capability without a matching inventory observation is
+        # still plausible. Known zero stock rules out that particular pool.
+        if not matching or any(
+                pool.capacity_status != "known" or (pool.slots > 0 and minutes is None)
+                for pool in matching):
+            uncertain.add(f"{service}/{'/'.join(tools)}")
+    return uncertain
+
+
 def _eligible_snapshot(snapshot, request, day):
     candidates, travel, capacity = (snapshot.get(key) for key in ("candidates", "travel", "capacity"))
     if (not isinstance(candidates, (tuple, list)) or any(not isinstance(c, dict) for c in candidates)
@@ -101,22 +126,24 @@ def _eligible_snapshot(snapshot, request, day):
     if len(campus_ids) < len(candidates):
         exclusions["service_evidence_unreviewed"] = len(candidates) - len(campus_ids)
 
-    campuses, times, sources = [], {}, {}
+    campuses, times, sources, uncertain = [], {}, {}, set()
     for row in candidates:
         campus_id = row["facility_id"]
         if campus_id not in campus_ids:
             continue
         minutes, reason = _travel_minutes(travel.get(campus_id))
+        decision = row["services"][request.service]
+        pools = _resources(capacity.get(campus_id, ()), request, decision, sources)
+        uncertain.update(_unverified_profiles(request, decision, pools, minutes, reason))
         if reason:
             exclusions[reason] += 1
             continue
         # The allocator needs stable IDs and pools. It never uses coordinates.
-        pools = _resources(capacity.get(campus_id, ()), request, row["services"][request.service], sources)
         if not pools:
             exclusions["unknown_or_stale_capacity"] += 1
         campuses.append(Campus(campus_id, 0.0, 0.0, pools))
         times[campus_id] = minutes
-    return tuple(campuses), times, sources, exclusions
+    return tuple(campuses), times, sources, exclusions, uncertain
 
 
 def _option(campus, resource, travel, slots, snapshot, capacity_sources):
@@ -137,7 +164,8 @@ def recommend_capacity(request, snapshot=None):
     result = {
         "status": "no_recommendation", "reason": "invalid_request",
         "mode": None, "chosen": None, "fastest": None,
-        "extra_travel_minutes": None, "preserved_profiles": [], "eligible_campus_ids": [], "exclusions": {},
+        "extra_travel_minutes": None, "preserved_profiles": [], "uncertain_profiles": [],
+        "eligible_campus_ids": [], "exclusions": {},
     }
     if not isinstance(request, dict) or type(request.get("emergency", False)) is not bool:
         return result
@@ -153,8 +181,10 @@ def recommend_capacity(request, snapshot=None):
     result["mode"] = mode
     if snapshot.get("as_of") != day:
         return dict(result, reason="stale_snapshot")
+    if "origin_id" in request and request["origin_id"] != snapshot.get("origin_id"):
+        return dict(result, reason="snapshot_origin_mismatch")
     try:
-        campuses, times, capacity_sources, exclusions = _eligible_snapshot(snapshot, plan, day)
+        campuses, times, capacity_sources, exclusions, uncertain = _eligible_snapshot(snapshot, plan, day)
     except ValueError:
         return dict(result, reason="invalid_snapshot")
 
@@ -171,6 +201,10 @@ def recommend_capacity(request, snapshot=None):
                                           "service_evidence_unreviewed") if exclusions[key]), reason)
         return dict(result, reason=reason)
 
+    unverified = sorted(uncertain.intersection(choice["preserved_profiles"]))
+    if unverified:
+        choice = preview_assignment(plan, origin, campuses, slots, "nearest_first", cap)
+        choice["reason"] = "scarcity_indeterminate"
     chosen_campus, chosen_pool = choice["campus_id"], choice["resource_id"]
     fastest_campus, fastest_pool = choice["nearest_campus_id"], choice["nearest_resource_id"]
     return dict(
@@ -180,7 +214,7 @@ def recommend_capacity(request, snapshot=None):
         fastest=_option(fastest_campus, fastest_pool, choice["nearest_feasible_minutes"], slots[fastest_pool],
                         snapshot, capacity_sources),
         extra_travel_minutes=float(choice["extra_travel_minutes"]),
-        preserved_profiles=choice["preserved_profiles"],
+        preserved_profiles=choice["preserved_profiles"], uncertain_profiles=unverified,
     )
 
 
@@ -195,10 +229,12 @@ def demo_capacity_inputs(*, service="dialysis", urgency="routine", origin_id="ce
         raise ValueError("Unknown synthetic origin")
     request = {
         "service": service, "urgency": urgency, "required_tools": list(required_tools),
+        "origin_id": origin.id,
         "as_of": _DEMO_DAY, "max_travel_minutes": 25 if service == "dialysis" else 30,
         "detour_minutes": 10,
     }
-    snapshot = {"mode": "synthetic", "as_of": _DEMO_DAY, "candidates": [], "travel": {}, "capacity": {}}
+    snapshot = {"mode": "synthetic", "as_of": _DEMO_DAY, "origin_id": origin.id,
+                "candidates": [], "travel": {}, "capacity": {}}
     for campus in scenario.campuses:
         services = {}
         snapshot["travel"][campus.id] = {"status": "known", "minutes": origin.travel_minutes[campus.id],
