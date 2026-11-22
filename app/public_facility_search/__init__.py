@@ -19,6 +19,10 @@ def search_public_facilities(place: str, service: str) -> list[dict]:
     """Return operator-reported claims matching the requested city and service."""
     city = " ".join(place.casefold().split())
     query = " ".join(service.casefold().split())
+    if query.endswith((".", "?", "!")):
+        query = query[:-1].rstrip()
+    if query == "kidney dialysis":
+        query = "dialysis"
     claims = json.loads(files(__package__).joinpath("claims.json").read_text(encoding="utf-8"))
     results = []
     for claim in claims:

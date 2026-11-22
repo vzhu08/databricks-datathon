@@ -408,12 +408,18 @@ def _save(st):
     def action(box):
         key = box["visit"]
         age = st.session_state.get(f"pt-age-{key}")
+        description_key = box.get("description_key", f"pt-description-{key}")
+        description = st.session_state.get(description_key) or ""
+        if len(description) > MAX_DESCRIPTION:
+            _drop(st, description_key)
+            # A fresh widget also drops the browser's copy of the rejected paste.
+            box["description_key"] = f"pt-description-{key}-{box['revision']}"
         view = box["service"].edit(
-            box["handle"], box["revision"], description=st.session_state.get(f"pt-description-{key}") or "",
+            box["handle"], box["revision"], description=description,
             context={"age_years": int(age) if age is not None else None, "language": LANGUAGE})
         box["editing"] = view["state"] == "draft" and view.get("reason") == "invalid_input"
         if not box["editing"]:
-            _drop(st, f"pt-description-{key}", f"pt-age-{key}")
+            _drop(st, description_key, f"pt-age-{key}")
         if box["provider"] is None and view["state"] == "draft" and not view.get("reason"):
             # Nothing can receive the description. Ask the runtime, which answers that it is unavailable.
             box["service"].assess(box["handle"], view["revision"])
@@ -474,14 +480,15 @@ def _describe(st, box, said):
     st.subheader("What is troubling you?")
     key = box["visit"]
     with st.form(f"pt-describe-{key}", border=False):
-        # The earlier words come back from the encounter store, never from a copy kept by the screen.
-        st.text_area("Describe it in your own words", value=said[0] if said else "", key=f"pt-description-{key}",
-                     max_chars=MAX_DESCRIPTION, height=180,
+        # A widget cap can silently leave the previous text after an oversized paste.
+        # Let the runtime reject the submitted description and show its validation message.
+        st.text_area("Describe it in your own words", value=said[0] if said else "",
+                     key=box.get("description_key", f"pt-description-{key}"), height=180,
                      help="For example what you feel, where, since when, and what makes it better or worse.")
         st.number_input("Age in years (optional)", min_value=0, max_value=120, step=1,
                         value=said[1] if said else None, key=f"pt-age-{key}")
-        st.caption(ENGLISH_ONLY + " Saving does not send your words anywhere. Changing your description later "
-                   "clears any result and asks for your agreement again.")
+        st.caption(ENGLISH_ONLY + f" Use up to {MAX_DESCRIPTION:,} characters. Saving does not send your words "
+                   "anywhere. Changing your description later clears any result and asks for your agreement again.")
         st.form_submit_button("Save and continue", type="primary", on_click=_save, args=(st,))
     if said:
         st.button("Keep what I wrote before", on_click=_edit, args=(st, False))

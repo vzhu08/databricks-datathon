@@ -522,6 +522,10 @@ def slip(view, stale, service=None, response=None, found=None):
 
 
 st.set_page_config(page_title="Check symptoms and find care", layout="wide")
+# Streamlit draws captions as the text colour at 60% opacity, which is 3.97:1 on this paper. Slate at full
+# opacity is 5.5:1 and passes the 4.5:1 minimum for small text. Applied here so all three screens get it.
+st.markdown('<style>[data-testid="stCaptionContainer"] { color: #4b6274; opacity: 1; }</style>',
+            unsafe_allow_html=True)
 # The patient screen is the product and opens first. Find care below is the separate facility search.
 VIEW = patient_ui.entry(st, "Find care", storm_page.STORM)
 if VIEW == patient_ui.PATIENT:
@@ -541,9 +545,16 @@ lookup_mode = st.radio("Find care mode", lookup_modes, horizontal=True, key="loo
 if lookup_mode == "Public facility evidence":
     st.caption("Search the reviewed public-source collection by city and service. Coverage is limited.")
     st.markdown(f'<div class="fc-emergency">{safe(patient_ui.EMERGENCY)}</div>', unsafe_allow_html=True)
-    place = st.text_input("City", value="Pune", max_chars=120)
-    service = st.text_input("Service", value="maintenance haemodialysis", max_chars=120)
-    if st.button("Search public sources", type="primary"):
+    # The widget's max_chars silently rejects an over-limit paste, leaving the previous query in place.
+    limit = 120
+    hint = f"Enter up to {limit} characters."
+    place = st.text_input("City", value="Pune", help=hint)
+    service = st.text_input("Service", value="maintenance haemodialysis", help=hint)
+    submitted = st.button("Search public sources", type="primary")
+    over_limit = [label for label, value in (("City", place), ("Service", service)) if len(value) > limit]
+    if submitted and over_limit:
+        st.warning(f"Shorten {' and '.join(over_limit)} to {limit} characters or fewer and search again.")
+    elif submitted:
         try:
             claims = search_public_facilities(place=place, service=service)
         except (OSError, ValueError):

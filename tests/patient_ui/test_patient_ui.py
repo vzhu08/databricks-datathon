@@ -496,6 +496,31 @@ class ScreenTests(unittest.TestCase):
         app = self.press(app, "I agree. Send it for assessment")
         self.assertEqual(provider.calls[1]["interview"]["source"]["description"], "Invented second statement.")
 
+    def test_overlong_replacement_shows_validation_and_clears_the_earlier_result(self):
+        provider = self.provider(DONE)
+        statement = "x" * words.MAX_DESCRIPTION
+        app = self.press(self.begin(self.open(), statement=statement), "I agree. Send it for assessment")
+        self.assertIn("Invented guidance text", self.shown(app))
+        app = self.press(app, "Change my description")
+        field = app.text_area(key="pt-description-0")
+        self.assertEqual(field.value, statement)
+        field.input("y" * (words.MAX_DESCRIPTION + 1))
+        app = self.press(app, "Save and continue")
+        self.assertIn("That description could not be used", self.shown(app))
+        self.assertNotIn("Invented guidance text", self.shown(app))
+        self.assertEqual(app.text_area[0].value, "")
+        self.assertNotIn("pt-description-0", app.session_state)
+        box = app.session_state[self.screen.STATE_KEY]
+        self.assertIsNone(box["handle"].read()[1]["interview"])
+        self.assertEqual(len(provider.calls), 1)
+
+        replacement = "New invented description"
+        app.text_area[0].input(replacement)
+        app = self.press(app, "Save and continue")
+        self.assertIn("Send your description for assessment?", self.shown(app))
+        self.assertIn(replacement, [element.value for element in app.text])
+        self.assertEqual(len(provider.calls), 1)
+
     def test_a_provider_failure_withdraws_the_earlier_result(self):
         self.provider(DONE, TimeoutError("invented"), {"state": "provider_unavailable", "reason": "rate_limited"})
         app = self.press(self.begin(self.open()), "I agree. Send it for assessment")
