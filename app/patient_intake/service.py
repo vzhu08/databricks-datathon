@@ -92,12 +92,13 @@ class PatientIntakeService:
         data["state"] = state
         data["assessment"] = a
         data["result_secret"] = _result_secret() if state == "completed" else None
-        handle.replace(revision, data)
-        return self.view(handle)
+        committed_revision = handle.replace(revision, data)
+        _, committed = _read(handle, committed_revision)
+        return committed["assessment"]
 
     def edit(self, handle, expected_revision, *, description, context):
         rev, data = _read(handle, expected_revision)
-        data.update(continuation=None, consent_identity=None, interview=None)
+        data.update(continuation=None, consent_identity=None, interview=None, interview_ended=False)
         try:
             data["interview"] = _snapshot(self._interview.start(description, context))
         except (TypeError, ValueError) as error:
@@ -137,7 +138,8 @@ class PatientIntakeService:
 
     def assess(self, handle, expected_revision):
         rev, data = _read(handle, expected_revision)
-        if data["assessment"]["state"] in ("assessment_in_progress", "awaiting_clarification", "urgent"):
+        if (data.get("interview_ended") or data["assessment"]["state"] in
+                ("assessment_in_progress", "awaiting_clarification", "urgent", "provider_stop")):
             raise ValueError("assessment_action_unavailable")
         if not self._identity or self._provider is None:
             return self._commit(handle, rev, data, "provider_unavailable", reason="unavailable")
@@ -180,6 +182,8 @@ class PatientIntakeService:
                 data["continuation"] = reply.get("continuation")
                 data["server_question"] = question
                 return state, {"question": _snapshot(self._interview.question_view(question))}
+            if state in ("urgent", "provider_stop"):
+                data["interview_ended"] = True
             if state == "completed" and self._interview.has_unresolved_evidence(data["interview"]) is not False:
                 return "unsupported", {"reason": "unsupported_correction"}
             return state, reply

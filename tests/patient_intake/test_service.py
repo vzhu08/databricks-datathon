@@ -157,6 +157,36 @@ class RuntimeFlowTests(unittest.TestCase):
             self.service.confirm(self.handle, self.handle.rev)
         self.navigator.assert_not_called()
 
+    def test_provider_stop_clears_completion_and_requires_a_new_interview(self):
+        completed = self.assess()
+        prior = self.service.confirm(self.handle, completed["revision"])
+        self.adapter.assess.return_value = dict(**self.identity, state="provider_stop", guidance="Invented stop")
+        stopped = self.assess()
+        self.assertEqual((stopped["state"], stopped["guidance"]), ("provider_stop", "Invented stop"))
+        self.assertIsNone(stopped["urgency"])
+        self.assertIsNone(stopped["next_step"])
+        self.assertEqual(stopped["possible_causes"], [])
+        with self.assertRaises(ValueError):
+            self.service.confirm(self.handle, stopped["revision"])
+        with self.assertRaises(ValueError):
+            self.service.navigate(self.handle, stopped["revision"], confirmation=prior)
+        self.navigator.assert_not_called()
+        self.service.consent(self.handle, self.handle.rev, granted=False)
+        self.service.consent(self.handle, self.handle.rev, granted=True)
+        with self.assertRaises(ValueError):
+            self.assess()
+        self.assertEqual(self.adapter.assess.call_count, 2)
+        self.edit()
+        self.service.consent(self.handle, self.handle.rev, granted=True)
+        self.assertEqual(self.assess()["state"], "provider_stop")
+
+    def test_malformed_stop_never_commits_guidance(self):
+        for extra in ({"next_step": None}, {"urgency": "emergency"}, {"guidance": " "}):
+            self.adapter.assess.return_value = dict(dict(self.identity, state="provider_stop", guidance="Fixture"), **extra)
+            result = self.assess()
+            self.assertEqual(result["reason"], "invalid_response")
+            self.assertIsNone(result["guidance"])
+
     def test_disposition_must_match_state_and_next_step_before_confirmation(self):
         consult = {"kind": "consultation", "specialty_code": None}
         for state, level, step in (("completed", "emergency", None), ("completed", "unknown", None),

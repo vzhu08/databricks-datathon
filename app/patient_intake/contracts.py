@@ -82,6 +82,9 @@ def _provider_reply(raw, identity):
     if state in ("provider_unavailable", "unsupported"):
         if set(reply) - (base | {"reason"}) or reply.get("reason", "unavailable") not in _FAILURES:
             raise InvalidRecord("invalid_response")
+    elif state == "provider_stop":
+        if set(reply) != base | {"guidance"} or not _text(reply["guidance"]):
+            raise InvalidRecord("invalid_response")
     elif state == "awaiting_clarification":
         if (set(reply) - (base | {"question", "continuation"}) or type(reply.get("question")) is not dict
                 or (reply.get("continuation") is not None and not _text(reply["continuation"], 1024))):
