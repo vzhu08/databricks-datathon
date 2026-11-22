@@ -134,6 +134,8 @@ These are retrieval outcomes. None of them is a reviewed identity decision.
 
 ## How candidates are retrieved
 
+The [source agreement replay](#source-agreement-replay) can reclassify the full pre-cut candidate set around the most supported campus.
+
 Text is compared after folding: Unicode NFKC, case folding, accents on Latin letters removed (`Rājasthān` equals `Rajasthan`), `&` read as `and`, punctuation to spaces. Marks in other scripts are kept, because in Indic scripts they are part of the word. Since `matching-1.1.0` the old and merged names of Dadra and Nagar Haveli and Daman and Diu are one state key.
 
 
@@ -161,6 +163,35 @@ Candidates for a base row are ordered by identifier, name level, number of confl
 | `switchboard_min` | 3 | A phone on this many records on one side is a switchboard. |
 
 These are retrieval heuristics. They decide what a reviewer sees, not what is true, and must not be reported as confidence.
+
+## Source agreement replay
+
+Run `python -m research.matching.consensus` on a frozen national candidate trace to rank physical sites by source-family agreement. It reads every admitted pair, including pairs below rank five. Supply the original control with `--control` to carry its historical alternatives forward.
+
+Records with compatible hospital names can support the same site when their points are within 150 m of each other and their observed geography is compatible. When a point is missing, a shared civic address with a matching city or PIN can link the records. Missing house numbers leave the nearby-point comparison available. An empty field contributes no disagreement.
+
+Each source family votes once for its best-supported site. Repeated records from the same feed count once. Known OSM or NHP lineage in Overture counts with the underlying family. Other Overture observations count collectively as one family. An insurer record with a known VF insurer or TPA lineage cue supplies a candidate without casting a vote. Equal-strength alternatives from one family remain visible as a split.
+
+| Category | Meaning |
+| --- | --- |
+| `high` | At least two supporting families with compatible original geography and no dissent, or at least three such families and at least three times as many as the combined dissent and split count. |
+| `moderate` | The site leads with two or more supporting families and has at least one family without an observed original geography conflict. |
+| `single_source` | One source has usable name and location evidence without competing family support. |
+| `contested` | Source votes tie, sources disagree without a multi-source lead, or there is a material conflict with the original occurrence. |
+| `weak` | References were retrieved, with insufficient name or geographic support for the categories above. |
+| `unmatched` | No references were admitted. |
+
+```powershell
+python -m research.matching.consensus `
+  --replay JOINT/candidate_stages.json --control CONTROL/candidate_stages.json `
+  --joint-occurrences OCCURRENCE_DELTA.jsonl.gz --occurrences POINT_HANDOFF/occurrences.jsonl.gz `
+  --base VF_V0_BASE.json --projection OVERTURE_CLINICAL_PROJECTION.jsonl `
+  --reference NHP_OSM_BATCH.json --reference OVERTURE_BATCH.json `
+  --reference IFFCO_BATCH.json --insurer-links IFFCO_CANDIDATE_LINKS.jsonl.gz `
+  --output PRIVATE_NEW_OUTPUT_DIR
+```
+
+The output contains the leading source record and point, each site's supporting families and references, and the original occurrence keys and payload digests. The aggregate reconciles the national population and reports state/UT counts and transitions from the frozen retrieval outcomes. Source agreement is an evidence category. The matcher contract requires separate review for confirmed identity, entrances and onsite service status.
 
 ## Premises and locality replay (LOC-02)
 
