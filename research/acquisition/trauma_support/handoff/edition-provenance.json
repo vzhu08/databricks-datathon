@@ -1,0 +1,47 @@
+[
+  {
+    "bytes": 742343,
+    "edition": "freeze65",
+    "file": "freeze65-programme.pdf",
+    "published_date": null,
+    "raw_and_printed_text_disposition": "held_local_permission_unconfirmed",
+    "raw_mentions": 196,
+    "retrieved_at": "2026-11-22T05:03:29.007220+00:00",
+    "reuse_policy": "https://github.com/vzhu08/databricks-datathon/issues/65#issuecomment-7069678017",
+    "scope": "11th/12th Plan construction and support; publication date unknown",
+    "sha256": "fb0deb83f24ee85612a10cdcb491a14b6d667e02874e8800f341d3ba33236586",
+    "sharing": "provenance and aggregate statistics only",
+    "source_family": "mohfw_nppmtbi_state_programme_returns",
+    "url": "https://www.mohfw-dohfw.gov.in/static/uploads/2025/11/444e913a7f93a8a4ac9aeaa8658abd62.pdf"
+  },
+  {
+    "bytes": 915803,
+    "edition": "functional2025",
+    "file": "functional-20250725.pdf",
+    "published_date": "2025-07-25",
+    "raw_and_printed_text_disposition": "held_local_permission_unconfirmed",
+    "raw_mentions": 243,
+    "retrieved_at": "2026-11-22T05:06:42.692828+00:00",
+    "reuse_policy": "https://sansad.in/poi/privacyPolicy",
+    "scope": "Lok Sabha UQ 982, Annexure A section 3(ii)/(iii), programme functionality",
+    "sha256": "c5e206028dd54cdf12786cc464fa4e95d7e67f39a7343f647aa4dba29946ff7b",
+    "sharing": "provenance and aggregate statistics only",
+    "source_family": "mohfw_nppmtbi_state_programme_returns",
+    "url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU982_6nsyH6.pdf?source=pqals"
+  },
+  {
+    "bytes": 271707,
+    "edition": "sanction2026",
+    "file": "sanction-20260310.pdf",
+    "published_date": "2026-03-10",
+    "raw_and_printed_text_disposition": "held_local_permission_unconfirmed",
+    "raw_mentions": 196,
+    "retrieved_at": "2026-11-22T05:03:26.887875+00:00",
+    "reuse_policy": "https://sansad.in/poi/privacyPolicy",
+    "scope": "Rajya Sabha UQ 2048, Annexure I, sanctioned facilities only",
+    "sha256": "dd723795fc9bc5d1d7a73d288a78239df2595ed0dcbacc986bdc318f1ab433db",
+    "sharing": "provenance and aggregate statistics only",
+    "source_family": "mohfw_nppmtbi_state_programme_returns",
+    "url": "https://sansad.in/getFile/annex/270/AU2048_OvVj2M.pdf?source=pqars"
+  }
+]

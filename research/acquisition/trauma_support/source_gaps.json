@@ -1,0 +1,57 @@
+{
+  "checked_on": "2026-11-22",
+  "scope": "Source-access metadata only; no facility records or contact values",
+  "next_collection_owner": "Vincent's Windows collector roster on issue 161; A receives and reconciles on issue 164",
+  "hmis_selected_procedures": {
+    "url": "https://www.data.gov.in/catalog/all-india-level-quarterly-maximum-and-minimum-performing-public-health-facilities-selected",
+    "api_page": "https://www.data.gov.in/apis/efc4b11e-30ca-4e02-a168-902d34c2e7a0",
+    "catalog_publication": "2021-05-31",
+    "catalog_update": "2026-06-11",
+    "actual_resource_date": null,
+    "population": "Selected quarterly maximum/minimum performing public facilities, not every facility",
+    "definitions": {"major_operations": "general and spinal anaesthesia", "minor_operations": "no or local anaesthesia", "c_sections": "separate indicator"},
+    "access": "Resource list rendered No Result Found; ZIP resolved back to catalogue; API page offered Generate API Key. Direct catalogue/API requests returned HTTP 503.",
+    "terms": "Catalogue identifies NDSAP/GODL; actual resource edition remains unverified",
+    "qualified_editions": 0,
+    "facility_rows_acquired": null,
+    "lineage": "HMIS; NITI reports derived from the same HMIS period are not independent origins",
+    "blocker": "Vincent's collector must obtain an actual permitted resource edition and identifiers. Catalogue dates are not observation dates."
+  },
+  "cdsco": {
+    "url": "https://www.cdsco.gov.in/opencms/opencms/en/BloodCentre/",
+    "pdf_url": "https://cdsco.gov.in/opencms/resources/UploadCDSCOWeb/2018/UploadBloodBank/Number%20of%20licensed%20Blood%20Centres%20in%20India%20State%20%20UT%20wise%20up%20to%20Dec-%202021%20%281%29.pdf",
+    "release_date": "2022-01-05",
+    "effective_month": "2021-12",
+    "grain": "36 state/UT aggregate rows",
+    "government_centres": 1241,
+    "other_centres": 2541,
+    "total_centres": 3782,
+    "verification": "Official PDF text opened; screenshot and local binary download failed",
+    "policy_url": "https://cdsco.gov.in/opencms/opencms/en/Copyright-Policy/",
+    "terms": "Official policy requires reproduction permission",
+    "blocker": "No facility identifiers or campus licence observations in this edition; no facility join or transfusion inference"
+  },
+  "eraktkosh": {
+    "url": "https://eraktkosh.mohfw.gov.in/eraktkoshPortal/",
+    "directory": "https://eraktkosh.mohfw.gov.in/BLDAHIMS/bloodbank/nearbyBBRed.cnt",
+    "terms_url": "https://eraktkosh.mohfw.gov.in/BLDAHIMS/bloodbank/termsAndConditions.cnt",
+    "access": "Portal returned a React shell. Legacy directory returned a public state/district form with no initial facility records.",
+    "terms": "Reference information supplied by blood banks; no reusable bulk licence verified",
+    "qualified_bulk_edition": null,
+    "blocker": "Vincent's Windows collector owns permitted facility-only bulk route and terms. No donor, contact-value or stock records acquired."
+  },
+  "indiadigital_nihfw": {
+    "url": "https://www.indiadigital.org/open/data/",
+    "acquisition_status": "Not started on this Mac to avoid duplicate acquisition after Windows-only collection direction",
+    "reported_rows_unverified": 2823,
+    "reported_source_month_unverified": "2022-07",
+    "blocker": "Vincent assigns one Windows collector to verify bytes, underlying rights, dates, PIN/coordinate completeness and hospital-host versus standalone grain; A reconciles the received edition."
+  },
+  "sansad": {
+    "policy_url": "https://sansad.in/poi/privacyPolicy",
+    "policy_snapshot_sha256": "c28848a8e1081bf6eb5a347c2cb07dcb77ab277f3ef032a84e6ac427030f48a8",
+    "terms": "Reproduction requires Parliament/NIC permission; attributed linking permitted. No Ministry-answer exception found.",
+    "restricted": "Raw PDFs and printed-name extracts remain local-only pending Vincent's rights review",
+    "shared_scope": "Source links, hashes, dates, aggregate statistics and access/reuse dispositions"
+  }
+}

@@ -1,0 +1,348 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Offline synthetic intake v1",
+  "oneOf": [
+    {"$ref": "#/$defs/payload"},
+    {"$ref": "#/$defs/scenario"},
+    {"$ref": "#/$defs/assessment"}
+  ],
+  "$defs": {
+    "warning": {
+      "enum": ["yes", "no", "unknown", "conflicting"]
+    },
+    "answers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "warning.chest_pain": {"$ref": "#/$defs/warning"},
+        "warning.stroke_like": {"$ref": "#/$defs/warning"},
+        "warning.severe_breathing_difficulty": {"$ref": "#/$defs/warning"},
+        "warning.unresponsive": {"$ref": "#/$defs/warning"},
+        "warning.heavy_bleeding": {"$ref": "#/$defs/warning"},
+        "context.age_group": {
+          "enum": ["adult", "child", "unknown", "conflicting"]
+        },
+        "context.pregnancy": {
+          "enum": ["not_pregnant", "pregnant", "unknown", "conflicting"]
+        },
+        "context.onset": {
+          "enum": ["recent", "ongoing", "scheduled", "unknown", "conflicting"]
+        },
+        "context.severity": {
+          "enum": ["mild", "moderate", "severe", "unknown", "conflicting"]
+        }
+      }
+    },
+    "service": {
+      "enum": ["dialysis", "mri", "trauma_care"]
+    },
+    "urgency": {
+      "enum": ["routine", "time_sensitive", "highest"]
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      },
+      "uniqueItems": true
+    },
+    "authority": {
+      "enum": ["simulated_treatment_plan", "simulated_clinician_referral", "simulated_clinician_assessment"]
+    },
+    "category": {
+      "enum": ["injury", "kidney_symptom", "mri_referral", "dialysis_plan", "general_medical", "cardiac", "stroke", "other"]
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "service": {"$ref": "#/$defs/service"},
+        "urgency": {"$ref": "#/$defs/urgency"},
+        "required_capabilities": {"$ref": "#/$defs/capabilities"},
+        "preferred_capabilities": {"$ref": "#/$defs/capabilities"}
+      },
+      "required": ["service", "urgency", "required_capabilities", "preferred_capabilities"]
+    },
+    "care_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "service": {"$ref": "#/$defs/service"},
+        "urgency": {"$ref": "#/$defs/urgency"},
+        "required_capabilities": {"$ref": "#/$defs/capabilities"},
+        "preferred_capabilities": {"$ref": "#/$defs/capabilities"},
+        "authority": {"$ref": "#/$defs/authority"}
+      },
+      "required": ["service", "urgency", "required_capabilities", "preferred_capabilities", "authority"]
+    },
+    "clinician_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "synthetic": {"const": true},
+        "scenario_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "scenario_version": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "service": {"$ref": "#/$defs/service"},
+        "urgency": {"$ref": "#/$defs/urgency"},
+        "required_capabilities": {"$ref": "#/$defs/capabilities"},
+        "preferred_capabilities": {"$ref": "#/$defs/capabilities"},
+        "authority": {"$ref": "#/$defs/authority"}
+      },
+      "required": ["synthetic", "scenario_id", "scenario_version", "service", "urgency", "required_capabilities", "preferred_capabilities", "authority"]
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": "intake.scenario.v1"},
+        "scenario_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "scenario_version": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "synthetic": {"const": true},
+        "presenting_problem": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "concern_category": {"$ref": "#/$defs/category"},
+        "service": {
+          "anyOf": [
+            {"$ref": "#/$defs/service"},
+            {"type": "null"}
+          ]
+        },
+        "known_answers": {"$ref": "#/$defs/answers"},
+        "clinician_plan": {
+          "anyOf": [
+            {"$ref": "#/$defs/clinician_plan"},
+            {"type": "null"}
+          ]
+        }
+      },
+      "required": ["schema_version", "scenario_id", "scenario_version", "synthetic", "presenting_problem", "concern_category", "service", "known_answers", "clinician_plan"]
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": "intake.v1"},
+        "mode": {"const": "synthetic"},
+        "scenario_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "input_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "answers": {"$ref": "#/$defs/answers"}
+      },
+      "required": ["schema_version", "mode", "scenario_id", "input_revision", "answers"]
+    },
+    "assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": "intake.v1"},
+        "policy_version": {"const": "intake-policy.v1"},
+        "mode": {"const": "synthetic"},
+        "scenario_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            {"type": "null"}
+          ]
+        },
+        "scenario_version": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            {"type": "null"}
+          ]
+        },
+        "input_revision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {"type": "null"}
+          ]
+        },
+        "input_fingerprint": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {"type": "null"}
+          ]
+        },
+        "state": {
+          "enum": ["invalid_input", "more_information_needed", "unsupported_care_need", "clinician_assessment_needed", "emergency_escalation", "confirmation_required", "ready"]
+        },
+        "reason_codes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "rule_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "source_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "message_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "minItems": 1
+        },
+        "unknowns": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "next_question_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "maxItems": 1
+        },
+        "concerns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "category": {"$ref": "#/$defs/category"},
+              "reason_code": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "source_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "minItems": 1
+              }
+            },
+            "required": ["category", "reason_code", "source_ids"]
+          }
+        },
+        "clinician_confirmation": {
+          "enum": ["present", "required", "invalid", "not_required"]
+        },
+        "confirmation_status": {
+          "enum": ["absent", "invalid", "stale", "current"]
+        },
+        "care_summary": {
+          "anyOf": [
+            {"$ref": "#/$defs/care_summary"},
+            {"type": "null"}
+          ]
+        },
+        "request": {
+          "anyOf": [
+            {"$ref": "#/$defs/request"},
+            {"type": "null"}
+          ]
+        }
+      },
+      "required": ["schema_version", "policy_version", "mode", "scenario_id", "scenario_version", "input_revision", "input_fingerprint", "state", "reason_codes", "rule_ids", "source_ids", "message_ids", "unknowns", "next_question_ids", "concerns", "clinician_confirmation", "confirmation_status", "care_summary", "request"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {"const": "ready"}
+            }
+          },
+          "then": {
+            "properties": {
+              "request": {"$ref": "#/$defs/request"},
+              "confirmation_status": {"const": "current"}
+            }
+          },
+          "else": {
+            "properties": {
+              "request": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": ["ready", "confirmation_required"]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "care_summary": {"$ref": "#/$defs/care_summary"},
+              "clinician_confirmation": {"const": "present"},
+              "next_question_ids": {
+                "maxItems": 0
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "care_summary": {"type": "null"}
+            }
+          }
+        }
+      ]
+    }
+  }
+}

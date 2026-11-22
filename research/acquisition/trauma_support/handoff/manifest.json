@@ -1,0 +1,43 @@
+{
+  "contents": "provenance, aggregate statistics and source-access gaps only; no raw PDFs, printed facility names, VF rows or contacts",
+  "excluded": "local-only observations, candidates, per-occurrence decisions and edition pairs",
+  "files": {
+    "aggregate-report.json": {
+      "bytes": 35214,
+      "records": null,
+      "sha256": "993c20b414e1c1fa2c27a4fb35d4c38312d58e92d69d38ddf6a6a7cbf437a553"
+    },
+    "edition-provenance.json": {
+      "bytes": 2231,
+      "records": 3,
+      "sha256": "cc5a24d4643e122c8cfa0efd5eff224e7e12d54ea490d92eb7d145fe287f3e5d"
+    },
+    "source-gaps.json": {
+      "bytes": 4021,
+      "records": null,
+      "sha256": "e1cd6a6d4c1f6e99a8cd92906e9afda70eaafe40ac44d0e3fe70d437b7eadfd4"
+    }
+  },
+  "format": "trauma-support-164-1.0",
+  "intended_volume": "/Volumes/workspace/default/datathon_vf_research_intake/",
+  "issue": 164,
+  "original_lineage": {
+    "base_sha256": "27e4a79de42ec56c76cc676ed45494a52497d179858bc50549a461434c45e9d8",
+    "facilities_delta_version": 0
+  },
+  "population": {
+    "decisions": 30264,
+    "distinct_source_ids": 10077,
+    "occurrences": 10088
+  },
+  "remote_verification": "pending writer receipt",
+  "replay_code_sha256": {
+    "research/acquisition/trauma_support/packet.py": "e825e9e00be52d8b7efac015838b06e73a34a9fa778b3412e9163cbc1404995a",
+    "research/acquisition/trauma_support/parser.py": "7e5432396420e6695ecce1daac1a1bfdde9fe906e813de642eedcf6c0867660c",
+    "research/acquisition/trauma_support/source_gaps.json": "d332c655550193d4bb0e10184fd87a58b8632e0a99cfa6f08f2c9acfb0f23bf0",
+    "research/matching/national.py": "a273db44ffda586328e9919dd4cd489d55697c377db9e110e69aca13d9186ac8",
+    "research/matching/normalize.py": "d8fedb83e3bad8ee1d3d8e9e257808acb8a584b8c6b35832ab924d89a9423efe",
+    "research/trauma/national/parser.py": "a0ab06d4e625c2d02b9b9fbb151cf8023bac0f4045e5b9f9914973a7e7604e71"
+  },
+  "sharing_scope": "private team: Vincent, Oliver, Andrew, Ayush"
+}
