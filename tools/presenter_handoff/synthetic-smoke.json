@@ -1,0 +1,176 @@
+{
+  "geography": {
+    "location_basis": "synthetic",
+    "name": "Synthetic presenter smoke",
+    "selection": "Two invented sites on a test grid",
+    "source": "Hand-written fixture",
+    "verification": "The points and names have no facility referent."
+  },
+  "scenario": {
+    "seed": 1,
+    "horizon": "20 synthetic minutes",
+    "horizon_minutes": 20,
+    "objective": "Minimize unmet requests by priority, then modelled travel seconds",
+    "travel_basis": "Hand-written travel matrix",
+    "simulated": "Sites, requests, slots and travel",
+    "priorities": [
+      "highest",
+      "time_sensitive",
+      "routine"
+    ],
+    "condition_categories": {
+      "trauma_care": "High-acuity trauma and stabilization",
+      "minor_injury_urgent_care": "Minor injury and urgent care",
+      "dialysis": "Scheduled dialysis",
+      "ophthalmic_treatment": "Scheduled ophthalmic treatment"
+    }
+  },
+  "patients": [
+    {
+      "id": "synthetic-1",
+      "condition_category": "trauma_care",
+      "service": "trauma_care",
+      "priority": "routine",
+      "arrival_minute": 1,
+      "deadline_minute": 10,
+      "required_tools": [],
+      "latitude": 0.001,
+      "longitude": -0.001
+    },
+    {
+      "id": "synthetic-2",
+      "condition_category": "trauma_care",
+      "service": "trauma_care",
+      "priority": "highest",
+      "arrival_minute": 2,
+      "deadline_minute": 10,
+      "required_tools": [
+        "monitored"
+      ],
+      "latitude": 0.002,
+      "longitude": -0.002
+    },
+    {
+      "id": "synthetic-3",
+      "condition_category": "dialysis",
+      "service": "dialysis",
+      "priority": "routine",
+      "arrival_minute": 3,
+      "deadline_minute": 10,
+      "required_tools": [],
+      "latitude": 0.003,
+      "longitude": -0.003
+    },
+    {
+      "id": "synthetic-4",
+      "condition_category": "ophthalmic_treatment",
+      "service": "ophthalmic_treatment",
+      "priority": "routine",
+      "arrival_minute": 4,
+      "deadline_minute": 10,
+      "required_tools": [],
+      "latitude": 0.004,
+      "longitude": -0.004
+    },
+    {
+      "id": "synthetic-5",
+      "condition_category": "minor_injury_urgent_care",
+      "service": "minor_injury_urgent_care",
+      "priority": "time_sensitive",
+      "arrival_minute": 5,
+      "deadline_minute": 10,
+      "required_tools": [],
+      "latitude": 0.005,
+      "longitude": -0.005
+    }
+  ],
+  "facilities": [
+    {
+      "id": "site-a",
+      "label": "Synthetic site A",
+      "precision": "point",
+      "latitude": 0.02,
+      "longitude": -0.02,
+      "resources": [
+        {
+          "slot_id": "slot-a-1",
+          "resource_id": "pool-a-1",
+          "service": "trauma_care",
+          "tools": [
+            "monitored"
+          ],
+          "start_minute": 10,
+          "duration_minutes": 10,
+          "slots": 1
+        },
+        {
+          "slot_id": "slot-a-2",
+          "resource_id": "pool-a-2",
+          "service": "dialysis",
+          "tools": [],
+          "start_minute": 10,
+          "duration_minutes": 10,
+          "slots": 1
+        }
+      ]
+    },
+    {
+      "id": "site-b",
+      "label": "Synthetic site B",
+      "precision": "point",
+      "latitude": -0.02,
+      "longitude": 0.02,
+      "resources": [
+        {
+          "slot_id": "slot-b-1",
+          "resource_id": "pool-b-1",
+          "service": "trauma_care",
+          "tools": [],
+          "start_minute": 10,
+          "duration_minutes": 10,
+          "slots": 1
+        },
+        {
+          "slot_id": "slot-b-2",
+          "resource_id": "pool-b-2",
+          "service": "minor_injury_urgent_care",
+          "tools": [],
+          "start_minute": 10,
+          "duration_minutes": 10,
+          "slots": 1
+        },
+        {
+          "slot_id": "slot-b-3",
+          "resource_id": "pool-b-3",
+          "service": "ophthalmic_treatment",
+          "tools": [],
+          "start_minute": 10,
+          "duration_minutes": 10,
+          "slots": 1
+        }
+      ]
+    }
+  ],
+  "travel_seconds": {
+    "synthetic-1": {
+      "site-a": 10,
+      "site-b": 20
+    },
+    "synthetic-2": {
+      "site-a": 10,
+      "site-b": 20
+    },
+    "synthetic-3": {
+      "site-a": 15,
+      "site-b": 30
+    },
+    "synthetic-4": {
+      "site-a": 30,
+      "site-b": 40
+    },
+    "synthetic-5": {
+      "site-a": 30,
+      "site-b": 50
+    }
+  }
+}

@@ -1,0 +1,2 @@
+map-assets/package/dist/leaflet.js -text whitespace=cr-at-eol
+map-assets/package/dist/leaflet.css -text whitespace=cr-at-eol
