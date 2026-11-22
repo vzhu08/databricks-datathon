@@ -1,28 +1,56 @@
 # Contribution record
 
-Git shows 39 commits on `main` with the author `Claude <noreply@anthropic.com>`.
-All 39 are Andrew Gu's work (Developer C, GitHub
+Git shows 42 commits on `main` with the author `Claude <noreply@anthropic.com>`.
+All 42 are Andrew Gu's work (Developer C, GitHub
 [@andrewhgu](https://github.com/andrewhgu)). He directed them through Claude
 Code cloud sessions that committed under the tool's default identity until
 07:32 UTC on 22 November 2026. From then on his sessions were set to commit
 under his own name.
 
 The history of `main` is shared and is left as it is. This file is the record
-that ties those commits to him.
+that ties those commits to him, and the `.mailmap` file at the repository root
+makes Git count them under his name.
+
+## Counting commits per person
+
+Count with the mailmap applied. Commits authored `Claude <noreply@anthropic.com>`
+belong in Andrew Gu's total, and so do the two authored from his university
+address `andrewgu@andrew.cmu.edu`.
+
+```sh
+git shortlog -sne origin/main
+```
+
+`git shortlog` applies `.mailmap` by itself. For other commands add
+`--use-mailmap`, for example
+`git log --use-mailmap --author="Andrew Gu" --oneline origin/main | wc -l`.
+
+On `main` at `e5e312a` (22 November 2026) Andrew Gu's total is 118: 74 under
+his GitHub identity, 42 under `Claude` and 2 under his university address.
+Without the mailmap the same history shows those as three separate authors.
+
+Two limits. GitHub's contributors graph does not read `.mailmap`, so it still
+shows `Claude` commits apart; use the command above or this file instead. And
+the mapping covers the whole `Claude <noreply@anthropic.com>` identity, which is
+correct only while every commit under it is Andrew's. That was checked for all
+42 (below). If anyone else ever commits under that identity, list their commits
+here and correct the count by hand.
 
 ## How the commits were identified
 
 Checked against `main` at `8e035f3` on 22 November 2026.
 
 - Every commit on `main` with the author email `noreply@anthropic.com` was
-  listed with `git log origin/main --author=noreply@anthropic.com`. There are
-  39.
+  listed with `git log origin/main --author=noreply@anthropic.com`. There were
+  39 at `8e035f3`. Three more arrived with #316 and were checked the same way
+  at `e5e312a`, which makes 42.
 - Each one was looked up on GitHub by its full hash. Every one belongs to a
   pull request opened by `andrewhgu`, shown in the table below. The four
   commits of #29 also appear in #31, which merged the same branch.
-- 34 of the 39 carry the same `Claude-Session` trailer, so they come from one
-  session. The other five are merge commits made on his pull-request branches
-  (`7832e42`, `9db585b`, `cc3b894`, `52964c1`, `bf87cf4`).
+- 34 of the 42 carry the same `Claude-Session` trailer, so they come from one
+  session. The other eight are merge commits made on his pull-request branches
+  (`7832e42`, `9db585b`, `cc3b894`, `52964c1`, `bf87cf4`, `9c60043`, `5e35de8`,
+  `e9f0fa9`).
 - No commit on `main` with this author belongs to a pull request opened by
   anyone else.
 
@@ -71,12 +99,13 @@ Times are the author times in UTC.
 | [#153](https://github.com/vzhu08/databricks-datathon/pull/153) | [`bf87cf4`](https://github.com/vzhu08/databricks-datathon/commit/bf87cf4fe5b0279e0e9d3b77254e7016575c84d6) | 2026-11-22 05:35 | Merge remote-tracking branch 'origin/main' into codex/andrew-intake-ui |
 | [#153](https://github.com/vzhu08/databricks-datathon/pull/153) | [`b749ea2`](https://github.com/vzhu08/databricks-datathon/commit/b749ea28bd8d76c9f988552bcb0b1c63973e4748) | 2026-11-22 05:41 | Connect the offline intake page to the team's intake engine |
 | [#213](https://github.com/vzhu08/databricks-datathon/pull/213) | [`37c92dc`](https://github.com/vzhu08/databricks-datathon/commit/37c92dc711d8f105dc48a8e3c358fac38f9bca3c) | 2026-11-22 05:45 | Trim the extra blank line at the end of the storm UI design notes |
+| [#316](https://github.com/vzhu08/databricks-datathon/pull/316) | [`9c60043`](https://github.com/vzhu08/databricks-datathon/commit/9c60043e14d1a8cc15f1a6cf78f48404e88064c6) | 2026-11-22 15:36 | Merge remote-tracking branches 'origin/codex/p-hosted-capacity-recommendation' and 'origin/codex/a-hosted-tomtom-eta' into codex/andrew-policy-aware-finder |
+| [#316](https://github.com/vzhu08/databricks-datathon/pull/316) | [`5e35de8`](https://github.com/vzhu08/databricks-datathon/commit/5e35de850a519a6b8b66127a412d13fcf9014532) | 2026-11-22 15:37 | Merge branch 'codex/andrew-find-care-provenance' into codex/andrew-policy-aware-finder |
+| [#316](https://github.com/vzhu08/databricks-datathon/pull/316) | [`e9f0fa9`](https://github.com/vzhu08/databricks-datathon/commit/e9f0fa9678a14076bc7f39d7aaf171eed0d414a2) | 2026-11-22 15:42 | Merge remote-tracking branch 'origin/main' into codex/andrew-policy-aware-finder |
 
 ## Not yet on `main`
 
-Two open pull requests by `andrewhgu` hold further commits with the same
-author. They are his as well and belong in the table once those pull requests
-merge.
+One open pull request by `andrewhgu` holds further commits with the same
+author. They are his as well and belong in the table once it merges.
 
 - #217: `9a10f8f`, `4752775`
-- #316: three merge commits, `9c60043`, `5e35de8`, `e9f0fa9`

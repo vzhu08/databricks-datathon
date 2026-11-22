@@ -1,0 +1,7 @@
+# Commit identities that belong to one person. Read by git shortlog, git log --use-mailmap and git blame.
+# The reasons and the checked commit list are in docs/CONTRIBUTORS.md.
+#
+# Andrew Gu (Developer C, GitHub @andrewhgu). His Claude Code cloud sessions committed under the tool's
+# default identity until he set his own. Every commit on main with that identity is his; see the record.
+Andrew Gu <329747977+andrewhgu@users.noreply.github.com> Claude <noreply@anthropic.com>
+Andrew Gu <329747977+andrewhgu@users.noreply.github.com> Andrew Gu <andrewgu@andrew.cmu.edu>
