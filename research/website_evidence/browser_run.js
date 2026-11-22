@@ -1,0 +1,220 @@
+// Browser port of cc_index.py + extract.py, used for the 2026-11-22 prototype run.
+//
+// Why a browser: the cloud workers that build this repo cannot reach Common Crawl, and
+// index.commoncrawl.org's CDX server returned HTTP 504 for every query that night. A browser
+// tab opened on https://index.commoncrawl.org/collinfo.json can read data.commoncrawl.org
+// (CORS is open) with range requests and DecompressionStream. Run from Python where the
+// network allows: cc_index.Crawl + extract.mentions do the same thing.
+//
+// Politeness: one shared throttle, at most ~3 requests a second. An unthrottled run with six
+// parallel workers was blocked by CloudFront (HTTP 403) after ~900 domains for ~20 minutes.
+//
+// Usage in the tab's console:
+//   await CC.load('CC-MAIN-2026-39'); CC.queue.push(...domains); await CC.run(2);
+//   then read CC.results (per domain: captures, html captures, pages read, thin pages, hits).
+
+window.CC = {results: {}, queue: [], blockCache: new Map(), last: 0};
+
+CC.load = async crawl => {
+  CC.crawl = crawl;
+  CC.IDX = `https://data.commoncrawl.org/cc-index/collections/${crawl}/indexes/`;
+  const txt = await (await fetch(CC.IDX + 'cluster.idx')).text();
+  CC.keys = []; CC.meta = [];
+  for (const line of txt.split('\n')) {
+    if (!line) continue;
+    const p = line.split('\t');
+    CC.keys.push(p[0].split(' ')[0]); CC.meta.push([p[1], +p[2], +p[3]]);
+  }
+};
+
+CC.throttle = async () => {
+  const now = Date.now(), wait = Math.max(0, CC.last + 350 - now);
+  CC.last = now + wait;
+  if (wait) await new Promise(r => setTimeout(r, wait));
+};
+CC.range = async (url, start, len) => {
+  await CC.throttle();
+  const r = await fetch(url, {headers: {Range: `bytes=${start}-${start + len - 1}`}});
+  if (r.status !== 206 && r.status !== 200) throw new Error('http ' + r.status);
+  return await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text();
+};
+
+CC.surt = d => d.toLowerCase().replace(/^www\./, '').split('.').reverse().join(',');
+CC.findBlock = k => { let lo = 0, hi = CC.keys.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (CC.keys[m] <= k) lo = m; else hi = m - 1; } return lo; };
+CC.getBlock = i => {
+  if (!CC.blockCache.has(i)) { const [f, o, l] = CC.meta[i]; CC.blockCache.set(i, CC.range(CC.IDX + f, o, l).then(t => t.split('\n'))); }
+  return CC.blockCache.get(i);
+};
+CC.lookup = async d => {
+  const s = CC.surt(d), lo = s + ')', hi = s + '-', rows = [];
+  let i = CC.findBlock(lo);
+  for (let n = 0; n < 6 && i < CC.keys.length; n++, i++) {
+    if (n > 0 && CC.keys[i] > hi) break;
+    for (const L of await CC.getBlock(i)) {
+      if (!L) continue;
+      const i1 = L.indexOf(' '), sk = L.slice(0, i1);
+      if (!(sk.startsWith(s + ')') || sk.startsWith(s + ','))) continue;
+      const i2 = L.indexOf(' ', i1 + 1);
+      let j; try { j = JSON.parse(L.slice(i2 + 1)); } catch (e) { continue; }
+      rows.push({u: j.url, ts: L.slice(i1 + 1, i2), st: j.status, m: j.mime || j['mime-detected'], f: j.filename, o: +j.offset, l: +j.length});
+    }
+    if (i + 1 < CC.keys.length && CC.keys[i + 1] > hi) break;
+  }
+  return rows;
+};
+
+CC.KW = /(dialysis|kidney|nephro|mri|radiology|imaging|scan|trauma|emergency|casualty|accident|service|facilit|department|speciali|about|infrastructure|our-|treatment)/i;
+CC.pick = rows => {
+  const h = rows.filter(r => r.st === '200' && /html/.test(r.m || ''));
+  const path = r => { try { return new URL(r.u).pathname.replace(/\/+$/, '') || '/'; } catch (e) { return r.u; } };
+  h.sort((a, b) => path(a).length - path(b).length);
+  const seen = new Set(), out = [];
+  for (const r of h) { const p = path(r); if (!seen.has(p) && ['/', '/index.html', '/index.php', '/index.htm', '/home'].includes(p)) { seen.add(p); out.push(r); break; } }
+  for (const r of h) { const p = path(r); if (seen.has(p)) continue; if (CC.KW.test(p)) { seen.add(p); out.push(r); } if (out.length >= 8) break; }
+  return {n: h.length, pages: out.slice(0, 8)};
+};
+
+// Same patterns as extract.py.
+CC.SV = {
+  dialysis: /\b(h(a)?emo[- ]?dialysis|dialysis|CAPD|peritoneal dialysis)\b/i,
+  mri: /\b(MRI|M\.R\.I|magnetic resonance)\b/,
+  trauma: /\b(trauma\s*(care|cent(re|er)|unit|ward|team|services?|ICU|surgery)|polytrauma|accident\s*(and|&)\s*emergency|emergency\s*(and|&)\s*trauma|level\s*[I1]+\s*trauma)\b/i,
+};
+CC.Q = /\b(not available|not provide\w*|no (dialysis|mri)|do not|don't|refer(red|s)? (to|out)|coming soon|upcoming|proposed|planning|plan to|will be (started|available|launched)|under construction|outsourc\w*|tie[- ]?up|should be confirmed)\b/i;
+CC.ON = /\b(we|our|us|in[- ]house|available|equipped|offer(s|ing)?|provid(e|es|ing)|facilit(y|ies)|unit|cent(re|er)|department|24\s*[x×*\/]\s*7|24[- ]hours?|round[- ]the[- ]clock|machines?|beds?|tesla|slice)\b/i;
+CC.EDU = /\b(may (order|use|be|need)|your doctor|doctors? (may|will|might|can)|is a (painless|procedure|test)|is the process|what is|tests? (like|such as)|diagnosis (involves|typically|includes)|imaging tests|may be ordered|is required to|is very good)\b/i;
+CC.rank = s => [!CC.EDU.test(s), CC.ON.test(s), s.length >= 40, !CC.Q.test(s), -Math.abs(s.length - 160)];
+CC.cmp = (a, b) => { const x = CC.rank(a), y = CC.rank(b); for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return y[i] > x[i] ? 1 : -1; return 0; };
+
+CC.text = html => {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  doc.querySelectorAll('script,style,noscript,svg,iframe,template').forEach(e => e.remove());
+  const parts = [];
+  const walk = el => { for (const c of el.childNodes) {
+    if (c.nodeType === 3) { const s = c.textContent.replace(/\s+/g, ' ').trim(); if (s) parts.push(s); }
+    else if (c.nodeType === 1) { walk(c); if (/^(P|DIV|LI|H[1-6]|TD|TR|BR|SECTION|ARTICLE|A|SPAN)$/.test(c.tagName)) parts.push('\n'); }
+  } };
+  if (doc.body) walk(doc.body);
+  return parts.join(' ').replace(/ *\n[\n ]*/g, '\n');
+};
+CC.extract = t => {
+  const out = {};
+  for (const s of t.split(/\n|(?<=[.!?])\s+(?=[A-Z])/).map(s => s.trim()).filter(s => s.length >= 3))
+    for (const [k, re] of Object.entries(CC.SV)) if (re.test(s)) (out[k] = out[k] || []).push(s.slice(0, 280));
+  return out;
+};
+CC.page = async p => { const t = await CC.range('https://data.commoncrawl.org/' + p.f, p.o, p.l); const k = t.indexOf('\r\n\r\n'); return t.slice(t.indexOf('\r\n\r\n', k + 4) + 4); };
+
+CC.processDomain = async d => {
+  const rows = await CC.lookup(d), {n, pages} = CC.pick(rows);
+  const res = {d, cap: rows.length, html: n, pages: 0, thin: 0, hits: {}};
+  for (const p of pages) {
+    try {
+      const text = CC.text(await CC.page(p));
+      res.pages++;
+      if (text.length < 300) { res.thin++; continue; }  // bot check or JavaScript shell
+      for (const [k, arr] of Object.entries(CC.extract(text))) {
+        const best = arr.slice().sort(CC.cmp)[0];
+        (res.hits[k] = res.hits[k] || []).push({u: p.u, ts: p.ts, q: best, neg: CC.Q.test(best), n: arr.length});
+      }
+    } catch (e) { res.err = (res.err || 0) + 1; }
+  }
+  return res;
+};
+
+CC.run = async (conc = 2) => {
+  CC.running = true;
+  const worker = async () => {
+    while (CC.queue.length && CC.running) {
+      const d = CC.queue.shift();
+      try { CC.results[d] = await CC.processDomain(d); }
+      catch (e) { if (/403/.test(e)) { CC.running = false; CC.queue.unshift(d); } else CC.results[d] = {d, fail: String(e).slice(0, 80)}; }
+      if (CC.blockCache.size > 2000) CC.blockCache.clear();
+    }
+  };
+  await Promise.all(Array.from({length: conc}, worker));
+  CC.running = false;
+};
+
+// ---- Specialist counts (same rules as specialists.py). Names stay in memory only; results keep
+// counts per specialty plus the URL and timestamp of the best page, and masked context for a hand check.
+CC.DOCPATH = /(doctor|our-team|team|specialist|consultant|faculty|physician|surgeon|expert|staff|department|speciali|nephro|kidney|dialysis|radiolog|imaging|ortho|neuro|emergency|trauma|casualty)/i;
+CC.ART = /(\/blogs?\/|\/tag\/|\/category\/|\/news\/|\/articles?\/|\/faqs?\/|\/\d{4}\/\d{2}\/|\/testimonial)/i;
+CC.pickDocs = rows => {
+  const path = r => { try { return new URL(r.u).pathname.replace(/\/+$/, '') || '/'; } catch (e) { return r.u; } };
+  const people = p => /(doctor|our-team|\/team|specialist|consultant|faculty|physician)/i.test(p) ? 0 : 1;
+  const seen = new Set(), out = [];
+  rows.filter(r => r.st === '200' && /html/.test(r.m || '') && CC.DOCPATH.test(path(r)) && !CC.ART.test(r.u))
+    .sort((a, b) => people(path(a)) - people(path(b)) || path(a).length - path(b).length)
+    .forEach(r => { const p = path(r); if (!seen.has(p) && out.length < 6) { seen.add(p); out.push(r); } });
+  return out;
+};
+CC.SPEC = {
+  nephrology: /\bnephrolog/i, radiology: /\bradiolog/i,
+  orthopaedics: /\borthop(a)?edic|\borthop(a)?edist|\bjoint replacement surgeon/i,
+  neurosurgery: /\bneuro[\s-]?surg/i,
+  emergency_trauma: /\bemergency (medicine|physician)|\btrauma surg|\bcasualty medical officer|\b(M\.?D\.?|DNB)\s*\(?\s*emergency/i,
+};
+CC.NOT = /\b(BDS|MDS|ENT|BAMS|BHMS|BPT|MPT|B\.P\.Th|M\.P\.Th)\b|\b(dental|dentist|orthodont\w*|endodont\w*|prosthodont\w*|periodont\w*|maxillofacial|otorhinolaryng\w*|otolaryng\w*|ayurved\w*|homoeopath\w*|homeopath\w*|physiotherap\w*)/i;
+CC.DEPT = /\b(cardiolog|neurolog|nephrolog|urolog|gastroenterolog|pulmonolog|endocrinolog|oncolog|dermatolog|paediatric|pediatric|gyn(a)?ecolog|obstetric|orthop(a)?edic|radiolog|psychiatr|ophthalmolog|general medicine|general surgery|neuro ?surg|rheumatolog|intensivist|emergency|trauma|casualty|joint replacement)\w*/gi;
+CC.FORM = /\b(select (a )?(department|doctor|speciality)|book an appointment|your name|submit|send message|\d+ comments?|posted (by|on)|(january|february|march|april|may|june|july|august|september|october|november|december) \d{1,2}, 20\d\d)\b/i;
+CC.family = w => { w = w.toLowerCase(); for (const [k, re] of Object.entries(CC.SPEC)) if (re.test(w)) return k; if (w.startsWith('neurolog')) return 'neurology'; if (/^(emergency|trauma|casualty|intensivist)/.test(w)) return 'emergency_trauma'; if (w.startsWith('joint replacement')) return 'orthopaedics'; return w.slice(0, 6); };
+CC.isSpec = w => { if (CC.NOT.test(w) || CC.FORM.test(w)) return false; const s = new Set(); for (const m of w.matchAll(CC.DEPT)) s.add(CC.family(m[0])); return s.size < 3; };
+// Specialties credited to one entry: the first one named (a later "Department of X" is a heading),
+// plus neurosurgery when "Neurology" comes first.
+CC.found = w => { if (!CC.isSpec(w)) return []; CC.DEPT.lastIndex = 0; const m = w.match(new RegExp(CC.DEPT.source, 'i')); const first = m ? CC.family(m[0]) : null; const hits = Object.keys(CC.SPEC).filter(k => CC.SPEC[k].test(w)); return first === 'neurology' ? hits.filter(k => k === 'neurosurgery') : hits.filter(k => k === first); };
+CC.DR = /\bDr\.?\s+([A-Z][a-zA-Z]+(?:\s+[A-Z]\.?)*(?:\s+[A-Z][a-zA-Z]+)?)/g;
+CC.MASK = /\b(Dr|Prof|Mr|Mrs|Ms)\.?\s*(?:[A-Z]\.\s*)*[A-Z][a-zA-Z]*\.?(?:\s+(?:[A-Z]\.|[A-Z][a-zA-Z]+)){0,4}/g;
+CC.docCount = text => {
+  const lines = text.split('\n'), sets = {}, ex = {}, all = new Set();
+  const hasDr = l => { CC.DR.lastIndex = 0; return CC.DR.test(l); };
+  for (let i = 0; i < lines.length; i++) {
+    CC.DR.lastIndex = 0; let m; const names = [];
+    while ((m = CC.DR.exec(lines[i]))) names.push(m[1].toLowerCase());
+    if (!names.length) continue;
+    names.forEach(n => all.add(n));
+    let win, shown;
+    if (lines[i].length > 200) { CC.DR.lastIndex = 0; const at = CC.DR.exec(lines[i]).index; win = shown = lines[i].slice(at, at + 150); }
+    else {
+      const w = [lines[i]];
+      for (let j = i + 1; j < Math.min(lines.length, i + 4); j++) { if (hasDr(lines[j])) break; w.push(lines[j]); }
+      win = w.join(' ').slice(0, 400); shown = w.join(' | ');
+    }
+    for (const k of CC.found(win)) {
+      for (const n of names) (sets[k] = sets[k] || new Set()).add(n);
+      if (!ex[k]) ex[k] = shown.replace(CC.MASK, (x, t) => t + '. ▇').slice(0, 220);
+    }
+  }
+  return {sets, ex, all};
+};
+CC.processDocs = async d => {
+  const rows = await CC.lookup(d), pages = CC.pickDocs(rows), agg = {}, ex = {}, src = {}, all = new Set();
+  let read = 0, thin = 0, err = 0;
+  for (const p of pages) {
+    let t;
+    try { t = CC.text(await CC.page(p)); } catch (e) { err++; if (/403/.test(e)) throw e; continue; }
+    read++;
+    if (t.length < 300) { thin++; continue; }
+    const r = CC.docCount(t); r.all.forEach(n => all.add(n));
+    for (const [k, s] of Object.entries(r.sets)) {
+      agg[k] = agg[k] || new Set(); s.forEach(n => agg[k].add(n));
+      if (!src[k] || s.size > src[k].n) src[k] = {u: p.u, ts: p.ts, n: s.size};
+      if (!ex[k]) ex[k] = r.ex[k];
+    }
+  }
+  const counts = {}; for (const k in agg) counts[k] = agg[k].size;
+  const html = rows.filter(r => r.st === '200' && /html/.test(r.m || '')).length;
+  return {d, cap: rows.length, html, docPages: pages.length, read, thin, err, doctors: all.size, counts, src, ex};  // no names
+};
+CC.docRun = async (conc = 2) => {
+  CC.docRes = CC.docRes || {}; CC.docRunning = true;
+  const w = async () => { while (CC.docQ.length && CC.docRunning) {
+    const d = CC.docQ.shift();
+    try { CC.docRes[d] = await CC.processDocs(d); }
+    catch (e) { if (/403/.test(e)) { CC.docRunning = false; CC.docQ.unshift(d); CC.blocked = Date.now(); } else CC.docRes[d] = {d, fail: String(e).slice(0, 80)}; }
+    if (CC.blockCache.size > 2000) CC.blockCache.clear();
+  } };
+  await Promise.all(Array.from({length: conc}, w)); CC.docRunning = false;
+};
+// Unattended: retry after a CloudFront block, waiting 25 minutes.
+CC.docLoop = async () => { while (CC.docQ.length) { await CC.docRun(2); if (CC.docQ.length) await new Promise(r => setTimeout(r, 25 * 60 * 1000)); } CC.docDone = Date.now(); };
