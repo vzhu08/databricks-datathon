@@ -1,0 +1,32 @@
+{
+  "service": "mri",
+  "urgency": "highest",
+  "as_of": "2026-11-21",
+  "travel_metric": "travel_minutes",
+  "travel_budget": 60,
+  "routing": {
+    "provider": "tomtom",
+    "origin": {"latitude": 26.9, "longitude": 75.8, "kind": "city", "approximate": true},
+    "shortlist_limit": 2
+  },
+  "candidates": [
+    {
+      "facility_id": "SYNTHETIC-CAMPUS-A",
+      "latitude": 26.91,
+      "longitude": 75.81,
+      "coordinate_status": "reviewed",
+      "as_of": "2026-11-21",
+      "services": {"mri": {"status": "yes", "source_date": "2026-11-20",
+                           "independent_families": ["SYNTHETIC-REGISTRY"], "capabilities": {}}}
+    },
+    {
+      "facility_id": "SYNTHETIC-CAMPUS-B",
+      "latitude": 26.92,
+      "longitude": 75.82,
+      "coordinate_status": "reviewed",
+      "as_of": "2026-11-21",
+      "services": {"mri": {"status": "yes", "source_date": "2026-11-20",
+                           "independent_families": ["SYNTHETIC-REGISTRY"], "capabilities": {}}}
+    }
+  ]
+}

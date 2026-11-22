@@ -3,37 +3,28 @@ import json
 import pickle
 import socket
 import unittest
+from tempfile import TemporaryDirectory
 from copy import deepcopy
+from pathlib import Path
 from unittest.mock import patch
 
 from app.intake import (
-    POLICY_VERSION, SCENARIO_SCHEMA_VERSION, SCHEMA_VERSION,
+    POLICY_VERSION, SCHEMA_VERSION,
     assess_intake, assessment_catalogue, confirm_intake,
 )
+
+from app.intake import finder_bridge
 
 WARNINGS = ("chest_pain", "stroke_like", "severe_breathing_difficulty", "unresponsive", "heavy_bleeding")
 
 
 def fictional_case(service="mri"):
-    concern, authority = {
-        "mri": ("mri_referral", "simulated_clinician_referral"),
-        "dialysis": ("dialysis_plan", "simulated_treatment_plan"),
-        "trauma_care": ("injury", "simulated_clinician_assessment"),
-    }[service]
-    scenario = {
-        "schema_version": SCENARIO_SCHEMA_VERSION, "synthetic": True,
-        "scenario_id": "fictional-case", "scenario_version": "1", "concern_category": concern,
-        "presenting_problem": "An invented adult has a clinician's care plan.",
-        "known_answers": {"context.age_group": "adult", "context.pregnancy": "not_pregnant",
-                          "context.onset": "recent"},
-        "service": service, "clinician_plan": {
-            "scenario_id": "fictional-case", "scenario_version": "1", "synthetic": True,
-            "authority": authority, "service": service, "urgency": "routine",
-            "required_capabilities": ["fictional-capability"], "preferred_capabilities": [],
-        },
-    }
+    scenario_id = {"mri": "scheduled_mri", "dialysis": "scheduled_dialysis",
+                   "trauma_care": "injury_assessed"}[service]
+    fixture = Path(__file__).parent / "scenarios" / "journeys.json"
+    scenario = json.loads(fixture.read_text())["scenarios"][scenario_id]
     answers = {"warning." + key: "no" for key in WARNINGS}
-    answers["context.severity"] = "mild"
+    answers["context.severity"] = scenario["known_answers"].get("context.severity", "mild")
     payload = {"schema_version": SCHEMA_VERSION, "mode": "synthetic",
                "scenario_id": scenario["scenario_id"], "input_revision": len(answers), "answers": answers}
     return payload, scenario
@@ -80,15 +71,15 @@ class AssessmentTests(unittest.TestCase):
                 self.assertEqual(out["state"], "ready")
                 self.assertEqual(out["confirmation_status"], "current")
                 self.assertEqual(out["request"], {
-                    "service": service, "urgency": "routine",
-                    "required_capabilities": ["fictional-capability"], "preferred_capabilities": [],
+                    "service": service, "urgency": "time_sensitive" if service == "trauma_care" else "routine",
+                    "required_capabilities": [], "preferred_capabilities": [],
                 })
                 for key in ("scenario_id", "scenario_version", "input_revision", "input_fingerprint",
                             "policy_version", "schema_version", "care_summary"):
                     self.assertEqual(initial[key], out[key])
-                out["request"]["required_capabilities"].clear()
+                out["request"]["required_capabilities"].append("mutated-result")
                 self.assertEqual(initial["care_summary"], out["care_summary"])
-                self.assertTrue(self.scenario["clinician_plan"]["required_capabilities"])
+                self.assertEqual(self.scenario["clinician_plan"]["required_capabilities"], [])
 
     def test_canonical_order_and_json_round_trip_replay(self):
         receipt = self.confirm()
@@ -109,15 +100,74 @@ class AssessmentTests(unittest.TestCase):
             elif change == "edition":
                 self.scenario["scenario_version"] = self.scenario["clinician_plan"]["scenario_version"] = "2"
             elif change == "plan":
-                self.scenario["clinician_plan"]["required_capabilities"] = []
+                self.scenario["clinician_plan"]["required_capabilities"] = ["new capability"]
             elif change == "narrative":
                 self.scenario["presenting_problem"] += " Another fictional detail."
             with self.subTest(change=change), patch("app.intake.assessment.POLICY_VERSION",
                     "intake-policy.changed" if change == "policy" else POLICY_VERSION):
                 out = self.assess(receipt)
                 self.assertEqual(out["confirmation_status"], "stale")
-                self.assertEqual(out["state"], "confirmation_required")
+                expected = "invalid_input" if change in ("edition", "plan", "narrative") else "confirmation_required"
+                self.assertEqual(out["state"], expected)
                 self.assertIsNone(out["request"])
+
+    def test_only_reviewed_story_and_facts_can_reach_ranking(self):
+        p, s = self.payload, self.scenario
+        self.assertEqual(s["known_answers"]["warning.chest_pain"], "no")
+        receipt = self.confirm()
+        with patch.object(finder_bridge, "rank_campuses", wraps=finder_bridge.rank_campuses) as rank:
+            good = finder_bridge.find_care_for_intake(p, scenario=s, confirmation=receipt, origin_id="central")
+            self.assertTrue(good["finder"]["ranked"])
+            self.assertEqual(good["assessment"]["request"]["service"], "mri")
+            rank.assert_called_once()
+            rank.reset_mock()
+
+            for changed in (dict(s, presenting_problem="Current chest pain"),
+                            dict(s, known_answers={**s["known_answers"], "context.onset": "recent"}),
+                            dict(s, clinician_plan={**s["clinician_plan"], "urgency": "highest"}),
+                            dict(s, presenting_problem=s["presenting_problem"] + " Another sentence.")):
+                with self.subTest(story=changed["presenting_problem"]):
+                    for previous in (None, receipt):
+                        result = finder_bridge.find_care_for_intake(
+                            p, scenario=changed, confirmation=previous, origin_id="central")
+                        assessment = result["assessment"]
+                        self.assertEqual(assessment["state"], "invalid_input")
+                        self.assertEqual(assessment["reason_codes"], ["intake_scenario_unreviewed"])
+                        self.assertIsNone(assessment["request"])
+                        self.assertIsNone(assessment["care_summary"])
+                        self.assertIsNone(result["finder"])
+                    with self.assertRaises(ValueError):
+                        confirm_intake(p, scenario=changed)
+            rank.assert_not_called()
+
+    def test_packaged_manifest_covers_each_shipped_edition(self):
+        from app.intake.assessment import _edition_is_reviewed
+        scripts = json.loads((Path(__file__).parent / "scenarios/journeys.json").read_text())["scenarios"]
+        for scenario in scripts.values():
+            with self.subTest(scenario=scenario["scenario_id"]):
+                self.assertTrue(_edition_is_reviewed(scenario))
+                changed = {**scenario, "presenting_problem": scenario["presenting_problem"] + " (edited)"}
+                self.assertFalse(_edition_is_reviewed(changed))
+
+    def test_unavailable_or_ambiguous_manifest_withholds_search_and_preserves_warnings(self):
+        from app.intake.assessment import _load_reviewed_editions
+        row = {"scenario_id": "example", "scenario_version": "1", "sha256": "a" * 64}
+        valid = {"schema_version": "intake.editions.v1", "editions": [row]}
+        duplicate_hash = json.dumps(valid).replace('"sha256":', '"sha256": "first", "sha256":')
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "pins.json"
+            for content in (None, "{", "null", duplicate_hash, json.dumps({**valid, "extra": True}),
+                            json.dumps({**valid, "editions": [dict(row, extra=True)]}),
+                            json.dumps({"schema_version": "bad", "editions": [row]}),
+                            json.dumps({"schema_version": "intake.editions.v1", "editions": [row, row]})):
+                if content is not None:
+                    path.write_text(content)
+                pins = _load_reviewed_editions(path)
+                self.assertFalse(pins)
+            with patch("app.intake.assessment._REVIEWED_EDITIONS", pins):
+                self.assertEqual(self.assess()["reason_codes"], ["intake_scenario_unreviewed"])
+                self.payload["answers"]["warning.chest_pain"] = "yes"
+                self.assertEqual(self.assess()["state"], "emergency_escalation")
 
     def test_serialized_results_and_unissued_receipts_cannot_confirm(self):
         receipt = self.confirm()
@@ -150,6 +200,7 @@ class AssessmentTests(unittest.TestCase):
 
     def test_missing_unknown_conflicting_and_malformed_answers(self):
         key = "warning.heavy_bleeding"
+        self.scenario["known_answers"].pop(key)
         self.payload["answers"].pop(key)
         pending = self.assess()
         self.assertEqual(pending["next_question_ids"], [key])

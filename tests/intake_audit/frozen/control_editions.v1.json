@@ -1,0 +1,20 @@
+{
+  "schema_version": "intake.editions.v1",
+  "editions": [
+    {
+      "scenario_id": "s_audit_complete_mri",
+      "scenario_version": "1",
+      "sha256": "3a829fc83293d3dbb75828f05d842766f66bd1eb8874f2e38ae9fa40f586082e"
+    },
+    {
+      "scenario_id": "s_audit_complete_dialysis",
+      "scenario_version": "1",
+      "sha256": "a02acbd1f3db5e17ebdfb0b71072adeb5eb84f65ed3b07179428e630698b3af9"
+    },
+    {
+      "scenario_id": "s_audit_complete_trauma",
+      "scenario_version": "1",
+      "sha256": "447fbced93c18a6ad2bd9c34b6835aa76eae6f24e2dd1ac445c694050b81bf73"
+    }
+  ]
+}

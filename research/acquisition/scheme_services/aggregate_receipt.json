@@ -1,0 +1,682 @@
+{
+  "all_record_observations": 884,
+  "as_of": "2026-11-22",
+  "base_file_sha256": "27e4a79de42ec56c76cc676ed45494a52497d179858bc50549a461434c45e9d8",
+  "baseline": "empty-adjudication replay of frozen VF base; compare #147 zero approved service pairs",
+  "baseline_reference": "https://github.com/vzhu08/databricks-datathon/issues/147#issuecomment-7074224222",
+  "coverage": {
+    "dialysis": {
+      "no": 0,
+      "unconfirmed": 10088,
+      "yes": 0
+    },
+    "mri": {
+      "no": 0,
+      "unconfirmed": 10088,
+      "yes": 0
+    },
+    "trauma_care": {
+      "no": 0,
+      "unconfirmed": 10088,
+      "yes": 0
+    }
+  },
+  "coverage_by_state": {
+    "(label is not a state or union territory)": {
+      "dialysis": {
+        "unconfirmed": 390
+      },
+      "mri": {
+        "unconfirmed": 390
+      },
+      "trauma_care": {
+        "unconfirmed": 390
+      }
+    },
+    "(no state label)": {
+      "dialysis": {
+        "unconfirmed": 58
+      },
+      "mri": {
+        "unconfirmed": 58
+      },
+      "trauma_care": {
+        "unconfirmed": 58
+      }
+    },
+    "andaman and nicobar islands": {
+      "dialysis": {
+        "unconfirmed": 2
+      },
+      "mri": {
+        "unconfirmed": 2
+      },
+      "trauma_care": {
+        "unconfirmed": 2
+      }
+    },
+    "andhra pradesh": {
+      "dialysis": {
+        "unconfirmed": 329
+      },
+      "mri": {
+        "unconfirmed": 329
+      },
+      "trauma_care": {
+        "unconfirmed": 329
+      }
+    },
+    "arunachal pradesh": {
+      "dialysis": {
+        "unconfirmed": 3
+      },
+      "mri": {
+        "unconfirmed": 3
+      },
+      "trauma_care": {
+        "unconfirmed": 3
+      }
+    },
+    "assam": {
+      "dialysis": {
+        "unconfirmed": 117
+      },
+      "mri": {
+        "unconfirmed": 117
+      },
+      "trauma_care": {
+        "unconfirmed": 117
+      }
+    },
+    "bihar": {
+      "dialysis": {
+        "unconfirmed": 258
+      },
+      "mri": {
+        "unconfirmed": 258
+      },
+      "trauma_care": {
+        "unconfirmed": 258
+      }
+    },
+    "chandigarh": {
+      "dialysis": {
+        "unconfirmed": 46
+      },
+      "mri": {
+        "unconfirmed": 46
+      },
+      "trauma_care": {
+        "unconfirmed": 46
+      }
+    },
+    "chhattisgarh": {
+      "dialysis": {
+        "unconfirmed": 140
+      },
+      "mri": {
+        "unconfirmed": 140
+      },
+      "trauma_care": {
+        "unconfirmed": 140
+      }
+    },
+    "dadra and nagar haveli and daman and diu": {
+      "dialysis": {
+        "unconfirmed": 3
+      },
+      "mri": {
+        "unconfirmed": 3
+      },
+      "trauma_care": {
+        "unconfirmed": 3
+      }
+    },
+    "delhi": {
+      "dialysis": {
+        "unconfirmed": 342
+      },
+      "mri": {
+        "unconfirmed": 342
+      },
+      "trauma_care": {
+        "unconfirmed": 342
+      }
+    },
+    "goa": {
+      "dialysis": {
+        "unconfirmed": 32
+      },
+      "mri": {
+        "unconfirmed": 32
+      },
+      "trauma_care": {
+        "unconfirmed": 32
+      }
+    },
+    "gujarat": {
+      "dialysis": {
+        "unconfirmed": 981
+      },
+      "mri": {
+        "unconfirmed": 981
+      },
+      "trauma_care": {
+        "unconfirmed": 981
+      }
+    },
+    "haryana": {
+      "dialysis": {
+        "unconfirmed": 462
+      },
+      "mri": {
+        "unconfirmed": 462
+      },
+      "trauma_care": {
+        "unconfirmed": 462
+      }
+    },
+    "himachal pradesh": {
+      "dialysis": {
+        "unconfirmed": 39
+      },
+      "mri": {
+        "unconfirmed": 39
+      },
+      "trauma_care": {
+        "unconfirmed": 39
+      }
+    },
+    "jammu and kashmir": {
+      "dialysis": {
+        "unconfirmed": 62
+      },
+      "mri": {
+        "unconfirmed": 62
+      },
+      "trauma_care": {
+        "unconfirmed": 62
+      }
+    },
+    "jharkhand": {
+      "dialysis": {
+        "unconfirmed": 156
+      },
+      "mri": {
+        "unconfirmed": 156
+      },
+      "trauma_care": {
+        "unconfirmed": 156
+      }
+    },
+    "karnataka": {
+      "dialysis": {
+        "unconfirmed": 529
+      },
+      "mri": {
+        "unconfirmed": 529
+      },
+      "trauma_care": {
+        "unconfirmed": 529
+      }
+    },
+    "kerala": {
+      "dialysis": {
+        "unconfirmed": 483
+      },
+      "mri": {
+        "unconfirmed": 483
+      },
+      "trauma_care": {
+        "unconfirmed": 483
+      }
+    },
+    "ladakh": {
+      "dialysis": {
+        "no": 0,
+        "unconfirmed": 0,
+        "yes": 0
+      },
+      "mri": {
+        "no": 0,
+        "unconfirmed": 0,
+        "yes": 0
+      },
+      "trauma_care": {
+        "no": 0,
+        "unconfirmed": 0,
+        "yes": 0
+      }
+    },
+    "lakshadweep": {
+      "dialysis": {
+        "no": 0,
+        "unconfirmed": 0,
+        "yes": 0
+      },
+      "mri": {
+        "no": 0,
+        "unconfirmed": 0,
+        "yes": 0
+      },
+      "trauma_care": {
+        "no": 0,
+        "unconfirmed": 0,
+        "yes": 0
+      }
+    },
+    "madhya pradesh": {
+      "dialysis": {
+        "unconfirmed": 302
+      },
+      "mri": {
+        "unconfirmed": 302
+      },
+      "trauma_care": {
+        "unconfirmed": 302
+      }
+    },
+    "maharashtra": {
+      "dialysis": {
+        "unconfirmed": 1575
+      },
+      "mri": {
+        "unconfirmed": 1575
+      },
+      "trauma_care": {
+        "unconfirmed": 1575
+      }
+    },
+    "manipur": {
+      "dialysis": {
+        "unconfirmed": 13
+      },
+      "mri": {
+        "unconfirmed": 13
+      },
+      "trauma_care": {
+        "unconfirmed": 13
+      }
+    },
+    "meghalaya": {
+      "dialysis": {
+        "unconfirmed": 14
+      },
+      "mri": {
+        "unconfirmed": 14
+      },
+      "trauma_care": {
+        "unconfirmed": 14
+      }
+    },
+    "mizoram": {
+      "dialysis": {
+        "unconfirmed": 3
+      },
+      "mri": {
+        "unconfirmed": 3
+      },
+      "trauma_care": {
+        "unconfirmed": 3
+      }
+    },
+    "nagaland": {
+      "dialysis": {
+        "unconfirmed": 6
+      },
+      "mri": {
+        "unconfirmed": 6
+      },
+      "trauma_care": {
+        "unconfirmed": 6
+      }
+    },
+    "odisha": {
+      "dialysis": {
+        "unconfirmed": 118
+      },
+      "mri": {
+        "unconfirmed": 118
+      },
+      "trauma_care": {
+        "unconfirmed": 118
+      }
+    },
+    "puducherry": {
+      "dialysis": {
+        "unconfirmed": 17
+      },
+      "mri": {
+        "unconfirmed": 17
+      },
+      "trauma_care": {
+        "unconfirmed": 17
+      }
+    },
+    "punjab": {
+      "dialysis": {
+        "unconfirmed": 469
+      },
+      "mri": {
+        "unconfirmed": 469
+      },
+      "trauma_care": {
+        "unconfirmed": 469
+      }
+    },
+    "rajasthan": {
+      "dialysis": {
+        "unconfirmed": 407
+      },
+      "mri": {
+        "unconfirmed": 407
+      },
+      "trauma_care": {
+        "unconfirmed": 407
+      }
+    },
+    "sikkim": {
+      "dialysis": {
+        "unconfirmed": 4
+      },
+      "mri": {
+        "unconfirmed": 4
+      },
+      "trauma_care": {
+        "unconfirmed": 4
+      }
+    },
+    "tamil nadu": {
+      "dialysis": {
+        "unconfirmed": 780
+      },
+      "mri": {
+        "unconfirmed": 780
+      },
+      "trauma_care": {
+        "unconfirmed": 780
+      }
+    },
+    "telangana": {
+      "dialysis": {
+        "unconfirmed": 421
+      },
+      "mri": {
+        "unconfirmed": 421
+      },
+      "trauma_care": {
+        "unconfirmed": 421
+      }
+    },
+    "tripura": {
+      "dialysis": {
+        "unconfirmed": 6
+      },
+      "mri": {
+        "unconfirmed": 6
+      },
+      "trauma_care": {
+        "unconfirmed": 6
+      }
+    },
+    "uttar pradesh": {
+      "dialysis": {
+        "unconfirmed": 919
+      },
+      "mri": {
+        "unconfirmed": 919
+      },
+      "trauma_care": {
+        "unconfirmed": 919
+      }
+    },
+    "uttarakhand": {
+      "dialysis": {
+        "unconfirmed": 125
+      },
+      "mri": {
+        "unconfirmed": 125
+      },
+      "trauma_care": {
+        "unconfirmed": 125
+      }
+    },
+    "west bengal": {
+      "dialysis": {
+        "unconfirmed": 477
+      },
+      "mri": {
+        "unconfirmed": 477
+      },
+      "trauma_care": {
+        "unconfirmed": 477
+      }
+    }
+  },
+  "decision_count": 30264,
+  "distinct_source_ids": 10077,
+  "held_for_sharing_editions": 4,
+  "limitations": [
+    "Term screen is not exhaustive semantic extraction; original scope cells are retained.",
+    "Exact identity proxies are not verified physical campuses.",
+    "Candidates are exploratory, including sharing-held sources, not eligible coverage gains.",
+    "No aggregate performed-procedure counts or operational readiness admitted.",
+    "Source absence, excluded scope and expired empanelment do not establish no onsite service."
+  ],
+  "matcher_outcomes": {
+    "ambiguous": 31,
+    "candidate_only": 51,
+    "confirmed": 0,
+    "unit": "original rows",
+    "unmatched": 10006
+  },
+  "original_rows": 10088,
+  "private_artifact_hashes": {
+    "candidate_batch_PRIVATE_NOT_ADMITTED.json": "3b587c5eb7b7a0be00dfe314aaf2a89a884ef7a8ed5de1cbc695803617bb4854",
+    "mentions.json": "0bda06f866f7e624e90a77c30cc8cf224896e1ae1e00080060f4a277ea9f6c40",
+    "national_candidates.json": "df97e48346e6da6b15cf4493ff7f81ee6338303bac889c2227189d23b59a9c15",
+    "national_report.json": "e43d2d1d8eed12a20f93487b96e23574e635c7ba416139bdbb89034a01381f96",
+    "national_rows.json": "9c0500f5093ec39ba5a62491ee36791e8bed3619d4ea3779d0b1b1e07a44f16c",
+    "records.json": "597b468a95ad55c986f542a26aa18d9f356e3ea7f5d9618606137bc332394813",
+    "scope_wording_variants.json": "edd5eba063e5d338186d21d48c16c3c25a65443b69961ca5b411874264d5437b",
+    "service_status.json": "666a652f20f8c8930d7a202b782798ea32a9e0e9ef0e09e4622a1c9daa1852f1",
+    "summary.json": "28e62406564f82f61eedc6f3b80563844828da47b09b41815d7730d49d526019"
+  },
+  "scope_wording_variant_groups": 2,
+  "selected_campus_records": 297,
+  "selected_campus_records_by_state": {
+    "Delhi": 202,
+    "Haryana": 31,
+    "Uttar Pradesh": 58,
+    "West Bengal": 6
+  },
+  "selected_record_observations": 301,
+  "service_mentions": {
+    "blood_bank": {
+      "approved_vf_campus_service_pairs": 0,
+      "candidate_original_occurrences": 0,
+      "eligible_new_no": 0,
+      "eligible_new_yes": 0,
+      "exact_name_address_geography_proxies": 3,
+      "independent_corroborating_origins": 0,
+      "observed_upstream_origins": 1,
+      "raw_mentions_all_editions": 12,
+      "selected_campus_mentions": 4,
+      "selected_campus_record_service_observations": 3
+    },
+    "burns": {
+      "approved_vf_campus_service_pairs": 0,
+      "candidate_original_occurrences": 0,
+      "eligible_new_no": 0,
+      "eligible_new_yes": 0,
+      "exact_name_address_geography_proxies": 1,
+      "independent_corroborating_origins": 0,
+      "observed_upstream_origins": 1,
+      "raw_mentions_all_editions": 3,
+      "selected_campus_mentions": 1,
+      "selected_campus_record_service_observations": 1
+    },
+    "ct": {
+      "approved_vf_campus_service_pairs": 0,
+      "candidate_original_occurrences": 4,
+      "eligible_new_no": 0,
+      "eligible_new_yes": 0,
+      "exact_name_address_geography_proxies": 23,
+      "independent_corroborating_origins": 0,
+      "observed_upstream_origins": 1,
+      "raw_mentions_all_editions": 99,
+      "selected_campus_mentions": 33,
+      "selected_campus_record_service_observations": 23
+    },
+    "dialysis": {
+      "approved_vf_campus_service_pairs": 0,
+      "candidate_original_occurrences": 18,
+      "eligible_new_no": 0,
+      "eligible_new_yes": 0,
+      "exact_name_address_geography_proxies": 61,
+      "independent_corroborating_origins": 0,
+      "observed_upstream_origins": 1,
+      "raw_mentions_all_editions": 186,
+      "selected_campus_mentions": 62,
+      "selected_campus_record_service_observations": 62
+    },
+    "emergency_surgery": {
+      "approved_vf_campus_service_pairs": 0,
+      "candidate_original_occurrences": 0,
+      "eligible_new_no": 0,
+      "eligible_new_yes": 0,
+      "exact_name_address_geography_proxies": 0,
+      "independent_corroborating_origins": 0,
+      "observed_upstream_origins": 0,
+      "raw_mentions_all_editions": 0,
+      "selected_campus_mentions": 0,
+      "selected_campus_record_service_observations": 0
+    },
+    "icu": {
+      "approved_vf_campus_service_pairs": 0,
+      "candidate_original_occurrences": 4,
+      "eligible_new_no": 0,
+      "eligible_new_yes": 0,
+      "exact_name_address_geography_proxies": 19,
+      "independent_corroborating_origins": 0,
+      "observed_upstream_origins": 1,
+      "raw_mentions_all_editions": 69,
+      "selected_campus_mentions": 23,
+      "selected_campus_record_service_observations": 19
+    },
+    "mri": {
+      "approved_vf_campus_service_pairs": 0,
+      "candidate_original_occurrences": 3,
+      "eligible_new_no": 0,
+      "eligible_new_yes": 0,
+      "exact_name_address_geography_proxies": 16,
+      "independent_corroborating_origins": 0,
+      "observed_upstream_origins": 1,
+      "raw_mentions_all_editions": 49,
+      "selected_campus_mentions": 16,
+      "selected_campus_record_service_observations": 16
+    },
+    "neurosurgery": {
+      "approved_vf_campus_service_pairs": 0,
+      "candidate_original_occurrences": 23,
+      "eligible_new_no": 0,
+      "eligible_new_yes": 0,
+      "exact_name_address_geography_proxies": 68,
+      "independent_corroborating_origins": 0,
+      "observed_upstream_origins": 1,
+      "raw_mentions_all_editions": 203,
+      "selected_campus_mentions": 69,
+      "selected_campus_record_service_observations": 69
+    },
+    "orthopedics": {
+      "approved_vf_campus_service_pairs": 0,
+      "candidate_original_occurrences": 28,
+      "eligible_new_no": 0,
+      "eligible_new_yes": 0,
+      "exact_name_address_geography_proxies": 93,
+      "independent_corroborating_origins": 0,
+      "observed_upstream_origins": 1,
+      "raw_mentions_all_editions": 283,
+      "selected_campus_mentions": 95,
+      "selected_campus_record_service_observations": 94
+    },
+    "pediatrics": {
+      "approved_vf_campus_service_pairs": 0,
+      "candidate_original_occurrences": 16,
+      "eligible_new_no": 0,
+      "eligible_new_yes": 0,
+      "exact_name_address_geography_proxies": 59,
+      "independent_corroborating_origins": 0,
+      "observed_upstream_origins": 1,
+      "raw_mentions_all_editions": 223,
+      "selected_campus_mentions": 75,
+      "selected_campus_record_service_observations": 60
+    },
+    "trauma_care": {
+      "approved_vf_campus_service_pairs": 0,
+      "candidate_original_occurrences": 0,
+      "eligible_new_no": 0,
+      "eligible_new_yes": 0,
+      "exact_name_address_geography_proxies": 2,
+      "independent_corroborating_origins": 0,
+      "observed_upstream_origins": 1,
+      "raw_mentions_all_editions": 6,
+      "selected_campus_mentions": 2,
+      "selected_campus_record_service_observations": 2
+    },
+    "ventilation": {
+      "approved_vf_campus_service_pairs": 0,
+      "candidate_original_occurrences": 0,
+      "eligible_new_no": 0,
+      "eligible_new_yes": 0,
+      "exact_name_address_geography_proxies": 0,
+      "independent_corroborating_origins": 0,
+      "observed_upstream_origins": 0,
+      "raw_mentions_all_editions": 0,
+      "selected_campus_mentions": 0,
+      "selected_campus_record_service_observations": 0
+    }
+  },
+  "source_editions": 4,
+  "source_editions_summary": [
+    {
+      "document_date": "2026-10-29",
+      "raw_mentions": 376,
+      "record_observations": 291,
+      "selected": false,
+      "sharing_allowed": false,
+      "snapshot_id": "cghs:bis-2026-10-29:30510e5917154f1d50bd8ea88c1eb8b6c3196bdd2ae61a88afbf4d3e06896d75",
+      "url": "https://www.bis.gov.in/wp-content/uploads/2026/10/Circular-and-224-cghs-cashless-hospitals-as-on-29-Oct-2026.pdf"
+    },
+    {
+      "document_date": "2026-11-02",
+      "raw_mentions": 376,
+      "record_observations": 292,
+      "selected": false,
+      "sharing_allowed": false,
+      "snapshot_id": "cghs:bis-2026-11-02:744eb171302a8d47af56308434263f57f7acb391a4cff0ccc0a8ec749fe69aa6",
+      "url": "https://www.bis.gov.in/wp-content/uploads/2026/11/Circular-and-225-cghs-cashless-02-Nov-2026.pdf"
+    },
+    {
+      "document_date": "2026-11-10",
+      "raw_mentions": 376,
+      "record_observations": 294,
+      "selected": true,
+      "sharing_allowed": false,
+      "snapshot_id": "cghs:bis-2026-11-10:7a63de0fb7302037ec9cc6db80bd36df90f469be98c4f4d62d8fae3b87c64237",
+      "url": "https://www.bis.gov.in/wp-content/uploads/2026/11/Circular-and-227-cghs-cashless-consolidated-list-10-Nov-2026.pdf"
+    },
+    {
+      "document_date": "2024-04-19",
+      "raw_mentions": 5,
+      "record_observations": 7,
+      "selected": true,
+      "sharing_allowed": false,
+      "snapshot_id": "cghs:bis-kolkata-2024-04-19:e2a17c0f87394872510a9b87d7ff16d6ce2d5f56959227f31257bdaeebbaa0c2",
+      "url": "https://services.bis.gov.in/tmp/Circular_8tLb_2024-04-19.pdf"
+    }
+  ],
+  "undated_or_future_editions": 0,
+  "unresolved_latest_series": [],
+  "version": "scheme-services-1.0.0"
+}
