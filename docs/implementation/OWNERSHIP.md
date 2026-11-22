@@ -5,6 +5,12 @@ This board on `origin/main` is authoritative. Oliver (`oliverchennn`) is the int
 Use GitHub repository issues and this board for all team communication. Record assignments, review requests, blockers, decisions and acknowledgments here or in the owning issue. Link implementation PRs from the issue. [Team instructions](../../AGENTS.md)
 
 
+## Raw recordings for the judges
+
+Oliver is prioritizing playable recordings of the website. The user will make the backend slides and record narration. J films the signed-in Check symptoms and manual Find care workflow. The hosted assessment provider is off. R alone may use up to two of the six reserved demo calls to film one invented adult injury interview through the real Databricks assessment provider on an isolated presenter. Four demo calls remain unallocated. The private experimental assessment ends in its own result. A person starts the hospital search separately. I packages the clips, D verifies them, and Oliver releases them. Vincent's approved 19-second four-care Storm footage is available separately. [Raw filming assignment](https://github.com/vzhu08/databricks-datathon/issues/350#issuecomment-7082842507) · [Private recording allocation](https://github.com/vzhu08/databricks-datathon/issues/223#issuecomment-7082871724)
+
+The [updated single-file judge notebook](https://github.com/vzhu08/databricks-datathon/pull/358) is merged. It reproduces the KEM service search and the anonymous four-care comparison of 114 and 120 placements. L maintains the [README and current notebook link](https://github.com/vzhu08/databricks-datathon/issues/319#issuecomment-7082860236).
+
 ## Developer C handoff
 
 Oliver now owns every outstanding Developer C assignment, including UI/UX, research follow-ups and open PR disposition. This supersedes earlier owner labels in the historical log. Oliver's R chat takes the outstanding individual Find care fixes from #339 and P takes the signed-in Storm UI on #345. Oliver owns visual sign-off; J films the real individual search, I edits the final film and script, D verifies and Vincent personally records the comprehensive four-care Storm insert. The video is the highest priority. [Owners, paths, branches and acceptance](https://github.com/vzhu08/databricks-datathon/issues/356)
