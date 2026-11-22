@@ -303,6 +303,16 @@ The extract script reads only 500 m boxes around at most 40 points from one pinn
 
 For each point the check records the nearest footprint within the radius, the distance in metres to its boundary (0 inside) and the feature's upstream datasets. The evidence row has claim type `location`, no service and no excerpt. Polarity is `supports` only when the point is inside a footprint, the feature identifies its upstream dataset and has no known shared OpenStreetMap origin with the identity record, and it is not older than `--stale-before`; otherwise `inconclusive`. It is never `contradicts`. No footprint within the radius writes no evidence, only a ledger line and a low-severity review item: absence is unknown. Capture date stays null unless the feature states one. Rows are written only with reviewer metadata, because the claim comes from a different source than the identity record; they are linked to a base row only when its match is confirmed.
 
+## Written addresses and nearby name searches
+
+Run the directory v5 command with the original pinned inputs, a fresh private output directory, and `--address-search`. Supply `--base` for the original address fields. The national comparison also uses the original control, insurer, registry and joint occurrence inputs. The default directory replay still produces its original format.
+
+In each private occurrence, `address_search` records the facility name and the references supporting a distinctive building, directed landmark, or civic number with matching street or locality details. A different map point alone can coexist with a corroborated written address. Source-family checks withhold identifiable reuse. Equally plausible conflicting written addresses remain open. A returned VF address line is source text. The witness basis and corroborated PIN identify the components that passed the rule.
+
+If the address stays open, `nearby_name_search` retains the alternatives with their source references, addresses and coordinates. All plausible alternatives must be bounded, with a maximum pairwise separation strictly below 1,000 m including the usable VF point. The result carries `exact_location_uncertain`. The aggregate distinguishes multiple external points from one external point plus the VF point. Use the alternatives to search for the hospital by name within that area. Service eligibility still comes from the service ledger.
+
+`aggregate.json` includes the prior-by-new transition table, state/UT counts and mutually exclusive combined directory counts. Read the four combined groups in order: supported written address, prior named map listing, additional nearby name-search area, and remaining. They sum to the full original denominator. The baseline and candidate are rules for directory evidence whose actual address accuracy requires independent labels.
+
 ## Limits
 
 - Fixture results, public-source results and live Databricks results are separate. The handoff states which exist.
