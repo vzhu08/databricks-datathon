@@ -61,7 +61,6 @@ RECOMMEND, LOOKUP = "recommend", "lookup"
 MODES = {RECOMMEND: "Recommend a campus", LOOKUP: "Look up the example records"}
 DATA = words.data_mode(os.environ)
 DEMO = DATA["mode"] == "demo"
-PUBLIC_START = ("Pune", "maintenance haemodialysis")  # what the public lookup's two fields open with
 # label, care, the line typed into "Where", distance
 EXAMPLES = [
     ("Dialysis near Jaipur, Rajasthan", "dialysis", "Jaipur, Rajasthan", 50),
@@ -532,6 +531,7 @@ if DEMO:
 elif DATA["mode"] in ("warehouse", "setup"):
     lookup_modes.append("Private warehouse lookup")
 lookup_mode = st.radio("Find care mode", lookup_modes, horizontal=True, key="lookup_source")
+PUBLIC_START = ("Pune", "maintenance haemodialysis")  # what the public lookup's two fields open with
 if lookup_mode == "Public facility evidence":
     st.caption("Search the reviewed public-source collection by city and service. Coverage is limited.")
     # The widget's max_chars silently rejects an over-limit paste, leaving the previous query in place.
