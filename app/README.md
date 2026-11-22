@@ -18,8 +18,9 @@ drawn it shows the runtime's current public view for the encounter and nothing e
 | Before you start | What is kept, for how long, and that nothing is sent yet. A tick box and Start | `PatientSession.open` after the agreement |
 | Describe | Free text in the patient's own words, and an optional age | `edit` |
 | Agree to send | Who receives the description. Nothing is sent before this | `consent`, then `assess` |
-| Questions | The provider's reading of the patient's words to confirm, doubt or reject, then follow-up questions | `answer`, then `assess` |
+| Questions | The provider's reading of the patient's words to confirm, doubt or reject, then follow-up questions: one choice, several choices, free text, a list of items each answered on its own, an amount with a unit the patient picks, or a pick from an issued list. An optional question has its own Skip button | `answer`, then `assess` |
 | Result | Urgency, the provider's guidance and uncertainty, possible causes with no likelihood, and who assessed it | `view` only |
+| Stopped | A provider stop shows the provider's message and nothing else: no urgency, causes or hospital | `view` only |
 | Where to go | Only after a completed result, and only from the runtime's reviewed handoff | `confirm`, then `navigate` |
 
 What it will not do:
@@ -37,6 +38,13 @@ What it will not do:
   (cleared on Start over and after 15 minutes) holds the only copy. Handles, continuations, receipts
   and source references stay in the server session.
 - **No markup from a provider or a patient.** Their text is shown as plain text.
+- **No interpretation claimed.** Under the patient's own words the screen says "Your description has
+  not been interpreted."
+- **Nothing filled in for the patient.** No unit or choice is preselected, an unanswered optional
+  item is left out, a typed amount is sent as typed with no rounding or conversion, and skipping is
+  only ever the explicit Skip button. Limits are checked by the runtime, not guessed by the screen.
+- **No way forward from an unsupported age or language** except changing the description. A question
+  kind the screen does not know is withheld whole.
 - **No hospital for an urgent result**, and for a completed one only what the reviewed handoff
   returns. Today that is "no reviewed hospital".
 - Pressing "I have read this" is the patient's own confirmation. The screen says it is not a
@@ -46,6 +54,16 @@ Wiring a provider is a change in `compose` by the runtime owner: the adapter, it
 `(provider_id, provider_version)` identity and its server-side secrets. The label it returns is the
 name the patient is shown before agreeing to send anything. The screen passes `language: "en"` and
 the optional age as context, which is all the interview contract accepts today.
+
+Browser checks: `python tests/patient_ui/stand_in.py PORT [VISIT_SECONDS]` starts this same app with
+a scripted stand-in provider composed through `compose`, one per visit, and an optional short visit
+time limit for watching expiry. Marker words in the description pick the scenario (urgent, stop,
+outage, rate limit, malformed reply, unsupported, question loop). The file lists them. It is test
+tooling outside `app/` and every reply is invented.
+
+Not on this screen yet: a group-wide "none of these / unknown" action (the question view carries no
+marker for it), a paged picker for large catalogs, any context beyond age and English, and a
+reviewed hospital list (the handoff has no reviewed release to read).
 
 Tests: `python3 -m unittest tests.patient_ui.test_patient_ui`. The wording tests run anywhere. The
 screen tests need Streamlit and drive the real session store, interview reducer, service and

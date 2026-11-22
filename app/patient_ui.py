@@ -87,7 +87,12 @@ ENDED = {
 }
 NO_PROVIDER = "No assessment provider is set up on this server, so your description was not sent anywhere."
 OUT_OF_DATE = "That step was out of date, so it was not used. This is the current state of your visit."
-BAD_ANSWER = "Choose or write an answer to the question shown, then send it."
+BAD_ANSWER = "Answer the question shown, within any limits it gives, then send it."
+UNINTERPRETED = "Your description has not been interpreted."
+STOPPED = ("The assessment provider ended this assessment with the message above. It gave no result, no possible "
+           "causes and no place to go. You can change your description or start over.")
+QUESTION_WITHHELD = "The assessment provider asked a question this screen cannot show, so it was withheld."
+KINDS = ("single", "multiple", "text", "evidence_review", "item_presence", "quantity", "catalog_selection")
 FAILED = "That step could not be completed on this server. Nothing new was sent or assessed."
 PRESENCE = {"present": "you have this", "absent": "you do not have this", "unknown": "not clear"}
 TEMPORALITY = {"current": "now", "historical": "in the past", "unknown": "timing not clear"}
@@ -127,8 +132,9 @@ def step(view, *, has_statement, editing=False):
             return "describe"
         return "send" if view.get("consent") else "consent"
     if state == "awaiting_clarification":
-        return "question" if isinstance(view.get("question"), dict) else "unavailable"
-    if state in ("urgent", "completed", "unsupported", "assessment_in_progress"):
+        question = view.get("question")
+        return "question" if isinstance(question, dict) and question.get("kind") in KINDS else "withheld"
+    if state in ("urgent", "completed", "provider_stop", "unsupported", "assessment_in_progress"):
         return state
     return "unavailable"
 
@@ -166,6 +172,44 @@ def reason_line(view):
             return "A description and your agreement to send it are both needed before an assessment."
         return None
     return UNAVAILABLE.get(reason, UNAVAILABLE["unavailable"])
+
+
+def quantity(text):
+    """Read a typed amount without rounding or converting it. Whole numbers stay whole."""
+    text = str(text or "").strip()
+    if not text:
+        raise ValueError("invalid_answer")
+    try:
+        return int(text) if text.lstrip("+-").isdigit() else float(text)
+    except ValueError:
+        raise ValueError("invalid_answer") from None
+
+
+def answer_for(question, read):
+    """Build the runtime's answer form for one question from what the patient entered.
+
+    `read(suffix)` returns the entered value for one field of the question. Nothing is filled in on
+    the patient's behalf: an unanswered optional item is left out, and no unit is preselected.
+    """
+    kind = question.get("kind")
+    if kind == "item_presence":
+        chosen = [{"id": item["id"], "presence": read(f"-{number}")}
+                  for number, item in enumerate(question["items"]) if read(f"-{number}") is not None]
+        if not chosen:
+            raise ValueError("invalid_answer")
+        return {"items": chosen}
+    if kind == "quantity":
+        unit = read("-unit")
+        if unit is None:
+            raise ValueError("invalid_answer")
+        return {"value": quantity(read("")), "unit_id": unit}
+    if kind == "multiple" or (kind == "catalog_selection" and question.get("selection") == "multiple"):
+        value = [option["id"] for number, option in enumerate(question["options"]) if read(f"-{number}") is True]
+    else:
+        value = read("")
+    if value in (None, "", []):
+        raise ValueError("invalid_answer")
+    return value
 
 
 def destination_lines(result):
@@ -296,17 +340,12 @@ def _send(st):
     _act(st, lambda box: box["service"].assess(box["handle"], box["revision"]))
 
 
-def _answer(st, question):
+def _answer(st, question, skip=False):
     def action(box):
         key = f"pt-answer-{box['visit']}-{question['issuance_id']}"
-        if question["kind"] == "multiple":
-            value = [option["id"] for number, option in enumerate(question["options"])
-                     if st.session_state.get(f"{key}-{number}") is True]
-        else:
-            value = st.session_state.get(key)
-        if value in (None, "", []):
-            raise ValueError("invalid_answer")
+        value = {"skip": True} if skip else answer_for(question, lambda suffix: st.session_state.get(key + suffix))
         view = box["service"].answer(box["handle"], box["revision"], question_id=question["issuance_id"], answers=value)
+        _drop(st, key)
         box["service"].assess(box["handle"], view["revision"])
     _act(st, action)
 
@@ -356,6 +395,7 @@ def _said(st, said):
     if said:
         st.caption("You wrote")
         st.text(said[0])
+        st.caption(UNINTERPRETED)
 
 
 def _question(st, box, question):
@@ -371,15 +411,29 @@ def _question(st, box, question):
             st.caption("This is the provider's reading, not a finding. Your answer is recorded as yours.")
         if kind == "text":
             st.text_area(plain(question["prompt"]), key=key, max_chars=MAX_ANSWER)
-        elif kind == "multiple":
+        elif kind == "multiple" or (kind == "catalog_selection" and question.get("selection") == "multiple"):
             st.markdown(plain(question["prompt"]))
             st.caption("Choose all that apply.")
             for number, label in enumerate(labels.values()):
                 st.checkbox(label, key=f"{key}-{number}")
+        elif kind == "item_presence":
+            st.markdown(plain(question["prompt"]))
+            for number, item in enumerate(question["items"]):
+                choices = {choice["id"]: plain(choice["label"]) for choice in item["choices"]}
+                st.radio(plain(item["label"]) + ("" if item["required"] else " (optional)"), list(choices),
+                         format_func=choices.get, index=None, horizontal=True, key=f"{key}-{number}")
+        elif kind == "quantity":
+            units = {unit["id"]: unit for unit in question["units"]}
+            st.text_input(plain(question["prompt"]), key=key, max_chars=32, help="Type a number.")
+            st.radio("Unit", list(units), index=None, key=f"{key}-unit", format_func=lambda unit: (
+                f"{plain(units[unit]['label'])} ({units[unit]['min']:g} to {units[unit]['max']:g}"
+                + (", whole numbers only)" if units[unit]["integer_only"] else ")")))
         else:
             st.radio(plain(question["prompt"]), list(labels), format_func=labels.get, index=None, key=key)
         st.caption("Your answer is sent to the assessment provider.")
         st.form_submit_button("Send answer", type="primary", on_click=_answer, args=(st, question))
+        if question.get("optional") is True:
+            st.form_submit_button("Skip this question", on_click=_answer, args=(st, question, True))
 
 
 def _result(st, box, view):
@@ -462,6 +516,13 @@ def render():
         _question(st, box, view["question"])
     elif now in ("urgent", "completed"):
         _result(st, box, view)
+    elif now == "provider_stop":
+        st.subheader("This assessment has stopped")
+        st.markdown(plain(view.get("guidance") or ""))
+        st.caption(plain(f"Message from {view.get('provider_id')}, version {view.get('provider_version')}.") + " " + STOPPED)
+    elif now == "withheld":
+        st.subheader("A question could not be shown")
+        st.markdown(QUESTION_WITHHELD + " No assessment was made. Change your description or start over.")
     elif now == "unsupported":
         st.subheader("This could not be assessed")
         st.markdown(reason_line(view))

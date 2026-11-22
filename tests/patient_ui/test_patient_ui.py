@@ -37,6 +37,24 @@ URGENT = {"state": "urgent", "guidance": "Invented urgent guidance.", "urgency":
           "uncertainty": "Invented urgent uncertainty.", "possible_causes": [], "next_step": None}
 
 
+V2 = {"schema": "patient-question.v2", "options": []}
+ITEMS = {"state": "awaiting_clarification", "question": {
+    **V2, "id": "q-items", "kind": "item_presence", "prompt": "Invented item question", "items": [
+        {"id": "item-1", "label": "Invented item one", "required": True, "choices": [
+            {"id": "present", "label": "Yes"}, {"id": "absent", "label": "No"}, {"id": "unknown", "label": "Don't know"}]},
+        {"id": "item-2", "label": "Invented item two", "required": False, "choices": [
+            {"id": "present", "label": "Yes"}, {"id": "absent", "label": "No"}]}]}}
+AMOUNT = {"state": "awaiting_clarification", "question": {
+    **V2, "id": "q-amount", "kind": "quantity", "prompt": "Invented amount question", "optional": True, "units": [
+        {"id": "unit-days", "label": "days", "min": 1, "max": 30, "integer_only": True},
+        {"id": "unit-weeks", "label": "weeks", "min": 0.5, "max": 8, "integer_only": False}]}}
+CATALOG = {"state": "awaiting_clarification", "question": {
+    "schema": "patient-question.v2", "id": "q-catalog", "kind": "catalog_selection", "prompt": "Invented catalog question",
+    "selection": "multiple", "catalog": {"id": "invented-catalog", "edition": "edition-1"},
+    "options": [{"id": "entry-1", "label": "Entry one"}, {"id": "entry-2", "label": "Entry two"}]}}
+STOP = {"state": "provider_stop", "guidance": "Invented stop guidance."}
+
+
 class Scripted:
     """Replies in order, counting every call. An exception in the script is raised instead of returned."""
 
@@ -68,7 +86,7 @@ class WordingTests(unittest.TestCase):
         self.assertEqual(words.step(self.view("awaiting_clarification", question={"kind": "text"}),
                                     has_statement=True), "question")
         # A question state with no question, and any state this screen does not know, show no result.
-        self.assertEqual(words.step(self.view("awaiting_clarification"), has_statement=True), "unavailable")
+        self.assertEqual(words.step(self.view("awaiting_clarification"), has_statement=True), "withheld")
         self.assertEqual(words.step(self.view("something_new"), has_statement=True), "unavailable")
 
     def test_every_urgency_code_in_the_contract_has_a_heading_and_no_likelihood_is_invented(self):
@@ -94,6 +112,24 @@ class WordingTests(unittest.TestCase):
         self.assertEqual(words.reason_line(self.view("unsupported", reason="a_new_code")),
                          words.UNSUPPORTED["unsupported"])
         self.assertIsNone(words.reason_line(self.view()))
+
+    def test_an_answer_is_built_from_what_was_entered_and_nothing_is_filled_in(self):
+        entered = {"-1": "present", "-unit": "unit-days", "": "3"}
+        self.assertEqual(words.answer_for(ITEMS["question"], entered.get), {"items": [{"id": "item-2", "presence": "present"}]})
+        self.assertEqual(words.answer_for(AMOUNT["question"], entered.get), {"value": 3, "unit_id": "unit-days"})
+        self.assertIs(type(words.quantity("3")), int)
+        self.assertEqual(words.quantity(" 2.5 "), 2.5)
+        for nothing in ({}, {"": ""}, {"": "three"}, {"": "3"}):  # no amount, no number, or no unit chosen
+            with self.assertRaises(ValueError):
+                words.answer_for(AMOUNT["question"], nothing.get)
+        with self.assertRaises(ValueError):
+            words.answer_for(ITEMS["question"], {}.get)
+        self.assertEqual(words.answer_for(CATALOG["question"], {"-0": True, "-1": False}.get), ["entry-1"])
+
+    def test_a_question_kind_this_screen_does_not_know_is_withheld(self):
+        view = self.view("awaiting_clarification", question={"kind": "a_new_kind", "prompt": "x", "options": []})
+        self.assertEqual(words.step(view, has_statement=True), "withheld")
+        self.assertEqual(words.step(self.view("provider_stop"), has_statement=True), "provider_stop")
 
     def test_a_hospital_is_listed_only_from_a_reviewed_result(self):
         self.assertEqual(words.destination_lines({"state": "no_reviewed_destination"})["destinations"], [])
@@ -139,12 +175,12 @@ class ScreenTests(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def provider(self, *replies):
+    def provider(self, *replies, **interview):
         scripted = Scripted(*replies)
         screen = self.screen
 
         def compose():
-            return screen.PatientIntakeService(interview=screen.PatientInterview(), provider=scripted,
+            return screen.PatientIntakeService(interview=screen.PatientInterview(**interview), provider=scripted,
                                                provider_identity=IDENTITY, handoff=screen.PatientHandoff()), \
                 "Test provider (invented replies)"
 
@@ -327,6 +363,83 @@ class ScreenTests(unittest.TestCase):
         self.assertIn("This could not be assessed", text)
         self.assertIn(self.screen.UNSUPPORTED["unsupported_correction"], text)
         self.assertNotIn("Invented guidance text", text)
+
+    def fields(self, app, kind, suffix=""):
+        return sorted((element for element in getattr(app, kind)
+                       if str(element.key).startswith("pt-answer-") and str(element.key).endswith(suffix)),
+                      key=lambda element: element.key)
+
+    def test_extended_questions_a_skip_and_a_provider_stop(self):
+        provider = self.provider(ITEMS, AMOUNT, CATALOG, AMOUNT, STOP)
+        app = self.press(self.begin(self.open()), "I agree. Send it for assessment")
+        self.assertIn(self.screen.UNINTERPRETED, self.shown(app))
+        answers = lambda: provider.calls[-1]["interview"]["answers"]  # noqa: E731
+
+        # Each listed item is answered on its own. A required item left blank is refused before any provider turn.
+        one, two = self.fields(app, "radio")
+        self.assertEqual((one.label, two.label), ("Invented item one", "Invented item two (optional)"))
+        self.assertNotIn("Skip this question", [button.label for button in app.button])
+        two.set_value("present")
+        app = self.press(app, "Send answer")
+        self.assertIn(self.screen.BAD_ANSWER, self.shown(app))
+        self.assertEqual(len(provider.calls), 1)
+        one, two = self.fields(app, "radio")
+        one.set_value("absent")
+        two.set_value("present")
+        app = self.press(app, "Send answer")
+        self.assertEqual(answers()[0]["answer"], {"items": [{"id": "item-1", "presence": "absent"},
+                                                            {"id": "item-2", "presence": "present"}]})
+
+        # An amount keeps the number as typed and needs a unit the patient chose. Limits are the runtime's.
+        unit = self.fields(app, "radio", "-unit")[0]
+        self.assertIsNone(unit.value)
+        self.fields(app, "text_input")[0].input("2.5")
+        unit.set_value("unit-days")
+        app = self.press(app, "Send answer")
+        self.assertIn(self.screen.BAD_ANSWER, self.shown(app))
+        self.assertEqual(len(provider.calls), 2)
+        self.fields(app, "text_input")[0].input("3")
+        self.fields(app, "radio", "-unit")[0].set_value("unit-days")
+        app = self.press(app, "Send answer")
+        self.assertEqual(answers()[1]["answer"], {"value": 3, "unit_id": "unit-days"})
+        self.assertIs(type(answers()[1]["answer"]["value"]), int)
+
+        for box in self.fields(app, "checkbox"):
+            box.check()
+        app = self.press(app, "Send answer")
+        self.assertEqual(answers()[2]["answer"], ["entry-1", "entry-2"])
+
+        # Skipping is its own button, offered only when the question is optional.
+        app = self.press(app, "Skip this question")
+        self.assertEqual((answers()[3]["skipped"], answers()[3]["answer"]), (True, None))
+
+        text = self.shown(app)
+        self.assertIn("This assessment has stopped", text)
+        self.assertIn("Invented stop guidance\\.", text)
+        self.assertIn(self.screen.STOPPED, text)
+        for absent in ("Where to go", "Possible causes", "How sure this is"):
+            self.assertNotIn(absent, text)
+        labels = [button.label for button in app.button]
+        for absent in ("Send for assessment", "Try again", "Send answer", "I have read this. Check for a reviewed hospital"):
+            self.assertNotIn(absent, labels)
+        # Withdrawing and agreeing again cannot restart a stopped interview.
+        self.assertEqual(len(provider.calls), 5)
+
+    def test_an_unsupported_age_offers_no_way_forward_except_a_valid_edit(self):
+        provider = self.provider(DONE, supported_age_range=(18, 120))
+        app = self.begin(self.open(), age=12)
+        text = self.shown(app)
+        self.assertIn("This could not be assessed", text)
+        self.assertIn(self.screen.UNSUPPORTED["unsupported_context"], text)
+        labels = [button.label for button in app.button]
+        for absent in ("I agree. Send it for assessment", "Send for assessment", "Try again"):
+            self.assertNotIn(absent, labels)
+        self.assertEqual(provider.calls, [])
+        app = self.press(app, "Change my description")
+        app.text_area(key="pt-description-0").input(STATEMENT)
+        app.number_input(key="pt-age-0").set_value(30)
+        app = self.press(app, "Save and continue")
+        self.assertIn("Send your description for assessment?", self.shown(app))
 
     def test_start_over_and_withdrawal_clear_what_they_say_they_clear(self):
         provider = self.provider(DONE)
