@@ -4,8 +4,12 @@ import atexit
 from threading import Lock
 
 if "." in __package__:
+    from ..ranking.urgency import rank_campuses
+    from ..simulation.replay import PROTECTED_PROFILES
     from ..simulation.scenario import make_scenario
 else:
+    from ranking.urgency import rank_campuses
+    from simulation.replay import PROTECTED_PROFILES
     from simulation.scenario import make_scenario
 
 from .finder import find_campuses
@@ -32,6 +36,33 @@ def _process_client():
 def _unavailable(reason):
     return {"status": "unavailable", "minutes": None, "source": _SOURCE,
             "reason": reason, "outcome": "unavailable"}
+
+
+def _route_candidates(request, capacity, approved):
+    """Select travel observations without changing the allocator's request or campus evidence."""
+    probe = [dict(campus, distance_km=0) for campus in approved]
+    def eligible(tools):
+        result = rank_campuses(request["service"], request["urgency"], probe,
+                               required=tools, as_of=request["as_of"], travel_metric="distance_km",
+                               travel_budget=1, limit=None)
+        return {row["facility_id"] for row in result["ranked"]}
+
+    required = request.get("required_tools", ())
+    selected = eligible(required)
+    if not selected or not required or request["urgency"] == "highest":
+        return selected
+    for service, tools, _ in PROTECTED_PROFILES:
+        if service != request["service"] or set(tools).issubset(required):
+            continue
+        for fid in eligible(tools) - selected:
+            matching = [pool for pool in capacity.get(fid, ())
+                        if pool.get("service") == service and set(tools).issubset(pool.get("tools", ()))]
+            # Missing stock remains plausible. A route beyond the catchment can
+            # resolve reachability even before all inventory is reported.
+            if not matching or any(pool.get("status") != "known" or pool.get("free_slots") != 0
+                                   for pool in matching):
+                selected.add(fid)
+    return selected
 
 
 def demo_car_travel(request, snapshot, *, origin_id, provider=None):
@@ -71,10 +102,15 @@ def demo_car_travel(request, snapshot, *, origin_id, provider=None):
             continue
         approved.append({**campus, "latitude": point[0], "longitude": point[1],
                          "coordinate_status": campus.get("coordinate_status", "reviewed")})
+    selected = _route_candidates(request, snapshot.get("capacity", {}), approved)
+    for campus in approved:
+        if campus["facility_id"] not in selected:
+            travel[campus["facility_id"]] = _unavailable("service_ineligible")
+    approved = [campus for campus in approved if campus["facility_id"] in selected]
     if not approved:
         return travel
     normalized = {"service": request["service"], "urgency": request["urgency"],
-                  "as_of": request["as_of"], "required": request.get("required_tools", []),
+                  "as_of": request["as_of"],
                   "travel_budget": request["max_travel_minutes"], "travel_metric": "travel_minutes",
                   "candidates": approved, "routing": {"provider": "tomtom", "origin": {
                       "latitude": origin[0], "longitude": origin[1], "kind": "coordinates"}}}
