@@ -135,3 +135,60 @@ CC.run = async (conc = 2) => {
   await Promise.all(Array.from({length: conc}, worker));
   CC.running = false;
 };
+
+// ---- Specialist counts (same rules as specialists.py). Names stay in memory only; results keep
+// counts per specialty plus the URL and timestamp of the best page, and masked context for a hand check.
+CC.DOCPATH = /(doctor|our-team|team|specialist|consultant|faculty|physician|surgeon|expert|staff|department|speciali|nephro|kidney|dialysis|radiolog|imaging|ortho|neuro|emergency|trauma|casualty)/i;
+CC.ART = /(\/blogs?\/|\/tag\/|\/category\/|\/news\/|\/articles?\/|\/faqs?\/|\/\d{4}\/\d{2}\/|\/testimonial)/i;
+CC.pickDocs = rows => {
+  const path = r => { try { return new URL(r.u).pathname.replace(/\/+$/, '') || '/'; } catch (e) { return r.u; } };
+  const people = p => /(doctor|our-team|\/team|specialist|consultant|faculty|physician)/i.test(p) ? 0 : 1;
+  const seen = new Set(), out = [];
+  rows.filter(r => r.st === '200' && /html/.test(r.m || '') && CC.DOCPATH.test(path(r)) && !CC.ART.test(r.u))
+    .sort((a, b) => people(path(a)) - people(path(b)) || path(a).length - path(b).length)
+    .forEach(r => { const p = path(r); if (!seen.has(p) && out.length < 6) { seen.add(p); out.push(r); } });
+  return out;
+};
+CC.SPEC = {
+  nephrology: /\bnephrolog/i, radiology: /\bradiolog/i,
+  orthopaedics: /\borthop(a)?edic|\borthop(a)?edist|\bjoint replacement surgeon/i,
+  neurosurgery: /\bneuro[\s-]?surg/i,
+  emergency_trauma: /\bemergency (medicine|physician)|\btrauma surg|\bcasualty medical officer|\b(M\.?D\.?|DNB)\s*\(?\s*emergency/i,
+};
+CC.DR = /\bDr\.?\s+([A-Z][a-zA-Z]+(?:\s+[A-Z]\.?)*(?:\s+[A-Z][a-zA-Z]+)?)/g;
+CC.docCount = text => {
+  const lines = text.split('\n'), sets = {}, ex = {}, all = new Set();
+  const hasDr = l => { CC.DR.lastIndex = 0; return CC.DR.test(l); };
+  for (let i = 0; i < lines.length; i++) {
+    CC.DR.lastIndex = 0; let m; const names = [];
+    while ((m = CC.DR.exec(lines[i]))) names.push(m[1].toLowerCase());
+    if (!names.length) continue;
+    names.forEach(n => all.add(n));
+    const w = [lines[i]];
+    for (let j = i + 1; j < Math.min(lines.length, i + 4); j++) { if (hasDr(lines[j])) break; w.push(lines[j]); }
+    const win = w.join(' ').slice(0, 400);
+    for (const [k, re] of Object.entries(CC.SPEC)) if (re.test(win)) {
+      for (const n of names) (sets[k] = sets[k] || new Set()).add(n);
+      if (!ex[k]) ex[k] = win.replace(CC.DR, 'Dr. ▇').slice(0, 220);
+    }
+  }
+  return {sets, ex, all};
+};
+CC.processDocs = async d => {
+  const pages = CC.pickDocs(await CC.lookup(d)), agg = {}, ex = {}, src = {}, all = new Set();
+  let read = 0, thin = 0;
+  for (const p of pages) {
+    try {
+      const t = CC.text(await CC.page(p)); read++;
+      if (t.length < 300) { thin++; continue; }
+      const r = CC.docCount(t); r.all.forEach(n => all.add(n));
+      for (const [k, s] of Object.entries(r.sets)) {
+        agg[k] = agg[k] || new Set(); s.forEach(n => agg[k].add(n));
+        if (!src[k] || s.size > src[k].n) src[k] = {u: p.u, ts: p.ts, n: s.size};
+        if (!ex[k]) ex[k] = r.ex[k];
+      }
+    } catch (e) {}
+  }
+  const counts = {}; for (const k in agg) counts[k] = agg[k].size;
+  return {d, docPages: pages.length, read, thin, doctors: all.size, counts, src, ex};  // no names
+};
