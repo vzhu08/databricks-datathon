@@ -5,6 +5,12 @@ This board on `origin/main` is authoritative. Oliver (`oliverchennn`) is the int
 Use GitHub repository issues and this board for all team communication. Record assignments, review requests, blockers, decisions and acknowledgments here or in the owning issue. Link implementation PRs from the issue. [Team instructions](../../AGENTS.md)
 
 
+## Hosted presenter app
+
+Oliver deployed Andrew’s Check symptoms and Find care screens and verified both in the signed-in presenter browser. Find care uses six synthetic facilities and the assessment provider is off. [Live Databricks app](https://vf-find-care-7474658456464525.aws.databricksapps.com/) · [Browser verification](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7081145145)
+
+Andrew’s Find Care UI chat owns the third page for the accepted synthetic storm replay on `codex/andrew-hosted-storm-page`. Oliver owns merge, deployment and verification on the live app. Vincent continues the independent location work. [Assignment and acceptance checks](https://github.com/vzhu08/databricks-datathon/issues/301)
+
 ## Interactive judges’ walkthrough
 
 The [integrated walkthrough](https://github.com/vzhu08/databricks-datathon/issues/287) connects the judge’s injury or existing care need, perceived urgency and reported severity to an explained priority and the real facility evidence cleared for this audience. P owns the decision function and tests on `codex/judge-care-decision`. A owns the operator command and tests on `codex/judge-care-runner`. Andrew’s [existing UI chat](https://github.com/vzhu08/databricks-datathon/issues/252) owns the Streamlit entry, presentation and UI tests on `codex/andrew-judge-care-flow`. Vincent owns the two pinned display editions and service interpretation on [#239](https://github.com/vzhu08/databricks-datathon/issues/239). D independently replays the command and browser with the real data, including unavailable and urgent paths. Oliver reviews and merges each tested revision. Paths, acceptance criteria and handoff receipts are on #287.
