@@ -147,6 +147,21 @@ shows the accepted offline storm replay (`storm_ui/replay.html`) inside the host
 Where the installed Streamlit has `st.iframe` (checked on 1.67) the frame is as tall as the
 replay. Older versions get a fixed frame that scrolls. Tests: `python -m unittest tests.storm_ui.test_storm_page`.
 
+### Planning simulation (a second view of the Storm page)
+
+When a results file is present at `storm_ui/data/plan.json`, the Storm page offers a second view beside the
+checked 8-request replay: many simulated patients placed across **real facility locations**, nearest first
+against the exact optimum for a stated objective, on identical inputs. The replay stays the first view.
+
+`storm_plan.py` allocates nothing. It reads the file, refuses it unless it holds together (no patient
+assigned twice, every assignment to a facility that offers the needed service, no resource used beyond its
+staffed places, assigned plus unserved equal to the patients under both policies, https links only), and
+counts every figure it shows from the assignments. The view states what is real (the locations, each
+labelled mapped facility point, campus simulation anchor or area only, with the publisher and licence the
+file gives) and what is simulated (patients, need, urgency, services, staffed places, travel). The map has
+no background and makes no request. The file is not kept in Git: it is placed at deployment after the
+actual run, and without it the page is the replay alone. The format is in `storm_plan.checked`.
+
 ## Data mode
 
 The mode is named at the top of the screen (`Data: demonstration`, `Data: real records` or
