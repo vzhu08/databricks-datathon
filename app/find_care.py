@@ -14,6 +14,7 @@ Two rules live here because every surface of the screen depends on them:
   verified interface, no facility field from the real records is kept, shown or exported.
 """
 import re
+import unicodedata
 
 SERVICES = {"dialysis": "Dialysis", "mri": "MRI scan", "trauma_care": "Trauma care"}
 SERVICE_PHRASE = {"dialysis": "dialysis", "mri": "an MRI scan", "trauma_care": "trauma care"}
@@ -201,15 +202,37 @@ def build_location(mode, *, city="", state="", pin="", latitude="", longitude=""
     raise ValueError("Choose how to give the location.")
 
 
+MAX_PLACE = 80
+_JOINERS = ("\u200c", "\u200d")  # used inside words in several Indian scripts, so they are kept
+
+
+def _typed(text):
+    """One typed line made safe to read and to show back: full-width letters and digits written in any
+    script become plain ones, and control or direction-changing characters are dropped."""
+    out = []
+    for character in unicodedata.normalize("NFKC", str(text or "")):
+        kind = unicodedata.category(character)
+        if kind == "Cc" or character.isspace():
+            out.append(" ")
+        elif kind in ("Cf", "Cs", "Co", "Cn") and character not in _JOINERS:
+            continue
+        else:
+            digit = unicodedata.decimal(character, None)
+            out.append(character if digit is None else str(digit))
+    return " ".join("".join(out).split())
+
+
 def parse_location(text):
     """The location object the search expects, from one typed line. Raises ValueError with a plain message.
 
     Six digits are a PIN code, two numbers are coordinates, and anything else is a city or town with an
     optional state after a comma.
     """
-    text = " ".join(str(text or "").split())
-    if not text:
+    text = _typed(text)
+    if not any(character.isalnum() for character in text):  # empty, spaces, punctuation or emoji alone
         raise ValueError("Type a city or town, a PIN code, or coordinates.")
+    if len(text) > MAX_PLACE:
+        raise ValueError("That is too long to be a place. Type a city or town, a PIN code, or coordinates.")
     digits = text.replace(" ", "")
     if digits.isdigit() and len(digits) == 6:
         return {"pin": digits}
@@ -373,6 +396,11 @@ def present(response, service, location, radius_km):
     return view
 
 
+def _short(km):
+    """A distance for the referral note, worded like the screen: never "0.0 km"."""
+    return "under 100 m" if km < 0.1 else f"{km:.1f} km"
+
+
 def referral_note(view, synthetic):
     """Plain text a health worker can copy or save. Recommends nothing unless the search did."""
     lines = ["Referral note" + (" (demonstration data, invented facilities)" if synthetic else ""),
@@ -385,7 +413,7 @@ def referral_note(view, synthetic):
         lines += ["Record reference: " + url for url in top["sources"]]
         if view["backups"]:
             lines.append("If it cannot take the patient: " + "; then ".join(
-                f"{card['name']} ({card['distance_km']:.1f} km)" for card in view["backups"]))
+                f"{card['name']} ({_short(card['distance_km'])})" for card in view["backups"]))
         if top["location_warning"]:
             lines.append("Check the address: " + top["location_warning"])
         if view["caveat"]:
@@ -394,7 +422,7 @@ def referral_note(view, synthetic):
     elif view["status"] == "needs_confirmation":
         lines.append(view["headline"])
         lines.append("Phone first: " + "; ".join(
-            f"{card['name']} ({card['distance_km']:.1f} km), record says \"{card['excerpt']}\"" for card in view["leads"]))
+            f"{card['name']} ({_short(card['distance_km'])}), record says \"{card['excerpt']}\"" for card in view["leads"]))
         lines.append("Limits: " + view["limits"][0] + " Straight-line distance. Undated record.")
     else:
         lines += [view["headline"], view["subline"]]

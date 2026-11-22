@@ -130,9 +130,19 @@ def _fixture_rows():
 
 def run_search(service, location, radius_km):
     if DEMO:
-        return search_facilities(service, location, facilities=_fixture_rows(), radius_km=radius_km)
+        response = search_facilities(service, location, facilities=_fixture_rows(), radius_km=radius_km)
+        if response.get("status") == "unresolved_location":  # say why Mumbai or Delhi fails here
+            response = {**response, "message": demo_places_note()}
+        return response
     # Nothing but the withheld form of a warehouse response leaves this function.
     return words.withheld(search_warehouse(service, location, radius_km=radius_km))
+
+
+def demo_places_note():
+    """Why a real town fails on the demonstration: it only knows the places its invented facilities name."""
+    places = sorted({f"{row['city']}, {row['state']} (PIN {row['pin']})" for row in _fixture_rows()})
+    return ("The demonstration can only find the places its six invented facilities are recorded in: "
+            + " and ".join(places) + ". Type one of those, or coordinates.")
 
 
 def plain(text):
@@ -542,3 +552,9 @@ with right:
             else:
                 st.caption("The request and the search status. The response itself is not shown for real records.")
                 st.json({"request": asked, "data": "warehouse", "status": response["status"]})
+
+# Below the search: how often outside sources back up what the real directory's records mention. Counts only.
+# Imported here, beside its one use, so this stays clear of the imports other sections add at the top.
+import capability_coverage  # noqa: E402
+
+capability_coverage.render(st, HERE, DEMO)
