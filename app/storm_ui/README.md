@@ -40,9 +40,12 @@ adjust `read` in `intake_state.js`, the one function that knows the stored field
 asks `assess` about every state a visitor can reach (347 states, at most five questions on any
 path) and stores the unedited answers. The page looks one up and words it from the bundle's
 catalogue. It asks for a campus only when `IntakeState.finderRequest` returns a request, which
-needs a stored state that is ready, synthetic, confirmed for exactly these answers, with no open
-or unsure question, and asking for the same routable service and urgency as the clinician in the
-story. A stored state that merely says "ready" is refused.
+needs two stored states that agree. The summary the visitor confirmed must be synthetic, waiting
+for a confirmation, with no open or unsure question and no request of its own. The state after it
+must be ready, confirmed for exactly these answers, and for the same patient, rule set and
+clinician's decision as that summary and as the story, asking for that same routable service and
+urgency. A stored state that merely says "ready", or one that follows a blocked, unsupported,
+unfinished or mismatched summary, is refused.
 
 ## Storm stress test page
 

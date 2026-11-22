@@ -47,6 +47,9 @@
       confirmedFor: confirmation.bound_to || null,
       request: stored.request || null,
       synthetic: stored.synthetic === true,
+      scenario: stored.scenario_id,
+      policy: stored.policy_version,
+      schema: stored.schema_version,
     };
   }
 
@@ -54,19 +57,43 @@
     return read(data.assessments[key(scenarioId, answers, confirmed)]);
   }
 
+  function sameClinician(a, b) {
+    return Boolean(a && b) && a.kind === b.kind && a.service === b.service && a.urgency === b.urgency;
+  }
+
   /*
-   * The request the campus finder may be given, or null. The page trusts nothing but this: a
-   * stored state that says ready is not enough unless its confirmation is for these exact answers
-   * and it asks for care the finder has campuses for.
+   * Whether a stored state is one a visitor may be asked to confirm: synthetic, for this patient,
+   * waiting on a confirmation it does not have yet, with every question answered, nothing unsure,
+   * a clinician's decision in the story and no care request of its own.
+   */
+  function mayBeConfirmed(a, scenarioId) {
+    return Boolean(a) && a.synthetic && a.scenario === scenarioId &&
+      a.state === "awaiting_confirmation" && a.confirmationRequired && !a.confirmed && !a.confirmedFor &&
+      !a.next && !a.unknown.length && Boolean(a.clinician) && !a.request &&
+      typeof a.revision === "string" && a.revision.length > 0;
+  }
+
+  /*
+   * The request the campus finder may be given, or null. The page trusts nothing but this. Two
+   * stored states must agree: the summary the visitor was shown and the ready state that follows
+   * its confirmation. The summary has to be one that may be confirmed, and the ready state has to
+   * be for the same patient, the same answers, the same rule set and the same clinician's decision
+   * as that summary and as the story. A blocked, unsupported, unfinished or mismatched summary
+   * gives no request, whatever the state after it says.
    */
   function finderRequest(data, scenarioId, answers, confirmed) {
     if (!confirmed) return null;
+    var scenario = named(data.scenarios || [], scenarioId);
+    var before = lookup(data, scenarioId, answers, false);
     var a = lookup(data, scenarioId, answers, true);
-    var unconfirmed = lookup(data, scenarioId, answers, false);
-    if (!a || !unconfirmed || !a.synthetic) return null;
-    if (a.state !== "ready" || !a.confirmed || !a.confirmedFor) return null;
-    if (a.confirmedFor !== a.revision || a.revision !== unconfirmed.revision) return null;
-    if (a.next || a.unknown.length || !a.clinician || !a.request) return null;
+    if (!scenario || !a || !mayBeConfirmed(before, scenarioId)) return null;
+    if (!a.synthetic || a.scenario !== scenarioId) return null;
+    if (a.state !== "ready" || !a.confirmationRequired || !a.confirmed || !a.confirmedFor) return null;
+    if (a.confirmedFor !== a.revision || a.revision !== before.revision) return null;
+    if (!a.policy || a.policy !== before.policy || a.policy !== data.policy_version) return null;
+    if (!a.schema || a.schema !== before.schema || a.schema !== data.schema_version) return null;
+    if (a.next || a.unknown.length || !a.request) return null;
+    if (!sameClinician(a.clinician, before.clinician) || !sameClinician(a.clinician, scenario.clinician)) return null;
     if (ROUTABLE.indexOf(a.request.service) === -1 || URGENCIES.indexOf(a.request.urgency) === -1) return null;
     if (a.request.service !== a.clinician.service || a.request.urgency !== a.clinician.urgency) return null;
     if (!Array.isArray(a.request.required_capabilities) || a.request.required_capabilities.length) return null;

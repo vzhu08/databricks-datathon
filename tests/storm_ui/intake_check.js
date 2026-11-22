@@ -72,6 +72,48 @@ forge("an invented capability", (a) => { a[readyKey].request.required_capabiliti
 forge("no clinician in the story", (a) => { a[readyKey].clinician = null; });
 forge("not marked synthetic", (a) => { a[readyKey].synthetic = false; });
 forge("no unconfirmed state to compare with", (a) => { delete a[waitKey]; });
+
+/*
+ * The summary the visitor confirmed is checked too, not only its revision. Each pair below keeps
+ * the honest ready state and spoils the state before it. None may ask for a campus.
+ */
+forge("summary before it is an emergency", (a) => { a[waitKey].state = "escalation"; });
+forge("summary before it is unsupported", (a) => { a[waitKey].state = "unsupported"; });
+forge("summary before it needs an assessment", (a) => { a[waitKey].state = "assessment_needed"; });
+forge("summary before it is unfinished", (a) => { a[waitKey].state = "more_information"; });
+forge("summary before it is already ready", (a) => { a[waitKey].state = "ready"; });
+forge("summary before it has an open question", (a) => { a[waitKey].next_question_id = "danger.breathing"; });
+forge("summary before it has an unsure answer", (a) => { a[waitKey].unknown_question_ids = ["danger.breathing"]; });
+forge("summary before it asks for no confirmation", (a) => { a[waitKey].confirmation.required = false; });
+forge("summary before it is already confirmed", (a) => { a[waitKey].confirmation.present = true; });
+forge("summary before it is bound to a revision", (a) => { a[waitKey].confirmation.bound_to = a[waitKey].input_revision; });
+forge("summary before it carries a request", (a) => { a[waitKey].request = JSON.parse(JSON.stringify(a[readyKey].request)); });
+forge("summary before it is not synthetic", (a) => { a[waitKey].synthetic = false; });
+forge("summary before it has no clinician", (a) => { a[waitKey].clinician = null; });
+forge("summary before it names another service", (a) => { a[waitKey].clinician.service = "mri"; });
+forge("summary before it names another urgency", (a) => { a[waitKey].clinician.urgency = "highest"; });
+forge("summary before it names another kind of clinician decision", (a) => { a[waitKey].clinician.kind = "referral"; });
+forge("summary before it used another rule set", (a) => { a[waitKey].policy_version = "other-rules"; });
+forge("summary before it used another schema", (a) => { a[waitKey].schema_version = "other-schema"; });
+forge("summary before it is for another patient", (a) => { a[waitKey].scenario_id = "mri-referral"; });
+forge("another patient's whole summary in its place", (a, f) => {
+  a[waitKey] = JSON.parse(JSON.stringify(f.assessments[I.key("mri-referral", done, false)]));
+});
+forge("both states agree with each other but not with the story", (a) => {
+  a[waitKey].clinician.service = a[readyKey].clinician.service = a[readyKey].request.service = "mri";
+});
+forge("both states agree on a rule set the bundle does not use", (a) => {
+  a[waitKey].policy_version = a[readyKey].policy_version = "other-rules";
+});
+forge("ready state for another patient", (a) => { a[readyKey].scenario_id = "mri-referral"; });
+forge("ready state that asked for no confirmation", (a) => { a[readyKey].confirmation.required = false; });
+forge("patient missing from the story list", (a, f) => {
+  f.scenarios = f.scenarios.filter((s) => s.id !== "dialysis-plan");
+});
+// Positive controls: an untouched copy still passes, and so does every other honest pair.
+same(I.finderRequest(copy(), "dialysis-plan", done, true), { service: "dialysis", urgency: "routine" }, "an untouched copy still passes");
+same(I.finderRequest(data, "mri-referral", done, true), { service: "mri", urgency: "routine" }, "another honest pair passes");
+same(I.finderRequest(data, "injury-assessed", done, true), { service: "trauma_care", urgency: "time_sensitive" }, "a time-sensitive honest pair passes");
 {
   // A ready payload planted where an emergency belongs is still not a request, because nothing confirmed it.
   const forged = copy();
