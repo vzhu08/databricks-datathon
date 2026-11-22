@@ -174,6 +174,24 @@ class WordingTests(unittest.TestCase):
         self.assertIn(2, words.RADII)
         self.assertEqual(sorted(words.RADII), list(words.RADII))
 
+    def test_messy_typed_places_are_cleaned_before_the_search(self):
+        for typed, expected in (
+                ("Pune, MH", {"city": "Pune", "state": "Maharashtra"}), ("Jaipur, rj", {"city": "Jaipur", "state": "Rajasthan"}),
+                ("Lucknow, U.P.", {"city": "Lucknow", "state": "Uttar Pradesh"}), ("Cuttack, Orissa", {"city": "Cuttack", "state": "Odisha"}),
+                ("Pune Maharashtra", {"city": "Pune", "state": "Maharashtra"}), ("Bhopal Madhya Pradesh", {"city": "Bhopal", "state": "Madhya Pradesh"}),
+                ("Pune MH", {"city": "Pune", "state": "Maharashtra"}), ("near Pune", {"city": "Pune"}), ("in Bhopal, MP.", {"city": "Bhopal", "state": "Madhya Pradesh"}),
+                ("Pune, India", {"city": "Pune"}), ("Pune city", {"city": "Pune"}), ("Nashik district", {"city": "Nashik"}), ("PUNE.", {"city": "PUNE"}),
+                ("Bombay", {"city": "Mumbai"}), ("Calcutta, West Bengal", {"city": "Kolkata", "state": "West Bengal"}), ("madras", {"city": "Chennai"}),
+                ("PIN 560034", {"pin": "560034"}), ("Pincode: 560 034", {"pin": "560034"}), ("560-034", {"pin": "560034"}),
+                ("560034, India", {"pin": "560034"}), ("Jaipur 302001", {"pin": "302001"}),
+                ("near 26.92, 75.82", {"latitude": 26.92, "longitude": 75.82})):
+            self.assertEqual(expected, words.parse_location(typed), typed)
+        # names that only look like a state code, a state that is also a city, and real names ending in "City" stay whole
+        for typed, expected in (("New Delhi", {"city": "New Delhi"}), ("Delhi", {"city": "Delhi"}), ("Goa", {"city": "Goa"}),
+                                ("pune mh", {"city": "pune mh"}), ("Bokaro Steel City", {"city": "Bokaro Steel City"}),
+                                ("Bangalore", {"city": "Bangalore"}), ("Gurgaon, Haryana", {"city": "Gurgaon", "state": "Haryana"})):
+            self.assertEqual(expected, words.parse_location(typed), typed)
+
     def test_typed_locations(self):
         self.assertEqual({"city": "Jaipur"}, words.build_location("city", city=" Jaipur ", state=" "))
         self.assertEqual({"city": "Jaipur", "state": "Rajasthan"}, words.build_location("city", city="Jaipur", state="Rajasthan"))
