@@ -608,17 +608,12 @@ class ScreenTests(unittest.TestCase):
         self.assertNotIn("Send the patient", self._text(lookup))
         self.assertEqual(0, len(lookup.code))
 
-    def test_road_time_needs_the_operators_caption_and_a_failed_request_leaves_no_destination(self):
-        """#304: stubbed provider. A failed ETA never falls back to simulated minutes or an earlier campus."""
-        app = self._app(TOMTOM_ENABLED="true")
-        self.assertIn("Road time with traffic is switched off here", self._text(app))
-        self.assertEqual([], [box.key for box in app.checkbox if box.key == "traffic"])
+    LIVE = {"TOMTOM_ENABLED": "true", "TOMTOM_COPYRIGHT_CAPTION": "Caption <b>supplied</b> by the operator",
+            "TOMTOM_COPYRIGHT_NOTICES": "Complete supplier notices.\nSecond line of the notices."}
 
-        app = self._app(TOMTOM_ENABLED="true", FIND_CARE_TRAFFIC_ATTRIBUTION="Caption supplied by the operator")
-        self.assertIn("No patient details are sent. One request per press.", self._text(app))
-        self.assertNotIn("Caption supplied by the operator", self._text(app))  # shown with a road-time result only
+    def _stub_travel(self, sent="2026-11-22T15:40:00Z"):
+        """A's adapter replaced by a stub: nothing in these tests can reach the provider."""
         import travel.hosted as hosted
-        sent = "2026-11-22T15:40:00Z"
         calls, answers = [], {}
 
         def stub(request, snapshot, *, origin_id, provider=None):
@@ -632,14 +627,37 @@ class ScreenTests(unittest.TestCase):
         patcher = mock.patch.object(hosted, "demo_car_travel", stub)
         patcher.start()
         self.addCleanup(patcher.stop)
-        app = self._step(app.button(key="capacity-Routine dialysis: keeps a scarce station free").click())
-        self.assertIn("Send the patient to Campus B.", self._text(app))
-        self.assertEqual([], calls)  # examples and simulated minutes never call the provider
-        ticked = self._step(app.checkbox(key="traffic").set_value(True))
-        self.assertNotIn("Campus B", self._everything(ticked))
-        self.assertEqual([], calls)  # ticking the box sends nothing
+        return calls, answers
 
-        failed = self._step(ticked.button(key="find").click())
+    def test_road_time_needs_all_three_operator_settings(self):
+        """#304: without the switch, the caption and the complete notices, no road-time source is offered."""
+        for missing in self.LIVE:
+            app = self._app(**{key: value for key, value in self.LIVE.items() if key != missing})
+            with self.subTest(missing=missing):
+                self.assertIn("Road time with traffic is switched off here", self._text(app))
+                self.assertEqual([], [radio.key for radio in app.radio if radio.key == "traffic"])
+                calls, _ = self._stub_travel()
+                app = self._step(app.button(key="find").click())
+                self.assertEqual([], calls)
+                self.assertIn("Send the patient to Campus B.", self._text(app))
+                self.assertIn("12 min (simulated)", self._text(app))
+                self.assertIn("Simulated drive minutes", self._text(app))
+                for part in ("supplied", "Complete supplier notices", "data-attribution", "data-notices"):
+                    self.assertNotIn(part, self._everything(app))
+
+    def test_road_time_is_the_default_source_and_a_failed_request_leaves_no_destination(self):
+        """#304: stubbed provider. One ordinary press asks for road time. A failed time is never replaced."""
+        app = self._app(**self.LIVE)
+        calls, answers = self._stub_travel()
+        text = self._text(app)
+        self.assertIs(True, app.radio(key="traffic").value)  # the live source is selected without an opt-in
+        self.assertIn("No patient details are sent. One batch of requests per press", text)
+        self.assertIn("Examples always use simulated minutes and send no road-time request.", text)
+        for part in ("supplied", "Complete supplier notices"):  # shown with a road-time result only
+            self.assertNotIn(part, text)
+        self.assertEqual([], calls)  # opening the page sends nothing
+
+        failed = self._step(app.button(key="find").click())  # the ordinary submission, no second press
         text, everything = self._text(failed), self._everything(failed)
         self.assertEqual(["central"], calls)
         self.assertIn("No campus is recommended.", text)
@@ -647,26 +665,69 @@ class ScreenTests(unittest.TestCase):
         self.assertIn("Campus A: road time unavailable (provider unavailable), requested at 15:40:00 UTC on 22 Nov 2026.",
                       text)
         self.assertIn("Campus F: road time unavailable (provider unavailable), no request was sent.", text)
-        self.assertIn("Caption supplied by the operator", text)
+        # The caption and the complete notices come with a failed result too, as escaped plain text.
+        self.assertIn('data-attribution="traffic">Caption &lt;b&gt;supplied&lt;/b&gt; by the operator', text)
+        self.assertIn("Map data copyright notices", text)
+        self.assertIn("Complete supplier notices.\nSecond line of the notices.", text)
+        self.assertNotIn("<b>supplied", text)
         for part in ("Send the patient", "Send to", "Referral note", "min (simulated)", "12 min", "8 min"):
             self.assertNotIn(part, everything)
         self.assertEqual((0, 0), (len(failed.code), len(failed.get("download_button"))))
         self._step(failed)  # drawing the screen again asks the provider nothing
         self.assertEqual(["central"], calls)
 
-        known = {"status": "known", "source": "stub", "reason": None, "outcome": "ok", "requested_at": sent}
-        answers.update(A={**known, "minutes": 30.0}, B={**known, "minutes": 10.5}, C={**known, "minutes": 19.0})
-        worked = self._step(failed.button(key="find").click())
-        text, note = self._text(worked), self._note(worked)
+        # A used-up allowance is a failure like any other: said plainly, with no destination and no stand-in time.
+        spent = {"status": "unavailable", "minutes": None, "source": "stub", "outcome": "unavailable",
+                 "reason": "daily_call_budget_exceeded", "requested_at": None}
+        answers.update({key: spent for key in "ABCDEF"})
+        empty = self._step(failed.button(key="find").click())
         self.assertEqual(["central", "central"], calls)
+        self.assertIn("Campus B: road time unavailable (today's road-time request allowance is used up), "
+                      "no request was sent.", self._text(empty))
+        self.assertIn("No campus is recommended.", self._text(empty))
+        for part in ("Send the patient", "Send to", "min (simulated)", "km"):
+            self.assertNotIn(part, self._everything(empty))
+        self.assertEqual(0, len(empty.code))
+
+        # A partial result: one campus has no road time. The slip and the note still name one and the same campus.
+        known = {"status": "known", "source": "stub", "reason": None, "outcome": "ok",
+                 "requested_at": "2026-11-22T15:40:00Z"}
+        answers.clear()
+        answers.update(B={**known, "minutes": 10.5}, C={**known, "minutes": 19.0})
+        worked = self._step(empty.button(key="find").click())
+        text, note = self._text(worked), self._note(worked)
+        self.assertEqual(["central"] * 3, calls)
         self.assertIn("Send the patient to Campus B.", text)
         self.assertIn("10.5 min (by road, ordinary car with traffic).", text)
         self.assertIn("from TomTom", text)
         self.assertIn("This time was requested at 15:40:00 UTC on 22 Nov 2026.", text)
-        self.assertIn("Caption supplied by the operator", text)
+        self.assertIn("Campus A: road time unavailable (provider unavailable), requested at 15:40:00 UTC", text)
+        self.assertIn('data-attribution="traffic">Caption &lt;b&gt;supplied&lt;/b&gt; by the operator', text)
+        self.assertIn("Complete supplier notices.", text)
         self.assertNotIn("Simulated drive minutes", text)
+        self.assertNotIn("min (simulated)", text)
         self.assertIn("Send to: Campus B", note)
+        self.assertEqual(1, note.count("Send to:"))
         self.assertIn("requested at 15:40:00 UTC", note)
+        self.assertIn("ordinary car with traffic", note)
+        self.assertIn("Map data: Caption <b>supplied</b> by the operator", note)  # plain text in a text block
+
+        # An example is explicit simulated data: it says so, sends nothing and shows no map caption.
+        example = self._step(worked.button(key="capacity-Routine dialysis: keeps a scarce station free").click())
+        self.assertEqual(["central"] * 3, calls)
+        self.assertIs(False, example.radio(key="traffic").value)
+        self.assertIn("12 min (simulated)", self._text(example))
+        self.assertIn("Simulated drive minutes", self._text(example))
+        self.assertNotIn("supplied", self._everything(example))
+        self.assertNotIn("Map data:", self._note(example))
+        # Choosing the other source removes the earlier answer and sends nothing until the next press.
+        switched = self._step(example.radio(key="traffic").set_value(True))
+        self.assertNotIn("Campus B", self._everything(switched))
+        self.assertEqual(["central"] * 3, calls)
+        # The record lookup never asks for a road time.
+        lookup = self._step(self._lookup(switched).button(key="find").click())
+        self.assertIn("Nearest record that states the service", self._text(lookup))
+        self.assertEqual(["central"] * 3, calls)
 
     def test_the_first_press_answers_because_the_demonstration_form_starts_filled(self):
         app = self._app()

@@ -56,6 +56,16 @@ NO_CHOICE = {
     "invalid_snapshot": "The capacity figures could not be read.",
     "invalid_request": "This request could not be checked against capacity.",
 }
+TRAVEL_REASONS = {
+    "daily_call_budget_exceeded": "today's road-time request allowance is used up",
+    "monthly_call_budget_exceeded": "this month's road-time request allowance is used up",
+    "protected_allowance_exhausted": "the road-time request allowance is used up",
+    "reserved_budget_exhausted": "the road-time request allowance is used up",
+    "shared_provider_cooldown": "the road-time provider asked for a pause",
+    "invalid_operator_configuration": "road time is not set up correctly on this deployment",
+    "invalid_operator_budget": "road time is not set up correctly on this deployment",
+    "budget_store_unavailable": "the road-time allowance could not be checked",
+}
 HOW = (
     "Only campuses with reviewed, dated evidence for the service, a known free staffed place and a known "
     "travel time inside the limit can be recommended. Full, unknown or out-of-date capacity is never guessed.",
@@ -152,7 +162,8 @@ def explain(check):
     if traffic:
         for key, row in sorted(check["travel_rows"].items()):
             if row["status"] != "known" and row.get("reason") != "service_ineligible":
-                reason = f" ({str(row['reason']).replace('_', ' ')})" if row.get("reason") else ""
+                reason = (f" ({TRAVEL_REASONS.get(row['reason']) or str(row['reason']).replace('_', ' ')})"
+                          if row.get("reason") else "")
                 lines["travel_failures"].append(
                     f"{campus(key)}: road time unavailable{reason}, {_when(row.get('requested_at'))}.")
         lines["time_label"] = (f"Road time for an ordinary car with traffic, from {TRAFFIC_SOURCE}. It is an estimate "
@@ -215,8 +226,11 @@ def explain(check):
     return lines
 
 
-def referral_note(check):
-    """Plain text to copy or save, for the model's chosen campus only. None when nothing is recommended."""
+def referral_note(check, attribution=None):
+    """Plain text to copy or save, for the model's chosen campus only. None when nothing is recommended.
+
+    `attribution` is the operator's copyright caption. It goes on a note that carries a road time.
+    """
     lines = explain(check)
     if not lines["destination"]:
         return None
@@ -232,6 +246,8 @@ def referral_note(check):
     if lines["alternatives"]:
         note.append("If it cannot take the patient: " + "; ".join(lines["alternatives"]))
     note.append("Travel time: " + lines["time_label"])
+    if attribution and check["travel_kind"] == TRAFFIC:
+        note.append("Map data: " + attribution)
     note.append("Limits: chosen by free places and travel time, not quality. Nothing is booked. Phone ahead.")
     note.append("If this could be an emergency, call 112.")
     return "\n".join(note)
