@@ -140,6 +140,7 @@ class RegistryBranches:
     supporting_references: set[str]
     competing_references: set[str]
     supporting_registry_references: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    unmapped_alternative: bool = False
 
 
 def same_site(left, right, address_agreement=None):
@@ -421,12 +422,14 @@ def reference_index(batches, lineage):
     return index
 
 
-def overture_families(projection):
+def overture_families(projection, providers=None):
     """Collapse Overture records with documented OSM or NHP lineage into that family."""
     families = {}
     for row in json_lines(projection):
         sources = [item for item in row["sources"] if item.get("provider") and item.get("record_id")
                    and item["provider"].lower() != "overture"]
+        if providers is not None:
+            providers[row["id"]] = frozenset(item["provider"].lower() for item in sources)
         keys = {fold(f"{item['provider']} {item.get('dataset') or ''}") for item in sources}
         origins = set()
         if any(re.search(r"\b(?:osm|openstreetmap|geofabrik)\b", key) for key in keys):
@@ -506,15 +509,29 @@ def registry_branches(path, occurrences):
             if matched or detail["alternative"] or (detail["leader_conflict"] and
                     comparison["outcome"] == "ambiguous_host_or_branch"):
                 rivals.update(detail["incompatible_serious_incumbent_keys"])
-        branches = RegistryBranches(support, rivals, {key: tuple(sorted(refs)) for key, refs in witnesses.items()})
+        unbounded = any(detail["alternative"] or (
+            detail["leader_conflict"] and comparison["outcome"] == "ambiguous_host_or_branch")
+            for detail in comparison.get("details", []))
+        branches = RegistryBranches(support, rivals, {key: tuple(sorted(refs)) for key, refs in witnesses.items()},
+                                    unbounded)
         if supplements.setdefault(representative, branches) != branches:
             raise ValueError("Identical occurrences disagree in the registry comparison")
     return supplements
 
 
 def run(replay, occurrences_path, batches, projection, output, insurer_links=None, control=None,
-        base=None, joint_occurrences=None, registry_comparison=None):
+        base=None, joint_occurrences=None, registry_comparison=None, address_search=False,
+        area_nhp=None, area_nabh=None, area_operators=()):
+    registry = None
+    if area_nhp or area_nabh or area_operators:
+        if not (address_search and area_nhp and area_nabh):
+            raise ValueError("Facility-area replay requires address search and both official directories")
+        from research.matching.facility_area import RegistryIndex, area_counts, facility_area, registry_listings
+        registry = RegistryIndex(registry_listings(area_nhp, area_nabh, area_operators))
     occurrences = list(json_lines(occurrences_path))
+    if address_search and not base:
+        raise ValueError("Address search requires the original VF address fields")
+    base_by_id = {}
     if base:
         originals = read(base)
         if len(originals) != len(occurrences) or any(
@@ -522,13 +539,17 @@ def run(replay, occurrences_path, batches, projection, output, insurer_links=Non
                 sha256(encoded(original["source_row"]).rstrip("\n").encode()).hexdigest() !=
                 row["original_payload_sha256"] for original, row in zip(originals, occurrences, strict=True)):
             raise ValueError("Prepared base and occurrence payloads do not reconcile")
+        if address_search:
+            from research.matching.address_search import search_result, summarize
+            base_by_id = {row["facility_id"]: row["source_row"] for row in originals}
     representatives = {}
     for row in occurrences:
         representatives.setdefault(row["retrieval_representative"], row)
     if len({row["facility_id"] for row in occurrences}) != len(occurrences):
         raise ValueError("Occurrence keys must be unique")
     paths = [replay, occurrences_path, projection, *batches]
-    paths.extend(path for path in (insurer_links, control, base, joint_occurrences, registry_comparison) if path)
+    paths.extend(path for path in (insurer_links, control, base, joint_occurrences, registry_comparison,
+                                    area_nhp, area_nabh, *area_operators) if path)
     inputs = {path.as_posix(): digest(path) for path in paths}
     supplements = registry_branches(registry_comparison, occurrences) if registry_comparison else {}
     old_outcomes = {}
@@ -538,7 +559,8 @@ def run(replay, occurrences_path, batches, projection, output, insurer_links=Non
                     frozen["facility_id"], frozen["representative"], frozen["original_payload_sha256"]):
                 raise ValueError("Frozen joint outcomes and occurrence payloads do not reconcile")
             old_outcomes[row["facility_id"]] = frozen["outcomes"]["joint"]
-    references = reference_index(batches, overture_families(projection))
+    providers = {} if address_search else None
+    references = reference_index(batches, overture_families(projection, providers))
     insurer = defaultdict(list)
     if insurer_links:
         for link in json_lines(insurer_links):
@@ -571,6 +593,17 @@ def run(replay, occurrences_path, batches, projection, output, insurer_links=Non
                                  original["branch_evidence"]["postal_state_disagreement"])
         classified[representative] = classify(candidates, original_conflict, original,
                                               supplements.get(representative))
+        if address_search:
+            supplement = supplements.get(representative)
+            raw_row = base_by_id[original["facility_id"]]
+            signals = {p["external_facility_id"]: p["signals"] for p in pairs + historical}
+            classified[representative]["address_search"] = search_result(
+                raw_row, original, candidates, signals,
+                bool(supplement and (supplement.competing_references or supplement.unmapped_alternative)),
+                providers)
+            if registry is not None:
+                classified[representative]["facility_area"] = facility_area(
+                    raw_row, original, candidates, signals, providers, registry)
     if classified.keys() != representatives.keys() or insurer:
         raise ValueError("Candidate and occurrence representatives do not reconcile")
 
@@ -621,6 +654,10 @@ def run(replay, occurrences_path, batches, projection, output, insurer_links=Non
                       for state in LOCATION_STATE_BUCKETS | locations_by_state.keys()},
                   "site_radius_m": SITE_RADIUS_M, "input_sha256": inputs,
                   "occurrence_output_sha256": digest(interim / "occurrences.jsonl.gz")}
+        if address_search:
+            report["address_search"] = summarize(occurrences, classified)
+        if registry is not None:
+            report["facility_area"] = area_counts(occurrences, classified)
         (interim / "aggregate.json").write_text(encoded(report), encoding="utf-8", newline="\n")
         output.mkdir()
         for file in interim.iterdir():
@@ -635,9 +672,16 @@ def main():
     parser.add_argument("--reference", type=Path, action="append", required=True)
     for name in ("insurer-links", "control", "base", "joint-occurrences", "registry-comparison"):
         parser.add_argument(f"--{name}", type=Path)
+    parser.add_argument("--address-search", action="store_true",
+                        help="Also evaluate written addresses and name-search areas under 1 km")
+    parser.add_argument("--area-nhp", type=Path, help="Official NHP locator edition (JSONL)")
+    parser.add_argument("--area-nabh", type=Path, help="National NABH listing edition (SQLite)")
+    parser.add_argument("--area-operator", type=Path, action="append", default=[],
+                        help="Authorized first-party operator observations (JSONL)")
     args = parser.parse_args()
     report = run(args.replay, args.occurrences, args.reference, args.projection, args.output,
-                 args.insurer_links, args.control, args.base, args.joint_occurrences, args.registry_comparison)
+                 args.insurer_links, args.control, args.base, args.joint_occurrences, args.registry_comparison,
+                 args.address_search, args.area_nhp, args.area_nabh, args.area_operator)
     print(encoded({key: report[key] for key in ("occurrences", "candidate_pairs", "categories", "location_statuses")}),
           end="")
 
