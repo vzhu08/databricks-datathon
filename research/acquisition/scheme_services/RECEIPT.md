@@ -87,7 +87,7 @@ The 13 direct public endpoint attempts are frozen in `source_attempts.json`:
 
 ## Verification and handoff
 
-Eight synthetic collector tests and 23 shared service-status tests pass. The
+Ten synthetic collector tests and 23 shared service-status tests pass. The
 shared matcher suite ran 120 tests successfully (two optional tests skipped).
 The national offline replay reproduced all ten JSON outputs byte for byte. Source
 and base hashes were checked before the run. Public Git files contain only

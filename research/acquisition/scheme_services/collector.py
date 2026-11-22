@@ -5,6 +5,7 @@ A source may permit local analysis while its redistribution is held.
 """
 from collections import Counter, defaultdict
 from datetime import date
+from math import isfinite
 import re
 
 from research.matching.common import digest, require
@@ -54,6 +55,32 @@ def mentions(text):
     return sorted(out, key=lambda x: (x["start"], x["end"], x["service"]))
 
 
+def positive_index(value):
+    return type(value) is int and value > 0
+
+
+def locatable_fragment(fragment):
+    """The #68 PDF extractor identifies a row by page, table and bounding box."""
+    if not isinstance(fragment, dict):
+        return False
+    if not positive_index(fragment.get("physical_page")) or not positive_index(fragment.get("table")):
+        return False
+    box = fragment.get("bbox")
+    if not isinstance(box, list) or len(box) != 4:
+        return False
+    if not all(type(v) is int or (type(v) is float and isfinite(v)) for v in box):
+        return False
+    return box[0] < box[2] and box[1] < box[3]
+
+
+def has_source_locator(row):
+    page, locator = row.get("physical_page"), row.get("locator")
+    if positive_index(page) and isinstance(locator, str) and locator.strip():
+        return True
+    fragments = row.get("fragments")
+    return isinstance(fragments, list) and any(locatable_fragment(f) for f in fragments)
+
+
 def observations(records, sources, as_of):
     """All revisions remain; latest dated edition is selected within each series."""
     day = date.fromisoformat(as_of)
@@ -84,9 +111,7 @@ def observations(records, sources, as_of):
         require(row["source_sha256"] == source["sha256"], "record", "raw source hash mismatch")
         require(row["document_date"] == source["document_date"], "record", "source date mismatch")
         require(isinstance(row.get("scope_raw"), str), "scope", "original scope cell required")
-        require(bool(row.get("fragments")) or (isinstance(row.get("locator"), str) and
-                bool(row["locator"].strip()) and isinstance(row.get("physical_page"), int) and
-                row["physical_page"] > 0), "locator", "original page/table locator required")
+        require(has_source_locator(row), "locator", "original page/table locator required")
         is_selected = row["snapshot_id"] in selected
         identity = digest([fold(row.get("name_raw") or ""), fold(row.get("address_raw") or ""),
                            fold(row.get("city") or ""), fold(row.get("state") or "")])

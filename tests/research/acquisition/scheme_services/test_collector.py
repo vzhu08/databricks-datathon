@@ -17,7 +17,8 @@ def record(s, tag="one", text="MRI; dialysis; orthopaedics; ICU", kind="campus_o
             "source_sha256": s["sha256"], "document_date": s["document_date"],
             "name_raw": "Synthetic Example Hospital", "address_raw": "1 Fictional Street",
             "city": "Example City", "state": "Delhi", "pin": "110001", "scope_raw": text,
-            "record_kind": kind, "fragments": [{"physical_page": 1, "table": 1}],
+            "record_kind": kind, "fragments": [{"physical_page": 1, "table": 1, "bbox": [0, 2, 20, 12],
+                                                 "cells": {"scope_raw": text}}],
             "scheme_id": None, "validity_raw": "synthetic date wording"}
 
 
@@ -73,6 +74,29 @@ class SchemeTests(unittest.TestCase):
         rows,_,_,_=observations([r],[s],'2026-11-22')
         self.assertEqual(rows[0]['record']['locator'],r['locator'])
         self.assertEqual(rows[0]['record']['validity_raw'],'synthetic date wording')
+
+    def test_unusable_pdf_and_manual_locators_are_rejected(self):
+        s = source()
+        row = record(s)
+        fragment = row["fragments"][0]
+        overrides = [{"fragments": value} for value in ("page 1", [{}], fragment, [None])]
+        for field, bad in (("physical_page", True), ("table", False), ("table", 0),
+                           ("bbox", [0, 0, 0, 5]), ("bbox", [0, 0, True, 5]),
+                           ("bbox", [0, 0, float("inf"), 5]), ("bbox", None)):
+            overrides.append({"fragments": [{**fragment, field: bad}]})
+        for page, locator in ((True, "row 1"), (0, "row 1"), ("1", "row 1"), (1, "   ")):
+            overrides.append({"fragments": [], "physical_page": page, "locator": locator})
+        for override in overrides:
+            with self.subTest(override=override), self.assertRaisesRegex(MatchingError, "locator"):
+                observations([{**row, **override}], [s], "2026-11-22")
+
+    def test_multi_page_fragments_preserved_verbatim(self):
+        s = source()
+        row = record(s)
+        fragments = [*row["fragments"], {**row["fragments"][0], "physical_page": 2}]
+        expected = copy.deepcopy(fragments)
+        rows, _, _, _ = observations([{**row, "fragments": fragments}], [s], "2026-11-22")
+        self.assertEqual(rows[0]["record"]["fragments"], expected)
 
     def test_full_occurrences_and_groups_preserved_without_clinical_promotion(self):
         s=source(); r=record(s)
