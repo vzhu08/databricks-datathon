@@ -44,6 +44,19 @@ The [routing and storm-surge plan](ROUTING_AND_SURGE_DEMO.md) adds a fictional l
 
 All new implementation, collection, dataset scouting and reporting must serve the full pinned national Virtue Foundation base. The acceptance denominator is 10,088 original facility rows, including the 11 repeated-ID pairs. Count geographically unknown and unsupported rows. Show coverage by state/UT and service. Regional source totals and sampled audits have their own denominators. Standalone local investigations and proposed state pilots are retired. [Plan](PLAN.md) · [National evidence task](https://github.com/vzhu08/databricks-datathon/issues/58)
 
+## National service evidence at the end of the collection sprint
+
+The five-edition ledger contains 9,140 observations. Across 10,088 original facility rows and 30,264 occurrence/service decisions, 186 decisions have an external lead and 30,078 have none in these sources. All 30,264 remain unconfirmed. The 332,653 historical NHSRC equipment records are available separately for campus linkage. [National ledger](https://github.com/vzhu08/databricks-datathon/pull/184) · [Final comparison and private readback](https://github.com/vzhu08/databricks-datathon/issues/168#issuecomment-7075015295)
+
+| Candidate decision | Dialysis | MRI | Trauma care | Total |
+| --- | ---: | ---: | ---: | ---: |
+| Final collection | 38 | 38 | 110 | 186 |
+| Additional over the prior mixed-source edition | 3 | 25 | 9 | 37 |
+| Repeated mentions from a single family or edition lineage | 31 | 16 | 98 | 145 |
+| Mentions from multiple families | 0 | 1 | 1 | 2 |
+
+The repeat and multiple-family rows overlap. Zero decisions have independently verified onsite service. Vincent owns campus linkage, source permissions and the aggregate comparison with original VF wording. D and L own receipt verification. The frozen 30-case audit has no human labels yet. Contact keys remain candidate identity evidence. Oliver closed the automatic-confirmation prototype for this release. [Validation plan](https://github.com/vzhu08/databricks-datathon/issues/161#issuecomment-7074972826) · [Equipment linkage](https://github.com/vzhu08/databricks-datathon/issues/208) · [Original wording](https://github.com/vzhu08/databricks-datathon/issues/209) · [Contact-key decision](https://github.com/vzhu08/databricks-datathon/pull/212)
+
 ## Synthetic intake and demo preparation
 
 The [intake assignment](https://github.com/vzhu08/databricks-datathon/issues/124) starts with a fictional presenting problem. The demo may pass a confirmed, current simulated care request to the urgency-aware finder. Escalation, unresolved safety questions and unsupported concerns stop ordinary routing. M owns the shared interface. P and Andrew reviewed it with Oliver. The [seven intake chats](https://github.com/vzhu08/databricks-datathon/issues/124#issuecomment-7074470969) own their assigned paths and tests. Oliver approved the [final interface](https://github.com/vzhu08/databricks-datathon/issues/124#issuecomment-7074495461) and [Andrew’s five consumer details](https://github.com/vzhu08/databricks-datathon/issues/124#issuecomment-7074616910) for implementation. M through R’s components and S’s independent audit are on main. Andrew’s real-engine UI passed offline browser acceptance on desktop and mobile. The published bundle contains 26 assessment states, including eight ready states, and 32 ready-state/origin finder answers. The longest scripted path asks one question. Each linked issue specifies its developer chat, paths, tests and handoff.
