@@ -117,6 +117,36 @@ screen tests need Streamlit and drive the real session store, interview reducer,
 handoff, with a scripted stand-in provider and invented statements. They say nothing about a real
 provider or about clinical accuracy.
 
+## Storm demo (the third screen)
+
+The switch at the top of the app has a third choice, **Storm demo (simulated)**. `storm_page.py`
+shows the accepted offline storm replay (`storm_ui/replay.html`) inside the hosted app.
+
+- **Same replay, same files.** The page folds `replay.html`, its two stylesheets, three fonts, two
+  scripts and the committed simulation outputs (`storm_ui/data/scenarios.js`) into one document
+  and shows it in a frame. Nothing is simulated, ranked or allocated again at run time.
+- **Nothing outside the app folder.** No network request, map key, warehouse or extra file route.
+  A deployment of `app/` alone has everything the page needs. If the replay files are missing the
+  page says so and shows nothing in their place.
+- **Everything on it is simulated**, and the page says so above the replay and inside it: the
+  scenario, the six campuses and where they are, the patients and their arrival minutes, the travel
+  times and the staffed slots.
+- **The numbers come from the fixture.** The line above the replay ("Nearest first served 7 of 8
+  ... Urgency-aware served 8 of 8 with 4 extra travel minutes" for the default storm, seed 17,
+  10-minute detour limit) is read from the committed replay. A test checks it against a fresh run
+  of `app.simulation` and against a count of the events.
+- **Apart from the patient visit and the facility search.** The page is drawn before either of them
+  runs. It reads and writes no patient state, sends nothing to an assessment provider and runs no
+  search. A visit that is open on Check symptoms is still there, unchanged, on return.
+- **What a presenter can do:** Play or Next, Back, Restart, Skip to the result (end of shift), change
+  the scenario or the detour limit, select a patient to read why each policy chose as it did, and
+  switch **Show as** to Text only for the same replay without maps. The offline page's links to its
+  sibling pages and its "Open replay file" control are left out, because the hosted app does not
+  serve those files. The switch at the top is the way back.
+
+Where the installed Streamlit has `st.iframe` (checked on 1.67) the frame is as tall as the
+replay. Older versions get a fixed frame that scrolls. Tests: `python -m unittest tests.storm_ui.test_storm_page`.
+
 ## Data mode
 
 The mode is named at the top of the screen (`Data: demonstration`, `Data: real records` or
@@ -189,7 +219,8 @@ facilities. Nothing here needs a Databricks account.
 | Data | Answers and replays computed ahead of time from invented records | `demo_facilities.json`, or the prepared table when configured |
 
 They share no code path at run time and their invented facilities differ, so do not present one
-as the other. The storm replay exists only in the offline pages.
+as the other. The one exception is the storm replay, which the Streamlit app also carries as its
+third screen (below).
 
 ### Start the Streamlit demonstration
 

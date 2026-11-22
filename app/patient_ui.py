@@ -203,10 +203,10 @@ def compose(environ=None):
     return service, PROVIDER_LABEL.format(endpoint=settings["endpoint"])
 
 
-def entry(st, other):
-    """The switch at the top of the app. The patient screen is the product and comes first; `other`
-    names the separate Find care screen."""
-    return st.radio("Screen", [PATIENT, other], horizontal=True, key="view", label_visibility="collapsed")
+def entry(st, *others):
+    """The switch at the top of the app. The patient screen is the product and comes first; `others`
+    name the separate screens after it (Find care, then the storm demo)."""
+    return st.radio("Screen", [PATIENT, *others], horizontal=True, key="view", label_visibility="collapsed")
 
 
 def plain(text):
