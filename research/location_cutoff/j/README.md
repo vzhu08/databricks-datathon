@@ -27,6 +27,8 @@ python -m research.location_cutoff.j.compare "$VF" "$OUT/outlines.jsonl" \
 python -m research.location_cutoff.j.buildings "$VF" "$PBF" \
   "$OUT/buildings.jsonl" "$OUT/buildings-summary.json"
 python -m research.location_cutoff.j.rollup "$OUT"
+python -m research.location_cutoff.j.named_addresses \
+  "$VF/occurrences.jsonl.gz" "$PBF" "$OUT/buildings.jsonl"
 python -m unittest discover -s tests/research/location_cutoff/j -v
 ```
 

@@ -24,6 +24,12 @@ def building(tags):
     return bool(tags.get("building") and tags["building"] not in INACTIVE_BUILDINGS)
 
 
+def printed_address(source):
+    fields = ("address_line1", "address_line2", "address_line3", "address_zipOrPostcode")
+    printed = ", ".join(source[k] for k in fields if source.get(k))
+    return {"premises_key": bool(printed), "premises_address": printed, "pin": pin_from(printed)}
+
+
 def evaluate(source, point, features, tree):
     """Return evidence flags and private candidate details; no point is adjudicated here."""
     x_scale = 111320 * math.cos(math.radians(point.y))
@@ -31,10 +37,8 @@ def evaluate(source, point, features, tree):
     bounds = box(point.x - RADIUS_M / x_scale, point.y - RADIUS_M / y_scale,
                  point.x + RADIUS_M / x_scale, point.y + RADIUS_M / y_scale)
     name = norm(source["name"])
-    printed = ", ".join(v for k in ("address_line1", "address_line2", "address_line3", "address_zipOrPostcode")
-                        if (v := source.get(k)))
-    pin = pin_from(printed)
-    address = {"premises_key": bool(printed), "premises_address": printed, "pin": pin}
+    address = printed_address(source)
+    pin = address["pin"]
     candidates = []
     for idx in tree.query(bounds):
         record = features[idx]
