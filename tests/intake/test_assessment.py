@@ -152,9 +152,13 @@ class AssessmentTests(unittest.TestCase):
     def test_unavailable_or_ambiguous_manifest_withholds_search_and_preserves_warnings(self):
         from app.intake.assessment import _load_reviewed_editions
         row = {"scenario_id": "example", "scenario_version": "1", "sha256": "a" * 64}
+        valid = {"schema_version": "intake.editions.v1", "editions": [row]}
+        duplicate_hash = json.dumps(valid).replace('"sha256":', '"sha256": "first", "sha256":')
         with TemporaryDirectory() as directory:
             path = Path(directory) / "pins.json"
-            for content in (None, "{", "null", json.dumps({"schema_version": "bad", "editions": [row]}),
+            for content in (None, "{", "null", duplicate_hash, json.dumps({**valid, "extra": True}),
+                            json.dumps({**valid, "editions": [dict(row, extra=True)]}),
+                            json.dumps({"schema_version": "bad", "editions": [row]}),
                             json.dumps({"schema_version": "intake.editions.v1", "editions": [row, row]})):
                 if content is not None:
                     path.write_text(content)

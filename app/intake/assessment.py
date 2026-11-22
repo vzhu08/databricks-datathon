@@ -48,14 +48,25 @@ _RATIONALE = {"kidney_symptom": "niddk_dialysis_plan", "dialysis_plan": "niddk_d
 _POLICY_SOURCE = "intake_synthetic_policy_v1"
 
 
+def _distinct_fields(pairs):
+    fields = dict(pairs)
+    if len(fields) != len(pairs):
+        raise ValueError("Duplicate key in reviewed scenario manifest")
+    return fields
+
+
 def _load_reviewed_editions(path):
     """Load release configuration once, independently of runtime scenario input."""
     try:
-        manifest = json.loads(path.read_bytes())
+        manifest = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_distinct_fields)
+        if type(manifest) is not dict or set(manifest) != {"schema_version", "editions"}:
+            return frozenset()
         if manifest["schema_version"] != "intake.editions.v1" or type(manifest["editions"]) is not list:
             return frozenset()
         pins = {}
         for row in manifest["editions"]:
+            if type(row) is not dict or set(row) != {"scenario_id", "scenario_version", "sha256"}:
+                return frozenset()
             identity = (row["scenario_id"], row["scenario_version"])
             digest = row["sha256"]
             if (not all(type(x) is str and x.strip() for x in identity) or identity in pins
@@ -64,7 +75,7 @@ def _load_reviewed_editions(path):
                 return frozenset()
             pins[identity] = digest
         return frozenset((*identity, digest) for identity, digest in pins.items())
-    except (OSError, ValueError, TypeError, KeyError):
+    except (OSError, ValueError, RecursionError):
         return frozenset()
 
 
