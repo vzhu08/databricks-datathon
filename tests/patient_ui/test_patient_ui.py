@@ -53,6 +53,17 @@ CATALOG = {"state": "awaiting_clarification", "question": {
     "selection": "multiple", "catalog": {"id": "invented-catalog", "edition": "edition-1"},
     "options": [{"id": "entry-1", "label": "Entry one"}, {"id": "entry-2", "label": "Entry two"}]}}
 STOP = {"state": "provider_stop", "guidance": "Invented stop guidance."}
+ASSESSOR = ("databricks-assessment-experimental", "databricks-gpt-oss-20b-assessment.v1")
+SAFETY = {"state": "awaiting_clarification", "continuation": "turn-0", "question": {
+    "id": "q-safety", "kind": "single", "prompt": "Invented warning-sign question?",
+    "options": [{"id": "yes", "label": "Yes"}, {"id": "no", "label": "No"}, {"id": "unsure", "label": "Unsure"}]}}
+SUGGESTED = {"state": "experimental_assessment", "guidance": "Invented suggested action.", "urgency": "consultation",
+             "uncertainty": "Invented statement of what is unresolved.",
+             "possible_causes": ["Invented possibility one", "Invented possibility two"],
+             "next_step": {"kind": "consultation", "specialty_code": None}}
+SUGGESTED_EMERGENCY = {"state": "experimental_assessment", "guidance": "Invented emergency action.",
+                       "urgency": "emergency_ambulance", "uncertainty": "Invented emergency uncertainty.",
+                       "possible_causes": [], "next_step": None}
 
 
 class Scripted:
@@ -60,15 +71,15 @@ class Scripted:
 
     identity = IDENTITY
 
-    def __init__(self, *replies):
-        self.replies, self.calls = list(replies), []
+    def __init__(self, *replies, identity=IDENTITY):
+        self.replies, self.calls, self.identity = list(replies), [], identity
 
     def assess(self, interview, *, continuation=None):
         self.calls.append({"interview": interview, "continuation": continuation})
         reply = self.replies.pop(0)
         if isinstance(reply, Exception):
             raise reply
-        return {"provider_id": IDENTITY[0], "provider_version": IDENTITY[1], **reply}
+        return {"provider_id": self.identity[0], "provider_version": self.identity[1], **reply}
 
 
 class WordingTests(unittest.TestCase):
@@ -254,6 +265,50 @@ class WordingTests(unittest.TestCase):
                     service, label = words.compose(environ)
                     self.assertIsNone(label)
                     self.assertIsNone(service._provider)
+
+    def test_the_assessment_is_composed_only_when_named_exactly_and_the_interview_call_is_unchanged(self):
+        environ = {**self.ON, "PATIENT_PROVIDER": "databricks-assessment-experimental"}
+        self.assertEqual(words.provider_mode(environ)["mode"], "databricks-assessment-experimental")
+        provider = Scripted(identity=ASSESSOR)
+        factory = mock.Mock(return_value=provider)
+        with mock.patch.object(words, "_databricks_factory", return_value=factory):
+            service, label = words.compose(environ)
+            factory.assert_called_once_with(endpoint="databricks-gpt-oss-20b", enabled=True, lane="demo",
+                                            demo_attempts=6, test_attempts=0, mode="assessment")
+            self.assertEqual(service._identity, ASSESSOR)
+            self.assertIn("experimental language-model assessment, not clinically validated", label)
+            self.assertTrue(words.assessment_on(environ, label))
+            self.assertFalse(words.assessment_on(environ, None))
+            factory.reset_mock()
+            service, label = words.compose(self.ON)  # the documentation interview: no mode argument at all
+            self.assertNotIn("mode", factory.call_args.kwargs)
+            self.assertFalse(words.assessment_on(self.ON, label))
+        for near in ("databricks-assessment", "Databricks-Assessment-Experimental", "databricks-assessment-experimental2"):
+            self.assertEqual(words.provider_mode({**self.ON, "PATIENT_PROVIDER": near})["mode"], "problem")
+
+    def test_an_experimental_assessment_is_worded_as_a_suggestion_and_never_a_diagnosis_or_a_likelihood(self):
+        self.assertEqual(words.step(self.view("experimental_assessment"), has_statement=True), "experimental_assessment")
+        lines = words.experimental_lines(self.view(**SUGGESTED, provider_id=ASSESSOR[0], provider_version=ASSESSOR[1]))
+        self.assertEqual(lines["heading"], "Suggested action: see a doctor")
+        self.assertFalse(lines["urgent"])
+        self.assertIn("not a referral or a doctor's order", lines["next_step"])
+        self.assertEqual(lines["causes"], SUGGESTED["possible_causes"])
+        self.assertIn("Suggested by databricks-assessment-experimental", lines["provenance"])
+        for urgency, urgent, emergency in (("emergency_ambulance", True, True), ("emergency", True, True),
+                                           ("consultation_24", True, False), ("consultation", False, False),
+                                           ("self_care", False, False), ("made-up", False, False)):
+            found = words.experimental_lines(self.view(**{**SUGGESTED_EMERGENCY, "urgency": urgency}))
+            self.assertEqual((found["urgent"], found["emergency"]), (urgent, emergency), urgency)
+            self.assertTrue(found["heading"].startswith("Suggested action: "))
+            self.assertIsNone(found["next_step"])
+        said = " ".join((words.EXPERIMENTAL_CONSENT, words.EXPERIMENTAL_RESULT, words.EXPERIMENTAL_CONSIDERED,
+                         words.EXPERIMENTAL_CAUSES, words.EXPERIMENTAL_NO_CAUSES, words.EXPERIMENTAL_NO_ROUTE,
+                         *words.EXPERIMENTAL_ACTION.values())).lower()
+        for claim in ("you have", "diagnosed", "confirmed diagnosis", "%", "probab", "likely", "certain", "will "):
+            self.assertNotIn(claim, said)
+        for must in ("experimental", "not a diagnosis", "not been clinically validated", "can be wrong",
+                     "not a referral", "no hospital"):
+            self.assertIn(must, said)
 
     def test_the_real_factory_is_the_one_named_in_the_provider_notes_and_stays_off_when_disabled(self):
         factory = words._databricks_factory()
@@ -464,6 +519,107 @@ class ScreenTests(unittest.TestCase):
         for call in factory.call_args_list:
             self.assertEqual(call.kwargs, {"endpoint": "databricks-gpt-oss-120b", "enabled": True, "lane": "demo",
                                            "demo_attempts": 3, "test_attempts": 0})
+
+    def assessment(self, provider):
+        os.environ.update(PATIENT_PROVIDER="databricks-assessment-experimental",
+                          PATIENT_PROVIDER_ENDPOINT="databricks-gpt-oss-20b", PATIENT_PROVIDER_DEMO_ATTEMPTS="6")
+        factory = mock.Mock(return_value=provider)
+        patcher = mock.patch.object(self.screen, "_databricks_factory", return_value=factory)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return factory
+
+    def test_an_experimental_assessment_is_announced_before_consent_and_shown_as_a_suggestion(self):
+        provider = Scripted(SAFETY, REVIEW, SUGGESTED, identity=ASSESSOR)
+        factory = self.assessment(provider)
+        app = self.begin(self.open(), age=40)
+        text = self.shown(app)
+        self.assertIn("experimental language\\-model assessment, not clinically validated", text)
+        self.assertIn(self.screen.EXPERIMENTAL_CONSENT, [warning.value for warning in app.warning])
+        self.assertEqual(provider.calls, [])  # nothing is sent before the agreement
+        app = self.press(app, "I agree. Send it for assessment")
+        self.assertEqual([radio.label for radio in app.radio if str(radio.key).startswith("pt-answer-")],
+                         ["Invented warning\\-sign question?"])
+        self.assertIn(self.screen.UNINTERPRETED, self.shown(app))
+        app = self.answer(self.answer(app, "no"), "confirm")
+        self.assertEqual(len(app.exception), 0)
+        text = self.shown(app)
+        self.assertIn("Experimental assessment", text)
+        self.assertIn(self.screen.EXPERIMENTAL_RESULT, [warning.value for warning in app.warning])
+        self.assertEqual([info.value for info in app.info], ["Suggested action: see a doctor"])
+        self.assertEqual(len(app.error), 0)
+        for shown in ("Invented suggested action", "Possible causes, not a diagnosis", "Invented possibility one",
+                      "Invented possibility two", "What is uncertain", "Invented statement of what is unresolved",
+                      self.screen.EXPERIMENTAL_CAUSES, self.screen.EXPERIMENTAL_CONSIDERED,
+                      self.screen.EXPERIMENTAL_NO_ROUTE, "not a referral or a doctor's order",
+                      "Suggested by databricks\\-assessment\\-experimental"):
+            self.assertIn(shown, text)
+        # The legacy sentence does not sit beside an actual differential, and nothing offers a hospital.
+        self.assertNotIn(self.screen.UNINTERPRETED, text)
+        self.assertNotIn("Where to go", text)
+        labels = [button.label for button in app.button]
+        self.assertNotIn("I have read this. Check for a reviewed hospital", labels)
+        self.assertEqual(sorted(labels), ["Change my description", "Start over", "Withdraw my agreement"])
+        calls = len(provider.calls)
+        app = app.run()  # a redraw repeats nothing
+        self.assertEqual(len(provider.calls), calls)
+        # Changing the description withdraws the result and asks for agreement again.
+        app = self.press(app, "Change my description")
+        app.text_area(key="pt-description-0").input(STATEMENT + " Invented addition.")
+        app = self.press(app, "Save and continue")
+        text = self.shown(app)
+        self.assertNotIn("Invented possibility one", text)
+        self.assertNotIn("Experimental assessment", text)
+        self.assertIn("I agree. Send it for assessment", [button.label for button in app.button])
+        self.assertTrue(all(call.kwargs.get("mode") == "assessment" for call in factory.call_args_list))
+
+    def test_an_experimental_emergency_suggestion_is_an_error_banner_with_the_emergency_line_and_no_hospital(self):
+        provider = Scripted(SAFETY, SUGGESTED_EMERGENCY, identity=ASSESSOR)
+        self.assessment(provider)
+        app = self.press(self.begin(self.open(), age=40), "I agree. Send it for assessment")
+        app = self.answer(app, "unsure")
+        self.assertEqual([error.value for error in app.error], ["Suggested action: call an ambulance now"])
+        text = self.shown(app)
+        self.assertGreaterEqual(text.count("call 112"), 2)  # the standing line and the one beside the result
+        for shown in ("Invented emergency action", self.screen.EXPERIMENTAL_NO_CAUSES, "Invented emergency uncertainty",
+                      self.screen.EXPERIMENTAL_NO_ROUTE):
+            self.assertIn(shown, text)
+        self.assertIn(self.screen.EXPERIMENTAL_RESULT, [warning.value for warning in app.warning])
+        self.assertNotIn("Where to go", text)
+        self.assertNotIn("I have read this. Check for a reviewed hospital", [button.label for button in app.button])
+        # Start over leaves nothing of the result behind.
+        app = self.press(app, "Start over")
+        self.assertNotIn("Invented emergency action", self.shown(app))
+
+    def test_the_teams_own_assessment_provider_escalates_a_warning_sign_with_no_model_call(self):
+        from patient_intake.providers.databricks_assessment import DatabricksAssessmentProvider
+        transport = mock.Mock()
+        transport.request.side_effect = AssertionError("a model request was made")
+        provider = DatabricksAssessmentProvider(endpoint="databricks-gpt-oss-20b", lane="demo", enabled=True,
+                                                timeout=5, transport=transport)
+        self.assertEqual(provider.identity, ASSESSOR)
+        self.assessment(provider)
+        app = self.press(self.begin(self.open(), age=40), "I agree. Send it for assessment")
+        self.assertEqual(len(app.exception), 0)
+        app = self.answer(app, "yes")
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual([error.value for error in app.error], ["Suggested action: call an ambulance now"])
+        text = self.shown(app)
+        self.assertIn("Experimental assessment", text)
+        self.assertIn(self.screen.EXPERIMENTAL_NO_CAUSES, text)
+        self.assertNotIn("Where to go", text)
+        transport.request.assert_not_called()
+
+    def test_the_interview_mode_and_other_providers_never_get_the_experimental_wording(self):
+        provider = self.provider(REVIEW, DONE)
+        app = self.press(self.begin(self.open()), "I agree. Send it for assessment")
+        self.assertNotIn(self.screen.EXPERIMENTAL_CONSENT, [warning.value for warning in app.warning])
+        app = self.answer(app, "confirm")
+        text = self.shown(app)
+        self.assertNotIn("Experimental assessment", text)
+        self.assertIn(self.screen.UNINTERPRETED, text)
+        self.assertIn("Where to go", text)
+        self.assertEqual(len(provider.calls), 2)
 
     def test_an_urgent_result_is_shown_at_once_with_no_hospital_check(self):
         self.provider(URGENT)
