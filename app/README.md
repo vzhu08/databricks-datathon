@@ -273,6 +273,29 @@ what the screen does when the search finds a matching record: it names no facili
 
 ![Streamlit Find care screen with the band "Data: real records", answering "No facility is recommended from the real records yet. Records within 50 km mention dialysis, but none has been reviewed and approved as a place to send a patient." No facility name, record text or link is shown. Mocked warehouse, invented facilities](../docs/demo/screenshots/05-streamlit-real-records-mocked.png)
 
+## What the answer does not tell you
+
+Every answer carries a short "What this does not tell you" list, worded in `find_care.limits`. It
+is there because a reader in a hurry will read more into an answer than the search knows:
+
+| Risk of misreading | What the screen says |
+| --- | --- |
+| First in the list means best | "This is the nearest match, not a judgement that it is the best place. The search does not compare quality, cost or whether a place is free." The backups carry "Listed nearest first. The order says nothing about quality." |
+| Distance means access | "The distance is a straight line. The journey by road can be much longer." |
+| The record is current | "The record carries no date here. The service may have changed since it was written." |
+| A department or a specialist is the service | When only related mentions exist: "A kidney department or a kidney specialist is not a working dialysis unit." (MRI and trauma care have their own line.) |
+| Not mentioned means not offered | When nothing matches: "No record within 50 km mentions dialysis. That is not the same as no facility offering it: the records are incomplete." |
+
+The lines are fixed wording with no facility field in them, so they are shown on real records too.
+The referral note ends with a one-line version.
+
+**Location warning (a slot, switched off).** A result card may one day carry a reviewed
+`location_warning` (a list of reason codes from `find_care.LOCATION_CHECKS`). The screen would
+then show "Check the address" under that facility and in the referral note. No search supplies the
+field today and it is not in the search contract, so nothing is shown. Connecting it needs a
+reviewed data source and a contract change, which are Oliver's decisions. A warning never changes
+the order: the screen words what the search returns.
+
 ## Checks
 
 ```

@@ -36,6 +36,27 @@ HOW_WITHHELD = (
     "reviewed the service, the campus and the right to show record text for any facility, so the "
     "screen names none, shows no record text or links, and offers no referral note."
 )
+# What an answer does not show. Said beside every answer, because the search ranks by distance alone,
+# measures in a straight line, and reads records that carry no date here.
+NEAREST_NOT_BEST = ("This is the nearest match, not a judgement that it is the best place. The search does not "
+                    "compare quality, cost or whether a place is free.")
+STRAIGHT_LINE = "The distance is a straight line. The journey by road can be much longer."
+NO_DATE = "The record carries no date here. The service may have changed since it was written."
+UNCHECKED_CLAIM = "A mention in a record is an unchecked claim with no date here. It may be out of date."
+# A department or a specialist is not the service itself.
+NOT_THE_SERVICE = {
+    "dialysis": "A kidney department or a kidney specialist is not a working dialysis unit.",
+    "mri": "A radiology department or a radiologist is not a working MRI scanner.",
+    "trauma_care": "An emergency room or a bone surgeon is not a trauma service.",
+}
+# Reason codes a reviewed location check may one day attach to a result card as `location_warning`.
+# A slot: no search supplies the field yet, so nothing is shown until one does.
+LOCATION_CHECKS = {
+    "no_building_nearby": "no building is mapped near its map pin",
+    "far_from_town": "its map pin is far from the town in its address",
+    "far_from_pin_area": "its map pin is far from its PIN code area",
+    "shared_point": "it shares its map pin with an unrelated facility",
+}
 DATA_SETTING = "FIND_CARE_DATA"
 WAREHOUSE_SETTINGS = {
     "DATABRICKS_WAREHOUSE_ID": "Add the SQL warehouse resource to this app.",
@@ -240,6 +261,32 @@ def place_words(location):
     return f"{location['latitude']:.4f}, {location['longitude']:.4f}"
 
 
+def location_warning(codes):
+    """Words for a location warning on one result card, or None when the card carries none."""
+    if not codes:
+        return None
+    codes = [codes] if isinstance(codes, str) else list(codes)
+    reasons = [LOCATION_CHECKS[code] for code in codes if code in LOCATION_CHECKS]
+    return ("The map pin for this facility may be wrong: " + (", and ".join(reasons) or "it failed a location check")
+            + ". Confirm the address by phone. The distance shown may be off.")
+
+
+def limits(status, service, radius_km, response):
+    """What the answer does not tell the reader, as plain lines. Carries no facility field."""
+    phrase = SERVICE_PHRASE.get(service, service)
+    related = NOT_THE_SERVICE.get(service, "A department or a specialist is not the service itself.")
+    if status == "ok":
+        return [NEAREST_NOT_BEST, STRAIGHT_LINE, NO_DATE]
+    if status == "needs_confirmation":
+        return [related, STRAIGHT_LINE, NO_DATE]
+    if status == "withheld":
+        return ([] if response.get("evidence") == "direct" else [related]) + [UNCHECKED_CLAIM]
+    if status == "no_match":
+        return [f"No record within {radius_km} km mentions {phrase}. That is not the same as no facility offering "
+                "it: the records are incomplete."]
+    return []
+
+
 def _distance(km, approximate):
     # When the starting point is approximate the screen says so once, in approximate_note.
     if km < 0.1:
@@ -260,6 +307,7 @@ def _card(card, approximate):
         "strength": card["evidence_strength"],
         "sources": list(card.get("record_source_urls") or []),
         "availability": card.get("availability"),
+        "location_warning": location_warning(card.get("location_warning")),
     }
 
 
@@ -278,6 +326,7 @@ def present(response, service, location, radius_km):
         "leads": leads,
         "choices": list(response.get("location_choices", [])),
         "why": None, "caveat": None, "next_step": None,
+        "limits": limits(status, service, radius_km, response),
         "approximate_note": ("Distances are measured from the middle of the facilities recorded in that "
                              "place, so they are approximate.") if approximate and (direct or leads) else None,
     }
@@ -336,12 +385,16 @@ def referral_note(view, synthetic):
         if view["backups"]:
             lines.append("If it cannot take the patient: " + "; then ".join(
                 f"{card['name']} ({card['distance_km']:.1f} km)" for card in view["backups"]))
+        if top["location_warning"]:
+            lines.append("Check the address: " + top["location_warning"])
         if view["caveat"]:
             lines.append("Before travelling: " + view["caveat"])
+        lines.append("Limits: nearest match, not a quality judgement. Straight-line distance. Undated record.")
     elif view["status"] == "needs_confirmation":
         lines.append(view["headline"])
         lines.append("Phone first: " + "; ".join(
             f"{card['name']} ({card['distance_km']:.1f} km), record says \"{card['excerpt']}\"" for card in view["leads"]))
+        lines.append("Limits: " + view["limits"][0] + " Straight-line distance. Undated record.")
     else:
         lines += [view["headline"], view["subline"]]
     return "\n".join(lines)
