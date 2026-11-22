@@ -1,5 +1,11 @@
 # Independent intake audit
 
+At corrected candidate `647023c131b4dc20973a2fa9e888eda1d718f4b4`, the same trusted-story conflict returned `invalid_input`, no care request, no finder result and zero ranker calls. All three valid controls continued to rank the expected service. Of the 52 frozen cases, 49 passed and three remain unrepresentable. There were zero state mismatches or unsafe recommendations among the 49 measured cases, zero forbidden ranker calls among the 46 expected-blocked final phases, and zero external attempts. The report records each observation and the separate test manifest used for the three pristine controls. [Independent result](results/647023c.independent.json)
+
+The published manifest contained exactly R’s seven reviewed editions. The seven journeys matched their expected states and results across 18 transitions, including five ranked and 13 blocked transitions. All three shipped fixture and call-count checks passed with zero external attempts. [Published release result](results/647023c.shipped.json)
+
+## Original failure
+
 The independent replay at `e281752cca1673b199cfa35748d5cdde2a810724` found one routine MRI recommendation that the frozen policy expected to withhold. Of 52 fictional cases, 49 executed, 48 passed, one failed and three could not run through the public interface. The [case report](results/e281752.v1.json) contains every observation. The [packet receipt](https://github.com/vzhu08/databricks-datathon/issues/133#issuecomment-7074486311) and [adapter receipt](https://github.com/vzhu08/databricks-datathon/issues/133#issuecomment-7074681128) predate candidate execution.
 
 | Observation | Result |
@@ -40,3 +46,15 @@ The runner loads committed candidate files into a temporary directory. It measur
 For a candidate implementing [the scenario integrity fix](https://github.com/vzhu08/databricks-datathon/issues/203#issuecomment-7074765380), add `--independent-controls` to the audit command. The runner installs the [fixed three-entry manifest](frozen/control_editions.v1.json) in the temporary candidate tree before importing the public engine. Each report identifies the published and installed manifest digests. Run the seven shipped journeys separately with the published manifest and their own expected outcomes.
 
 S prepared the three entries before replay from the pristine edition-1 control descriptions. Each uses the fixed story “Fictional adult for a software demonstration.” with empty script-supplied answers. Its matching simulated authority, routine urgency and explicit empty capability lists are bound to the same scenario ID and version. The complete canonical scenario determines its digest. The audit runner installs the same file for the entire replay. Challenge steps cannot add entries.
+
+
+To reproduce the corrected candidate results, use two fresh report paths. The independent runner exits 1 because three cases remain `NOT_RUN`. The JSON summary distinguishes them from failures.
+
+```sh
+python3 -E -s -B tests/intake_audit/run.py \
+  --repo "$CANDIDATE_REPO" --sha 647023c131b4dc20973a2fa9e888eda1d718f4b4 \
+  --packet tests/intake_audit/frozen/cases.v1.json \
+  --driver tests/intake_audit/frozen/driver_v1.py --independent-controls --report "$INDEPENDENT_REPORT"
+python3 -E -s -B tests/intake_audit/run_shipped.py \
+  --repo "$CANDIDATE_REPO" --sha 647023c131b4dc20973a2fa9e888eda1d718f4b4 --report "$SHIPPED_REPORT"
+```
