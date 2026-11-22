@@ -122,7 +122,7 @@ class ScreenTests(unittest.TestCase):
         import patient_ui
         import storm_page as page
         app = self.open()
-        self.assertEqual(self.switch(app).options, ["Check symptoms", "Find care (demonstration)", page.STORM])
+        self.assertEqual(self.switch(app).options, ["Check symptoms", "Find care", page.STORM])
         self.assertIn("simulated", page.STORM)
         with mock.patch.object(patient_ui, "compose", side_effect=AssertionError("patient code ran")), \
                 mock.patch.object(patient_ui, "render", side_effect=AssertionError("patient screen drawn")), \
@@ -144,7 +144,7 @@ class ScreenTests(unittest.TestCase):
             app = app.run()  # a redraw is the same page again
             self.assertEqual(len(app.get("iframe")), 1)
         # Both other screens still open afterwards, and neither carries the replay.
-        app = self.go(app, "Find care (demonstration)")
+        app = self.go(app, "Find care")
         self.assertEqual([title.value for title in app.title], ["Find care"])
         self.assertEqual(len(app.get("iframe")), 0)
         app = self.go(app, "Check symptoms")

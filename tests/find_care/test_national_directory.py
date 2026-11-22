@@ -147,7 +147,8 @@ class ScreenTests(unittest.TestCase):
             app = AppTest.from_file(str(self.source / "app.py"), default_timeout=30).run()
             self.assertFalse(app.exception, app.exception)
             switch = app.radio(key="view")
-            app = switch.set_value(switch.options[1]).run()
+            app = switch.set_value("Find care").run()
+            app = app.radio(key="lookup_source").set_value("Simulated scenarios").run()
         self.assertFalse(app.exception, app.exception)
         return app
 

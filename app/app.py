@@ -401,7 +401,9 @@ st.title("Find care")
 lookup_modes = ["Public facility evidence"]
 if DEMO:
     lookup_modes.append("Simulated scenarios")
-lookup_mode = st.radio("Find care mode", lookup_modes, horizontal=True)
+elif DATA["mode"] in ("warehouse", "setup"):
+    lookup_modes.append("Private warehouse lookup")
+lookup_mode = st.radio("Find care mode", lookup_modes, horizontal=True, key="lookup_source")
 if lookup_mode == "Public facility evidence":
     st.caption("Search the reviewed public-source collection by city and service. Coverage is limited.")
     place = st.text_input("City", value="Pune", max_chars=120)
