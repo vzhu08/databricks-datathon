@@ -38,6 +38,10 @@ accuracy and onsite service status are outside its denominators.
 
 Use Python with the pinned optional packages. Inputs and outputs below are
 private working paths. The November extract is a reproducible working cache.
+The comparison verifies the frozen extract SHA-256
+`c62d1841d5fc2133c32f8c5541a44becd54f5337bbaace4e448264a39fcb8920`
+before parsing it or writing results. This pin belongs to the #221 issuer
+freeze and #111 PBF editions above.
 
 ```sh
 python -m pip install -r research/acquisition/issuer_campus_geometry/requirements.txt

@@ -2,6 +2,7 @@
 import argparse
 from collections import Counter, defaultdict
 import gzip
+from hashlib import sha256
 import json
 import math
 from pathlib import Path
@@ -17,6 +18,7 @@ from research.acquisition.osm_services.pbf import file_digest
 from .scan import FREEZE_SHA, PBF_SHA, eligible, issuer_rows, names, norm
 
 RADIUS_M = 300
+PBF_EXTRACT_SHA = "c62d1841d5fc2133c32f8c5541a44becd54f5337bbaace4e448264a39fcb8920"
 POINT_REPEAT_M = 1
 NEAR_POINT_M = 10
 OUTCOMES = (
@@ -250,7 +252,15 @@ def baseline(input_dir):
             "input_sha256": BASELINE_PINS, "mutations": 0, "new_vf_links_computed": False}
 
 
+def load_pinned_extract(path):
+    raw = path.read_bytes()
+    if sha256(raw).hexdigest() != PBF_EXTRACT_SHA:
+        raise ValueError("Unexpected frozen India PBF extraction digest")
+    return json.loads(raw)
+
+
 def report(freeze, hot, pbf_path, baseline_dir, out):
+    pbf = load_pinned_extract(pbf_path)
     rows = issuer_rows(freeze)
     # Bucket issuer points, so a nationwide archive scan tests each feature against
     # all names but only runs exact distances for plausible local bounding boxes.
@@ -263,7 +273,6 @@ def report(freeze, hot, pbf_path, baseline_dir, out):
         point = Point(p[0]["longitude"], p[0]["latitude"]) if p else None
         by_id[index] = row, branch, point
     hot_rows, _, _, _, _ = load_hot(hot)
-    pbf = json.loads(pbf_path.read_text())
     candidates = defaultdict(list)
     scanned = Counter()
     for features in (hot_features(hot_rows), pbf_features(pbf)):
@@ -313,7 +322,7 @@ def report(freeze, hot, pbf_path, baseline_dir, out):
         availability_groups[availability][row["outcome"]] += 1
     summary = {
         "source_pins": {"issuer_freeze": FREEZE_SHA, "hot_zip": FROZEN_SHA256,
-                        "pbf": PBF_SHA, "pbf_extract": file_digest(pbf_path)},
+                        "pbf": PBF_SHA, "pbf_extract": PBF_EXTRACT_SHA},
         "issuer_listings": len(rows),
         "with_eligible_address": sum(bool(r["premises_key"]) for r in rows),
         "with_numeric_point": sum(bool(r["points"]) for r in rows),

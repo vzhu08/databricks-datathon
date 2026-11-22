@@ -1,4 +1,7 @@
 import importlib.util
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 
 if any(importlib.util.find_spec(name) is None for name in ("osmium", "shapely")):
@@ -7,7 +10,7 @@ if any(importlib.util.find_spec(name) is None for name in ("osmium", "shapely"))
 from shapely.geometry import Point, Polygon
 
 from research.acquisition.issuer_campus_geometry.compare import (
-    OUTCOMES, address_matches, classify, match_feature, relation_geometry,
+    OUTCOMES, address_matches, classify, match_feature, relation_geometry, report,
 )
 from research.acquisition.issuer_campus_geometry.scan import names, norm
 
@@ -30,6 +33,17 @@ def box(x1, x2):
 
 
 class GeometryControls(unittest.TestCase):
+    def test_changed_but_valid_extraction_is_rejected_before_comparison(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            extract = root / "extract.json"
+            out = root / "result"
+            extract.write_text(json.dumps({"points": {}, "ways": {}, "relations": {},
+                                           "member_ways": {}, "coordinates": {}, "extraction": {}}))
+            with self.assertRaisesRegex(ValueError, "Unexpected frozen India PBF extraction digest"):
+                report(root / "freeze", root / "hot.zip", extract, root / "baseline", out)
+            self.assertFalse(out.exists())
+
     def test_branch_swap_same_postal_code_is_not_exact_agreement(self):
         source = row()
         correct = {"name": "Example Hospital", "addr:housenumber": "12",
