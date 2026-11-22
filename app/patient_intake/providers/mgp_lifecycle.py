@@ -68,9 +68,10 @@ class SandboxSession:
 class AnonymousSurvey:
     """Own exactly one create chain. Retain verified IDs until disposal succeeds."""
 
-    def __init__(self, session, *, budget):
+    def __init__(self, session, *, budget, reservation=None):
         self._session = session
         self._budget = budget
+        self._reservation = reservation
         self._owned = {}
         self._started = False
         self._ready = False
@@ -122,17 +123,25 @@ class AnonymousSurvey:
                 expected_binding = body.copy()
                 if resource == "surveys" and evidence:
                     body["evidence"] = evidence
-                reply = self._session.request("POST", _ROOT + resource, payload=body, encounter=self._budget)
-                if reply.status != "received":
-                    self._unknown_create = reply.status not in _NO_CREATE
-                    return reply.status if reply.status != "empty" else "invalid_response"
-                data = reply.data
-                if (reply.http_status != 201 or not _identifier(data.get("id"), _UUID)
-                        or any(data.get(k) != v for k, v in expected_binding.items())
-                        or (resource == "users" and any(data.get(k) for k in ("email", "phone")))):
-                    self._unknown_create = True
-                    return "invalid_response"
-                self._owned[resource] = data["id"]
+                attempt = self._reservation.admit_create(resource) if self._reservation else None
+                outcome, identifier = "unknown", None
+                try:
+                    reply = self._session.request("POST", _ROOT + resource, payload=body, encounter=self._budget)
+                    if reply.status != "received":
+                        self._unknown_create = reply.status not in _NO_CREATE
+                        outcome = "unknown" if self._unknown_create else "not_created"
+                        return reply.status if reply.status != "empty" else "invalid_response"
+                    data = reply.data
+                    if (reply.http_status != 201 or not _identifier(data.get("id"), _UUID)
+                            or any(data.get(k) != v for k, v in expected_binding.items())
+                            or (resource == "users" and any(data.get(k) for k in ("email", "phone")))):
+                        self._unknown_create = True
+                        return "invalid_response"
+                    outcome, identifier = "created", data["id"]
+                    self._owned[resource] = identifier
+                finally:
+                    if self._reservation:
+                        self._reservation.settle_create(attempt, outcome=outcome, resource_id=identifier)
             self._ready = True
             return "created"
 
