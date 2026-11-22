@@ -11,11 +11,12 @@ from tempfile import TemporaryDirectory
 from research.matching.common import canonical, file_digest
 from research.matching.national import NO_STATE, NOT_A_STATE, STATES
 
-from . import inputs, model, peer_methods
+from . import geometry, inputs, model, peer_methods
 from .judges import pin, write
 
 ISSUE = f"{inputs.ISSUES}/239"
 EDITION = "issue-239-national-facility-baseline-v1"
+GEOMETRY_EDITION = "issue-239-national-facility-baseline-v2"
 AUDIENCE = "Four named Datathon research readers in the private intake"
 METHOD_RECEIPTS = {
     "operator_source_first": f"{inputs.ISSUES}/232#issuecomment-7076268874",
@@ -156,7 +157,7 @@ def summarize(originals, contexts, batches, by_method, postal_profile):
     return aggregate, union
 
 
-def build(root, pilot, private_target, release_target, extensions=(), method_receipts=None):
+def build(root, pilot, private_target, release_target, extensions=(), method_receipts=None, geometry_dir=None):
     if private_target.exists() or release_target.exists():
         raise FileExistsError("Use new private and release directories for a new run")
     private_target.parent.mkdir(parents=True, exist_ok=True)
@@ -180,6 +181,11 @@ def build(root, pilot, private_target, release_target, extensions=(), method_rec
         by_method = {b.method: model.link_outcomes(b, originals) for b in batches}
         report, combined = summarize(originals, contexts, batches, by_method, postal_profile)
         report["aggregate_only_comparators"] = comparators
+        geometry_rows, geometry_report = (geometry.verify(root, geometry_dir, issuer)
+                                          if geometry_dir is not None else ([], None))
+        if geometry_report is not None:
+            report["edition"] = GEOMETRY_EDITION
+            report["issuer_to_map_comparison"] = geometry_report
 
         payload_files = {
             name: write_rows(private / name, rows)
@@ -197,19 +203,23 @@ def build(root, pilot, private_target, release_target, extensions=(), method_rec
                     for name, (_, reverse) in by_method.items() for key, r in reverse.items()),
             }.items()
         }
+        if geometry_report is not None:
+            geometry_member = "issuer-geometry-associations.jsonl"
+            payload_files[geometry_member] = write_rows(private / geometry_member, geometry_rows)
         baseline = private / "baseline-decisions.jsonl.gz"
         shutil.copyfile(decisions, baseline)
         model.need(file_digest(baseline) == file_digest(decisions), "decisions must remain byte-identical")
         payload_files[baseline.name] = {**pin(baseline), "records": report["population"]["frozen_decisions"]}
         write(release / "aggregate.json", report)
         write(release / "manifest.json", {
-            "edition": EDITION, "issue": ISSUE, "sharing_scope": AUDIENCE,
+            "edition": report["edition"], "issue": ISSUE, "sharing_scope": AUDIENCE,
             "publisher": "Vincent, Datathon national evidence reconciliation",
             "grain": "National occurrence coverage, per-method source premises, source claims, geography and service margins",
             "join_fields_private": {"vf": ["occurrence_key", "original payload hash"],
                                     "source": ["source record ID", "premises ID", "claim ID", "producer locator"]},
             "inputs": {"frozen_vf": frame_pin, "postal": postal_profile,
-                       "methods": {b.method: b.inventory for b in batches}, "aggregate_only_comparators": comparators},
+                       "methods": {b.method: b.inventory for b in batches}, "aggregate_only_comparators": comparators,
+                       "issuer_geometry": None if geometry_report is None else geometry_report["row_input"]},
             "custody": {
                 "copied_to_this_edition": "Aggregate report and manifest. Owner readback is appended by the Volume writer.",
                 "reused_team_rows": "Exact authorized VF/India Post Delta v0 and input editions referenced under inputs.",
@@ -218,7 +228,7 @@ def build(root, pilot, private_target, release_target, extensions=(), method_rec
                 "private_disposition": "Working rows preserve upstream scope. New joined outputs remain private; this receipt does not stage or expand access to them.",
             },
             "checks": report["population"],
-            "builder_files": {p.name: pin(p) for p in (Path(__file__), Path(inputs.__file__), Path(model.__file__), Path(peer_methods.__file__))},
+            "builder_files": {p.name: pin(p) for p in (Path(__file__), Path(inputs.__file__), Path(model.__file__), Path(peer_methods.__file__), Path(geometry.__file__))},
             "files": {"aggregate.json": {**pin(release / "aggregate.json"), "records": 1}},
         })
         private.rename(private_target)
@@ -233,10 +243,12 @@ def main():
     parser.add_argument("--private-out", type=Path, required=True)
     parser.add_argument("--release-out", type=Path, required=True)
     parser.add_argument("--method-receipts", type=Path, help="directory with the verified A0 and K peer editions")
+    parser.add_argument("--issuer-geometry", type=Path, help="directory with the verified #234 issuer geometry projection")
     parser.add_argument("--packet", nargs=2, action="append", default=[], metavar=("MANIFEST", "SHA256"))
     args = parser.parse_args()
     report = build(args.data_root.resolve(), args.pilot.resolve(),
-                   args.private_out.resolve(), args.release_out.resolve(), args.packet, args.method_receipts)
+                   args.private_out.resolve(), args.release_out.resolve(), args.packet, args.method_receipts,
+                   args.issuer_geometry)
     print(json.dumps({"population": report["population"], "combined": report["combined"],
                       "methods": {name: row["coverage"] for name, row in report["methods"].items()},
                       "postal": report["postal_geography_only"]["occurrence_dispositions"]}, sort_keys=True))
