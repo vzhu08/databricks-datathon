@@ -44,10 +44,14 @@ def _parse(value):
 class DatabricksInterviewProvider:
     """Direct M provider. M owns consent, issuance, CAS and revocation; Q validates answers."""
 
+    _provider_id = "databricks-experimental"
+    _version_suffix = "-interview.v1"
+    _initial_questions = 0
+
     def __init__(self, *, endpoint, transport, enabled=False, lane="demo", timeout=5):
         if endpoint not in _MODELS or lane not in _PROCESS_BUDGETS:
             raise ValueError("invalid experimental provider configuration")
-        self.identity = ("databricks-experimental", endpoint + "-interview.v1")
+        self.identity = (self._provider_id, endpoint + self._version_suffix)
         self._enabled = enabled is True
         self._lane = lane
         self._chat = DatabricksChatProbe(endpoint=endpoint, transport=transport, enabled=enabled,
@@ -84,39 +88,13 @@ class DatabricksInterviewProvider:
         if continuation is None:
             if data["answers"] or data["patient_evidence"]:
                 return self._reply("unsupported", reason="unsupported_correction")
-            obj, failure = self._model(_EXTRACT, {"description": source})
-            if failure:
-                return failure
-            if type(obj) is not dict or set(obj) != {"topic", "observations"} or obj["topic"] not in _TOPICS:
-                raise ValueError
-            observations = obj["observations"]
-            if type(observations) is not list or len(observations) > 3:
-                raise ValueError
-            if not observations:
-                return self._stop("There was insufficient source evidence to continue.")
-            spans = []
-            for item in observations:
-                if type(item) is not dict or set(item) != {"quote", "presence", "temporality"}:
-                    raise ValueError
-                quote = item["quote"]
-                if (type(quote) is not str or not quote.strip() or len(quote) > 240 or not quote.isprintable()
-                        or quote not in {line.strip() for line in source.splitlines()}
-                        or source.count(quote) != 1 or item["presence"] not in ("present", "absent", "unknown")
-                        or item["temporality"] not in ("current", "historical", "unknown")):
-                    raise ValueError
-                start = source.index(quote)
-                end = start + len(quote)
-                if any(start < s[1] and s[0] < end for s in spans):
-                    raise ValueError
-                spans.append([start, end, item["presence"], item["temporality"]])
-            plan = dict(spans=spans, topic=obj["topic"], nonce=secrets.token_hex(8))
-            return self._issue(data, plan, 0)
+            return self._start(data)
 
         # Authenticate the previous issuance and the exact prior Q snapshot.
         plan, pos, digest = self._open(continuation)
-        reviewing = pos < len(plan["spans"])
+        reviewing = 0 <= pos < len(plan["spans"])
         answers, reviews = data["answers"], data["patient_evidence"]
-        if len(answers) != pos + 1 or len(reviews) != min(pos + 1, len(plan["spans"])):
+        if len(answers) != self._initial_questions + pos + 1 or len(reviews) != min(pos + 1, len(plan["spans"])):
             raise ValueError
         prior = dict(data, answers=answers[:-1], patient_evidence=reviews[:-1] if reviewing else reviews)
         if digest != hashlib.sha256(_bytes(prior)).hexdigest():
@@ -138,9 +116,49 @@ class DatabricksInterviewProvider:
         selected = row["answer"]
         if type(selected) is not list or len(selected) != 1 or selected[0] not in [o["id"] for o in expected["options"]]:
             raise ValueError
+        return self._after_choice(data, plan, pos, selected[0])
+
+    def _start(self, data):
+        return self._extract(data)
+
+    def _extract(self, data):
+        source = data["source"]["description"]
+        obj, failure = self._model(_EXTRACT, {"description": source})
+        if failure:
+            return failure
+        if type(obj) is not dict or set(obj) != {"topic", "observations"} or obj["topic"] not in _TOPICS:
+            raise ValueError
+        observations = obj["observations"]
+        if type(observations) is not list or len(observations) > 3:
+            raise ValueError
+        if not observations:
+            return self._stop("There was insufficient source evidence to continue.")
+        spans = []
+        for item in observations:
+            if type(item) is not dict or set(item) != {"quote", "presence", "temporality"}:
+                raise ValueError
+            quote = item["quote"]
+            if (type(quote) is not str or not quote.strip() or len(quote) > 240 or not quote.isprintable()
+                    or quote not in {line.strip() for line in source.splitlines()}
+                    or source.count(quote) != 1 or item["presence"] not in ("present", "absent", "unknown")
+                    or item["temporality"] not in ("current", "historical", "unknown")):
+                raise ValueError
+            start = source.index(quote)
+            end = start + len(quote)
+            if any(start < s[1] and s[0] < end for s in spans):
+                raise ValueError
+            spans.append([start, end, item["presence"], item["temporality"]])
+        plan = dict(spans=spans, topic=obj["topic"], nonce=secrets.token_hex(8))
+        return self._issue(data, plan, 0)
+
+    def _after_choice(self, data, plan, pos, selected):
+        reviews = data["patient_evidence"]
         payload = {"reviewed": [{"quote": r["candidate"]["label"], "presence": r["patient_presence"],
                                  "temporality": r["candidate"]["temporality"]} for r in reviews],
-                   "clarification": {"topic": plan["topic"], "answer": selected[0]}}
+                   "clarification": {"topic": plan["topic"], "answer": selected}}
+        return self._finish(data, payload)
+
+    def _finish(self, data, payload):
         obj, failure = self._model(_FINISH, payload)
         if failure:
             return failure

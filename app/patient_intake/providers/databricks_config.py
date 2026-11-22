@@ -3,6 +3,7 @@
 from threading import Lock
 from urllib.parse import urlsplit
 
+from .databricks_assessment import DatabricksAssessmentProvider
 from .databricks_interview import DatabricksInterviewProvider, _MODELS
 from .transport import Budget, Reply, Transport, _https
 
@@ -47,12 +48,12 @@ _providers = {}
 
 
 def configured_databricks_provider(*, endpoint=None, enabled=False, lane="demo", demo_attempts=0,
-                                   test_attempts=0, timeout=5):
+                                   test_attempts=0, timeout=5, mode="documentation"):
     """Return None when disabled. Pass server-owned values only; do not cache in session state."""
     global _configuration
     if enabled is not True:
         return None
-    if (endpoint not in _MODELS or lane not in ("demo", "test")
+    if (endpoint not in _MODELS or lane not in ("demo", "test") or mode not in ("documentation", "assessment")
             or type(demo_attempts) is not int or not 0 <= demo_attempts <= 6
             or type(test_attempts) is not int or not 0 <= test_attempts <= 2
             or type(timeout) not in (float, int) or not 0 < timeout <= 10):
@@ -65,11 +66,12 @@ def configured_databricks_provider(*, endpoint=None, enabled=False, lane="demo",
             shared = Transport(host=None, headers={}, attempts=demo_attempts + test_attempts,
                                exchange=_WorkspaceExchange())
             for group, cap in (("demo", demo_attempts), ("test", test_attempts)):
-                _providers[group] = DatabricksInterviewProvider(
-                    endpoint=endpoint, lane=group, enabled=True, timeout=timeout,
-                    transport=_ConfiguredTransport(shared, cap),
-                )
+                transport = _ConfiguredTransport(shared, cap)
+                for name, provider in (("documentation", DatabricksInterviewProvider),
+                                       ("assessment", DatabricksAssessmentProvider)):
+                    _providers[group, name] = provider(endpoint=endpoint, lane=group, enabled=True,
+                                                       timeout=timeout, transport=transport)
             _configuration = config
         elif _configuration != config:
             raise ValueError("provider configuration changed; restart the worker")
-        return _providers[lane]
+        return _providers[lane, mode]
