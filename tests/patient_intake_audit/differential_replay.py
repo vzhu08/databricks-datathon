@@ -214,7 +214,7 @@ def evaluate(case):
     return measured
 
 
-def mixed_history(second, *, consistent):
+def mixed_history(second, *, decision):
     first = "I have a sore throat now."
     rows = [(first, "present", "current"), (second, "absent", "current")]
     with encounter({"description": first + "\n" + second}, rows=rows) as (flow, view):
@@ -223,21 +223,32 @@ def mixed_history(second, *, consistent):
             q = view["question"]
             require(q["evidence"]["label"] == quote and q["evidence"]["presence"] == presence)
             view = answer(flow, view, "confirm")
+        choices_reviewed = False
         if view.get("question"):
             q = view["question"]
             choices = {o["id"] for o in q["options"]}
             if "unchanged" in choices:
                 view = answer(flow, view, "unchanged")
-            elif {"consistent", "inconsistent"} <= choices:
-                view = answer(flow, view, "consistent" if consistent else "inconsistent")
+            elif {"consistent", "inconsistent", "unsure"} <= choices:
+                choices_reviewed = all(f'{p.capitalize()}: “{q}”' in view["question"]["prompt"]
+                                       for q, p, _ in rows)
+                view = answer(flow, view, decision)
             else:
                 raise ValueError("Unrecognized mixed-history question")
         calls = flow.provider.requests
         final = json.loads(calls[-1]["messages"][1]["content"]) if len(calls) == 2 else {}
         expected_rows = [dict(quote=q, presence=p, temporality=t) for q, p, t in rows]
+        sent_rows = final.get("reviewed") == expected_rows
+        sent_decision = final.get("clarification") == dict(topic="consistency", answer=decision)
+        granted = authority(flow)
+        if decision == "consistent":
+            outcome = view["state"] == "experimental_assessment" and bool(view["possible_causes"]) and sent_rows and sent_decision
+        else:
+            outcome = view["state"] == "provider_stop" and not view["possible_causes"] and len(calls) == 1
         return dict(state=view["state"], possible_causes=len(view["possible_causes"]),
-                    reviewed_polarities_reached_final=final.get("reviewed") == expected_rows,
-                    mock_exchanges=len(calls), order_authority=authority(flow))
+                    showed_reviewed_statements=choices_reviewed, consistency_reached_final=sent_decision,
+                    reviewed_polarities_reached_final=sent_rows, mock_exchanges=len(calls),
+                    order_authority=granted, passed=bool(choices_reviewed and outcome and not granted))
 
 
 def observe(app, candidate):
@@ -261,13 +272,16 @@ def observe(app, candidate):
     result = report(bundle)
     result["observed_calls"] = dict(counts)
     before = effects.counts.copy()
-    result["supplemental_mixed_history"] = {
-        "compatible": mixed_history("I do not have a fever now.", consistent=True),
-        "contradictory": mixed_history("I do not have a sore throat now.", consistent=False),
-        "observed_calls": dict(effects.counts - before),
+    mixed = {
+        "compatible": mixed_history("I do not have a fever now.", decision="consistent"),
+        "contradictory": mixed_history("I do not have a sore throat now.", decision="inconsistent"),
+        "unsure": mixed_history("I do not have a sore throat now.", decision="unsure"),
     }
+    delta = effects.counts - before
+    mixed_passed = all(row["passed"] for row in mixed.values()) and not (set(delta) - {"mock_exchange_starts"})
+    result["supplemental_mixed_history"] = dict(mixed, observed_calls=dict(delta), passed=mixed_passed)
     print(json.dumps(result, indent=2))
-    return int(bool(result["failed"] or result["not_run"]))
+    return int(bool(result["failed"] or result["not_run"] or not mixed_passed))
 
 
 def main():
