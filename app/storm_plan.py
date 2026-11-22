@@ -23,6 +23,7 @@ POLICIES = (("nearest_first", "Nearest first"), ("exact_optimum", "Exact optimum
 # How well each location is known, in the data owner's terms. None of them establishes an entrance.
 PRECISION = {"mapped_point": "Mapped facility point", "campus_anchor": "Campus simulation anchor",
              "point": "Located point", "area": "Area only"}
+ORDER = ("highest", "emergency", "time_sensitive", "urgent", "routine")  # used when the file gives no order
 CHOICE = "Planning simulation"
 NOTICE = ("Planning simulation. The facility locations are real, each at the precision it is labelled with. "
           "Everything else is simulated: the patients, where they start, what they need and how urgent they are, "
@@ -97,6 +98,18 @@ def _number(value, what, low, high):
     return float(value)
 
 
+def urgency(patient):
+    """A patient's priority. The planner calls it urgency; either name is read."""
+    return _text(patient.get("priority", patient.get("urgency")), "patient priority")
+
+
+def travel(row):
+    """Travel for one assignment in minutes. The planner's whole seconds win over a rounded display value."""
+    if row.get("travel_seconds") is not None:
+        return _whole(row["travel_seconds"], "travel seconds") / 60
+    return _number(row["travel_minutes"], "travel minutes", 0, 100000)
+
+
 def _unique(rows, what):
     ids = [_text(row["id"], what + " id") for row in rows]
     if not ids or len(set(ids)) != len(ids):
@@ -119,7 +132,7 @@ def checked(plan):
         _text(scenario[key], "scenario " + key)
     _whole(scenario["seed"], "seed")
 
-    offers = {}
+    offers, buckets, areas = Counter(), {}, set()
     _unique(plan["facilities"], "facility")
     for facility in plan["facilities"]:
         _text(facility["label"], "facility label")
@@ -133,43 +146,58 @@ def checked(plan):
             _text(origin["license"], "source licence")
             if origin.get("url") is not None and not _text(origin["url"], "source link").startswith("https://"):
                 raise ValueError("source link is not https")
-        for resource in facility["resources"]:
+        if facility["precision"] == "area":
+            areas.add(facility["id"])
+        for resource in facility["resources"]:  # a facility may hold several appointment buckets of one service
             key = (facility["id"], _text(resource["service"], "service"))
-            if key in offers:
-                raise ValueError("a facility lists a service twice")
-            offers[key] = _whole(resource["slots"], "slots")
+            offers[key] += _whole(resource["slots"], "slots")
+            if resource.get("slot_id") is not None:
+                if resource["slot_id"] in buckets:
+                    raise ValueError("a slot id is repeated")
+                buckets[resource["slot_id"]] = (key, resource["slots"])
 
     _unique(plan["patients"], "patient")
     needs = {}
     for patient in plan["patients"]:
         needs[patient["id"]] = _text(patient["service"], "patient service")
-        _text(patient["priority"], "patient priority")
+        urgency(patient)
         if patient.get("latitude") is not None or patient.get("longitude") is not None:
             _number(patient["latitude"], "latitude", -90, 90)
             _number(patient["longitude"], "longitude", -180, 180)
     order = scenario.get("priorities")
     if order is not None and (len(set(order)) != len(order)
-                              or {patient["priority"] for patient in plan["patients"]} - set(order)):
+                              or {urgency(patient) for patient in plan["patients"]} - set(order)):
         raise ValueError("the priority order does not cover the patients")
 
     for key, _ in POLICIES:
-        result, placed, used = plan["policies"][key], set(), Counter()
+        result, placed, used, booked = plan["policies"][key], set(), Counter(), Counter()
         for row in result["assignments"]:
             patient, facility, service = row["patient"], row["facility"], row["service"]
             if patient not in needs or patient in placed:
                 raise ValueError("a patient is unknown or assigned twice")
             if service != needs[patient] or (facility, service) not in offers:
                 raise ValueError("an assignment is to a facility without the needed service")
-            _number(row["travel_minutes"], "travel minutes", 0, 100000)
+            if facility in areas:
+                raise ValueError("an area-only marker is used as a travel endpoint")
+            travel(row)
             placed.add(patient)
             used[(facility, service)] += 1
-        if any(count > offers[resource] for resource, count in used.items()):
+            if row.get("slot_id") is not None:
+                if buckets.get(row["slot_id"], (None,))[0] != (facility, service):
+                    raise ValueError("an assignment names a slot that is not that facility's")
+                booked[row["slot_id"]] += 1
+        if any(count > offers[resource] for resource, count in used.items()) \
+                or any(count > buckets[slot][1] for slot, count in booked.items()):
             raise ValueError("a resource is used beyond its staffed places")
         left = [row["patient"] for row in result["unserved"]]
         for row in result["unserved"]:
             _text(row["reason"], "unserved reason")
         if set(left) & placed or len(set(left)) != len(left) or placed | set(left) != set(needs):
             raise ValueError("assigned and unserved patients do not add up to the patients")
+        stored = result.get("metrics") or {}
+        for name, counted in (("assigned", len(placed)), ("unmet", len(left)), ("unserved", len(left))):
+            if type(stored.get(name)) is int and stored[name] != counted:
+                raise ValueError("a stored total disagrees with the assignments")
     return plan
 
 
@@ -185,7 +213,8 @@ def load(path=None):
 
 
 def _minutes(value):
-    return f"{value:,.0f}" if float(value).is_integer() else f"{value:,.1f}"
+    value = round(float(value), 1)
+    return f"{value:,.0f}" if value.is_integer() else f"{value:,.1f}"
 
 
 def _plain(reason):
@@ -196,25 +225,29 @@ def view(plan):
     """Every figure on the page, counted from the assignments. No markup."""
     patients = {patient["id"]: patient for patient in plan["patients"]}
     labels = {facility["id"]: facility["label"] for facility in plan["facilities"]}
-    seen = list(dict.fromkeys(patient["priority"] for patient in plan["patients"]))
-    order = plan["scenario"].get("priorities") or seen
+    seen = list(dict.fromkeys(urgency(patient) for patient in plan["patients"]))
+    order = plan["scenario"].get("priorities") or [level for level in ORDER if level in seen] \
+        + [level for level in seen if level not in ORDER]
     order = [priority for priority in order if priority in seen]
-    asked = Counter(patient["priority"] for patient in plan["patients"])
-    slots = {(facility["id"], resource["service"]): resource["slots"]
-             for facility in plan["facilities"] for resource in facility["resources"]}
+    asked = Counter(urgency(patient) for patient in plan["patients"])
+    slots = Counter()
+    for facility in plan["facilities"]:
+        for resource in facility["resources"]:
+            slots[(facility["id"], resource["service"])] += resource["slots"]
     results = []
     for key, name in POLICIES:
         result = plan["policies"][key]
-        travel = [float(row["travel_minutes"]) for row in result["assignments"]]
-        placed = Counter(patients[row["patient"]]["priority"] for row in result["assignments"])
+        minutes = [travel(row) for row in result["assignments"]]
+        placed = Counter(urgency(patients[row["patient"]]) for row in result["assignments"])
         used = Counter((row["facility"], row["service"]) for row in result["assignments"])
         results.append({
-            "key": key, "name": name, "assigned": len(travel), "unmet": len(result["unserved"]),
+            "key": key, "name": name, "assigned": len(minutes), "unmet": len(result["unserved"]),
             "by_priority": {priority: placed[priority] for priority in order},
             "reasons": Counter(_plain(row["reason"]) for row in result["unserved"]),
             "used": used, "full": sum(1 for resource, count in used.items() if count == slots[resource]),
-            "travel_total": _minutes(sum(travel)), "travel_mean": _minutes(sum(travel) / len(travel)) if travel else "0",
-            "travel_longest": _minutes(max(travel)) if travel else "0",
+            "travel_total": _minutes(sum(minutes)),
+            "travel_mean": _minutes(sum(minutes) / len(minutes)) if minutes else "0",
+            "travel_longest": _minutes(max(minutes)) if minutes else "0",
         })
     first, best = results
     total = len(patients)

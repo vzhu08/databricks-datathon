@@ -135,11 +135,65 @@ class PlanTests(unittest.TestCase):
         def order(found):
             found["scenario"]["priorities"] = ["emergency", "routine"]
 
+        def area_endpoint(found):
+            found["facilities"][2]["resources"] = [{"service": "mri", "slots": 1}]
+            found["policies"]["nearest_first"]["assignments"][3]["facility"] = "F3"
+
+        def stored_total(found):
+            found["policies"]["exact_optimum"]["metrics"] = {"assigned": 6, "unmet": 0}
+
         for change in (twice, wrong_service, other_need, over, lost, both, precision, link, script, no_objective,
-                       one_policy, version, far, order):
+                       one_policy, version, far, order, area_endpoint, stored_total):
             with self.subTest(change=change.__name__), self.assertRaises((ValueError, KeyError, TypeError)):
                 storm_plan.checked(changed(change))
         self.assertIs(type(storm_plan.checked(plan())), dict)
+
+    def test_the_planner_output_shape_is_read_with_buckets_seconds_and_urgency_codes(self):
+        """Several appointment buckets of one service at a facility, whole travel seconds, urgency codes."""
+        found = plan()
+        del found["scenario"]["priorities"]
+        codes = {"emergency": "highest", "urgent": "time_sensitive", "routine": "routine"}
+        for patient in found["patients"]:
+            patient["urgency"] = codes[patient.pop("priority")]
+            patient.update(arrival_minute=0, deadline_minute=240, required_tools=[])
+        found["facilities"][0]["resources"] = [
+            {"slot_id": "F1-d-0", "resource_id": "F1-d", "service": "dialysis", "tools": [], "start_minute": 0,
+             "slots": 1},
+            {"slot_id": "F1-d-60", "resource_id": "F1-d", "service": "dialysis", "tools": [], "start_minute": 60,
+             "slots": 1}]
+        found["facilities"][1]["resources"] = [
+            {"slot_id": "F2-d-0", "resource_id": "F2-d", "service": "dialysis", "tools": [], "start_minute": 0,
+             "slots": 1},
+            {"slot_id": "F2-m-0", "resource_id": "F2-m", "service": "mri", "tools": [], "start_minute": 0, "slots": 2}]
+        slot = {("F1", 0): "F1-d-0", ("F1", 1): "F1-d-60", ("F2", "dialysis"): "F2-d-0", ("F2", "mri"): "F2-m-0"}
+        for result in found["policies"].values():
+            at_first = 0
+            for row in result["assignments"]:
+                if row["facility"] == "F1":
+                    row["slot_id"], at_first = slot[("F1", at_first)], at_first + 1
+                else:
+                    row["slot_id"] = slot[("F2", row["service"])]
+                row["travel_seconds"] = int(row["travel_minutes"] * 60)
+                row["slot_start_minute"] = 0
+            result["metrics"] = {"assigned": len(result["assignments"]), "unmet": len(result["unserved"])}
+        seen = storm_plan.view(storm_plan.checked(found))
+        self.assertEqual(seen["order"], ["highest", "time_sensitive", "routine"])
+        self.assertEqual([result["assigned"] for result in seen["results"]], [4, 5])
+        self.assertEqual(seen["results"][0]["travel_total"], "24.5")
+        self.assertEqual(seen["places"], 5)
+        self.assertEqual(seen["resources"][0], {"facility": "Invented clinic one", "service": "dialysis", "slots": 2,
+                                                "used": [2, 2]})
+        self.assertIn("Time sensitive", storm_plan.markup(found))
+        # Two patients in one single-place bucket is refused even though the facility has two places in all.
+        crowded = copy.deepcopy(found)
+        crowded["policies"]["nearest_first"]["assignments"][1]["slot_id"] = "F1-d-0"
+        with self.assertRaises(ValueError):
+            storm_plan.checked(crowded)
+        # So is a slot that belongs to another facility.
+        elsewhere = copy.deepcopy(found)
+        elsewhere["policies"]["nearest_first"]["assignments"][0]["slot_id"] = "F2-d-0"
+        with self.assertRaises(ValueError):
+            storm_plan.checked(elsewhere)
 
     def test_load_gives_one_state_for_every_failure(self):
         with tempfile.TemporaryDirectory() as folder:
