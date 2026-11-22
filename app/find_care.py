@@ -331,6 +331,7 @@ def _card(card, approximate):
         "sources": list(card.get("record_source_urls") or []),
         "availability": card.get("availability"),
         "location_warning": location_warning(card.get("location_warning")),
+        "has_point": where.get("latitude") is not None and where.get("longitude") is not None,
     }
 
 
@@ -426,3 +427,73 @@ def referral_note(view, synthetic):
     else:
         lines += [view["headline"], view["subline"]]
     return "\n".join(lines)
+
+
+# Claim-level provenance (#302). One location line and one service line per result card, then the sources
+# behind each. Demonstration cards come from the invented fixture, so the publisher is always named as the
+# synthetic demo record, and nothing in a demo card can be mistaken for a Virtue Foundation hospital.
+DEMO_PUBLISHER = "Synthetic demo record"
+RECORD_LINK_NOTE = "Record reference only. It points at the whole record and adds no independent source."
+
+
+def _claim(label, state, strength, line, missing, sources, records, origins):
+    return {"label": label, "state": state, "strength": strength, "line": line, "missing_check": missing,
+            "sources": sources, "source_records": records, "independent_supporting_origins": origins}
+
+
+def claim_lines(card, service, group, index):
+    """The location and service claims for one demonstration result card, keyed by its list and index.
+
+    `card` is a card from `present` (a top result, a backup or a related lead) and `service` the service
+    of the request that produced it, never the form's current value. Reads only the card's own fields.
+    """
+    phrase = SERVICE_PHRASE.get(service, service)
+    name = SERVICES.get(service, service)
+    field = card["field"]
+    links = [{"url": url, "note": RECORD_LINK_NOTE} for url in card["sources"]]
+    point = card.get("has_point")
+    place = card["place"] or "no place recorded"
+    location_source = {
+        "role": "support", "publisher": DEMO_PUBLISHER, "origin": "This invented record. No other origin.",
+        "fact": ("A map point and " + place) if point else place, "field": "location fields",
+        "date": "unknown", "links": links,
+    }
+    location = _claim(
+        "Location", "Reported", "Reported",
+        ("Reported in the demo record: " + place + (" and a recorded map point" if point else "")
+         + ". Building and entrance unverified."),
+        "Confirm the building and the entrance the patient should go to.",
+        [location_source], 1, 1)
+    statement = {
+        "role": "support" if card["strength"] == "direct" else "context",
+        "publisher": DEMO_PUBLISHER, "origin": "This invented record. No other origin.",
+        "fact": f"“{card['excerpt']}”", "field": f"{field} field", "date": "unknown", "links": links,
+    }
+    if card["strength"] == "direct":
+        service_claim = _claim(
+            name, "Unconfirmed", "Reported",
+            f"Unconfirmed · Reported in the demo record's {field} field only. Branch and service date unknown.",
+            f"A dated statement from the facility or an authority that {phrase} runs at this branch now.",
+            [statement], 1, 1)
+    else:
+        service_claim = _claim(
+            name, "Unconfirmed", "No evidence",
+            f"Unconfirmed · No evidence of onsite {phrase}. The {field} field mentions something related, "
+            "kept below as context.",
+            f"Phone the facility to ask whether it provides {phrase} itself.",
+            [statement], 1, 0)
+    return {"result_group": group, "index": index, "location": location, "service": service_claim}
+
+
+def withheld_summary(response, service):
+    """The result-level evidence line for the real records, after `withheld`. Names no facility."""
+    if response.get("status") != "withheld":
+        return None
+    phrase = SERVICE_PHRASE.get(service, service)
+    found = phrase if response.get("evidence") == "direct" else f"something related to {phrase}"
+    return {"state": "Unconfirmed",
+            "line": f"{SERVICES.get(service, service)} · Unconfirmed · Records nearby mention {found}.",
+            "detail": ("Source shown: Virtue Foundation facility records. Independent corroboration unknown. "
+                       "At this level the location precision, the branch, the dates and the number of "
+                       "independent sources are all unknown, so no source list can be shown."),
+            "missing_check": "A reviewed, dated statement that the service runs at a named branch."}

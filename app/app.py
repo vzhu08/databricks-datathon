@@ -28,6 +28,7 @@ if str(HERE) not in sys.path:  # so the same imports work from the repository ro
 
 import find_care as words  # noqa: E402
 import patient_ui  # noqa: E402
+import storm_page  # noqa: E402
 from data_access import search_warehouse  # noqa: E402
 from ranking import search_facilities  # noqa: E402
 
@@ -81,6 +82,14 @@ STYLE = """
 .fc-stale { margin: 0 0 0.75rem; padding: 0.6rem 0.9rem; border: 1.5px solid #14283b; border-radius: 3px;
   background: #ffffff; color: #14283b; font-weight: 600; }
 .fc-old { opacity: 0.55; }
+.fc-claims { margin-top: 0.75rem; padding: 0.7rem 1rem; border-left: 4px solid #4b6274; background: #f7f9fa; }
+.fc-claim { margin: 0.2rem 0; }
+.fc-claim strong { font-weight: 700; }
+.fc-claims details { margin-top: 0.5rem; }
+.fc-claims summary { cursor: pointer; font-weight: 600; color: #14283b; }
+.fc-claims ul.fc-sources { margin-top: 0.4rem; }
+.fc-claims ul.fc-sources li { margin-bottom: 0.5rem; font-size: 0.98rem; }
+.fc-claims .fc-next { color: #4b6274; font-size: 0.95rem; }
 @media (max-width: 640px) {
   .fc-slip { padding: 0 1rem 1.25rem; }
   .fc-slip .fc-for { margin: 0 -1rem; padding: 0.7rem 1rem; }
@@ -172,10 +181,36 @@ def warning(card):
     return f'<div class="fc-warning"><strong>Check the address.</strong> {safe(card["location_warning"])}</div>'
 
 
-def listed(card):
+def source_item(claim_name, source):
+    """One source behind a claim: publisher, origin, the fact, field, date and any record reference."""
+    links = "".join(f' <a href="{html.escape(item["url"], quote=True)}" target="_blank" rel="noopener noreferrer">'
+                    f"{safe(item['url'].split('/')[2])}</a> ({safe(item['note'])})" for item in source["links"])
+    role = {"support": "Supports", "conflict": "Conflicts with", "context": "Context for"}[source["role"]]
+    return (f"<li><strong>{role} {safe(claim_name.lower())}:</strong> {safe(source['fact'])}<br>"
+            f"Publisher: {safe(source['publisher'])}. Origin: {safe(source['origin'])} "
+            f"Where: {safe(source['field'])}. Evidence date: {safe(source['date'])}.{links}</li>")
+
+
+def claims(card, service, group, index):
+    """The location and service lines for one card (#302), then the sources behind them on request."""
+    found = words.claim_lines(card, service, group, index)
+    lines, sources = [], []
+    for claim in (found["location"], found["service"]):
+        lines.append(f'<div class="fc-claim"><strong>{safe(claim["label"])}</strong> · {safe(claim["line"])}</div>')
+        sources += [source_item(claim["label"], source) for source in claim["sources"]]
+        sources.append(f'<li class="fc-next">{safe(claim["label"])}: {claim["source_records"]} record, '
+                       f'{claim["independent_supporting_origins"]} known supporting origin. Next check: '
+                       f'{safe(claim["missing_check"])}</li>')
+    return (f'<div class="fc-claims" data-claims="{group}-{index}">{"".join(lines)}'
+            '<details><summary>Why this finding?</summary><ul class="fc-sources">'
+            + "".join(sources) + "</ul></details></div>")
+
+
+def listed(card, service=None, group=None, index=None):
     place = f"{safe(card['place'])}. " if card["place"] else ""
+    evidence = claims(card, service, group, index) if service else ""
     return (f"<li><strong>{safe(card['name'])}</strong><br>{place}{safe(card['distance'])}{warning(card)}"
-            f"{record(card)}</li>")
+            f"{record(card)}{evidence}</li>")
 
 
 def not_told(view):
@@ -186,8 +221,22 @@ def not_told(view):
             + "".join(f"<li>{safe(line)}</li>" for line in view["limits"]) + "</ul>")
 
 
-def slip(view, stale):
-    """The answer, drawn as the slip a health worker hands over. Real records never reach the facility parts."""
+def withheld_line(response, service):
+    """The result-level evidence summary for real records. Names no facility and lists no source."""
+    summary = words.withheld_summary(response, service)
+    if not summary:
+        return ""
+    return (f'<div class="fc-claims"><div class="fc-claim"><strong>{safe(summary["line"])}</strong></div>'
+            f'<div class="fc-claim">{safe(summary["detail"])}</div>'
+            f'<div class="fc-next">Next check: {safe(summary["missing_check"])}</div></div>')
+
+
+def slip(view, stale, service=None, response=None):
+    """The answer, drawn as the slip a health worker hands over. Real records never reach the facility parts.
+
+    The evidence lines are drawn only for a current answer, for the service of the request it answers.
+    """
+    shown = None if stale else service
     parts = [f'<div class="fc-for">{safe(view["request_line"])}</div>',
              f'<div class="fc-answer" role="heading" aria-level="2">{safe(view["headline"])}</div>']
     top = view["top"] if DEMO and view["status"] == "ok" else None
@@ -196,12 +245,17 @@ def slip(view, stale):
         parts.append(f'<div class="fc-trip">{safe(place + top["distance"])}</div>{warning(top)}')
         parts.append(f'<div class="fc-h">Why this facility</div><div class="fc-text">{safe(view["why"])}</div>')
         parts.append(f'<div class="fc-h">What its record says</div>{record(top)}')
+        if shown:
+            parts.append(f'<div class="fc-h">How well this is supported</div>{claims(top, shown, "direct_results", 0)}')
         if view["caveat"]:
             parts.append(f'<div class="fc-caveat">{safe(view["caveat"])}</div>')
     else:
         parts.append(f'<div class="fc-trip">{safe(view["subline"])}</div>')
         if DEMO and view["leads"]:
-            parts.append("<ul>" + "".join(listed(lead) for lead in view["leads"]) + "</ul>")
+            parts.append("<ul>" + "".join(listed(lead, shown, "indirect_leads", index)
+                                          for index, lead in enumerate(view["leads"])) + "</ul>")
+        if not DEMO and shown and response:
+            parts.append(withheld_line(response, shown))
         if view["next_step"]:
             parts.append(f'<div class="fc-text" style="margin-top:1rem">{safe(view["next_step"])}</div>')
     parts.append(not_told(view))
@@ -212,8 +266,12 @@ def slip(view, stale):
 
 st.set_page_config(page_title="Check symptoms and find care", layout="wide")
 # The patient screen is the product and opens first. Find care below is the separate facility search.
-if patient_ui.entry(st, "Find care (demonstration)" if DEMO else "Find care") == patient_ui.PATIENT:
+VIEW = patient_ui.entry(st, "Find care (demonstration)" if DEMO else "Find care", storm_page.STORM)
+if VIEW == patient_ui.PATIENT:
     patient_ui.render()
+    st.stop()
+if VIEW == storm_page.STORM:  # a simulated replay on its own: no patient visit, facility search or warehouse
+    storm_page.render(st)
     st.stop()
 st.markdown(STYLE, unsafe_allow_html=True)
 st.title("Find care")
@@ -280,7 +338,7 @@ with right:
         if stale:
             st.markdown('<div class="fc-stale">You changed the request. The answer below is for the earlier one. '
                         "Press Find a facility to update it.</div>", unsafe_allow_html=True)
-        st.markdown(slip(view, stale), unsafe_allow_html=True)
+        st.markdown(slip(view, stale, asked["service"], response), unsafe_allow_html=True)
         for choice in view["choices"] if DEMO and not stale else []:
             label = ", ".join(part for part in (choice.get("city"), choice.get("state")) if part)
             st.button(label, key="choice-" + label, on_click=fill,
@@ -289,7 +347,8 @@ with right:
             st.subheader(f"If {view['top']['name']} cannot take the patient")
             st.caption("Listed nearest first. The order says nothing about quality.")
             st.markdown('<div class="fc-slip fc-more"><ol start="2">'
-                        + "".join(listed(backup) for backup in view["backups"]) + "</ol></div>",
+                        + "".join(listed(backup, asked["service"], "direct_results", index)
+                                  for index, backup in enumerate(view["backups"], start=1)) + "</ol></div>",
                         unsafe_allow_html=True)
         # An out-of-date answer can be read but not handed on: no backups, no note to copy, nothing to save.
         if DEMO and not stale and view["status"] in ("ok", "needs_confirmation"):
