@@ -15,6 +15,7 @@ expiry or a reset can never leave an earlier result on the screen.
 The wording functions at the top are plain Python and are tested without Streamlit.
 """
 import html
+import os
 import time
 
 if __package__:  # imported as app.patient_ui by the repository's tests
@@ -109,14 +110,88 @@ PRESENCE = {"present": "you have this", "absent": "you do not have this", "unkno
 TEMPORALITY = {"current": "now", "historical": "in the past", "unknown": "timing not clear"}
 
 
-def compose():
+PROVIDER_SETTING = "PATIENT_PROVIDER"
+DATABRICKS = "databricks-experimental"
+ENDPOINTS = ("databricks-gpt-oss-20b", "databricks-gpt-oss-120b")
+ENDPOINT_SETTING = "PATIENT_PROVIDER_ENDPOINT"
+LANE_SETTING = "PATIENT_PROVIDER_LANE"
+ATTEMPT_SETTINGS = {"demo": ("PATIENT_PROVIDER_DEMO_ATTEMPTS", 6), "test": ("PATIENT_PROVIDER_TEST_ATTEMPTS", 2)}
+PROVIDER_LABEL = "Databricks endpoint {endpoint} (experimental language model, not clinically validated)"
+SETUP_PROBLEM = ("Symptom assessment is switched off on this server because its provider settings are incomplete. "
+                 "You can write a description, but it will not be sent anywhere or assessed.")
+
+
+def provider_mode(environ):
+    """Decide from the server's own settings whether an assessment provider is on.
+
+    Off unless PATIENT_PROVIDER is set. A provider that is asked for but only partly or wrongly set
+    up is a problem that the screen names, never a guess and never a fallback. The problems name
+    settings and never repeat a value.
+    """
+    chosen = (environ.get(PROVIDER_SETTING) or "").strip()
+    if not chosen:
+        return {"mode": "off", "problems": []}
+    problems = []
+    if chosen != DATABRICKS:
+        problems.append(f"{PROVIDER_SETTING} does not name a provider this app can use")
+    endpoint = (environ.get(ENDPOINT_SETTING) or "").strip()
+    if endpoint not in ENDPOINTS:
+        problems.append(f"{ENDPOINT_SETTING} is not set to a supported endpoint")
+    lane = (environ.get(LANE_SETTING) or "demo").strip()
+    if lane not in ATTEMPT_SETTINGS:
+        problems.append(f"{LANE_SETTING} is not demo or test")
+    attempts = {}
+    for name, (setting, most) in ATTEMPT_SETTINGS.items():
+        text = (environ.get(setting) or "0").strip()
+        if not text.isdigit() or int(text) > most:
+            problems.append(f"{setting} is not a whole number from 0 to {most}")
+        else:
+            attempts[name] = int(text)
+    if not problems and attempts[lane] == 0:
+        problems.append(f"{ATTEMPT_SETTINGS[lane][0]} allows no requests")
+    if problems:
+        return {"mode": "problem", "problems": problems}
+    return {"mode": DATABRICKS, "problems": [], "endpoint": endpoint, "lane": lane,
+            "demo_attempts": attempts["demo"], "test_attempts": attempts["test"]}
+
+
+def off_notice(environ):
+    """What the patient is told while no provider is on, and for a setup problem, which settings are wrong."""
+    problems = provider_mode(environ)["problems"]
+    return SETUP_PROBLEM + " " + "; ".join(problems) + "." if problems else SWITCHED_OFF
+
+
+def _databricks_factory():
+    if __package__:
+        from .patient_intake.providers.databricks_config import configured_databricks_provider
+    else:
+        from patient_intake.providers.databricks_config import configured_databricks_provider
+    return configured_databricks_provider
+
+
+def compose(environ=None):
     """Return (service, provider label) for one encounter.
 
-    This is the only place an assessment provider enters the screen. An approved provider needs its
-    adapter, its `(provider_id, provider_version)` identity and its server-side secrets wired here by
-    the runtime owner. Until then the service has no provider and reports the assessment as unavailable.
+    This is the only place an assessment provider enters the screen. With no provider setting the
+    service has no provider and the runtime reports the assessment as unavailable. The one provider
+    this app can switch on is the team's experimental Databricks interview, through its own server
+    factory: that factory owns the workspace credentials, the per-worker request caps and the
+    transport. Nothing here reads a secret, and no test story or fixture lives here.
     """
-    return PatientIntakeService(interview=PatientInterview(), handoff=PatientHandoff()), None
+    settings = provider_mode(os.environ if environ is None else environ)
+    provider = None
+    if settings["mode"] == DATABRICKS:
+        try:
+            provider = _databricks_factory()(
+                endpoint=settings["endpoint"], enabled=True, lane=settings["lane"],
+                demo_attempts=settings["demo_attempts"], test_attempts=settings["test_attempts"])
+        except ValueError:  # for example the settings changed after this worker started
+            provider = None
+    if provider is None:
+        return PatientIntakeService(interview=PatientInterview(), handoff=PatientHandoff()), None
+    service = PatientIntakeService(interview=PatientInterview(), provider=provider,
+                                   provider_identity=provider.identity, handoff=PatientHandoff())
+    return service, PROVIDER_LABEL.format(endpoint=settings["endpoint"])
 
 
 def entry(st, other):
@@ -378,7 +453,7 @@ def _welcome(st, box):
     st.subheader("Before you start")
     st.markdown("\n".join("- " + line.format(minutes=TTL_SECONDS // 60) for line in NOTICE))
     if compose()[1] is None:
-        st.warning(SWITCHED_OFF)
+        st.warning(off_notice(os.environ))
     with st.form(f"pt-begin-{box['visit']}", border=False):
         st.checkbox("I agree to what I write being kept in this server's memory for this visit.",
                     key=f"pt-agree-{box['visit']}")
@@ -521,7 +596,7 @@ def render():
     said = _statement(box["handle"])
     now = step(view, has_statement=said is not None, editing=box.get("editing", False))
     if box["provider"] is None:
-        st.warning(SWITCHED_OFF)
+        st.warning(off_notice(os.environ))
     if view["state"] == "draft" and reason_line(view):
         st.warning(reason_line(view))
 

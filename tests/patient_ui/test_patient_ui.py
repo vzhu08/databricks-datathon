@@ -58,6 +58,8 @@ STOP = {"state": "provider_stop", "guidance": "Invented stop guidance."}
 class Scripted:
     """Replies in order, counting every call. An exception in the script is raised instead of returned."""
 
+    identity = IDENTITY
+
     def __init__(self, *replies):
         self.replies, self.calls = list(replies), []
 
@@ -165,11 +167,67 @@ class WordingTests(unittest.TestCase):
         self.assertEqual(words.plain("[x](https://a.invalid) <b> ![i](u)"),
                          "\\[x\\]\\(https\\:\\/\\/a\\.invalid\\) \\<b\\> \\!\\[i\\]\\(u\\)".replace("\\/", "/"))
 
-    def test_the_default_composition_has_no_provider(self):
-        service, provider = words.compose()
-        self.assertIsNone(provider)
-        self.assertIsNone(service._provider)
-        self.assertIsNone(service._identity)
+    ON = {"PATIENT_PROVIDER": "databricks-experimental", "PATIENT_PROVIDER_ENDPOINT": "databricks-gpt-oss-20b",
+          "PATIENT_PROVIDER_DEMO_ATTEMPTS": "6"}
+
+    def test_the_default_composition_has_no_provider_and_never_touches_the_factory(self):
+        with mock.patch.object(words, "_databricks_factory", side_effect=AssertionError("factory used while off")):
+            for off in ({}, {"PATIENT_PROVIDER": " "}, {"PATIENT_PROVIDER_ENDPOINT": "databricks-gpt-oss-20b",
+                                                        "PATIENT_PROVIDER_DEMO_ATTEMPTS": "6"}):
+                self.assertEqual(words.provider_mode(off), {"mode": "off", "problems": []})
+                service, provider = words.compose(off)
+                self.assertIsNone(provider)
+                self.assertIsNone(service._provider)
+                self.assertIsNone(service._identity)
+                self.assertEqual(words.off_notice(off), words.SWITCHED_OFF)
+
+    def test_a_half_configured_provider_is_a_named_problem_and_never_a_guess(self):
+        cases = {
+            "PATIENT_PROVIDER does not name": {**self.ON, "PATIENT_PROVIDER": "made-up-provider"},
+            "PATIENT_PROVIDER_ENDPOINT is not set": {k: v for k, v in self.ON.items() if k != "PATIENT_PROVIDER_ENDPOINT"},
+            "PATIENT_PROVIDER_ENDPOINT is not set ": {**self.ON, "PATIENT_PROVIDER_ENDPOINT": "made-up-endpoint"},
+            "PATIENT_PROVIDER_LANE is not demo or test": {**self.ON, "PATIENT_PROVIDER_LANE": "made-up-lane"},
+            "PATIENT_PROVIDER_DEMO_ATTEMPTS is not a whole number from 0 to 6": {**self.ON, "PATIENT_PROVIDER_DEMO_ATTEMPTS": "7"},
+            "PATIENT_PROVIDER_DEMO_ATTEMPTS is not a whole number from 0 to 6 ": {**self.ON, "PATIENT_PROVIDER_DEMO_ATTEMPTS": "many"},
+            "PATIENT_PROVIDER_TEST_ATTEMPTS is not a whole number from 0 to 2": {**self.ON, "PATIENT_PROVIDER_TEST_ATTEMPTS": "-1"},
+            "PATIENT_PROVIDER_DEMO_ATTEMPTS allows no requests": {**self.ON, "PATIENT_PROVIDER_DEMO_ATTEMPTS": "0"},
+            "PATIENT_PROVIDER_TEST_ATTEMPTS allows no requests": {**self.ON, "PATIENT_PROVIDER_LANE": "test"},
+        }
+        with mock.patch.object(words, "_databricks_factory", side_effect=AssertionError("factory used on a problem")):
+            for expected, environ in cases.items():
+                found = words.provider_mode(environ)
+                self.assertEqual(found["mode"], "problem", expected)
+                self.assertTrue(any(expected.strip() in problem for problem in found["problems"]), (expected, found))
+                notice = words.off_notice(environ)
+                self.assertTrue(notice.startswith(words.SETUP_PROBLEM))
+                for value in ("made-up-provider", "made-up-endpoint", "made-up-lane", "many"):
+                    self.assertNotIn(value, notice)
+                self.assertIsNone(words.compose(environ)[1])
+
+    def test_the_databricks_interview_is_composed_only_through_its_server_factory(self):
+        provider = Scripted()
+        factory = mock.Mock(return_value=provider)
+        environ = {**self.ON, "PATIENT_PROVIDER_TEST_ATTEMPTS": "2"}
+        with mock.patch.object(words, "_databricks_factory", return_value=factory):
+            service, label = words.compose(environ)
+            factory.assert_called_once_with(endpoint="databricks-gpt-oss-20b", enabled=True, lane="demo",
+                                            demo_attempts=6, test_attempts=2)
+            self.assertIs(service._provider, provider)
+            self.assertEqual(service._identity, IDENTITY)
+            self.assertEqual(label, "Databricks endpoint databricks-gpt-oss-20b (experimental language model, "
+                                    "not clinically validated)")
+            # The factory may still decline (no budget left, or settings changed since the worker started).
+            for declined in (mock.Mock(return_value=None), mock.Mock(side_effect=ValueError("changed"))):
+                with mock.patch.object(words, "_databricks_factory", return_value=declined):
+                    service, label = words.compose(environ)
+                    self.assertIsNone(label)
+                    self.assertIsNone(service._provider)
+
+    def test_the_real_factory_is_the_one_named_in_the_provider_notes_and_stays_off_when_disabled(self):
+        factory = words._databricks_factory()
+        self.assertEqual(factory.__name__, "configured_databricks_provider")
+        self.assertIsNone(factory(endpoint="databricks-gpt-oss-20b", enabled=False))
+        self.assertEqual(words.ENDPOINTS, sys.modules[factory.__module__]._MODELS)
 
 
 @unittest.skipUnless(HAS_STREAMLIT, "Streamlit is needed to run the screen")
@@ -192,7 +250,7 @@ class ScreenTests(unittest.TestCase):
         self.addCleanup(restore)
         import patient_ui as screen
         self.screen = screen
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("DATABRICKS_", "FIND_CARE_"))}
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("DATABRICKS_", "FIND_CARE_", "PATIENT_"))}
         patcher = mock.patch.dict(os.environ, env, clear=True)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -322,6 +380,42 @@ class ScreenTests(unittest.TestCase):
         self.assertEqual(len(app.get("download_button")), 0)
         self.assertEqual(len(app.json), 0)
         self.assertEqual(len(app.get("expander")), 0)
+
+    def test_a_provider_setup_problem_is_named_on_the_screen_and_nothing_is_sent(self):
+        os.environ.update(PATIENT_PROVIDER="databricks-experimental", PATIENT_PROVIDER_DEMO_ATTEMPTS="6")
+        with mock.patch.object(self.screen, "_databricks_factory", side_effect=AssertionError("factory used")):
+            app = self.open()
+            text = self.shown(app)
+            self.assertIn(self.screen.SETUP_PROBLEM, text)
+            self.assertIn("PATIENT\\_PROVIDER\\_ENDPOINT is not set to a supported endpoint", text.replace("PATIENT_PROVIDER_ENDPOINT", "PATIENT\\_PROVIDER\\_ENDPOINT"))
+            app = self.begin(app)
+            text = self.shown(app)
+            self.assertIn("No assessment is available", text)
+            self.assertIn(self.screen.NO_PROVIDER, text)
+            self.assertNotIn("I agree. Send it for assessment", [button.label for button in app.button])
+
+    def test_the_configured_databricks_interview_is_named_before_anything_is_sent(self):
+        provider = Scripted(REVIEW, STOP)
+        os.environ.update(PATIENT_PROVIDER="databricks-experimental", PATIENT_PROVIDER_ENDPOINT="databricks-gpt-oss-120b",
+                          PATIENT_PROVIDER_DEMO_ATTEMPTS="3")
+        factory = mock.Mock(return_value=provider)
+        with mock.patch.object(self.screen, "_databricks_factory", return_value=factory):
+            app = self.open()
+            self.assertNotIn(self.screen.SWITCHED_OFF, self.shown(app))
+            app = self.begin(app)
+            text = self.shown(app)
+            self.assertIn("Databricks endpoint databricks\\-gpt\\-oss\\-120b \\(experimental language model, not clinically validated\\)", text)
+            self.assertEqual(provider.calls, [])
+            app = self.press(app, "I agree. Send it for assessment")
+            self.assertEqual(provider.calls[0]["interview"]["source"]["description"], STATEMENT)
+            app = self.answer(app, "confirm")
+            text = self.shown(app)
+            self.assertIn("This assessment has stopped", text)
+            self.assertIn("Invented stop guidance", text)
+            self.assertNotIn("Where to go", text)
+        for call in factory.call_args_list:
+            self.assertEqual(call.kwargs, {"endpoint": "databricks-gpt-oss-120b", "enabled": True, "lane": "demo",
+                                           "demo_attempts": 3, "test_attempts": 0})
 
     def test_an_urgent_result_is_shown_at_once_with_no_hospital_check(self):
         self.provider(URGENT)
