@@ -20,6 +20,38 @@ class CareCommandTests(unittest.TestCase):
             cli.main(args)
         return output.getvalue()
 
+    def test_guided_replay_reprompts_and_resets(self):
+        answers = ["invalid", "2", "soon", "injury", "burn", "moderate", "yes",
+                   "no", "routine", "existing MRI referral or order", "mild", "no"]
+        with patch("builtins.input", side_effect=answers):
+            output = self.run_cli("--guided")
+        self.assertIn("Enter a listed number", output)
+        self.assertEqual(output.count("What kind of injury?"), 1)
+        first, second = output.split("Try another selection?", 1)
+        self.assertIn("Injury kind: burn", first)
+        self.assertIn("Self-rated urgency: soon", first)
+        self.assertIn("Injury kind: unsure", second)
+        self.assertIn("Self-rated urgency: routine", second)
+        self.assertIn("Service checked: mri", second)
+        self.assertIn("Facility evidence unavailable", second)
+
+    def test_guided_interrupts_before_remaining_prompts_and_loads(self):
+        with patch.object(cli, "load_local", side_effect=AssertionError("unexpected file read")):
+            for answers in (["yes", "no"], ["no", "emergency", "no"]):
+                with self.subTest(answers=answers), patch("builtins.input", side_effect=answers):
+                    output = self.run_cli("--guided")
+                    self.assertIn("Action: interrupt", output)
+                    self.assertNotIn("What brings you here?", output)
+                    if answers[0] == "yes":
+                        self.assertNotIn("How urgent does this feel?", output)
+
+    def test_guided_cancellation_exits_without_evaluating_partial_case(self):
+        for final_input in ("q", EOFError(), KeyboardInterrupt()):
+            with self.subTest(final_input=final_input), patch("builtins.input", side_effect=["no", final_input]):
+                output = self.run_cli("--guided")
+                self.assertIn("Walkthrough ended.", output)
+                self.assertNotIn("Judge selections", output)
+
     def test_package_help(self):
         process = subprocess.run(
             [sys.executable, "-m", "app.facility_evidence_demo", "--help"],

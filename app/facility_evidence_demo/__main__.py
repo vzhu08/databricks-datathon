@@ -6,25 +6,44 @@ import os
 from . import area, loader
 
 
+# Keys are the decision function's request vocabulary. Labels are for presenters.
+QUESTIONS = {
+    "danger": ("Is there immediate danger?", {"yes": "Yes", "no": "No", "unsure": "Unsure"}),
+    "urgency": ("How urgent does this feel?", {
+        "routine": "Routine", "soon": "Soon", "emergency": "Emergency", "unsure": "Unsure",
+    }),
+    "concern": ("What brings you here?", {
+        "injury": "Injury", "dialysis": "Existing dialysis need",
+        "mri": "Existing MRI referral or order", "other": "Other concern", "unsure": "Unsure",
+    }),
+    "injury_kind": ("What kind of injury?", {
+        "head": "Head injury", "burn": "Burn", "limb_joint": "Limb or joint injury",
+        "cut_wound": "Cut or wound", "other": "Other injury", "unsure": "Unsure",
+    }),
+    "severity": ("How severe is the reported concern?", {
+        "mild": "Mild", "moderate": "Moderate", "severe": "Severe", "unsure": "Unsure",
+    }),
+}
+
+
 def arguments(argv):
     parser = argparse.ArgumentParser(
         prog="python -m app.facility_evidence_demo",
-        description="Replay an anonymous judge selection using local evidence files. "
-        "Omitted selections mean unsure.",
-        epilog=f"Set {loader.PATH_SETTING} and {area.PATH_SETTING} to local copies "
-        "of the approved editions to include evidence.",
+        description="Use --guided for a live walkthrough, or pass selection flags for a single replay. "
+        "Omitted replay selections mean unsure.",
+        epilog=f"Point {loader.PATH_SETTING} to the approved local facility display file and "
+        f"{area.PATH_SETTING} to the approved local area aggregate. Missing files are reported in the result.",
     )
-    parser.add_argument("--concern", choices=("injury", "dialysis", "mri", "other", "unsure"),
-                        help="injury, existing dialysis need, existing MRI referral/order, or other")
-    parser.add_argument("--injury-kind", choices=("head", "burn", "limb_joint", "cut_wound", "other", "unsure"),
-                        help="kind of injury when concern is injury")
-    parser.add_argument("--severity", choices=("mild", "moderate", "severe", "unsure"),
-                        help="reported severity")
-    parser.add_argument("--urgency", choices=("routine", "soon", "emergency", "unsure"),
-                        help="self-rated urgency")
-    parser.add_argument("--danger", choices=("yes", "no", "unsure"),
-                        help="reported immediate danger")
-    return {key: value for key, value in vars(parser.parse_args(argv)).items() if value is not None}
+    parser.add_argument("--guided", action="store_true", help="choose answers at terminal prompts")
+    for key, (question, choices) in QUESTIONS.items():
+        parser.add_argument("--" + key.replace("_", "-"), choices=tuple(choices),
+                            help=f"{question} {' / '.join(choices.values())}.")
+    args = vars(parser.parse_args(argv))
+    guided = args.pop("guided")
+    request = {key: value for key, value in args.items() if value is not None}
+    if guided and request:
+        parser.error("Use --guided alone, or omit it to replay the selection flags.")
+    return guided, request
 
 
 def load_local(module):
@@ -62,8 +81,7 @@ def show_evidence(evidence):
         print("Unknown:", ", ".join(case["unknown"]))
 
 
-def main(argv=None):
-    request = arguments(argv)
+def show_decision(request):
     from .care_decision import evaluate
 
     result = evaluate(request, None, None)
@@ -101,6 +119,50 @@ def main(argv=None):
     if result["eligible_destinations"] is not None:
         print(f"Eligible destinations: {result['eligible_destinations']}")
     print("Next check:", result["next_check"])
+
+
+def ask(question, choices):
+    print("\n" + question)
+    answers = {}
+    for number, (value, label) in enumerate(choices.items(), start=1):
+        print(f"  {number}. {label}")
+        for alias in (str(number), value, label.casefold()):
+            answers[alias] = value
+    while True:
+        reply = input("Choice (q to quit): ").strip().casefold()
+        if reply in ("q", "quit", "cancel"):
+            raise EOFError
+        if reply in answers:
+            return answers[reply]
+        print("Enter a listed number or answer.")
+
+
+def guided_request():
+    from .care_decision import evaluate
+
+    request = {}
+    for key, (question, choices) in QUESTIONS.items():
+        if key == "injury_kind" and request["concern"] != "injury":
+            continue
+        request[key] = ask(question, choices)
+        if key in ("danger", "urgency") and evaluate(request)["action"] == "interrupt":
+            break
+    return request
+
+
+def main(argv=None):
+    guided, request = arguments(argv)
+    if not guided:
+        show_decision(request)
+        return
+    print("Judge walkthrough. Choose a number or type an answer.")
+    try:
+        while True:
+            show_decision(guided_request())
+            if ask("Try another selection?", {"yes": "Yes", "no": "No"}) == "no":
+                break
+    except (EOFError, KeyboardInterrupt):
+        print("\nWalkthrough ended.")
 
 
 if __name__ == "__main__":
