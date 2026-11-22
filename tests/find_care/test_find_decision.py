@@ -105,7 +105,7 @@ class DecisionWordingTests(unittest.TestCase):
         location, _ = claims()
         only_identity = candidate(service=None, next_action="verify_identity", missing=["service_evidence"])
         view = decision_words.explain(decided("verification_lead", only_identity, next_action="verify_identity"), "mri")
-        self.assertEqual("No record states an MRI scan. Closest identifiable lead: Campus A.", view["headline"])
+        self.assertEqual("Verification lead: Campus A.", view["headline"])
         self.assertEqual(["No statement about an MRI scan was supplied."], view["lead"]["says"])
         self.assertEqual(["any statement that the service is offered"], view["lead"]["missing"])
         self.assertIsNone(view["note_kind"])

@@ -414,7 +414,7 @@ class ScreenTests(unittest.TestCase):
         # Under test discovery those names can already belong to the test packages, so give them to app/
         # for the length of one test and hand them back afterwards.
         bare = ("find_care", "finding_provenance", "data_access", "ranking", "patient_ui", "patient_intake",
-                "find_capacity", "capacity_recommendation", "simulation", "travel", "storm_page")
+                "find_capacity", "find_decision", "capacity_recommendation", "simulation", "travel", "storm_page")
         saved = {name: module for name, module in sys.modules.items() if name.split(".")[0] in bare}
         for name in saved:
             del sys.modules[name]
@@ -457,6 +457,12 @@ class ScreenTests(unittest.TestCase):
         app = self._step(app.button(key="find").click())
         self.assertIn("Send the patient to Campus B.", self._text(app))
         app = self._step(app.radio(key="lookup_source").set_value("Public facility evidence"))
+        self.assertEqual("Pune", next(field for field in app.text_input if field.label == "City").value)
+        app = self._step(next(button for button in app.button if button.label == "Search public sources").click())
+        self.assertIn("KEM Hospital, Pune", self._text(app))
+        self.assertIn("Current availability, staffing, appointment acceptance and exact entrance are unknown.",
+                      self._text(app))
+        self.assertEqual(1, len(app.get("link_button")))
         next(field for field in app.text_input if field.label == "City").set_value("Atlantis")
         app = self._step(next(button for button in app.button if button.label == "Search public sources").click())
         self.assertIn("This collection has no reviewed public claim", app.info[0].value)
@@ -518,12 +524,13 @@ class ScreenTests(unittest.TestCase):
         for part in ("Provisional lead: Example Regional Hospital. Confirm before anyone travels.",
                      "Provisional · Synthetic demo record. A lead to check by phone. This is not a referral or a "
                      "recommendation, and nothing is reserved.", "North Campus provides hemodialysis",
-                     "procedures field", "Phone to confirm", "How this was decided", "example.invalid",
+                     "procedures field", "Phone the facility with the confirmation call script",
+                     "How this was decided", "example.invalid",
                      "Other records that state the service", "Why this lead comes first", "What its record says",
                      "About 6.7 km away, in a straight line."):
             self.assertIn(part, text)
-        for part in ("What this does not tell you", "not a judgement that it is the best place",
-                     "The journey by road can be much longer", "The record carries no date here",
+        for part in ("What this does not tell you", "Service statement dated: unknown.",
+                     "The journey by road can be much longer",
                      "Each is a provisional lead to confirm, in the same order as above. The order says nothing "
                      "about quality."):
             self.assertIn(part, text)
@@ -562,6 +569,48 @@ class ScreenTests(unittest.TestCase):
     def _note(self, app):
         self.assertEqual((1, 1), (len(app.code), len(app.get("download_button"))))
         return app.code[0].value
+
+    def test_submit_recovers_the_current_campus_lead_after_an_allocator_or_route_exception(self):
+        import find_capacity as capacity
+        import travel.hosted as hosted
+
+        app = self._step(self._app(**self.LIVE).radio(key="traffic").set_value(False))
+        app = self._step(app.button(key="find").click())
+        self.assertIn("Send the patient to Campus B.", self._text(app))
+        with mock.patch.object(capacity, "recommend_capacity", side_effect=RuntimeError("test failure")):
+            app = self._step(app.button(key="find").click())
+        self.assertIn("The capacity model could not finish checking this request.", self._text(app))
+        self.assertIn("Call: Campus A, simulated Jaipur", self._note(app))
+        self.assertIn("8 min (Synthetic Jaipur storm travel fixture)", self._note(app))
+        self.assertNotIn("Referral note", self._text(app))
+
+        app = self._step(app.radio(key="traffic").set_value(True))
+        with mock.patch.object(hosted, "demo_car_travel", side_effect=TimeoutError("test failure")) as lookup:
+            app = self._step(app.button(key="find").click())
+            self._step(app)
+        lookup.assert_called_once()
+        self.assertIn("Provisional lead: Campus A.", self._text(app))
+        self.assertIn("request time unknown", self._text(app))
+        self.assertNotIn("no request was sent", self._text(app))
+        self.assertIn("Road time could not be fetched.", self._note(app))
+        self.assertIn("Call: Campus A, simulated Jaipur", self._note(app))
+        self.assertNotIn(" min", self._note(app))
+        self.assertNotIn("Referral note", self._text(app))
+        self.assertNotIn("fallback", [button.key for button in app.button])
+
+    def test_emergency_result_ends_at_the_diversion_instruction(self):
+        import find_capacity as capacity
+
+        app = self._step(self._app().button(key="find").click())
+        self.assertIn("Referral note", self._text(app))
+        with mock.patch.object(capacity, "recommend_capacity",
+                               return_value={"status": "emergency", "reason": "emergency_stop"}):
+            app = self._step(app.button(key="find").click())
+        self.assertIn("Emergency: call 112 now.", self._text(app))
+        for fragment in ("Referral note", "Confirmation call script", "Next step", "How this was decided"):
+            self.assertNotIn(fragment, self._text(app))
+        self.assertNotIn("fallback", [button.key for button in app.button])
+        self.assertEqual((0, 0), (len(app.code), len(app.get("download_button"))))
 
     def test_the_recommendation_and_its_referral_note_name_the_models_campus_and_no_other(self):
         """#304: a routine case names B in the result and the note, the highest urgency names A in both."""
@@ -843,6 +892,88 @@ class ScreenTests(unittest.TestCase):
         self.assertEqual((0, 0), (len(none.code), len(none.get("download_button"))))
         for part in ("Provisional", "data-decision", "Closest lead to verify"):
             self.assertNotIn(part, self._text(none))
+
+    def test_observation_date_and_reference_scope_match_on_the_card_and_in_the_script(self):
+        import finding_provenance as mapper
+
+        app = self._lookup(self._app())
+        project = mapper.project_find_care
+        pointer = "https://example.invalid/dialysis-service"
+        assessment = "2026-11-22"
+        for observed_on, scope, wording in (
+            ("2022-03-17", "claim", "It points to this statement."),
+            (None, "claim", "It points to this statement."),
+            (None, None, "The citation scope is unknown."),
+        ):
+            def project_with_observation(response, service, *, mode):
+                projection = project(response, service, mode=mode)
+                claim = next(f["service"] for f in projection["findings"] if f["index"] == 0)
+                observation = mapper.Observation(
+                    mapper.SYNTHETIC, "The North Campus provides hemodialysis.", claim["scope"],
+                    role="support", origin="demo_fixture", field="procedures", observed_on=observed_on,
+                    citation=pointer, citation_scope=scope)
+                claim.update(mapper.summarize_claim(
+                    "service", claim["scope"], [observation], service=service, as_of=assessment))
+                return projection
+
+            with self.subTest(observed_on=observed_on, scope=scope):
+                with mock.patch.object(mapper, "project_find_care", side_effect=project_with_observation):
+                    app = self._step(app.button(key="example-Dialysis near Jaipur, Rajasthan").click())
+                note = self._note(app)
+                screen = self._text(app).removesuffix(note)
+                expected = observed_on or "unknown"
+                for surface in (screen, note):
+                    self.assertIn(f"Service statement dated: {expected}.", surface)
+                    self.assertIn(f"Service date {expected}.", surface)
+                    self.assertIn(f"{pointer}. {wording}", surface)
+                    self.assertNotIn(assessment, surface)
+                    self.assertNotIn(f"Record reference: {pointer}", surface)
+
+    def test_a_direct_text_hit_uses_the_joined_verification_decision(self):
+        import finding_provenance as mapper
+
+        app = self._lookup(self._app())
+        project = mapper.project_find_care
+        assessment = "2026-11-22"
+        for case, message in (
+            ("area", "Verify whether the requested service is delivered onsite at this branch."),
+            ("absence", "Check for a later branch-specific change to the reported absence or referral."),
+            ("conflict", "Resolve the conflicting service statements for this branch."),
+        ):
+            def project_with_downgrade(response, service, *, mode):
+                projection = project(response, service, mode=mode)
+                for finding in projection["findings"]:
+                    scope = finding["service"]["scope"]
+                    match = {"match": "exact", "observed_on": assessment}
+                    observations = []
+                    if case == "area":
+                        finding["location"]["precision"] = "postal_area"
+                    if case == "absence":
+                        observations.append(mapper.Observation(
+                            mapper.SYNTHETIC, "This branch reports no dialysis service.", scope, role="support",
+                            assertion="explicit_absence", **match))
+                    if case == "conflict":
+                        observations.extend([
+                            mapper.Observation(mapper.SYNTHETIC, "The branch reports dialysis service.", scope,
+                                               role="support", assertion="onsite_delivery", **match),
+                            mapper.Observation(mapper.SYNTHETIC, "The branch reports no dialysis service.", scope,
+                                               role="conflict", assertion="explicit_absence", **match),
+                        ])
+                    finding["service"] = mapper.summarize_claim(
+                        "service", scope, observations, service=service, as_of=assessment)
+                return projection
+
+            with self.subTest(case=case):
+                with mock.patch.object(mapper, "project_find_care", side_effect=project_with_downgrade):
+                    app = self._step(app.button(key="example-Dialysis near Jaipur, Rajasthan").click())
+                self.assertEqual("ok", app.session_state["response"]["status"])
+                screen = self._text(app)
+                self.assertIn('role="heading" aria-level="2">Verification lead: Example Regional Hospital.', screen)
+                self.assertIn(message, screen)
+                self.assertIn("Confirm which facility and branch this record is before relying on it.", screen)
+                self.assertNotIn("Nearest record that states the service", screen)
+                self.assertNotIn("Other records that state the service", screen)
+                self.assertEqual((0, 0), (len(app.code), len(app.get("download_button"))))
 
     def test_the_first_press_answers_because_the_demonstration_form_starts_filled(self):
         app = self._app()

@@ -10,6 +10,7 @@ reasons, the alternatives and the referral note are all read from the same resul
 model recommends nothing there is no destination and no note. Campuses A to F are invented scenario
 campuses. They are never joined to the six invented catalogue hospitals of the record lookup.
 """
+import logging
 from datetime import datetime, timezone
 
 try:
@@ -17,6 +18,7 @@ try:
 except ImportError:  # repository tests import the package
     from app.capacity_recommendation import demo_capacity_inputs, recommend_capacity
 
+LOGGER = logging.getLogger(__name__)
 SERVICES = {"dialysis": "Dialysis", "mri": "MRI scan", "trauma_care": "Trauma care"}
 URGENCIES = {"routine": "Routine", "time_sensitive": "Within hours", "highest": "Highest"}
 ORIGINS = {"central": "Central", "east": "East", "south": "South", "west": "West"}
@@ -55,6 +57,7 @@ NO_CHOICE = {
     "snapshot_origin_mismatch": "The capacity figures are for a different starting area.",
     "invalid_snapshot": "The capacity figures could not be read.",
     "invalid_request": "This request could not be checked against capacity.",
+    "allocator_unavailable": "The capacity model could not finish checking this request.",
 }
 TRAVEL_REASONS = {
     "daily_call_budget_exceeded": "today's road-time request allowance is used up",
@@ -65,6 +68,7 @@ TRAVEL_REASONS = {
     "invalid_operator_configuration": "road time is not set up correctly on this deployment",
     "invalid_operator_budget": "road time is not set up correctly on this deployment",
     "budget_store_unavailable": "the road-time allowance could not be checked",
+    "route_lookup_failed": "the road-time lookup failed before returning observations",
 }
 HOW = (
     "Only campuses with reviewed, dated evidence for the service, a known free staffed place and a known "
@@ -93,12 +97,25 @@ def run(service, urgency, origin_id, needs_tool, traffic, *, provider=None, trav
     tools = (TOOLS[service][0],) if needs_tool and service in TOOLS else ()
     request, snapshot = demo_capacity_inputs(service=service, urgency=urgency, origin_id=origin_id,
                                              required_tools=tools)
-    kind = SIMULATED
-    if traffic:
-        kind = TRAFFIC
-        snapshot = {**snapshot, "travel": travel.demo_car_travel(request, snapshot, origin_id=origin_id,
-                                                                 provider=provider)}
-    result = recommend_capacity(request, snapshot)
+    kind = TRAFFIC if traffic else SIMULATED
+    result = None
+    if request.get("emergency") is True:
+        result = {"status": "emergency", "reason": "emergency_stop"}
+    elif traffic:
+        try:
+            observations = travel.demo_car_travel(request, snapshot, origin_id=origin_id, provider=provider)
+        except Exception as error:
+            LOGGER.warning("Find care road-time lookup failed (%s)", type(error).__name__)
+            observations = {row["facility_id"]: {"status": "unavailable", "reason": "route_lookup_failed"}
+                            for row in snapshot["candidates"]}
+            result = {"status": "no_recommendation", "reason": "travel_unavailable"}
+        snapshot = {**snapshot, "travel": observations}
+    if result is None:
+        try:
+            result = recommend_capacity(request, snapshot)
+        except Exception as error:
+            LOGGER.warning("Find care capacity model failed (%s)", type(error).__name__)
+            result = {"status": "no_recommendation", "reason": "allocator_unavailable"}
     evidence = None
     if result.get("chosen"):
         row = next(c for c in snapshot["candidates"] if c["facility_id"] == result["chosen"]["facility_id"])
@@ -163,6 +180,9 @@ def explain(check):
     lines = {"destination": None, "headline": None, "trip": None, "why": None, "fastest": None,
              "uncertain": None, "alternatives": [], "evidence": [], "excluded": [], "travel_failures": [],
              "time_label": SIMULATED_LABEL, "limits": []}
+    if result["status"] == "emergency":
+        lines["headline"] = "Emergency: call 112 now. No campus is recommended from this screen."
+        return lines
     for key, count in result.get("exclusions", {}).items():
         lines["excluded"].append(f"{count} campus{'es' if count != 1 else ''} left out: "
                                  + EXCLUSIONS.get(key, key.replace("_", " ")) + ".")
@@ -171,13 +191,12 @@ def explain(check):
             if row["status"] != "known" and row.get("reason") != "service_ineligible":
                 reason = (f" ({TRAVEL_REASONS.get(row['reason']) or str(row['reason']).replace('_', ' ')})"
                           if row.get("reason") else "")
+                timing = ("request time unknown" if row.get("reason") == "route_lookup_failed"
+                          else _when(row.get("requested_at")))
                 lines["travel_failures"].append(
-                    f"{campus(key)}: road time unavailable{reason}, {_when(row.get('requested_at'))}.")
+                    f"{campus(key)}: road time unavailable{reason}, {timing}.")
         lines["time_label"] = (f"Road time for an ordinary car with traffic, from {TRAFFIC_SOURCE}. It is an estimate "
                                "between simulated Jaipur places, not the patient's own address.")
-    if result["status"] == "emergency":
-        lines["headline"] = "Emergency: call 112 now. No campus is recommended from this screen."
-        return lines
     if result["status"] != "recommended":
         lines["headline"] = "No campus is recommended."
         lines["why"] = NO_CHOICE.get(result["reason"], "The capacity check found no campus it can recommend.")

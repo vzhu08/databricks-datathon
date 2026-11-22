@@ -14,8 +14,10 @@ Two rules every surface depends on:
   provenance classification sets. Demonstration rows say they are synthetic.
 """
 try:
+    from find_care import citation_scope_note, service_observation_date
     from finding_provenance import SYNTHETIC, Observation, Review, summarize_claim
 except ImportError:  # repository tests import the package
+    from app.find_care import citation_scope_note, service_observation_date
     from app.finding_provenance import SYNTHETIC, Observation, Review, summarize_claim
 
 STATUSES = ("assigned", "provisional", "verification_lead", "no_usable_evidence", "withheld", "emergency")
@@ -203,11 +205,8 @@ def lead(candidate, service):
     """One candidate as plain lines: who, what its record says, and what is not known."""
     claim = candidate.get("service") or {}
     origins = claim.get("independent_supporting_origins")
-    support = [source for source in claim.get("sources") or () if source.get("role") == "support"]
-    # The date of the statement itself. The claim's as_of is only the day it was assessed.
-    dated = sorted(str(source["observed_on"]) for source in support if source.get("observed_on"))
-    cited = list(dict.fromkeys(str(source["citation"]) for source in claim.get("sources") or ()
-                               if source.get("citation")))
+    cited = dict.fromkeys((source["citation"], source.get("citation_scope"))
+                          for source in claim.get("sources") or () if source.get("citation"))
     return {
         "key": candidate.get("key"),
         "name": candidate.get("name") or "A facility that cannot be named here",
@@ -216,8 +215,8 @@ def lead(candidate, service):
         "says": _says(claim) or [f"No statement about {SERVICE_PHRASE.get(service, service)} was supplied."],
         "origins": ("Independent sources for the service: unknown." if origins is None else
                     f"Independent sources for the service: {origins}."),
-        "date": f"Service statement dated: {dated[-1] if dated else 'unknown'}.",
-        "citation": ("Citation: " + "; ".join(cited) + ". It points to the whole record, not to this statement."
+        "date": f"Service statement dated: {service_observation_date(claim)}.",
+        "citation": (" ".join(f"Citation: {pointer}. {citation_scope_note(scope)}" for pointer, scope in cited)
                      if cited else "Citation: none on the record."),
         "availability": AVAILABILITY.get(candidate.get("availability"), AVAILABILITY["unknown"]),
         "travel": _travel(candidate),
@@ -250,7 +249,8 @@ def explain(decision, service):
             view["headline"] = f"Provisional lead: {view['lead']['name']}. Confirm before anyone travels."
             view["note_kind"] = "confirmation" if decision.get("next_action") == "confirmation_note" else None
         else:
-            view["headline"] = (f"No record states {phrase}. Closest identifiable lead: {view['lead']['name']}.")
+            name = view["lead"]["name"]
+            view["headline"] = f"Verification lead: {name}."
     elif status == "withheld":
         view["headline"] = "A lead exists in the real records, but no facility can be named here yet."
     else:
