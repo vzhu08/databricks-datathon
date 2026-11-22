@@ -9,6 +9,7 @@ import zipfile
 
 from research.acquisition.osm_services.core import classify, family, observations, screen, typed_id
 from research.acquisition.osm_services.hot import load
+from research.acquisition.osm_services.__main__ import reconcile_facility_key_counts
 
 
 def record(ident='node/1', tags=None):
@@ -60,6 +61,17 @@ class ClassifierTests(unittest.TestCase):
 
     def test_missing_tags_stay_unknown(self):
         self.assertEqual(observations(record()),[])
+
+    def test_facility_fields_keep_yes_no_and_cached_national_counts(self):
+        records=[record(tags={'facility:mri':'yes','source':'Invented field visit 2000'}),
+                 record('node/2',{'facility:mri':'no','facility:trauma':'yes'})]
+        self.assertEqual(observations(records[0])[0]['category'],'explicit_service_tag')
+        self.assertEqual({o['category'] for o in observations(records[1])},{'negative_or_unavailable','explicit_service_tag'})
+        edition={'national_required_key_counts':{}}
+        reconcile_facility_key_counts(records,edition)
+        self.assertEqual(edition['national_required_key_counts'],{'facility:mri':2,'facility:trauma':1})
+        edition['national_required_key_counts']['facility:mri']=3
+        with self.assertRaises(ValueError):reconcile_facility_key_counts(records,edition)
 
     def test_distributor_does_not_increase_independence(self):
         self.assertEqual({family(x) for x in ['hot','geofabrik','osm','overture_osm']},{'osm'})

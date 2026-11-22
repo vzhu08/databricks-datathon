@@ -42,7 +42,7 @@ python -m research.acquisition.osm_services \
   --retrieved-at 2026-11-22T05:06:50.543264Z \
   --prior-hot /private/input/hotosm_ind_health_facilities_osm_geojson.zip \
   --pbf-cache data/local/osm-services/pbf-extraction-cache \
-  --out data/local/osm-services/pbf-20261101-v2
+  --out data/local/osm-services/pbf-20261101-final
 python -m research.acquisition.osm_services.pmndp \
   --index /private/input/pmndp-index.bin \
   --policy /private/input/pmndp-policy.bin \
@@ -79,6 +79,10 @@ The lexicon covers the listed English spellings/tokens; it does not translate
 unrecognized languages or assert that all unrecognized tag grammars were found.
 Negation/lifecycle/scope categories are conservative text-screen flags for review,
 not semantic adjudications of an entire sentence or a current campus status.
+The full PBF includes `facility:mri` and `facility:trauma` yes/no fields, which
+HOT omits. Their declared source is a 2019 Indore field visit; preserve that raw
+source tag and its historical scope. Recognizing a boolean map field does not
+establish current function, a precise observation date or independent evidence.
 
 All observations have `patient_status=unconfirmed`, no adjudicated campus or VF
 ID, and no inferred service observation date. Map edit dates, source versions,

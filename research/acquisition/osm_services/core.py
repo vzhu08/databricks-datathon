@@ -12,9 +12,9 @@ EXACT = {
     'trauma_care': {'trauma_care', 'trauma care', 'trauma_unit', 'trauma_centre', 'trauma_center'},
 }
 DEDICATED = {
-    'dialysis': {'dialysis', 'healthcare:dialysis'},
-    'mri': {'mri', 'healthcare:mri', 'scanner:mri'},
-    'trauma_care': {'trauma', 'trauma_care', 'healthcare:trauma', 'healthcare:trauma_care'},
+    'dialysis': {'dialysis', 'healthcare:dialysis', 'facility:dialysis'},
+    'mri': {'mri', 'healthcare:mri', 'scanner:mri', 'facility:mri'},
+    'trauma_care': {'trauma', 'trauma_care', 'healthcare:trauma', 'healthcare:trauma_care', 'facility:trauma'},
 }
 MENTION = {
     'dialysis': re.compile(r'(?i)\b(?:dialysis|ha?emodialysis|peritoneal[ _]dialysis)\b'),

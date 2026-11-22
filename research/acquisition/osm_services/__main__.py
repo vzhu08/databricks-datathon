@@ -6,6 +6,18 @@ from .core import canonical, screen
 from .hot import load, FROZEN_SHA256
 
 
+def reconcile_facility_key_counts(records, edition):
+    # These service-bearing keys always pass the full reader's mention filter.
+    # Therefore their retained counts equal national counts, including when a
+    # hash-verified extraction checkpoint predates explicit field recognition.
+    counts=edition['national_required_key_counts']
+    for key in ['facility:dialysis','facility:mri','facility:trauma']:
+        count=sum(r['tags'].get(key) not in (None,'') for r in records)
+        if key in counts and counts[key]!=count:
+            raise ValueError('Service-bearing key retention mismatch: '+key)
+        if count: counts[key]=count
+
+
 def write_packet(out, ledger, report, extras=None):
     out.mkdir(parents=True, exist_ok=True)
     files = {'ledger.jsonl': b''.join(canonical(row) for row in ledger), 'aggregate.json':canonical(report), **(extras or {})}
@@ -49,6 +61,7 @@ def main():
         from .pbf import load as load_pbf, compare_editions
         prior=load(args.prior_hot)[0] if args.prior_hot else []
         records,edition,count,columns,mapping=load_pbf(args.pbf,args.sha256,args.source_url,args.snapshot_date,args.retrieved_at,prior,args.pbf_cache)
+        reconcile_facility_key_counts(records,edition)
         if prior:
             extras['edition-drift.json']=canonical(compare_editions(prior,records))
     ledger,report=screen(records,edition,count,columns,mapping)
