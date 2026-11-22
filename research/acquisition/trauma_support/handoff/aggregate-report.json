@@ -1,0 +1,1211 @@
+{
+  "ambiguous_label_candidate_occurrences": 0,
+  "as_of": "2026-11-22",
+  "base_sha256": "27e4a79de42ec56c76cc676ed45494a52497d179858bc50549a461434c45e9d8",
+  "candidate_distinct_upstream_ids": 4,
+  "candidate_edges": 8,
+  "candidate_limitations": "Exact label/state comparison is conservative; aliases, renamed campuses, name collisions and historical state changes require Vincent's identity review. Zero candidates is not evidence of absent care.",
+  "candidate_occurrences": 4,
+  "candidate_occurrences_by_edition": {
+    "freeze65": 2,
+    "functional2025": 4,
+    "sanction2026": 2
+  },
+  "confirmed_campus_links": 0,
+  "decision_scope": "incremental producer layer only; existing adjudications unchanged",
+  "decisions_per_service": 10088,
+  "distinct_upstream_ids": 10077,
+  "edition_comparisons": [
+    {
+      "ambiguous_shared_label_keys": 0,
+      "different_functionality_assertions": 2,
+      "interpretation": "label comparison only; aliases and historical boundary changes unresolved",
+      "left": "freeze65",
+      "left_only_label_keys": 15,
+      "right": "functional2025",
+      "right_only_label_keys": 62,
+      "same_origin": true,
+      "shared_label_resource_keys": 181,
+      "unambiguous_label_pairs": 181
+    },
+    {
+      "ambiguous_shared_label_keys": 0,
+      "different_functionality_assertions": 0,
+      "interpretation": "label comparison only; aliases and historical boundary changes unresolved",
+      "left": "freeze65",
+      "left_only_label_keys": 15,
+      "right": "sanction2026",
+      "right_only_label_keys": 15,
+      "same_origin": true,
+      "shared_label_resource_keys": 181,
+      "unambiguous_label_pairs": 181
+    },
+    {
+      "ambiguous_shared_label_keys": 0,
+      "different_functionality_assertions": 0,
+      "interpretation": "label comparison only; aliases and historical boundary changes unresolved",
+      "left": "functional2025",
+      "left_only_label_keys": 47,
+      "right": "sanction2026",
+      "right_only_label_keys": 0,
+      "same_origin": true,
+      "shared_label_resource_keys": 196,
+      "unambiguous_label_pairs": 196
+    }
+  ],
+  "extra_identical_occurrences_preserved": 11,
+  "geography": {
+    "(label is not a state or union territory)": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 390,
+      "mri_unconfirmed": 390,
+      "original_occurrences": 390,
+      "trauma_care_unconfirmed": 390
+    },
+    "(no state label)": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 58,
+      "mri_unconfirmed": 58,
+      "original_occurrences": 58,
+      "trauma_care_unconfirmed": 58
+    },
+    "andaman and nicobar islands": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 2,
+      "mri_unconfirmed": 2,
+      "original_occurrences": 2,
+      "trauma_care_unconfirmed": 2
+    },
+    "andhra pradesh": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 329,
+      "mri_unconfirmed": 329,
+      "original_occurrences": 329,
+      "trauma_care_unconfirmed": 329
+    },
+    "arunachal pradesh": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 3,
+      "mri_unconfirmed": 3,
+      "original_occurrences": 3,
+      "trauma_care_unconfirmed": 3
+    },
+    "assam": {
+      "candidate_occurrences": 1,
+      "dialysis_unconfirmed": 117,
+      "mri_unconfirmed": 117,
+      "original_occurrences": 117,
+      "trauma_care_unconfirmed": 117
+    },
+    "bihar": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 258,
+      "mri_unconfirmed": 258,
+      "original_occurrences": 258,
+      "trauma_care_unconfirmed": 258
+    },
+    "chandigarh": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 46,
+      "mri_unconfirmed": 46,
+      "original_occurrences": 46,
+      "trauma_care_unconfirmed": 46
+    },
+    "chhattisgarh": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 140,
+      "mri_unconfirmed": 140,
+      "original_occurrences": 140,
+      "trauma_care_unconfirmed": 140
+    },
+    "dadra and nagar haveli and daman and diu": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 3,
+      "mri_unconfirmed": 3,
+      "original_occurrences": 3,
+      "trauma_care_unconfirmed": 3
+    },
+    "delhi": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 342,
+      "mri_unconfirmed": 342,
+      "original_occurrences": 342,
+      "trauma_care_unconfirmed": 342
+    },
+    "goa": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 32,
+      "mri_unconfirmed": 32,
+      "original_occurrences": 32,
+      "trauma_care_unconfirmed": 32
+    },
+    "gujarat": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 981,
+      "mri_unconfirmed": 981,
+      "original_occurrences": 981,
+      "trauma_care_unconfirmed": 981
+    },
+    "haryana": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 462,
+      "mri_unconfirmed": 462,
+      "original_occurrences": 462,
+      "trauma_care_unconfirmed": 462
+    },
+    "himachal pradesh": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 39,
+      "mri_unconfirmed": 39,
+      "original_occurrences": 39,
+      "trauma_care_unconfirmed": 39
+    },
+    "jammu and kashmir": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 62,
+      "mri_unconfirmed": 62,
+      "original_occurrences": 62,
+      "trauma_care_unconfirmed": 62
+    },
+    "jharkhand": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 156,
+      "mri_unconfirmed": 156,
+      "original_occurrences": 156,
+      "trauma_care_unconfirmed": 156
+    },
+    "karnataka": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 529,
+      "mri_unconfirmed": 529,
+      "original_occurrences": 529,
+      "trauma_care_unconfirmed": 529
+    },
+    "kerala": {
+      "candidate_occurrences": 1,
+      "dialysis_unconfirmed": 483,
+      "mri_unconfirmed": 483,
+      "original_occurrences": 483,
+      "trauma_care_unconfirmed": 483
+    },
+    "ladakh": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 0,
+      "mri_unconfirmed": 0,
+      "original_occurrences": 0,
+      "trauma_care_unconfirmed": 0
+    },
+    "lakshadweep": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 0,
+      "mri_unconfirmed": 0,
+      "original_occurrences": 0,
+      "trauma_care_unconfirmed": 0
+    },
+    "madhya pradesh": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 302,
+      "mri_unconfirmed": 302,
+      "original_occurrences": 302,
+      "trauma_care_unconfirmed": 302
+    },
+    "maharashtra": {
+      "candidate_occurrences": 1,
+      "dialysis_unconfirmed": 1575,
+      "mri_unconfirmed": 1575,
+      "original_occurrences": 1575,
+      "trauma_care_unconfirmed": 1575
+    },
+    "manipur": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 13,
+      "mri_unconfirmed": 13,
+      "original_occurrences": 13,
+      "trauma_care_unconfirmed": 13
+    },
+    "meghalaya": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 14,
+      "mri_unconfirmed": 14,
+      "original_occurrences": 14,
+      "trauma_care_unconfirmed": 14
+    },
+    "mizoram": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 3,
+      "mri_unconfirmed": 3,
+      "original_occurrences": 3,
+      "trauma_care_unconfirmed": 3
+    },
+    "nagaland": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 6,
+      "mri_unconfirmed": 6,
+      "original_occurrences": 6,
+      "trauma_care_unconfirmed": 6
+    },
+    "odisha": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 118,
+      "mri_unconfirmed": 118,
+      "original_occurrences": 118,
+      "trauma_care_unconfirmed": 118
+    },
+    "puducherry": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 17,
+      "mri_unconfirmed": 17,
+      "original_occurrences": 17,
+      "trauma_care_unconfirmed": 17
+    },
+    "punjab": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 469,
+      "mri_unconfirmed": 469,
+      "original_occurrences": 469,
+      "trauma_care_unconfirmed": 469
+    },
+    "rajasthan": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 407,
+      "mri_unconfirmed": 407,
+      "original_occurrences": 407,
+      "trauma_care_unconfirmed": 407
+    },
+    "sikkim": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 4,
+      "mri_unconfirmed": 4,
+      "original_occurrences": 4,
+      "trauma_care_unconfirmed": 4
+    },
+    "tamil nadu": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 780,
+      "mri_unconfirmed": 780,
+      "original_occurrences": 780,
+      "trauma_care_unconfirmed": 780
+    },
+    "telangana": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 421,
+      "mri_unconfirmed": 421,
+      "original_occurrences": 421,
+      "trauma_care_unconfirmed": 421
+    },
+    "tripura": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 6,
+      "mri_unconfirmed": 6,
+      "original_occurrences": 6,
+      "trauma_care_unconfirmed": 6
+    },
+    "uttar pradesh": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 919,
+      "mri_unconfirmed": 919,
+      "original_occurrences": 919,
+      "trauma_care_unconfirmed": 919
+    },
+    "uttarakhand": {
+      "candidate_occurrences": 0,
+      "dialysis_unconfirmed": 125,
+      "mri_unconfirmed": 125,
+      "original_occurrences": 125,
+      "trauma_care_unconfirmed": 125
+    },
+    "west bengal": {
+      "candidate_occurrences": 1,
+      "dialysis_unconfirmed": 477,
+      "mri_unconfirmed": 477,
+      "original_occurrences": 477,
+      "trauma_care_unconfirmed": 477
+    }
+  },
+  "geography_policy": "Existing national matcher state_bucket over original labels; both missing and non-state buckets retained. Candidate-only source spelling normalization does not rewrite this baseline geography.",
+  "incremental_confirmed_campus_service_pairs": 0,
+  "live_availability": "not_established",
+  "new_candidate_occurrences_beyond_freeze65": 2,
+  "no_decisions": 0,
+  "occurrence_service_decisions": 30264,
+  "original_occurrences": 10088,
+  "shared_candidate_occurrences_with_freeze65": 2,
+  "source_summary": {
+    "editions": {
+      "freeze65": {
+        "by_state_resource_status": [
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Andaman and Nicobar Islands",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Andhra Pradesh",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 13,
+            "resource": "trauma_care",
+            "state": "Andhra Pradesh",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Arunachal Pradesh",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 7,
+            "resource": "trauma_care",
+            "state": "Assam",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 9,
+            "resource": "trauma_care",
+            "state": "Bihar",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 6,
+            "resource": "trauma_care",
+            "state": "Chhattisgarh",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Dadra and Nagar Haveli",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Goa",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 3,
+            "resource": "trauma_care",
+            "state": "Gujarat",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 12,
+            "resource": "trauma_care",
+            "state": "Gujarat",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 3,
+            "resource": "trauma_care",
+            "state": "Haryana",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 6,
+            "resource": "trauma_care",
+            "state": "Himachal Pradesh",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 2,
+            "resource": "trauma_care",
+            "state": "Jammu and Kashmir",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 3,
+            "resource": "trauma_care",
+            "state": "Jammu and Kashmir",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Jharkhand",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 8,
+            "resource": "trauma_care",
+            "state": "Karnataka",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 6,
+            "resource": "trauma_care",
+            "state": "Kerala",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 5,
+            "resource": "trauma_care",
+            "state": "Madhya Pradesh",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Maharashtra",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 5,
+            "resource": "trauma_care",
+            "state": "Maharashtra",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 6,
+            "resource": "trauma_care",
+            "state": "Manipur",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 3,
+            "resource": "trauma_care",
+            "state": "Meghalaya",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 7,
+            "resource": "trauma_care",
+            "state": "Mizoram",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 5,
+            "resource": "trauma_care",
+            "state": "Nagaland",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Odisha",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 5,
+            "resource": "trauma_care",
+            "state": "Odisha",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 2,
+            "resource": "trauma_care",
+            "state": "Punjab",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 3,
+            "resource": "trauma_care",
+            "state": "Punjab",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 10,
+            "resource": "trauma_care",
+            "state": "Rajasthan",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Sikkim",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Tamil Nadu",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 9,
+            "resource": "trauma_care",
+            "state": "Tamil Nadu",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Telangana",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 5,
+            "resource": "trauma_care",
+            "state": "Tripura",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 13,
+            "resource": "trauma_care",
+            "state": "Uttar Pradesh",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Uttarakhand",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 5,
+            "resource": "trauma_care",
+            "state": "West Bengal",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 5,
+            "resource": "trauma_care",
+            "state": "West Bengal",
+            "status": "reported_functional"
+          }
+        ],
+        "duplicate_label_resource_mentions": 0,
+        "observed_state_labels_normalized": 31,
+        "programme_stage_counts": {
+          "completed": 105,
+          "construction_not_started": 4,
+          "supported": 80,
+          "under_construction": 7
+        },
+        "raw_mentions": 196,
+        "resource_status_counts": {
+          "trauma_care:not_reported": 91,
+          "trauma_care:reported_functional": 105
+        },
+        "unique_label_resource_observations": 196
+      },
+      "functional2025": {
+        "by_state_resource_status": [
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Andaman and Nicobar Islands",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 1,
+            "resource": "burn_treatment",
+            "state": "Andhra Pradesh",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 5,
+            "resource": "burn_treatment",
+            "state": "Andhra Pradesh",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 12,
+            "resource": "trauma_care",
+            "state": "Andhra Pradesh",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 2,
+            "resource": "trauma_care",
+            "state": "Andhra Pradesh",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Arunachal Pradesh",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 2,
+            "resource": "burn_treatment",
+            "state": "Assam",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 7,
+            "resource": "trauma_care",
+            "state": "Assam",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "burn_treatment",
+            "state": "Bihar",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "burn_treatment",
+            "state": "Bihar",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 9,
+            "resource": "trauma_care",
+            "state": "Bihar",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "burn_treatment",
+            "state": "Chhattisgarh",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 6,
+            "resource": "trauma_care",
+            "state": "Chhattisgarh",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Dadra and Nagar Haveli",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "burn_treatment",
+            "state": "Goa",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Goa",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "burn_treatment",
+            "state": "Gujarat",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 13,
+            "resource": "trauma_care",
+            "state": "Gujarat",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 2,
+            "resource": "trauma_care",
+            "state": "Gujarat",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 3,
+            "resource": "trauma_care",
+            "state": "Haryana",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 6,
+            "resource": "trauma_care",
+            "state": "Himachal Pradesh",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "burn_treatment",
+            "state": "Jammu and Kashmir",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 3,
+            "resource": "trauma_care",
+            "state": "Jammu and Kashmir",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Jammu and Kashmir",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Jharkhand",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "burn_treatment",
+            "state": "Karnataka",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 8,
+            "resource": "trauma_care",
+            "state": "Karnataka",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 4,
+            "resource": "burn_treatment",
+            "state": "Kerala",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Kerala",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 2,
+            "resource": "trauma_care",
+            "state": "Kerala",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Ladakh",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 4,
+            "resource": "burn_treatment",
+            "state": "Madhya Pradesh",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "burn_treatment",
+            "state": "Madhya Pradesh",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 5,
+            "resource": "trauma_care",
+            "state": "Madhya Pradesh",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 6,
+            "resource": "trauma_care",
+            "state": "Maharashtra",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "burn_treatment",
+            "state": "Manipur",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 6,
+            "resource": "trauma_care",
+            "state": "Manipur",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 2,
+            "resource": "trauma_care",
+            "state": "Meghalaya",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Meghalaya",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Mizoram",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 3,
+            "resource": "trauma_care",
+            "state": "Mizoram",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Nagaland",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Nagaland",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 1,
+            "resource": "burn_treatment",
+            "state": "Odisha",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 6,
+            "resource": "trauma_care",
+            "state": "Odisha",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "burn_treatment",
+            "state": "Punjab",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "burn_treatment",
+            "state": "Punjab",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 5,
+            "resource": "trauma_care",
+            "state": "Punjab",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 10,
+            "resource": "trauma_care",
+            "state": "Rajasthan",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Sikkim",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 6,
+            "resource": "burn_treatment",
+            "state": "Tamil Nadu",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 13,
+            "resource": "trauma_care",
+            "state": "Tamil Nadu",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Telangana",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 2,
+            "resource": "trauma_care",
+            "state": "Tripura",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 3,
+            "resource": "trauma_care",
+            "state": "Tripura",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 5,
+            "resource": "burn_treatment",
+            "state": "Uttar Pradesh",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 13,
+            "resource": "trauma_care",
+            "state": "Uttar Pradesh",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 2,
+            "resource": "burn_treatment",
+            "state": "Uttarakhand",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 3,
+            "resource": "trauma_care",
+            "state": "Uttarakhand",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Uttarakhand",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 2,
+            "resource": "burn_treatment",
+            "state": "West Bengal",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 4,
+            "resource": "burn_treatment",
+            "state": "West Bengal",
+            "status": "reported_nonfunctional"
+          },
+          {
+            "mentions": 5,
+            "resource": "trauma_care",
+            "state": "West Bengal",
+            "status": "reported_functional"
+          },
+          {
+            "mentions": 5,
+            "resource": "trauma_care",
+            "state": "West Bengal",
+            "status": "reported_nonfunctional"
+          }
+        ],
+        "duplicate_label_resource_mentions": 0,
+        "observed_state_labels_normalized": 32,
+        "programme_stage_counts": {
+          "sanctioned": 243
+        },
+        "raw_mentions": 243,
+        "resource_status_counts": {
+          "burn_treatment:reported_functional": 31,
+          "burn_treatment:reported_nonfunctional": 16,
+          "trauma_care:reported_functional": 168,
+          "trauma_care:reported_nonfunctional": 28
+        },
+        "unique_label_resource_observations": 243
+      },
+      "sanction2026": {
+        "by_state_resource_status": [
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Andaman and Nicobar Islands",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 14,
+            "resource": "trauma_care",
+            "state": "Andhra Pradesh",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Arunachal Pradesh",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 7,
+            "resource": "trauma_care",
+            "state": "Assam",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 9,
+            "resource": "trauma_care",
+            "state": "Bihar",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 6,
+            "resource": "trauma_care",
+            "state": "Chhattisgarh",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Dadra and Nagar Haveli",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Goa",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 15,
+            "resource": "trauma_care",
+            "state": "Gujarat",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 3,
+            "resource": "trauma_care",
+            "state": "Haryana",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 6,
+            "resource": "trauma_care",
+            "state": "Himachal Pradesh",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Jammu and Kashmir",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Jharkhand",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 8,
+            "resource": "trauma_care",
+            "state": "Karnataka",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 6,
+            "resource": "trauma_care",
+            "state": "Kerala",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 1,
+            "resource": "trauma_care",
+            "state": "Ladakh",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 5,
+            "resource": "trauma_care",
+            "state": "Madhya Pradesh",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 6,
+            "resource": "trauma_care",
+            "state": "Maharashtra",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 6,
+            "resource": "trauma_care",
+            "state": "Manipur",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 3,
+            "resource": "trauma_care",
+            "state": "Meghalaya",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 7,
+            "resource": "trauma_care",
+            "state": "Mizoram",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 5,
+            "resource": "trauma_care",
+            "state": "Nagaland",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 6,
+            "resource": "trauma_care",
+            "state": "Odisha",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 5,
+            "resource": "trauma_care",
+            "state": "Punjab",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 10,
+            "resource": "trauma_care",
+            "state": "Rajasthan",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Sikkim",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 13,
+            "resource": "trauma_care",
+            "state": "Tamil Nadu",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Telangana",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 5,
+            "resource": "trauma_care",
+            "state": "Tripura",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 13,
+            "resource": "trauma_care",
+            "state": "Uttar Pradesh",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 4,
+            "resource": "trauma_care",
+            "state": "Uttarakhand",
+            "status": "not_reported"
+          },
+          {
+            "mentions": 10,
+            "resource": "trauma_care",
+            "state": "West Bengal",
+            "status": "not_reported"
+          }
+        ],
+        "duplicate_label_resource_mentions": 0,
+        "observed_state_labels_normalized": 32,
+        "programme_stage_counts": {
+          "sanctioned": 196
+        },
+        "raw_mentions": 196,
+        "resource_status_counts": {
+          "trauma_care:not_reported": 196
+        },
+        "unique_label_resource_observations": 196
+      }
+    },
+    "grain_note": "A label-resource key is not a verified campus. Raw mentions remain intact; editions of the same ministry return are one origin.",
+    "independent_upstream_origins": 1,
+    "new_label_resource_status_keys_beyond_freeze65": {
+      "burn_treatment:reported_functional": 31,
+      "burn_treatment:reported_nonfunctional": 16,
+      "trauma_care:not_reported": 15,
+      "trauma_care:reported_functional": 15
+    },
+    "raw_mentions": 635,
+    "source_family": "mohfw_nppmtbi_state_programme_returns",
+    "unique_label_resource_keys_across_editions": 258,
+    "unique_reviewed_campus_service_pairs": 0
+  },
+  "submission": "not_performed",
+  "unconfirmed_decisions": 30264,
+  "yes_decisions": 0
+}
