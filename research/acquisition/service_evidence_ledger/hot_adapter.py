@@ -11,17 +11,12 @@ from pathlib import Path
 from .ledger import canonical, lines, pinned, require, sha
 
 
-def adapt_hot(manifest, source_rows, joint_rows, candidates):
-    source = manifest["source_edition"]
-    require(manifest["permitted_audience"] ==
-            "four-person private research team; OSM-derived ledger remains ODbL-1.0", "unrecognized_hot_audience")
-    require(len(source_rows) == manifest["ledger_observations"], "hot_observation_count_changed")
+def frozen_hot_links(object_ids, snapshot, joint_rows, candidates):
+    """Expand candidates from one specified HOT snapshot to original occurrences."""
     by_representative = defaultdict(list)
     for row in joint_rows:
         by_representative[row["representative"]].append(row["facility_id"])
-    object_ids = {r["osm_id"] for r in source_rows}
     candidate_links = defaultdict(dict)
-    snapshot = "hot_osm_health:" + source["sha256"]
     for candidate in candidates:
         if (candidate["source_key"] != "hot_osm_health" or candidate["snapshot_id"] != snapshot or
                 candidate["source_record_id"] not in object_ids or not candidate["runs"].get("joint")):
@@ -34,6 +29,16 @@ def adapt_hot(manifest, source_rows, joint_rows, candidates):
             previous = candidate_links[candidate["source_record_id"]].get(fid)
             require(previous is None or previous == link, "multiple_frozen_links_for_same_object")
             candidate_links[candidate["source_record_id"]][fid] = link
+    return candidate_links
+
+
+def adapt_hot(manifest, source_rows, joint_rows, candidates):
+    source = manifest["source_edition"]
+    require(manifest["permitted_audience"] ==
+            "four-person private research team; OSM-derived ledger remains ODbL-1.0", "unrecognized_hot_audience")
+    require(len(source_rows) == manifest["ledger_observations"], "hot_observation_count_changed")
+    candidate_links = frozen_hot_links({r["osm_id"] for r in source_rows}, "hot_osm_health:" + source["sha256"],
+                                       joint_rows, candidates)
     edition_id = "hot-osm:" + source["sha256"]
     edition = {"edition_id": edition_id, "content_sha256": source["sha256"],
                "publisher": source["publisher"], "source_url": source["source_url"],

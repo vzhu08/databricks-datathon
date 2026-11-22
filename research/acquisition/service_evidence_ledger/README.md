@@ -105,3 +105,22 @@ python -m research.acquisition.service_evidence_ledger.source_register PRIVATE/d
 Add `--source-register PRIVATE/source-register.json SHA256` to the CLI. The register enumerates qualification-only editions and NHSRC’s private equipment and lexical-mention files. These large source tables retain their native rows, units, dates, exact locators and source IDs at the verified URI. The register generator reads every member, checks every equipment and mention ID for uniqueness and validates its source edition against the permitted closure. Read these rows at source grain pending Vincent’s campus linkage. The combined report’s loaded observation count describes rows in `observations.jsonl.gz`. Counts for the two source-native tables are in `source_register.jsonl.gz` under `verified_counts`.
 
 Vincent’s [scope inventory](https://github.com/vzhu08/databricks-datathon/issues/162#issuecomment-7074610589) records a narrower authorized audience for the original VF statement ledgers. Row-level span verification for the four-reader output requires a cleared edition, or a producer-side verification within that audience.
+
+## November national OSM comparison and VF statement counts
+
+The incremental build takes the verified 7,420-observation release, J’s complete November national packet, the October candidate trace and Vincent’s cleared #209 aggregate. Use a distinct output directory for each edition.
+
+```sh
+python -m research.acquisition.service_evidence_ledger.pbf \
+  --previous PRIVATE/service-ledger-163-collectors-v1 \
+  --packet PRIVATE/osm-j-111-v1 \
+  --candidate-trace PRIVATE/vf-joint-matching/candidate-delta.jsonl.gz \
+  --statement-aggregate PRIVATE/nat-b01-statement-grain-209-v1 \
+  --out-dir PRIVATE/service-ledger-november
+```
+
+The adapter retains all 1,720 November observations and their source rows. It projects candidate links only where the typed OSM object ID also existed in the pinned October snapshot and the older joint trace contains a candidate. Each projected link carries its frozen stage and the cross-edition link basis. An object first seen in November remains available for later matching. Both editions belong to one OSM origin. The source attribution identifies 51 MRI or trauma tags from the 2019 Indore field visit. The service-effective day is unknown.
+
+In `report.json`, `november_osm_comparison` compares all prior collector leads with the new edition. Across the 30,264 target decisions, 131 pairs previously had a lead and 38 gained one (26 MRI, nine trauma and three dialysis). Eight of the MRI additions have an explicit service tag. One further pair gained an orthopaedics lead. All original decisions remain unconfirmed. The geography/service breakdown covers all 114 target partitions. The full-modality breakdown includes orthopaedics.
+
+`original_statement_aggregate` reports the producer-verified 8,169 distinct original passages and 8,200 passage/service assignments. The producer verified exact offsets within the Vincent/Andrew audience. Only cleared counts enter this edition. The four-reader ledger’s locally verified locator counts and occurrence-level gains over the original statements remain null. Record any later aggregate overlap against the exact collector manifest used for that comparison. [Producer receipt](https://github.com/vzhu08/databricks-datathon/issues/209#issuecomment-7074935560)
