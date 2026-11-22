@@ -193,6 +193,8 @@ python -m research.matching.consensus `
 
 The output contains the leading source record and point, each site's supporting families and references, and the original occurrence keys and payload digests. The aggregate reconciles the national population and reports state/UT counts and transitions from the frozen retrieval outcomes. Source agreement is an evidence category. The matcher contract requires separate review for confirmed identity, entrances and onsite service status.
 
+The occurrence output also records `directory_location`. A qualifying branch address or named map listing with compatible geography can produce `campus_located`. When one source family supports a rival site, at least two other families must support the selected campus. A usable PIN, locality, city or district can produce `area_located` with the branch still unresolved. The remaining records are `unresolved`. The aggregate reports these labels for all states, union territories and the two unknown geography buckets, including zero-count buckets. Pass `--registry-comparison` to include the pinned #206 official NHP and blood-host branch comparison. The two inputs count as one source family.
+
 ## Premises and locality replay (LOC-02)
 
 Run the nationwide command with an additional `--premises-mapping` to enable this candidate-only variant. It requires an explicit mapping of inspected columns. The published frozen and corrected control commands continue to use their original fields and parameters.

@@ -15,7 +15,7 @@ from tempfile import TemporaryDirectory
 
 from research.geography.distance import haversine_m
 from research.matching.normalize import fold, name_evidence, pin_key, state_key, tokens
-from research.matching.national import STATES
+from research.matching.national import NO_STATE, NOT_A_STATE, STATES
 from research.matching.premises import MISSING
 
 
@@ -26,6 +26,7 @@ HOUSE = re.compile(r"^(?:(?:no|number|door|house|plot)\.?\s+)?(\d{1,5}[a-z]?(?:\
 NAME_LEVELS = {"strong", "moderate"}
 CATEGORIES = ("high", "moderate", "single_source", "contested", "weak", "unmatched")
 LOCATION_STATUSES = ("campus_located", "area_located", "unresolved")
+LOCATION_STATE_BUCKETS = STATES | {NO_STATE, NOT_A_STATE}
 MAP_SOURCES = {"hot_osm_health", "overture_places"}
 ORIGINAL_CONFLICTS = {"state_disagrees_with_pin", "base_geography_disagreement", "district_disagrees_with_pin"}
 
@@ -568,8 +569,8 @@ def run(replay, occurrences_path, batches, projection, output, insurer_links=Non
                   "location_bases": location_bases,
                   "campus_competition": {key: campus_competition[key] for key in ("no_rival", "outvoted_one")},
                   "location_by_state": {
-                      state: {status: counts[status] for status in LOCATION_STATUSES}
-                      for state, counts in locations_by_state.items()},
+                      state: {status: locations_by_state[state][status] for status in LOCATION_STATUSES}
+                      for state in LOCATION_STATE_BUCKETS | locations_by_state.keys()},
                   "site_radius_m": SITE_RADIUS_M, "input_sha256": inputs,
                   "occurrence_output_sha256": digest(interim / "occurrences.jsonl.gz")}
         (interim / "aggregate.json").write_text(encoded(report), encoding="utf-8", newline="\n")
