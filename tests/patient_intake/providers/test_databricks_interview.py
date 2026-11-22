@@ -49,6 +49,7 @@ class InterviewTests(unittest.TestCase):
             handle = session.open(consent=True, notice_version="fixture")
             description = "Invented intake\n" + quote
             self.exchange.side_effect = [result(extraction(quote)), result({"next": "clarify_history"})]
+            start_count = self.exchange.call_count
             view = service.edit(handle, handle.read()[0], description=description, context={})
             view = service.consent(handle, view["revision"], granted=True)
             for response in ("confirm", "unsure"):
@@ -64,12 +65,29 @@ class InterviewTests(unittest.TestCase):
             self.assertIsNone(view["next_step"])
             with self.assertRaises(ValueError):
                 service.confirm(handle, view["revision"])
-            args = self.exchange.call_args.args
-            self.assertEqual(args[2], "/serving-endpoints/" + MODEL + "/invocations")
-            self.assertEqual(args[-1], 7)
-            body = json.loads(args[4])
-            self.assertEqual(body["max_tokens"], 256)
-            self.assertEqual(json.loads(body["messages"][1]["content"])["reviewed"][0]["quote"], quote)
+            calls = self.exchange.call_args_list[start_count:]
+            self.assertEqual(len(calls), 2)
+            extraction_input, final_input = [
+                self.assert_minimal_request(call.args) for call in calls
+            ]
+            self.assertEqual(extraction_input, {"description": description})
+            self.assertEqual(final_input, {
+                "reviewed": [{"quote": quote, "presence": "present", "temporality": "current"}],
+                "clarification": {"topic": "change", "answer": "unsure"},
+            })
+
+    def assert_minimal_request(self, args):
+        _, method, path, _, raw, timeout = args
+        self.assertEqual((method, path), ("POST", f"/serving-endpoints/{MODEL}/invocations"))
+        self.assertEqual(timeout, 7)
+        body = json.loads(raw)
+        self.assertEqual(set(body), {"max_tokens", "messages"})
+        self.assertEqual(body["max_tokens"], 256)
+        instructions, user_data = body["messages"]
+        self.assertEqual(instructions["role"], "system")
+        self.assertIn("bare JSON object", instructions["content"])
+        self.assertEqual(user_data["role"], "user")
+        return json.loads(user_data["content"])
 
     def test_unknown_disputed_and_edited_evidence_do_not_trigger_inference(self):
         for decision, status in (("disagree", "present"), ("uncertain", "present"), ("confirm", "unknown")):
@@ -190,3 +208,17 @@ class InterviewTests(unittest.TestCase):
                 worker(None, "POST", "/serving-endpoints/example/invocations", {}, b"{}", 5)
             self.assertEqual(tls.call_count, 1)
             sdk_config.authenticate.assert_called_once_with()
+
+
+    def test_model_text_must_be_bare_json_without_a_fallback_request(self):
+        data = interview.start("invented", {})
+        for raw in ('```json\n{"observations":[],"topic":"change"}\n```',
+                    '{"observations":[],"topic":"change","topic":"impact"}',
+                    'A plain-text response'):
+            self.exchange.return_value = result(None, content=raw)
+            before = self.exchange.call_count
+            reply = self.provider.assess(data)
+            self.assertEqual(reply["reason"], "invalid_response")
+            self.assertNotIn("question", reply)
+            self.assertNotIn("guidance", reply)
+            self.assertEqual(self.exchange.call_count - before, 1)
