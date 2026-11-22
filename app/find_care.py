@@ -106,7 +106,12 @@ _SUFFIX = re.compile(r"(?:\s*,?\s*\bindia|\s+(?:city|town|district|dist\.?))$", 
 # so the full stop that ends a sentence ("302001. Or 302002") does not hide a PIN from the one-PIN rule.
 _PIN_IN_TEXT = re.compile(r"(?<!\w)(?<!\d\.)([1-9]\d{2})[ -]?(\d{3})(?!\w)(?!\.\d)")
 _SIX_DIGITS = re.compile(r"\d{3}[ -]?\d{3}")
-_PIN_WORDS = re.compile(r"\b(?:pin(?:\s*code)?|pincode|postal code|zip)\b[\s:#.-]*", re.I)
+_PIN_WORDS = re.compile(r"\b(?:pin(?:\s*code)?|pincode|postal code|zip)\b[\s:#.-]*$", re.I)
+# Only recognized city names may qualify a PIN. A bare city search remains open to any town.
+_PIN_CITIES = set(_CITY_ALIASES) | {city.lower() for city in _CITY_ALIASES.values()} | _CITY_STATES | {
+    "jaipur", "bangalore", "bengaluru", "lucknow", "cuttack", "bhopal", "new delhi", "old goa",
+    "bokaro steel city", "gurgaon", "allahabad", "trivandrum",
+}
 
 
 def _clean_place(text):
@@ -251,12 +256,23 @@ def parse_location(text):
     pair = _COORDINATES.fullmatch(cleaned)
     if pair:
         return {"latitude": float(pair[1]), "longitude": float(pair[2])}
-    pins = _PIN_IN_TEXT.findall(cleaned)
+    pins = list(_PIN_IN_TEXT.finditer(cleaned))
     if len(pins) > 1:
         raise ValueError("Type one PIN code.")
     if pins:
-        # a PIN is the most precise thing typed, so "PIN 560 034", "560-034" and "Jaipur 302001" search by PIN
-        return {"pin": "".join(pins[0])}
+        pin = pins[0]
+        before = _PIN_WORDS.sub("", cleaned[:pin.start()]).rstrip()
+        after = cleaned[pin.end():].lstrip()
+        if before.endswith("(") and after.startswith(")"):
+            before, after = before[:-1], after[1:]
+        before, after = before.strip(" ,."), after.strip(" ,.")
+        # Consume the whole qualifier. A PIN mentioned in a sentence is not a current location.
+        qualifier = ", ".join(part for part in (before, after) if part)
+        if qualifier:
+            city, state = _split_state(qualifier)
+            if city.casefold() not in _PIN_CITIES or (state and not _state(state)):
+                raise ValueError("Enter your current city or its six-digit PIN code on its own.")
+        return {"pin": "".join(pin.groups())}
     if _SIX_DIGITS.search(cleaned):
         raise ValueError("Type the six-digit PIN code on its own, for example 560034.")
     if not any(character.isalpha() for character in text):
