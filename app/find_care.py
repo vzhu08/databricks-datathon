@@ -79,7 +79,9 @@ _CITY_STATES = {"delhi", "chandigarh", "puducherry", "pondicherry", "goa"}
 _KEEP_CITY = re.compile(r"\b(?:steel|salt lake|lake|port|sports) city$", re.I)  # "City" belongs to these names
 _PREFIX = re.compile(r"^(?:near(?:by)?|in|at|around|close to|next to)\s+", re.I)
 _SUFFIX = re.compile(r"(?:\s*,?\s*\bindia|\s+(?:city|town|district|dist\.?))$", re.I)
-_PIN_IN_TEXT = re.compile(r"(?<!\d)([1-9]\d{2})[\s-]?(\d{3})(?!\d)")
+# a PIN must stand alone: no letters, digits or decimal points touching it ("AB560034", "12.560034" are not PINs)
+_PIN_IN_TEXT = re.compile(r"(?<![\w.])([1-9]\d{2})[ -]?(\d{3})(?![\w.])")
+_SIX_DIGITS = re.compile(r"\d{3}[ -]?\d{3}")
 _PIN_WORDS = re.compile(r"\b(?:pin(?:\s*code)?|pincode|postal code|zip)\b[\s:#.-]*", re.I)
 
 
@@ -88,7 +90,8 @@ def _clean_place(text):
     previous = None
     while previous != text:
         previous = text
-        text = text.strip(" .;:!?-").strip()
+        # a leading minus can be the sign of a latitude ("near -12.5, 77.6"), so only the end loses dashes
+        text = text.lstrip(" ;:!?").rstrip(" .;:!?-").strip()
         text = _PREFIX.sub("", text)
         if not _KEEP_CITY.search(text):
             text = _SUFFIX.sub("", text).strip(" ,")
@@ -197,15 +200,19 @@ def parse_location(text):
     if text.startswith(","):
         raise ValueError("Type the city or town before the comma.")
     cleaned = _clean_place(text)
-    pins = _PIN_IN_TEXT.findall(cleaned)
-    if len(pins) == 1 and not _COORDINATES.fullmatch(cleaned):
-        # a PIN is the most precise thing typed, so "PIN 560 034", "560-034" and "Jaipur 302001" search by PIN
-        return {"pin": "".join(pins[0])}
-    if not any(character.isalpha() for character in text):
-        raise ValueError("Type coordinates as latitude, then longitude, for example 26.92, 75.82.")
     pair = _COORDINATES.fullmatch(cleaned)
     if pair:
         return {"latitude": float(pair[1]), "longitude": float(pair[2])}
+    pins = _PIN_IN_TEXT.findall(cleaned)
+    if len(pins) > 1:
+        raise ValueError("Type one PIN code.")
+    if pins:
+        # a PIN is the most precise thing typed, so "PIN 560 034", "560-034" and "Jaipur 302001" search by PIN
+        return {"pin": "".join(pins[0])}
+    if _SIX_DIGITS.search(cleaned):
+        raise ValueError("Type the six-digit PIN code on its own, for example 560034.")
+    if not any(character.isalpha() for character in text):
+        raise ValueError("Type coordinates as latitude, then longitude, for example 26.92, 75.82.")
     city, state = _split_state(cleaned)
     city = _clean_place(city)
     if not city:

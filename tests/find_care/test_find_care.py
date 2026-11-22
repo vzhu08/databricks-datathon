@@ -191,6 +191,18 @@ class WordingTests(unittest.TestCase):
                                 ("pune mh", {"city": "pune mh"}), ("Bokaro Steel City", {"city": "Bokaro Steel City"}),
                                 ("Bangalore", {"city": "Bangalore"}), ("Gurgaon, Haryana", {"city": "Gurgaon", "state": "Haryana"})):
             self.assertEqual(expected, words.parse_location(typed), typed)
+        # review of #269: a prefix never costs a coordinate its sign
+        for typed, expected in (("near -12.5, 77.6", {"latitude": -12.5, "longitude": 77.6}),
+                                ("around -12.5 -77.6", {"latitude": -12.5, "longitude": -77.6}),
+                                ("near 26.92, -75.82.", {"latitude": 26.92, "longitude": -75.82})):
+            self.assertEqual(expected, words.parse_location(typed), typed)
+        # a six-digit run touching letters or a decimal point is not a PIN, and two PINs are never guessed between
+        for typed, message in (("AB560034", "PIN code on its own"), ("Flat560034, Pune", "PIN code on its own"),
+                               ("560034XY", "PIN code on its own"), ("12.560034", "PIN code on its own"),
+                               ("560034 and 302001", "Type one PIN code."), ("PIN 560 034 or 560-035", "Type one PIN code.")):
+            with self.assertRaises(ValueError) as refused:
+                words.parse_location(typed)
+            self.assertIn(message, str(refused.exception), typed)
 
     def test_typed_locations(self):
         self.assertEqual({"city": "Jaipur"}, words.build_location("city", city=" Jaipur ", state=" "))
