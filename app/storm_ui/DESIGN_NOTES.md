@@ -82,7 +82,7 @@ request and response under closed technical details. `clarify` replaced request 
 | Implementation integrity | 3 | Detector not run. Checked by eye against both skills' lists of defaults. |
 | **Total** | **16/20** | |
 
-## Intake added before Find care (22 November 2026, provisional)
+## Intake added before Find care (22 November 2026)
 
 Issue 136 puts a fictional patient's problem in front of the finder. The judge's first minute is
 now: pick a patient, see their story and what a clinician has already decided, answer the first
@@ -107,3 +107,20 @@ question. Choices made for that minute:
 Not reviewed with scores yet. Known weak spots: seven patients is a long list on a phone, and the
 confirmed summary and the campus slip are both large, so the page scrolls to the campus after
 Find a campus.
+
+### Connected to the team's intake engine (22 November 2026)
+
+The stand-in evaluator, questions, patients and wording were replaced by the team's engine,
+question catalogue, stories and finder bridge. What changed on screen:
+
+- **The stories answer most questions themselves.** Each story states its facts, and the page lists
+  them under "The story already says". A visitor answers at most one question, the one the story
+  leaves open, so the first view of the first story is already a care summary to confirm.
+- **Choices come from the question.** Each question brings its own answers (for example Mild,
+  Moderate, Severe, Not sure), so the three fixed buttons became a row that wraps.
+- **The first sentence of the engine's message is the headline** and the rest sits under it. The
+  emergency message is long, and as one headline it filled the slip.
+- **References are a list of titles**, each linking to the page the rule cites. Nothing is fetched.
+- **"Fill in the answers from the story" is gone.** With at most one question there is nothing to
+  shortcut.
+

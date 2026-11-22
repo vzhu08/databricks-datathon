@@ -1,5 +1,5 @@
 /*
- * Intake before Find care: pick a fictional patient, answer the questions, read the outcome.
+ * Intake before Find care: pick a fictional story, answer what it leaves open, read the outcome.
  * Looks each state up in the generated bundle and draws it. Nothing here assesses anyone.
  * A campus is looked for only when IntakeState.finderRequest returns a request.
  */
@@ -39,26 +39,26 @@
     }));
     $("answered").hidden = v.answered.length === 0;
     $("question").hidden = !v.next;
-    $("questions-hint").textContent = v.next ? v.body
-      : "The questions stop here. Change an answer to go back. The questions after it are asked again.";
+    $("questions").hidden = !v.next && v.answered.length === 0;
+    $("questions-hint").textContent = v.next ? "No campus is chosen until this has an answer."
+      : "The questions stop here. Change an answer to go back.";
     if (v.next) {
-      $("question-text").textContent = "Question " + v.next.number + " of " + data.max_questions + ". " + v.next.text;
-      fill($("answer-buttons"), data.answers.map(function (answer) {
-        return el("button", { type: "button", "data-answer": answer, text: I.ANSWER_LABEL[answer] || answer,
-          onclick: function () { reset(state.answers.concat([answer])); draw("answer"); } });
+      $("question-text").textContent = "Question " + v.next.number + ". " + v.next.text;
+      fill($("answer-buttons"), v.next.answers.map(function (choice) {
+        return el("button", { type: "button", "data-answer": choice.id, text: choice.label,
+          onclick: function () { reset(state.answers.concat([[v.next.id, choice.id]])); draw("answer"); } });
       }));
     }
-    var story = v.scenario.story_answers;
-    $("story-answers").hidden = story.join(",") === state.answers.join(",");
   }
 
   function drawOutcome(v) {
     var out = $("outcome");
     out.hidden = v.kind === "progress";
     out.setAttribute("data-kind", v.kind);
-    $("outcome-for").textContent = "Fictional patient: " + v.scenario.name + ". " + v.progress + ".";
+    $("outcome-for").textContent = "Fictional story: " + v.scenario.name + ".";
     $("outcome-headline").textContent = v.headline;
     $("outcome-body").textContent = v.body;
+    $("outcome-body").hidden = !v.body;
 
     $("outcome-summary").hidden = !v.summary;
     fill($("outcome-summary"), (v.summary || []).reduce(function (nodes, row) {
@@ -68,11 +68,15 @@
     list("outcome-concern-list", v.concerns);
     $("outcome-why").hidden = v.reasons.length === 0;
     list("outcome-why-list", v.reasons);
-    var limits = v.unknown.map(function (short) { return "Not sure: " + short + "."; }).concat(v.limits);
+    var limits = v.unknown.map(function (short) { return "Not known: " + short + "."; }).concat(v.limits);
     $("outcome-limits").hidden = limits.length === 0;
     list("outcome-limits-list", limits);
     $("outcome-sources").hidden = v.sources.length === 0;
-    $("outcome-sources").textContent = v.sources.length ? "References for these rules: " + v.sources.join("; ") + "." : "";
+    fill($("outcome-sources-list"), v.sources.map(function (source) {
+      return el("li", {}, [source.url
+        ? el("a", { href: source.url, rel: "noopener noreferrer", text: source.text })
+        : document.createTextNode(source.text)]);
+    }));
 
     $("outcome-confirm").hidden = !v.canConfirm;
     $("outcome-find").hidden = !v.request;
@@ -90,6 +94,10 @@
     }
     $("story-text").textContent = v.scenario.story;
     $("story-known").textContent = v.decided;
+    $("story-facts-part").hidden = v.known.length === 0;
+    fill($("story-facts"), v.known.map(function (fact) {
+      return el("li", {}, [document.createTextNode(fact.short + ": "), el("strong", { text: fact.label })]);
+    }));
     drawQuestions(v);
     drawOutcome(v);
     if (!moved) return;
@@ -99,7 +107,7 @@
       if (first && moved !== "scenario") first.focus();
       return;
     }
-    $("announcer").textContent = v.headline + " " + v.body;
+    $("announcer").textContent = (v.headline + " " + v.body).trim();
     if (moved === "scenario") return;
     if (v.canConfirm) $("confirm").focus();
     else if (v.request) $("intake-place").focus();
@@ -119,9 +127,11 @@
   }
 
   function findCampus() {
+    var place = $("intake-place").value;
     var request = I.finderRequest(data, state.scenario, state.answers, state.confirmed);
-    if (!request) { reset(state.answers); draw(); return; }
-    if (!page.ask(request.service, $("intake-place").value, request.urgency)) return;
+    var produced = I.finderResponse(data, state.scenario, state.answers, state.confirmed, place);
+    if (!request || !produced) { reset(state.answers); draw(); return; }
+    if (!page.ask(request.service, place, request.urgency, produced)) return;
     $("empty").hidden = true;
     var calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     $("slip").scrollIntoView({ block: "start", behavior: calm ? "auto" : "smooth" });
@@ -142,19 +152,18 @@
       $("scenario").append(el("label", {}, [input, document.createTextNode(scenario.name)]));
     });
     state.scenario = data.scenarios[0].id;
-    care.places.forEach(function (place) { $("intake-place").append(el("option", { value: place.id, text: place.name })); });
+    care.places.forEach(function (place) {
+      if (data.origins.indexOf(place.id) !== -1) $("intake-place").append(el("option", { value: place.id, text: place.name }));
+    });
 
     $("scenario").addEventListener("change", function (event) {
       state.scenario = event.target.value;
       reset([]);
       draw("scenario");
     });
-    $("story-answers").addEventListener("click", function () {
-      var scenario = data.scenarios.filter(function (s) { return s.id === state.scenario; })[0];
-      reset(scenario.story_answers.slice());
-      draw("answer");
-    });
     $("confirm").addEventListener("click", function () {
+      var v = I.view(data, state.scenario, state.answers, false);
+      if (!v || !v.canConfirm) return;
       state.confirmed = true;
       draw("confirm");
     });
@@ -164,7 +173,9 @@
     // A page restored from the browser's history can come back with a changed form: start it clean.
     window.addEventListener("pageshow", function (event) { if (event.persisted) showMode(); });
     showMode();
-    window.IntakePage = { state: function () { return { scenario: state.scenario, answers: state.answers.slice(), confirmed: state.confirmed }; } };
+    window.IntakePage = { state: function () {
+      return { scenario: state.scenario, answers: state.answers.map(function (pair) { return pair.slice(); }), confirmed: state.confirmed };
+    } };
   }
 
   start();

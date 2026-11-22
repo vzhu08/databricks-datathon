@@ -141,13 +141,18 @@
     $("step-answer").removeAttribute("aria-current");
     $("step-ask").setAttribute("aria-current", "step");
   }
-  /* Fills the form with one request and answers it. Used by the intake once a summary is confirmed. */
-  function ask(service, place, urgency) {
+  /*
+   * Fills the form with one request and answers it. Used by the intake once a summary is confirmed.
+   * The intake passes the campus answer its finder bridge produced for the confirmed input. Nothing
+   * is shown unless that is exactly the answer this page holds for the same request.
+   */
+  function ask(service, place, urgency, produced) {
     choose("service", service);
     $("place").value = place;
     choose("urgency", urgency);
     var now = current();
     if (now.service !== service || now.place !== place || now.urgency !== urgency) return false;
+    if (produced !== undefined && !A.matches(data, service, place, urgency, produced)) { clear(); return false; }
     find();
     return shown !== null && !stale();
   }

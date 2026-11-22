@@ -151,6 +151,12 @@
 .fiction { color: var(--slate); font-size: 0.9375rem; margin-top: calc(var(--step) * -2); }
 .story { padding: calc(var(--step) * 1.5) calc(var(--step) * 2); background: var(--sheet); border-left: 3px solid var(--ink); }
 .story-known { margin-top: var(--step); font-weight: 600; }
+.story-facts { margin-top: calc(var(--step) * 1.5); }
+.story-facts h3, .outcome-sources h4 { font-size: 0.875rem; font-weight: 600; color: var(--slate); }
+.story-facts ul { margin: calc(var(--step) / 2) 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: calc(var(--step) / 2) calc(var(--step) * 2); font-size: 0.875rem; color: var(--slate); }
+.story-facts li strong { color: var(--ink); font-weight: 600; }
+.outcome-sources ul { margin: calc(var(--step) / 2) 0 0; padding-left: 1.2rem; list-style: disc; display: grid; gap: calc(var(--step) / 2); }
+.outcome-sources a { color: inherit; }
 .questions { display: grid; gap: calc(var(--step) * 1.5); }
 .answered { margin: 0; padding: 0; list-style: none; display: grid; gap: calc(var(--step) / 2); }
 .answered li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: baseline; gap: var(--step); font-size: 0.9375rem; padding-bottom: calc(var(--step) / 2); border-bottom: 1px solid var(--rule); }

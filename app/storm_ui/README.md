@@ -13,39 +13,60 @@ records the judge's path they were built for and the before and after review sco
 3. `finder.html`, **Driving-time response check**. A technical page, linked from the technical
    details of an answer.
 
-## Intake before Find care (provisional)
+## Intake before Find care
 
-The steps before a campus is chosen: pick one of seven fictional patients, answer up to five
-questions for them one at a time (yes, no or not sure), and read the outcome.
+The steps before a campus is chosen: pick one of seven fictional stories, read what the story
+already states, answer the one question a story may leave open, and read the outcome.
 
 | Outcome | What the page shows | Campus search |
 | --- | --- | --- |
-| A danger sign was answered yes | The emergency message, at once, even with questions unanswered or care already booked | None |
-| A safety or scope answer is "not sure" | Which answer is unresolved. Not sure is never counted as no | None |
-| Nobody has assessed the patient | A possible concern (a category, not a diagnosis), the reasons, and that a clinician must assess first | None |
-| A child or pregnant patient, or care with no campuses here | That the demonstration does not cover it. It is not mapped to another service | None |
-| A clinician in the story asked for dialysis, an MRI scan or trauma care | A summary to confirm, then the starting point and **Find a campus** | Only after the summary is confirmed |
+| The story or an answer reports a warning sign | The emergency message, at once, even when a clinician's referral is already in the story | None |
+| An answer is "Not sure" | Which answer is not known. Not sure is never counted as no | None |
+| No clinician in the story has asked for a service | The concern (a category, not a diagnosis), the reasons, and that a clinician must assess first | None |
+| Care outside dialysis, MRI scans and trauma care | That the demonstration does not cover it. It is not mapped to another service | None |
+| A simulated clinician plan, referral or assessment asks for one of the three services | A care summary to confirm, then the starting point and **Find a campus** | Only after the summary is confirmed |
 
-Changing the patient, an answer, the starting point or the mode removes the confirmation and any
-campus answer on screen. A confirmation belongs to one exact set of answers.
+Changing the story, an answer, the starting point or the mode removes the confirmation and any
+campus answer on screen, also when the same answer is given again. A confirmation belongs to one
+exact input.
 
-**What is provisional.** The team's intake contract and assessment engine (issue 127) are not
-written yet. `build_intake.py` holds a stand-in `assess` function that follows the acceptance cases
-on issue 124, with placeholder questions, rules and wording that no clinician has reviewed, and
-references that are proposed and not yet checked. Every outcome on screen says so. To move to the
-real engine, replace `assess`, `QUESTIONS`, `SCENARIOS` and `CATALOGUE` in `build_intake.py`, and
-adjust `read` in `intake_state.js`, the one function that knows the stored field names.
+**Where every part comes from.** Nothing on this page is written by the page.
 
-**What the page does and does not do.** As with Find care, the page decides nothing. The build step
-asks `assess` about every state a visitor can reach (347 states, at most five questions on any
-path) and stores the unedited answers. The page looks one up and words it from the bundle's
-catalogue. It asks for a campus only when `IntakeState.finderRequest` returns a request, which
-needs two stored states that agree. The summary the visitor confirmed must be synthetic, waiting
-for a confirmation, with no open or unsure question and no request of its own. The state after it
-must be ready, confirmed for exactly these answers, and for the same patient, rule set and
-clinician's decision as that summary and as the story, asking for that same routable service and
-urgency. A stored state that merely says "ready", or one that follows a blocked, unsupported,
-unfinished or mismatched summary, is refused.
+| What is shown | Owner |
+| --- | --- |
+| State, concerns, intake reasons, care summary, request | `app.intake.assess_intake` and `assessment_catalogue()` (contract `intake.v1`, `contracts/intake/`) |
+| Warning rules, warning messages, references | `app.intake.danger_signs` |
+| Referral reasons and authority labels | `app.intake.referral_gate` |
+| Questions and answer choices | `app.intake.questions` |
+| The seven stories | `tests/intake/scenarios/journeys.json`, pinned by `digest.json`. The engine admits only the reviewed editions in `contracts/intake/reviewed_scenarios.json` |
+| Campus answer after a confirmation | `app.intake.finder_bridge.find_care_for_intake` |
+| Picker name of each story, three notes about the demonstration | This folder (`STORY_NAMES` in `build_intake.py`, `NOTES` in `intake_state.js`) |
+
+**What the build step does.** `python -m app.storm_ui.build_intake` asks the engine about every
+state a visitor can reach (26 states, at most one question on any path, with these stories) and
+stores the unedited answers. Where a summary can be confirmed it takes a real confirmation from
+`confirm_intake`, stores the ready answer that follows (8 of them), and stores the bridge's campus
+answer for that same input, story and confirmation from each of the four starting points (32). The
+build stops, and writes nothing, when a stored answer names an ID with no display entry, when the
+stories do not match their pinned digest, when the engine refuses a story, when the bridge's answer
+differs from the Find care page's answer for the same request, or when the walk passes 5,000
+states. The bundle records which rule set, stories and campus fixture it pairs (`pairing`).
+
+**What the page does and does not do.** As with Find care, the page decides nothing. It looks one
+stored answer up and words it from the bundle's catalogue. It asks for a campus only when
+`IntakeState.finderRequest` returns a request, which needs two stored answers that agree. The
+summary the visitor confirmed must be synthetic, for this edition of this story, waiting for a
+confirmation it does not have, with a clinician's plan present, no open or unknown question and no
+request of its own. The answer after it must be ready with a current confirmation, carry the same
+input fingerprint, contract and rule set versions, story edition, revision and care summary as that
+summary and as the story, and ask for exactly the summary's care. The campus answer shown is the
+one the bridge stored for that confirmed input and starting point, and only when it is exactly the
+answer the Find care page holds for the same request, which is what the page's explanation is
+written from. A stored answer that merely says "ready", or one that follows a blocked, unsupported,
+unfinished or mismatched summary, is refused. No receipt or other authority is stored in the page.
+
+The rules are a demonstration with fictional stories. No clinician has validated them, and the
+page says so on every outcome.
 
 ## Storm stress test page
 
@@ -147,7 +168,7 @@ timers and stores nothing.
 | `data/answers.js` | Generated. Do not edit. `python -m app.storm_ui.build_ask` rewrites it and `--check` verifies it. |
 | `intake.js` | The intake's controls on the Find care page. Holds no rule and no clinical wording. |
 | `intake_state.js` | Pure functions that look up one stored intake state, word it, and decide whether the finder may be asked. Runs in the browser and in Node. |
-| `build_intake.py` | Provisional. Writes `data/intake.js` by walking a stand-in assessment function over seven fictional patients. |
+| `build_intake.py` | Writes `data/intake.js` by walking the intake engine (`app.intake`) over the seven fictional stories and storing its answers and the finder bridge's campus answers. |
 | `data/intake.js` | Generated. Do not edit. `python -m app.storm_ui.build_intake` rewrites it and `--check` verifies it. |
 | `replay.html`, `storm.css`, `storm.js` | The storm stress test page. Plain HTML, CSS and JavaScript with no dependencies. |
 | `replay_state.js` | Pure functions that turn a replay and a clock minute into what a panel shows. Runs in the browser and in Node. |
