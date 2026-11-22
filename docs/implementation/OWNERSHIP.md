@@ -25,6 +25,21 @@ Oliver’s main chat handles coordination and repository decisions. The user mak
 
 Report the number of independently supported sites and the exact reason that each remaining group could not advance. A zero result closes the pilot with an identified evidence gap. Capacity, live availability and competition submission retain their separate acceptance steps.
 
+### Parallel facility evidence work · November 22
+
+The user authorized additional methods alongside [the accreditation pilot](https://github.com/vzhu08/databricks-datathon/issues/221). The VF-first baseline remains frozen. Each owner starts from the named source or frozen issuer cohort. Preserve the national frame, source-specific observation dates, private field limits, competing branches and unresolved evidence. The operating-report and equipment methods may cover all relevant target services in their admitted sources. Vincent owns data permissions and coordinates transfers through [#160](https://github.com/vzhu08/databricks-datathon/issues/160).
+
+| Developer chat | Method | Evidence to deliver |
+|---|---|---|
+| I, with D independently checking | [Accreditation scope #221](https://github.com/vzhu08/databricks-datathon/issues/221) | Freeze the 49 programme mentions and 47 eligible address keys, then quantify independently supported branch identity and dated onsite service. |
+| G | [Operator service and procedure reports #232](https://github.com/vzhu08/databricks-datathon/issues/232) | Identify a named ESIC branch, what was reported there, and when. Preserve pooled or referral statements. |
+| K | [Equipment and operating evidence #233](https://github.com/vzhu08/databricks-datathon/issues/233) | Trace MRI units to their installation site and distinguish inventory, commissioning and actual scanning activity. |
+| J | [Named campus map geometry #234](https://github.com/vzhu08/databricks-datathon/issues/234) | Compare all available issuer address/point records with named campus features and nearby rival branches. Record source lineage and point precision. |
+| A | [Premises-address reconciliation #235](https://github.com/vzhu08/databricks-datathon/issues/235) | Test if branch-preserving address normalization recovers links missed by the strict #221 rule. Freeze results before comparison with J. |
+| D | [Independent review and combination #163](https://github.com/vzhu08/databricks-datathon/issues/163) | After each handoff, reconcile unique campus/service/period combinations, underlying source families, independently supported links, outstanding contradictions and the full VF denominators. |
+
+Record one owner, one branch and the exclusive code paths listed on each task issue. Each method reports what it adds over its own baseline. Site identity and evidence of treatment are assessed separately. Capacity, current availability, and release into the finder each require their own evidence.
+
 ### National service and equipment assignments
 
 | Developer chat | Active research issue | Branch and acquisition directory |
