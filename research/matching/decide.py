@@ -101,7 +101,9 @@ def primary_reason(candidate, blocked):
         return "identifier_conflict"
     if "ambiguous_campus" in flags:
         return "ambiguous_campus"
-    if flags & {"state_conflict", "place_conflict", "pin_conflict", "coordinates_far_apart"}:
+    if flags & {"state_conflict", "place_conflict", "pin_conflict", "coordinates_far_apart", "competing_coordinates",
+                "premises_conflict", "street_conflict", "branch_qualifier_conflict", "own_postal_state_conflict",
+                "multiple_observed_pins"}:
         return "geography_conflict"
     for reason in ("shared_switchboard", "acronym_only", "name_only", "proximity_only", "non_hospital_type"):
         if reason in flags:

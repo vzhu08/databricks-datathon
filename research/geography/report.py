@@ -16,6 +16,7 @@ REVIEW_NS = "acq-c-geo-review"
 _SIX = re.compile(r"(?<!\d)(\d{6})(?!\d)")
 
 BASE_REVIEW = {
+    "mixed_campus_address": ("high", "Compare each described campus separately and retain the unresolved original."),
     "coordinates_incomplete": ("medium", "Only one coordinate value is present. Recover the pair from the original record; do not guess."),
     "coordinates_not_finite_numbers": ("medium", "Coordinate values are not finite numbers. Inspect the original record."),
     "coordinates_outside_wgs84": ("high", "Coordinates are outside the WGS84 range. Inspect the original record before any distance check."),

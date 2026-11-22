@@ -11,6 +11,7 @@ from collections import Counter, defaultdict
 from research.geography.distance import haversine_m
 from .common import field_value, require
 from .normalize import NON_HOSPITAL_TYPES, core, initials, name_evidence
+from .premises import PremisesIndex, pair_features
 
 LEVEL = {"none": 0, "weak": 1, "moderate": 2, "strong": 3}
 
@@ -265,32 +266,64 @@ def rank_key(candidate):
             -(s["address_shared_tokens"]), candidate["external_facility_id"])
 
 
-def generate(bases, externals, policy=None, config=None):
+def generate(bases, externals, policy=None, config=None, trace=None):
     """Return candidates sorted by (facility_id, rank). Deterministic for a given input."""
     policy, config = policy or {}, settings(config)
     index = ExternalIndex(externals, policy, config)
+    premises_index = PremisesIndex(externals, config["max_block"]) if trace is not None else None
+    require(trace is None or not policy, "premises_mapping", "address replay requires candidate-only mode")
     phone_counts = {"base": Counter(p for b in bases for p in b["phones"]),
                     "external": Counter(p for e in externals for p in e["phones"])}
     per_base, external_bases, external_serious = {}, defaultdict(set), defaultdict(set)
     for b in sorted(bases, key=lambda v: v["id"]):
         found = []
-        for i in index.block(b, policy):
+        legacy_indexes = index.block(b, policy)
+        new_blocks, capped = premises_index.block(b) if premises_index is not None else ({}, {})
+        scored = sorted(set(legacy_indexes) | new_blocks.keys()) if premises_index is not None else legacy_indexes
+        legacy_indexes_set = set(legacy_indexes) if trace is not None else None
+        excluded, excluded_by_block = defaultdict(list), Counter()
+        for i in scored:
             e = externals[i]
             signals = pair_signals(b, e, policy, phone_counts, config)
-            reason = retained(signals, config)
+            legacy_reason = retained(signals, config)
+            blocks = new_blocks.get(i, ())
+            features = pair_features(b, e, blocks, signals) if premises_index is not None and (blocks or legacy_reason) else None
+            if features is not None:
+                signals["premises"] = features
+            reason = features["admission"] if features and features["admission"] else legacy_reason
             if reason is None:
+                if trace is not None:
+                    excluded[_scoring_rejection(signals)].append(i)
+                    excluded_by_block.update(blocks)
                 continue
-            found.append({"facility_id": b["id"], "external_facility_id": e["id"], "signals": signals,
-                          "retrieval_reason": reason, "flags": flags_for(signals, reason)})
-        found.sort(key=rank_key)
+            flags = flags_for(signals, reason)
+            candidate = {"facility_id": b["id"], "external_facility_id": e["id"], "signals": signals,
+                         "retrieval_reason": reason, "flags": flags}
+            if trace is not None:
+                if features["mixed_campus_description"]:
+                    flags.extend(("mixed_campus_description", "ambiguous_campus"))
+                flags.extend(flag for flag in ("premises_conflict", "street_conflict", "branch_qualifier_conflict",
+                                               "own_postal_state_conflict", "multiple_observed_pins",
+                                               "competing_coordinates") if features[flag])
+                candidate["block_stages"] = (["legacy"] if i in legacy_indexes_set else []) + list(blocks)
+                candidate["legacy_admission"] = legacy_reason
+                candidate["source_record_id"] = e["row"]["source_record_id"]
+                candidate["record_locator"] = e["row"]["record_locator"]
+            found.append(candidate)
+        found.sort(key=_premises_rank if trace is not None else rank_key)
         serious = [c for c in found if _serious(c)]
         for c in found:
             external_bases[c["external_facility_id"]].add(b["id"])
             if _serious(c):
                 external_serious[c["external_facility_id"]].add(b["id"])
         kept = [c for position, c in enumerate(found) if position < config["top_k"] or c["signals"]["identifiers"]]
-        for position, c in enumerate(kept):
-            c["rank"] = position + 1
+        if trace is not None:
+            trace[b["id"]] = {"scored": len(scored), "scoring_rejections": dict(excluded),
+                              "scoring_exclusions_by_block": dict(excluded_by_block), "capped_keys": dict(capped),
+                              "pre_cut": found}
+        for position, c in enumerate(kept, 1):
+            c["rank"] = position
+        for c in found if trace is not None else kept:
             c["candidates_found_for_base"] = len(found)
             c["candidates_kept_for_base"] = len(kept)
             c["other_candidates_for_base"] = len(found) - 1
@@ -298,18 +331,41 @@ def generate(bases, externals, policy=None, config=None):
         per_base[b["id"]] = kept
     out = []
     for fid in sorted(per_base):
-        for c in per_base[fid]:
+        pairs = trace[fid]["pre_cut"] if trace is not None else per_base[fid]
+        for position, c in enumerate(pairs, 1):
             # Counted before the per-base cut, so a hidden competing campus still blocks auto-confirmation.
             ext = c["external_facility_id"]
             c["other_bases_for_external"] = len(external_bases[ext]) - 1
             c["other_serious_bases_for_external"] = len(external_serious[ext] - {fid})
-            if _serious(c) and (c["other_serious_candidates_for_base"] or c["other_serious_bases_for_external"]):
+            if (_serious(c) and (c["other_serious_candidates_for_base"] or c["other_serious_bases_for_external"])
+                    and "ambiguous_campus" not in c["flags"]):
                 c["flags"].append("ambiguous_campus")
-            out.append(c)
+            if trace is not None:
+                c["pre_cut_rank"] = position
+                c["serious"] = _serious(c)
+            if "rank" in c:
+                out.append(c)
     return out
+
+
+def _scoring_rejection(signals):
+    level = LEVEL[signals["name_level"]]
+    if level >= 2:
+        return "name_state_conflict_without_pin_agreement_or_close_distance"
+    if level == 1:
+        return "weak_name_without_qualifying_geography_phone_or_proximity"
+    return "no_qualifying_name_identifier_phone_or_proximity"
+
+
+def _premises_rank(candidate):
+    features = candidate["signals"]["premises"]
+    conflict = any(features[key] for key in ("premises_conflict", "street_conflict", "branch_qualifier_conflict"))
+    return (conflict, -features["campus_rank"], *rank_key(candidate))
 
 
 def _serious(candidate):
     """A candidate that could plausibly be the same campus by name, identifier or direct phone."""
     s = candidate["signals"]
-    return bool(s["identifiers"]) or LEVEL[s["name_level"]] >= 2 or (s["phone_match"] and not s["phone_switchboard"])
+    return (bool(s["identifiers"]) or LEVEL[s["name_level"]] >= 2
+            or (s["phone_match"] and not s["phone_switchboard"])
+            or bool(s.get("premises", {}).get("admission")))
