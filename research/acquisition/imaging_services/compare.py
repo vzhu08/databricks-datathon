@@ -36,6 +36,7 @@ def frozen_reach(base, ledger_root, manifest_sha256, imaging_rows):
     expected = {(fid, service) for fid in originals for service in ("mri", "dialysis", "trauma_care")}
     require(len(keys) == len(expected) and set(keys) == expected, "frozen three-service product mismatch")
     by_state, overlay = {}, []
+    new_by_source = Counter()
     outcomes = Counter()
     for occurrence in occurrences:
         fid = occurrence["original"]["facility_id"]
@@ -46,6 +47,8 @@ def frozen_reach(base, ledger_root, manifest_sha256, imaging_rows):
         outcomes[outcome] += 1
         old_reach = outcome != "unmatched"
         imaging_reach = images[fid]["candidate_count"] > 0
+        if imaging_reach and not old_reach:
+            new_by_source.update(images[fid].get("outcome_by_source", {}).keys())
         state = joint["state"]
         bucket = by_state.setdefault(state, Counter())
         for key, condition in (("original_rows", True), ("joint_any_candidate", old_reach),
@@ -62,6 +65,8 @@ def frozen_reach(base, ledger_root, manifest_sha256, imaging_rows):
                 unchanged_baseline_decisions=len(decisions),
                 baseline_decision_statuses=dict(Counter(d["status"] for d in decisions)),
                 service_status_transitions=0, confirmed_campus_gain=0,
+                newly_reached_by_imaging_source=dict(new_by_source),
+                source_count_note="A newly reached occurrence may have several source keys from one publisher; source counts overlap.",
                 measure="Candidate-reach union only; no joint top-five reranking, new campus review, or service adjudication.",
                 baseline_decision_dates=sorted({d["as_of"] for d in decisions})),
             "frozen_reach_rows.json": overlay}

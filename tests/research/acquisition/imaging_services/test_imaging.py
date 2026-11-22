@@ -170,9 +170,10 @@ class ImagingTests(unittest.TestCase):
             manifest["files"][name] = dict(bytes=len(data), sha256=digest(data), records=len(rows))
         raw = canonical(manifest)
         (self.root / "manifest.json").write_bytes(raw)
-        imaging = [{"facility_id": "a", "candidate_count": 1}]
+        imaging = [{"facility_id": "a", "candidate_count": 1, "outcome_by_source": {"example": "candidate_only"}}]
         result = frozen_reach(base, self.root, digest(raw), imaging)["frozen_reach.json"]
         self.assertEqual(result["newly_reached"], 1)
+        self.assertEqual(result["newly_reached_by_imaging_source"], {"example": 1})
         self.assertEqual(result["unchanged_baseline_decisions"], 3)
         self.assertEqual(result["service_status_transitions"], 0)
         with self.assertRaisesRegex(ValueError, "manifest hash"):
