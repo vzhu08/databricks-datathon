@@ -1,0 +1,1005 @@
+{
+  "release_configuration": {
+    "name": "independent-controls",
+    "published_manifest_sha256": "f1b91b3f56f6448ef693ffc5ee763b1d4a4321b7195fb93ea76e95cc9740121d",
+    "active_manifest_sha256": "3e7cb26e9a611ae7955c074d5853075d96bd5ea0ffb57abf8f40abcc6929db76"
+  },
+  "candidate_sha": "109d9bebdd4447f8e48a20cd7df698a9e86b391f",
+  "packet_sha256": "d6400bc5475a645193fcb661acd637b9183a728a0b8cc2c11f254a10e1ad12e9",
+  "driver_sha256": "448ccc6f6be4ef8936140a5bf356c9ffa9e872cffcd04625caf7564be22b642b",
+  "startup_error": null,
+  "import_external_attempts": [],
+  "total_external_attempts": 0,
+  "summary": {
+    "total": 52,
+    "attempted": 49,
+    "final_state_measured": 49,
+    "pass": 49,
+    "fail": 0,
+    "not_run": 3,
+    "state_mismatches": 0,
+    "unsafe_recommendations": 0,
+    "blocked_call_denominator": 46,
+    "blocked_finder_call_violations": 0,
+    "cases_with_external_attempts": 0
+  },
+  "cases": [
+    {
+      "id": "control_dialysis",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "ready",
+        "request": {
+          "service": "dialysis",
+          "urgency": "routine",
+          "required_capabilities": [],
+          "preferred_capabilities": []
+        },
+        "finder_present": true,
+        "finder_service": "dialysis",
+        "ranked": true,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 1,
+        "blocked_calls_measured": false
+      }
+    },
+    {
+      "id": "control_mri",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "ready",
+        "request": {
+          "service": "mri",
+          "urgency": "routine",
+          "required_capabilities": [],
+          "preferred_capabilities": []
+        },
+        "finder_present": true,
+        "finder_service": "mri",
+        "ranked": true,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 1,
+        "blocked_calls_measured": false
+      }
+    },
+    {
+      "id": "control_trauma",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "ready",
+        "request": {
+          "service": "trauma_care",
+          "urgency": "routine",
+          "required_capabilities": [],
+          "preferred_capabilities": []
+        },
+        "finder_present": true,
+        "finder_service": "trauma_care",
+        "ranked": true,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 1,
+        "blocked_calls_measured": false
+      }
+    },
+    {
+      "id": "warning_chest_pain",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "emergency_escalation",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "warning_stroke_like",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "emergency_escalation",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "warning_severe_breathing",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "emergency_escalation",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "warning_unresponsive",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "emergency_escalation",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "warning_heavy_bleeding",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "emergency_escalation",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "warning_over_missing_context",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "emergency_escalation",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "warning_over_unknown_other_warning",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "emergency_escalation",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "warning_over_unsupported_age",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "emergency_escalation",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "warning_over_unsupported_need",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "emergency_escalation",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "safety_all_missing",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "more_information_needed",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "safety_one_missing",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "more_information_needed",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "safety_one_unknown",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "more_information_needed",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "safety_all_unknown",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "more_information_needed",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "conflict_warning_disagrees",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "emergency_escalation",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "conflict_text_disagrees",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "invalid_input",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "conflict_answer_duplicate",
+      "status": "NOT_RUN",
+      "flags": [],
+      "observed": {
+        "attempted": false,
+        "not_run": "The public API takes a mapping, which cannot retain duplicate keys.",
+        "final_calls_measured": false,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": false
+      }
+    },
+    {
+      "id": "wording_negated_mri",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "unsupported_care_need",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "wording_historical_dialysis",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "unsupported_care_need",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "wording_negated_injury",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "unsupported_care_need",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "wording_unrecognized",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "unsupported_care_need",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "scope_child",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "unsupported_care_need",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "scope_pregnancy",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "unsupported_care_need",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "scope_unknown_age",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "more_information_needed",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "care_general_medical",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "unsupported_care_need",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "care_cardiac",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "unsupported_care_need",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "care_stroke",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "unsupported_care_need",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "no_authority_dialysis",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "clinician_assessment_needed",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "no_authority_mri",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "clinician_assessment_needed",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "no_authority_trauma",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "clinician_assessment_needed",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "authority_wrong_service",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "invalid_input",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "authority_visitor_supplied",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "invalid_input",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "authority_missing_urgency",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "invalid_input",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "authority_conflicting_service",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "invalid_input",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "confirmation_missing",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "confirmation_required",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "confirmation_forged_ready",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "invalid_input",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "confirmation_forged_boolean",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "confirmation_required",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "confirmation_wrong_revision",
+      "status": "NOT_RUN",
+      "flags": [],
+      "observed": {
+        "attempted": false,
+        "not_run": "The public API exposes no mutation of fields on an opaque receipt.",
+        "final_calls_measured": false,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": false
+      }
+    },
+    {
+      "id": "confirmation_wrong_policy",
+      "status": "NOT_RUN",
+      "flags": [],
+      "observed": {
+        "attempted": false,
+        "not_run": "The public API exposes no mutation of fields on an opaque receipt.",
+        "final_calls_measured": false,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": false
+      }
+    },
+    {
+      "id": "confirmation_cross_scenario",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "confirmation_required",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "edited_warning",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "initial_phase": {
+          "state": "ready",
+          "request": {
+            "service": "mri",
+            "urgency": "routine",
+            "required_capabilities": [],
+            "preferred_capabilities": []
+          },
+          "finder_present": true,
+          "finder_service": "mri",
+          "ranked": true,
+          "finder_calls": 1
+        },
+        "initial_ready_result": true,
+        "initial_control_failed": false,
+        "state": "emergency_escalation",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "edited_unknown",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "initial_phase": {
+          "state": "ready",
+          "request": {
+            "service": "mri",
+            "urgency": "routine",
+            "required_capabilities": [],
+            "preferred_capabilities": []
+          },
+          "finder_present": true,
+          "finder_service": "mri",
+          "ranked": true,
+          "finder_calls": 1
+        },
+        "initial_ready_result": true,
+        "initial_control_failed": false,
+        "state": "more_information_needed",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "edited_service",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "initial_phase": {
+          "state": "ready",
+          "request": {
+            "service": "mri",
+            "urgency": "routine",
+            "required_capabilities": [],
+            "preferred_capabilities": []
+          },
+          "finder_present": true,
+          "finder_service": "mri",
+          "ranked": true,
+          "finder_calls": 1
+        },
+        "initial_ready_result": true,
+        "initial_control_failed": false,
+        "state": "invalid_input",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "edited_scenario",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "initial_phase": {
+          "state": "ready",
+          "request": {
+            "service": "mri",
+            "urgency": "routine",
+            "required_capabilities": [],
+            "preferred_capabilities": []
+          },
+          "finder_present": true,
+          "finder_service": "mri",
+          "ranked": true,
+          "finder_calls": 1
+        },
+        "initial_ready_result": true,
+        "initial_control_failed": false,
+        "state": "confirmation_required",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "edited_policy",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "initial_phase": {
+          "state": "ready",
+          "request": {
+            "service": "mri",
+            "urgency": "routine",
+            "required_capabilities": [],
+            "preferred_capabilities": []
+          },
+          "finder_present": true,
+          "finder_service": "mri",
+          "ranked": true,
+          "finder_calls": 1
+        },
+        "initial_ready_result": true,
+        "initial_control_failed": false,
+        "state": "confirmation_required",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "mode_warehouse",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "invalid_input",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "mode_real",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "invalid_input",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "mode_missing",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "invalid_input",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "invalid_boolean_string",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "state": "invalid_input",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    },
+    {
+      "id": "failure_after_success",
+      "status": "PASS",
+      "flags": [],
+      "observed": {
+        "attempted": true,
+        "initial_phase": {
+          "state": "ready",
+          "request": {
+            "service": "mri",
+            "urgency": "routine",
+            "required_capabilities": [],
+            "preferred_capabilities": []
+          },
+          "finder_present": true,
+          "finder_service": "mri",
+          "ranked": true,
+          "finder_calls": 1
+        },
+        "initial_ready_result": true,
+        "initial_control_failed": false,
+        "state": "invalid_input",
+        "request": null,
+        "finder_present": false,
+        "finder_service": null,
+        "ranked": false,
+        "final_calls_measured": true,
+        "external_attempts": [],
+        "finder_calls": 0,
+        "blocked_calls_measured": true
+      }
+    }
+  ]
+}
