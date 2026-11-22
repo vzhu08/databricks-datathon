@@ -198,11 +198,43 @@ class WordingTests(unittest.TestCase):
                 found = words.provider_mode(environ)
                 self.assertEqual(found["mode"], "problem", expected)
                 self.assertTrue(any(expected.strip() in problem for problem in found["problems"]), (expected, found))
-                notice = words.off_notice(environ)
-                self.assertTrue(notice.startswith(words.SETUP_PROBLEM))
-                for value in ("made-up-provider", "made-up-endpoint", "made-up-lane", "many"):
-                    self.assertNotIn(value, notice)
-                self.assertIsNone(words.compose(environ)[1])
+                words._reported.clear()
+                with self.assertLogs(words.__name__, "WARNING") as log:
+                    self.assertIsNone(words.compose(environ)[1])
+                with self.assertNoLogs(words.__name__, "WARNING"):  # said once per worker, not on every redraw
+                    self.assertIsNone(words.compose(environ)[1])
+                for said in (words.off_notice(environ), *found["problems"], *log.output):
+                    for value in ("made-up-provider", "made-up-endpoint", "made-up-lane", "many"):
+                        self.assertNotIn(value, said)
+                self.assertTrue(any(expected.strip() in line for line in log.output))
+
+    def test_a_cap_that_is_not_a_short_plain_number_is_a_problem_and_never_an_exception(self):
+        bad = ("\u00b2", "\u0663", "\uff13", "\u2460", "1" * 5000, "9" * 3, "007", "+1", "1.0", "1e0", "0x1", "1_0",
+               "1 1", "-0", "\u00bd", "\x00", "\n")
+        with mock.patch.object(words, "_databricks_factory", side_effect=AssertionError("factory used on a problem")):
+            for setting, most in (("PATIENT_PROVIDER_DEMO_ATTEMPTS", 6), ("PATIENT_PROVIDER_TEST_ATTEMPTS", 2)):
+                for value in bad:
+                    environ = {**self.ON, setting: value}
+                    found = words.provider_mode(environ)
+                    self.assertEqual(found, {"mode": "problem", "problems": [
+                        f"{setting} is not a whole number from 0 to {most}"]}, repr(value[:8]))
+                    self.assertEqual(words.off_notice(environ), words.SETUP_PROBLEM)
+                    words._reported.clear()
+                    with self.assertLogs(words.__name__, "WARNING") as log:
+                        service, label = words.compose(environ)
+                    self.assertIsNone(label)
+                    self.assertIsNone(service._provider)
+                    if value.strip():
+                        self.assertNotIn(value, "".join(log.output))
+        self.assertEqual(words.provider_mode({**self.ON, "PATIENT_PROVIDER_DEMO_ATTEMPTS": " 06 "})["demo_attempts"], 6)
+
+    def test_what_the_patient_is_told_never_names_a_server_setting_or_this_visit_for_a_shared_allowance(self):
+        for text in (words.SETUP_PROBLEM, words.SWITCHED_OFF, words.NO_PROVIDER, *words.UNAVAILABLE.values()):
+            self.assertNotIn("PATIENT_", text)
+            self.assertNotIn("setting", text.lower())
+        self.assertIn("not be sent anywhere", words.SETUP_PROBLEM)
+        self.assertNotIn("visit", words.UNAVAILABLE["budget_exhausted"].lower())
+        self.assertNotIn("you", words.UNAVAILABLE["budget_exhausted"].lower())
 
     def test_the_databricks_interview_is_composed_only_through_its_server_factory(self):
         provider = Scripted()
@@ -387,12 +419,28 @@ class ScreenTests(unittest.TestCase):
             app = self.open()
             text = self.shown(app)
             self.assertIn(self.screen.SETUP_PROBLEM, text)
-            self.assertIn("PATIENT\\_PROVIDER\\_ENDPOINT is not set to a supported endpoint", text.replace("PATIENT_PROVIDER_ENDPOINT", "PATIENT\\_PROVIDER\\_ENDPOINT"))
+            self.assertNotIn("PATIENT", text)
             app = self.begin(app)
             text = self.shown(app)
+            self.assertNotIn("PATIENT", text)
             self.assertIn("No assessment is available", text)
             self.assertIn(self.screen.NO_PROVIDER, text)
             self.assertNotIn("I agree. Send it for assessment", [button.label for button in app.button])
+
+    def test_a_malformed_cap_reaches_the_unavailable_screen_without_an_exception(self):
+        for value in ("\u00b2", "9" * 400):
+            os.environ.update(PATIENT_PROVIDER="databricks-experimental",
+                              PATIENT_PROVIDER_ENDPOINT="databricks-gpt-oss-20b", PATIENT_PROVIDER_DEMO_ATTEMPTS=value)
+            with mock.patch.object(self.screen, "_databricks_factory", side_effect=AssertionError("factory used")):
+                app = self.open()
+                self.assertEqual(len(app.exception), 0)
+                text = self.shown(app)
+                self.assertIn(self.screen.SETUP_PROBLEM, text)
+                self.assertNotIn("PATIENT", text)
+                self.assertNotIn(value, text)
+                app = self.begin(app)
+                self.assertEqual(len(app.exception), 0)
+                self.assertIn(self.screen.NO_PROVIDER, self.shown(app))
 
     def test_the_configured_databricks_interview_is_named_before_anything_is_sent(self):
         provider = Scripted(REVIEW, STOP)

@@ -15,7 +15,9 @@ expiry or a reset can never leave an earlier result on the screen.
 The wording functions at the top are plain Python and are tested without Streamlit.
 """
 import html
+import logging
 import os
+import re
 import time
 
 if __package__:  # imported as app.patient_ui by the repository's tests
@@ -65,7 +67,7 @@ UNAVAILABLE = {
     "unavailable": "The assessment service could not be reached or did not answer.",
     "timeout": "The assessment service took too long to answer.",
     "rate_limited": "The assessment service is handling too many requests at the moment.",
-    "budget_exhausted": "This visit has used all the assessment requests it is allowed.",
+    "budget_exhausted": "This server has no assessment requests left in its allowance.",
     "invalid_response": "The assessment service sent a reply this screen could not safely show.",
     "unauthorized": "This server is not authorised to use the assessment service.",
     "configuration_changed": "The assessment set-up changed during your visit, so earlier results were withdrawn.",
@@ -117,16 +119,19 @@ ENDPOINT_SETTING = "PATIENT_PROVIDER_ENDPOINT"
 LANE_SETTING = "PATIENT_PROVIDER_LANE"
 ATTEMPT_SETTINGS = {"demo": ("PATIENT_PROVIDER_DEMO_ATTEMPTS", 6), "test": ("PATIENT_PROVIDER_TEST_ATTEMPTS", 2)}
 PROVIDER_LABEL = "Databricks endpoint {endpoint} (experimental language model, not clinically validated)"
-SETUP_PROBLEM = ("Symptom assessment is switched off on this server because its provider settings are incomplete. "
-                 "You can write a description, but it will not be sent anywhere or assessed.")
+SETUP_PROBLEM = ("Symptom assessment is unavailable on this server. You can write a description, but it will not "
+                 "be sent anywhere or assessed.")
+_CAP = re.compile(r"[0-9]{1,2}", re.ASCII)
+_log = logging.getLogger(__name__)
+_reported = set()
 
 
 def provider_mode(environ):
     """Decide from the server's own settings whether an assessment provider is on.
 
     Off unless PATIENT_PROVIDER is set. A provider that is asked for but only partly or wrongly set
-    up is a problem that the screen names, never a guess and never a fallback. The problems name
-    settings and never repeat a value.
+    up is a problem, never a guess and never a fallback. The problems are for the operator: they
+    name settings, never repeat a value, and are not shown to the patient.
     """
     chosen = (environ.get(PROVIDER_SETTING) or "").strip()
     if not chosen:
@@ -143,7 +148,7 @@ def provider_mode(environ):
     attempts = {}
     for name, (setting, most) in ATTEMPT_SETTINGS.items():
         text = (environ.get(setting) or "0").strip()
-        if not text.isdigit() or int(text) > most:
+        if not _CAP.fullmatch(text) or int(text) > most:  # ASCII digits only, so int() cannot raise
             problems.append(f"{setting} is not a whole number from 0 to {most}")
         else:
             attempts[name] = int(text)
@@ -156,9 +161,10 @@ def provider_mode(environ):
 
 
 def off_notice(environ):
-    """What the patient is told while no provider is on, and for a setup problem, which settings are wrong."""
-    problems = provider_mode(environ)["problems"]
-    return SETUP_PROBLEM + " " + "; ".join(problems) + "." if problems else SWITCHED_OFF
+    """What the patient is told while no provider is on. A patient cannot act on a server setting, so a
+    setup problem is only said to be unavailable. The operator reads which settings from the server
+    log or from `provider_mode`."""
+    return SETUP_PROBLEM if provider_mode(environ)["problems"] else SWITCHED_OFF
 
 
 def _databricks_factory():
@@ -180,6 +186,9 @@ def compose(environ=None):
     """
     settings = provider_mode(os.environ if environ is None else environ)
     provider = None
+    if settings["problems"] and tuple(settings["problems"]) not in _reported:  # once per worker, not per redraw
+        _reported.add(tuple(settings["problems"]))
+        _log.warning("Patient assessment provider is off: %s", "; ".join(settings["problems"]))
     if settings["mode"] == DATABRICKS:
         try:
             provider = _databricks_factory()(

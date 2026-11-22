@@ -31,8 +31,9 @@ What it will not do:
   description is saved the runtime itself returns `provider_unavailable`. There is no scripted
   story, sample picker or fixture fallback.
 - **No guessed provider.** A provider that is asked for but wrongly or partly set up is not
-  replaced by a default. The screen says assessment is off because the settings are incomplete and
-  names the settings at fault, never their values.
+  replaced by a default. The patient is told only that assessment is unavailable on this server and
+  that the description will not be sent anywhere. Which settings are at fault goes to the server
+  log for the operator, once per worker, as setting names and never values.
 - **No stale result.** An edit, a withdrawn agreement, a failed or out-of-date step, an expiry and
   Start over all leave only what the runtime holds now. The screen keeps no copy of a result.
 - **No text left on an idle page.** An open page is told to look again one second after the visit's
@@ -68,8 +69,9 @@ What it will not do:
 Off by default, and switching it on is the operator's decision, not this screen's. The one provider
 `compose` can build is the team's experimental Databricks interview
 ([provider notes](../docs/patient_intake/providers.md)), through its server factory
-`patient_intake.providers.databricks_config.configured_databricks_provider`. These are read from the
-server process's environment when a visit is opened:
+`patient_intake.providers.databricks_config.configured_databricks_provider`. These are the names
+main approved in the [runbook](../docs/patient_intake/run.md), read from the server process's
+environment when a visit is opened:
 
 | Setting | Value | Meaning |
 | --- | --- | --- |
@@ -81,10 +83,15 @@ server process's environment when a visit is opened:
 
 What follows from that:
 
-- The allowance is per worker, not per visit. A new visit does not refill it, and when it is used up
-  the patient sees that no result could be confirmed. Changing a setting needs a restart of the app.
+- The allowance is shared by every visit on a worker. A new visit does not refill it. When it is
+  used up, a patient is told that this server has no assessment requests left, whichever visit used
+  them. Changing a setting needs a restart of the app.
+- A cap must be one or two plain digits within its range. Anything else, such as other number
+  scripts, signs, decimals or a very long value, is a setup problem and never an error page.
 - With the chosen lane's allowance at `0` the provider is asked for but can do nothing, so that is
-  reported as a setup problem too.
+  a setup problem too.
+- To see why assessment is off, read the worker's log line "Patient assessment provider is off: ..."
+  or call `patient_ui.provider_mode(os.environ)`. The patient screen never shows a setting name.
 - Credentials never pass through this screen or these settings. The factory signs in with the
   Databricks SDK's own server-side authentication for the workspace the app runs in.
 - Before agreeing to send anything, the patient is shown who receives it: "Databricks endpoint
