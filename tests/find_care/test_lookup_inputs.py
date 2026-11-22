@@ -77,6 +77,16 @@ def answer(text, service="dialysis", radius=50):
     return response["status"], response, words.present(response, service, location, radius)
 
 
+UNCLEAR_PIN = (
+    "not 302001", "I am not near 302001", "not in Jaipur 302001", "what is the weather in 302001 tomorrow",
+    "my old PIN was 302001", "302001 is my previous address", "formerly Jaipur, PIN 302001",
+    "Jaipur 302001 is where my friend lives", "I moved away from PIN 302001", "PIN 302001 is not mine",
+    "weather 302001", "order #302001", "not PIN: 302 001", "rainfall in 302001, India",
+    "Is it 302001.?", "302001 or Jaipur", "जयपुर में नहीं ३०२००१", "३०२००१ पुराना पता",
+    "🪁 302001", "Unknownville, PIN 302001",
+)
+
+
 class TypedLineTests(unittest.TestCase):
     """The steps behind the screen, on many lines, for every service and three distances."""
 
@@ -129,6 +139,19 @@ class TypedLineTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual("ok", answer(text)[0])
 
+    def test_pin_requires_a_complete_location_expression(self):
+        for text in UNCLEAR_PIN:
+            with self.subTest(text=text):
+                self.assertEqual(("refused", "Enter your current city or its six-digit PIN code on its own."),
+                                 answer(text)[:2])
+        for text, pin in (("Jaipur, Rajasthan (PIN 302001)", "302001"), ("Jaipur 302001, Rajasthan", "302001"),
+                          ("302001, Jaipur, RJ", "302001"), ("postal code: ३०२००१", "302001"),
+                          ("near Jaipur, PIN 302-001", "302001"), ("Poona PIN 411001", "411001"),
+                          ("Bangalore 560034", "560034"), ("PIN: 560 034, India", "560034")):
+            with self.subTest(text=text):
+                self.assertEqual({"pin": pin}, words.parse_location(text))
+        self.assertEqual({"city": "Unknownville"}, words.parse_location("Unknownville"))
+
     def test_two_pin_codes_are_never_answered_for_one_of_them(self):
         """Found by the seeded lines: a full stop after a PIN hid it, so the other PIN was searched."""
         for text in ("302001 Jaipur 302002.[]", "Jaipur 302001. Or 302002", "302001 (not 302002.)",
@@ -136,7 +159,7 @@ class TypedLineTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(("refused", "Type one PIN code."), answer(text)[:2])
         # One PIN is still read with a full stop beside it, and a decimal is still not a PIN.
-        for text in ("302001.", "302001. Jaipur", "Jaipur. 302001", "Is it 302001.?"):
+        for text in ("302001.", "302001. Jaipur", "Jaipur. 302001"):
             with self.subTest(text=text):
                 self.assertEqual({"pin": "302001"}, words.parse_location(text))
         for text in ("302001.5", "v1.302001", "302001.302002"):
@@ -238,15 +261,35 @@ class TypedLineScreenTests(unittest.TestCase):
         self.assertIn("Nothing has been searched yet. Press Find a facility to search", self._text(app))
         self._assert_nothing_restricted(app)
 
+    def test_unclear_single_pin_clears_previous_result_and_recovers(self):
+        app = self._lookup(self._app())
+        for text in UNCLEAR_PIN:
+            with self.subTest(text=text):
+                app = self._press(app, "Jaipur 302001")
+                self.assertIn(self.LEAD, self._text(app))
+                app = self._press(app, text)
+                errors, slips = self._feedback(app)
+                self.assertEqual(["Enter your current city or its six-digit PIN code on its own."], errors)
+                self.assertFalse(slips)
+                self.assertNotIn("response", app.session_state)
+                self.assertFalse(app.code)
+                self.assertFalse(app.get("download_button"))
+                self.assertNotIn("Example Regional Hospital", self._text(app))
+        app = self._press(app, "PIN 302001")
+        self.assertIn(self.LEAD, self._text(app))
+        self.assertTrue(app.code[0].value.startswith("Confirmation call script"))
+
     def test_on_real_records_every_press_is_answered_and_nothing_restricted_is_shown(self):
         warehouse = base.FakeWarehouse(base.FIXTURE["facilities"])
         app = self._app(warehouse, **base.WAREHOUSE)
-        for text in ODD + SHARED + KNOWN[:4]:
+        for text in ODD + SHARED + KNOWN[:4] + UNCLEAR_PIN:
             with self.subTest(text=text[:40]):
+                previous_queries = len(warehouse.statements)
                 app = self._press(app, text)
                 errors, slips = self._feedback(app)
                 self.assertTrue(errors or slips, "no visible response")
                 if answer(text)[0] == "refused":
+                    self.assertEqual(previous_queries, len(warehouse.statements))
                     self.assertEqual([answer(text)[1]], errors)
                     self.assertEqual([], slips)
                     self.assertNotIn("response", app.session_state)

@@ -1,11 +1,21 @@
 # Team message and task board
 
+## Project on hold
+
+**One active exception.** At the user's direction, Andrew Gu (Developer C) owns a [one-time app-wide input stress test and fixes](https://github.com/vzhu08/databricks-datathon/issues/379) on `codex/andrew-find-care-input-stress`. Andrew may test, fix, and open a PR for Oliver. All recurring checks, other developer work, merges and deployments remain on hold. This exception supersedes the earlier Developer C reassignment for this task only.
+
+The November 22 project hold applies to all work except the assignment above. All recurring checks are stopped until the user explicitly resumes them. This instruction takes precedence over every assignment below. Both orchestrators and all developers must end their project timers and polling loops. Park active tasks, keep open branches and pull requests, and suspend merges, deployments, provider calls and external submission. The current hosted release is `5bf5588`. The captioned film and pinned notebook remain available. Vincent and Andrew should record their account-side stop confirmations on the [project-wide hold](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7083780291).
+
 This board on `origin/main` is authoritative. Oliver (`oliverchennn`) is the integration lead. He owns the board, assignments, shared contracts and fixtures, PR reviews and merges, branch maintenance, and release coordination. Route earlier requests addressed to Vincent as integration lead to Oliver. [Read the handoff](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7070988307). The human approved replacing the initial assignments with this evidence-acquisition sprint on November 21, 2026. Read the [plan](PLAN.md), [contract](ACQUISITION_CONTRACT.md), and [kickoffs](../KICKOFF_PROMPTS.md).
 
 Use GitHub repository issues and this board for all team communication. Record assignments, review requests, blockers, decisions and acknowledgments here or in the owning issue. Link implementation PRs from the issue. [Team instructions](../../AGENTS.md)
 
 
 ## Find Care input testing
+
+Following the hosted acceptance, R reviews the [keyboard-only lookup and outstanding Find care wording](https://github.com/vzhu08/databricks-datathon/issues/356#issuecomment-7083714432). P reviews the [Storm controls, wording and optional road layer](https://github.com/vzhu08/databricks-datathon/issues/345#issuecomment-7083714434). Vincent’s existing notebook writer prepares a [tested refresh against the accepted app](https://github.com/vzhu08/databricks-datathon/issues/307#issuecomment-7083714483). The pinned notebook remains available for the film while Oliver reviews the candidate. L maintains the judge README. Andrew’s named Databricks account has verified app-only Can Use access. [Sign-in handoff](https://github.com/vzhu08/databricks-datathon/issues/379#issuecomment-7083834470) Oliver retains release and merge authority.
+
+Release `5bf5588` passed 13 signed-in Chrome submissions after the team fixed full-phrase dialysis searches, over-limit pastes, empty and unsupported public searches, and ambiguous postal-code inputs. Oliver verified a valid retry after each failure in the hosted app. Local checks covered 866 public queries, 112 symptom entries, 6,129 record-lookup combinations, all 48 individual-routing choices and all 24 Storm settings. The assessment provider remains off on the signed-in app. The team used offline simulations for the routing checks. [Test and deployment receipt](https://github.com/vzhu08/databricks-datathon/issues/363#issuecomment-7083674531)
 
 Oliver owns the signed-in acceptance checks and release for [the input stress test](https://github.com/vzhu08/databricks-datathon/issues/363). F owns public service matching and long search fields, M owns symptom drafts and recovery, P owns individual routing and Storm, and R owns the public retry guidance. Andrew volunteered the typed example-record location tests. Test synthetic inputs locally at scale. Check ordinary searches in the hosted app. The assessment provider stays off on that app. [Live baseline and scope](https://github.com/vzhu08/databricks-datathon/issues/363#issuecomment-7083500135)
 
