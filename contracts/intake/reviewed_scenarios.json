@@ -1,0 +1,40 @@
+{
+  "schema_version": "intake.editions.v1",
+  "editions": [
+    {
+      "scenario_id": "incomplete_history",
+      "scenario_version": "1",
+      "sha256": "817f2a9254cfe1ff08d8611d811393747fd3de41f3ce66a159d7ba2b19ed688c"
+    },
+    {
+      "scenario_id": "injury_assessed",
+      "scenario_version": "1",
+      "sha256": "c5ea8db27071defbd8f5220657bec3584ed856309a6badc178918216614b0416"
+    },
+    {
+      "scenario_id": "injury_unassessed",
+      "scenario_version": "1",
+      "sha256": "8f2bfcecb441dbeba4abb84e3b120174a6ffb2e5673c38124c6e0f2a10f34ee3"
+    },
+    {
+      "scenario_id": "scheduled_dialysis",
+      "scenario_version": "1",
+      "sha256": "0c1749cdf807de6a8a1d0d6fe781cc1ae041a701f7c1a4a2cf06b3e0ee595f2f"
+    },
+    {
+      "scenario_id": "scheduled_mri",
+      "scenario_version": "1",
+      "sha256": "bf22a1700ed77291fb5355ce36baa551c0b0b3e890f0d0b57b7219b4a3ef137b"
+    },
+    {
+      "scenario_id": "unsupported_concern",
+      "scenario_version": "1",
+      "sha256": "9a1089483f94aa4bd9948fd06ae6b990e5fe48fe3019c80f11df27e5c3ae5737"
+    },
+    {
+      "scenario_id": "warning_with_mri_plan",
+      "scenario_version": "1",
+      "sha256": "865b6da2c8379b33ab8e1db71cca6d232d7d6df08ecbc6f621852137dbbf0ef2"
+    }
+  ]
+}

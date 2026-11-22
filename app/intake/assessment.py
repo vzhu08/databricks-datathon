@@ -1,13 +1,14 @@
-"""Evaluate a finite fictional script. Only the caller's script catalogue is trusted."""
+"""Evaluate fictional intake and bind search eligibility to released script editions."""
 
 import hashlib
 import json
 from copy import deepcopy
+from pathlib import Path
 from weakref import WeakKeyDictionary
 
 SCHEMA_VERSION = "intake.v1"
 SCENARIO_SCHEMA_VERSION = "intake.scenario.v1"
-POLICY_VERSION = "intake-policy.v1"
+POLICY_VERSION = "intake-policy.v1.1"
 
 _PAYLOAD = {"schema_version", "mode", "scenario_id", "input_revision", "answers"}
 _SCENARIO = {
@@ -24,6 +25,7 @@ _MESSAGES = {
 }
 _REASONS = {
     "intake_invalid_input": "The input does not match the fictional intake contract.",
+    "intake_scenario_unreviewed": "This edition of the fictional story and care facts needs review before a campus search.",
     "intake_question_pending": "A question still needs an answer.",
     "intake_answers_unresolved": "An answer is unknown or the reported facts disagree.",
     "intake_population_unsupported": "The demonstration covers adults who are not pregnant.",
@@ -44,6 +46,37 @@ _EXPECTED_SERVICE = {"injury": "trauma_care", "mri_referral": "mri", "dialysis_p
 _RATIONALE = {"kidney_symptom": "niddk_dialysis_plan", "dialysis_plan": "niddk_dialysis_plan",
               "mri_referral": "rcr_mri_referral"}
 _POLICY_SOURCE = "intake_synthetic_policy_v1"
+
+
+def _load_reviewed_editions(path):
+    """Load release configuration once, independently of runtime scenario input."""
+    try:
+        manifest = json.loads(path.read_bytes())
+        if manifest["schema_version"] != "intake.editions.v1" or type(manifest["editions"]) is not list:
+            return frozenset()
+        pins = {}
+        for row in manifest["editions"]:
+            identity = (row["scenario_id"], row["scenario_version"])
+            digest = row["sha256"]
+            if (not all(type(x) is str and x.strip() for x in identity) or identity in pins
+                    or type(digest) is not str or len(digest) != 64
+                    or any(ch not in "0123456789abcdef" for ch in digest)):
+                return frozenset()
+            pins[identity] = digest
+        return frozenset((*identity, digest) for identity, digest in pins.items())
+    except (OSError, ValueError, TypeError, KeyError):
+        return frozenset()
+
+
+_REVIEWED_EDITIONS = _load_reviewed_editions(
+    Path(__file__).resolve().parents[2] / "contracts" / "intake" / "reviewed_scenarios.json"
+)
+
+
+def _edition_is_reviewed(scenario):
+    encoded = json.dumps(scenario, sort_keys=True, ensure_ascii=True, separators=(",", ":"), allow_nan=False)
+    digest = hashlib.sha256(encoded.encode("ascii")).hexdigest()
+    return (scenario["scenario_id"], scenario["scenario_version"], digest) in _REVIEWED_EDITIONS
 
 
 def assessment_catalogue():
@@ -137,10 +170,17 @@ def _referral(out, scenario):
                                   scenario_id=scenario["scenario_id"], scenario_version=scenario["scenario_version"])
     reasons = gate["reason_codes"]
     out["clinician_confirmation"] = gate["clinician_confirmation"]
-    _with_concern(out, category, reasons[0])
     if gate["state"] != "eligible":
+        _with_concern(out, category, reasons[0])
         return _state(out, gate["state"], reasons)
 
+    # Preserve warning and abstention outcomes. Only a released edition may
+    # advance to a summary, including when presented with an old receipt.
+    if not _edition_is_reviewed(scenario):
+        out["clinician_confirmation"] = "invalid"
+        return _state(out, "invalid_input", ["intake_scenario_unreviewed"])
+
+    _with_concern(out, category, reasons[0])
     request = gate["candidate_request"]
     out["care_summary"] = {**deepcopy(request), "authority": scenario["clinician_plan"]["authority"]}
     status = out["confirmation_status"]
