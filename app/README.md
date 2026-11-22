@@ -281,10 +281,11 @@ FIND_CARE_DATA=demo streamlit run app.py
 ```
 
 `FIND_CARE_DATA=demo` is the explicit synthetic mode, and `app.yaml` sets the same value for a
-deployed app. Expected startup: Streamlit prints a local address, and the page shows the title
-**Find care**, a band reading **Data: demonstration. This screen is running on six invented
-facilities, not the real records.** (the demonstration band also names the invented campuses), and
-a form already set to Recommend a campus, Dialysis, Routine and Central.
+deployed app. Expected startup: Streamlit prints a local address, and the page opens on **Check
+symptoms** with the title **Check your symptoms**. Choose **Find care (demonstration)** at the top
+of the page. The page then shows the title **Find care**, a band reading **Data: demonstration.
+This screen is running on invented campuses and six invented facilities, not the real records.**,
+and a form already set to Recommend a campus, Dialysis, Routine and Central.
 
 | Do this | Expect |
 | --- | --- |
