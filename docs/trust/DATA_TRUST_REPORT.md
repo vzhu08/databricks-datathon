@@ -11,6 +11,49 @@ We ran rule-based checks and source comparisons over all 10,088 records, then ha
 - **What is still open:** every identity and service lead below still awaits premises review.
 - **Samples:** the hand-checked samples described under each method are quality checks on the methods. They are not approvals.
 
+## Headline numbers
+
+These come from one reconciled set (`evidence_ladder/headline_numbers.json`, as of about 4:50 AM ET). Each count is over all 10,088 records. **The counts are flat, not nested**, so they do not add up as a funnel. "Backed" means outside or own-site evidence; nothing is "confirmed".
+
+| Measure | Records |
+|---|---:|
+| Location passes the checks | 8,726 |
+| Proposed pin repairs, high or medium confidence (unreviewed, not applied) | 670 |
+| Identity independently backed | 1,549 |
+| Any dated outside evidence | 197 |
+| Dated source naming the service itself | 84 (32 of them without identity backing) |
+| Approved for referral | **0** |
+
+| Per service | Dialysis | MRI | CT | Trauma |
+|---|---:|---:|---:|---:|
+| Records claiming it | 1,049 | 954 | 1,537 | 4,241 |
+| Claim reads as stated-current | 1,039 | 934 | 1,511 | 4,223 |
+| If duplicates were merged | 1,034 | 921 | 1,498 | 4,188 |
+| Self-reported only | 716 | 640 | 1,108 | 3,276 |
+| Identity backed | 300 | 246 | 337 | 921 |
+| Dated related evidence | 0 | 121 | 153 | 35 |
+| Dated service evidence | 74 | 1 | 0 | 17 |
+| Readiness: strong or several signals | 140 | 377 | 491 | 1,533 |
+| Readiness: strong | 33 | 77 | 78 | 687 |
+| Claimed at a facility type that rarely offers it | 17 | 10 | 87 | 713 |
+
+**Ownership of the 10,034 named records:**
+- private 4,424
+- government 231, plus 228 with a low-confidence government signal
+- trust 172
+- unknown 4,979
+
+**Public facilities outside VF.** For about 94 to 96% of people, the nearest listed facility for each service is not a public one. Median distance to a public option:
+
+| Service | VF records only | With the public layer added |
+|---|---:|---:|
+| Dialysis | 230 km | 33 km |
+| MRI | 224 km | 101 km |
+| CT | 179 km | 34 to 99 km |
+| Trauma | 117 km | 12 km |
+
+The proposed public layer adds 25,223 public sites that are not in VF. It is labelled exactly: *"Other listed public facility (OpenStreetMap), not reviewed; services inferred from facility type"*.
+
 ## What the problems change for a user
 
 We replayed 2,968 top-5 searches: 742 district centres × 4 services, ranked by straight-line distance ([#40 receipt](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7076407217)).
@@ -19,7 +62,7 @@ We replayed 2,968 top-5 searches: 742 district centres × 4 services, ranked by 
 - **Pin repair changes the answer.** Applying the proposed pin repairs, which are unreviewed leads and not applied in the app, changes the top answer in **21% of searches**.
 - **Other fixes barely move the top answer.** Dropping broken rows changes it in 0.2% of searches, and collapsing duplicates and chains in 0%.
 - **Why evidence is a badge, not a filter.** Keeping only records with independent identity evidence would leave **47% of searches (822 of 1,739) with nothing within 50 km**.
-- **Road distance.** Straight-line distance understates the trip ([#40 receipt](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7076509677)). The median road distance is 1.5× the straight line, rising to 2.1× in hill districts and 2.35× in the northeast. In 31% of cases the nearest facility by road is not the nearest in a straight line, and island districts have no road route.
+- **Road distance.** Straight-line distance understates the trip ([#40 receipt](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7076509677)). The median ratio of road to straight-line distance is 1.33 in urban districts, 1.44 in rural ones, 2.14 in hill districts and 2.35 in the northeast. In 31% of cases the nearest facility by road is not the nearest in a straight line, and island districts have no road route.
 - **Caveat.** Origins are district centres, not population-weighted, and the pin repairs are themselves leads.
 
 ## How often a field is wrong: stratified audit sample
@@ -53,7 +96,7 @@ The rest are self-reported only. A claim with no evidence counts as unbacked, no
 
 | Problem | How big it is | What the app does now | What would close the gap |
 |---|---|---|---|
-| **Misplaced pins** | 1,047 points are more than 100 km from every post office of their own PIN. 92 fall in another state, 6 fall outside India, and 119 rows have no coordinates (integrity-check count). 145 points have no building within 50 m; a hand-read of 15 of those found 7 badly wrong. | Real records are withheld: no name, place or distance is shown. PR #242 (under review) adds "straight-line distance is not the road journey". | Review of the proposed pin repair (1,244 suggested moves, none applied), then campus review. |
+| **Misplaced pins** | 1,047 points are more than 100 km from every post office of their own PIN. 92 fall in another state, 6 fall outside India, and 119 rows have no coordinates (integrity-check count). 145 points have no building within 50 m; a hand-read of 15 of those found 7 badly wrong. | Real records are withheld: no name, place or distance is shown. PR #242 (under review) adds "straight-line distance is not the road journey". | Review of the 670 proposed high- or medium-confidence pin repairs (none applied), then campus review. 8,726 locations already pass the checks. |
 | **Over-merged rows** (one record with fields from two places) | Our record-integrity check rates 794 of the 10,088 rows high-risk (740 among named rows) on its input bundle: VF base, India Post directory, footprint check and three corroboration files. An independent replay using the footprint check only, with no corroboration, rated 838 ([#57 replay](https://github.com/vzhu08/databricks-datathon/issues/57#issuecomment-7076168806)). Neither run shows a planted batch. | Flags only, nothing deleted. Withheld until reviewed. | Reviewer split or approval for each flagged row. |
 | **Duplicates** | 57 clusters covering 118 rows, about 61 surplus (0.6%). Service totals move under 1.5%. The same facility appears twice in up to 5.5% of top-5 MRI lists. Hand-read: about 21 of 25 high-confidence pairs were right. | Not collapsed yet. Proposed: one card with an "also listed as" line. | Reviewer merge of the high clusters. |
 | **Chain pooling** (one phone or website, many campuses) | 157 phones and 55 websites are shared by more than 6 rows or 3 or more PINs. 837 rows share a phone with a differently named row more than 5 km away. 377 of 551 website identity matches cannot pick a campus. | Shared chain keys never count toward identity. | Campus-level matching, then review of each campus. |

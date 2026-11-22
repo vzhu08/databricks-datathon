@@ -2,8 +2,7 @@
 
 ## Slide 1. "We checked the data before trusting it"
 - Headline: *10,088 facility records measured. No reviewed referral approvals yet, and here is why.*
-- Visual: one bar of 10,088 records with overlays, each labelled "lead":
-  - 1,549 with an independent identity lead
+- Visual: flat (not nested) counts over 10,088 records, each labelled "lead". 8,726 locations pass, 670 proposed repairs, 1,549 identity backed, 197 dated outside evidence, 84 name the service, 0 approved. Other overlays:
   - 794 flagged high-risk by our integrity check (838 on an independent replay)
   - 1,047 pins more than 100 km from their PIN
   - 118 rows in duplicate clusters
@@ -26,7 +25,7 @@
   - No dates: 148 with two staleness signals
   - Non-independent sources: 7,489 of 7,916 "matches" are VF's own upstream
   - Coverage: 189 districts with no VF record, 149 of them with 10+ listings elsewhere (describes the listings, not care)
-  - Road vs straight line: the median trip is 1.5× longer (2.35× in the northeast), and in 31% of cases the nearest facility by road is a different one
+  - Road vs straight line: the median ratio is 1.33 urban, 1.44 rural, 2.14 hill and 2.35 northeast. In 31% of cases the nearest facility by road is a different one
 - Speaker line: "Pins are the problem that changes answers. Duplicates and broken rows barely move the top result."
 
 ## Slide 3. "What the app does about it, and what closes the gap"
@@ -35,6 +34,7 @@
   - Shows exact source text and what is not confirmed
   - Drops negated, planned and referral-only claims
   - Says "no facility in this dataset", never "no care"
+  - Proposed public layer, labelled "Other listed public facility (OpenStreetMap), not reviewed; services inferred from facility type": the median distance to a public dialysis option falls from 230 km (VF only) to 33 km
   - Evidence as a badge, not a filter: a filter would empty 47% of searches
 - Right column, to close the gap:
   - Registries, each with its own access path: HFR (NHA permission), NIN geo directory (data.gov.in download), PM-JAY (district lists work, Haryana used)
