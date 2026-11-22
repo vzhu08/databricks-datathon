@@ -107,7 +107,7 @@ class CandidateTests(unittest.TestCase):
             transport=self.transport, budget=Budget(8), enabled=True,
         )
         self.exchange.return_value = (204, "", b"", {})
-        self.assertEqual(another.assess({"bound": True})["state"], "unsupported")
+        self.assertEqual(another.assess({"bound": True})["state"], "provider_stop")
         self.assertEqual(self.exchange.call_count, 2)
 
     def test_result_without_causes_and_without_urgency_is_unsupported(self):
