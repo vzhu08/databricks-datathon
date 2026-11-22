@@ -387,6 +387,10 @@ def slip(view, stale, service=None, response=None):
 
 
 st.set_page_config(page_title="Check symptoms and find care", layout="wide")
+# Streamlit draws captions as the text colour at 60% opacity, which is 3.97:1 on this paper. Slate at full
+# opacity is 5.5:1 and passes the 4.5:1 minimum for small text. Applied here so all three screens get it.
+st.markdown('<style>[data-testid="stCaptionContainer"] { color: #4b6274; opacity: 1; }</style>',
+            unsafe_allow_html=True)
 # The patient screen is the product and opens first. Find care below is the separate facility search.
 VIEW = patient_ui.entry(st, "Find care (demonstration)" if DEMO else "Find care", storm_page.STORM)
 if VIEW == patient_ui.PATIENT:
