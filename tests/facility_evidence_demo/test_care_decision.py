@@ -27,29 +27,39 @@ class CareDecisionTests(unittest.TestCase):
         return care_decision.evaluate({**self.request, **changes}, self.display, self.area)
 
     def test_rule_priority_is_independent_of_the_reported_time_priority(self):
+        routine = self.decision(severity="moderate")
+        soon = self.decision(severity="moderate", urgency="soon")
+        self.assertEqual((routine["assessment_priority"], routine["workflow_urgency"]), ("standard", "standard"))
+        self.assertEqual((soon["assessment_priority"], soon["workflow_urgency"]), ("standard", "prompt_review"))
+        self.assertEqual(soon["request"]["urgency"], "soon")
+        self.assertIn("request for help soon raises", soon["reason"])
+        self.assertEqual(routine["service"], soon["service"])
+
         higher_review = self.decision(severity="severe")
         self.assertEqual(higher_review["request"]["urgency"], "routine")
-        self.assertEqual(higher_review["workflow_urgency"], "prompt_review")
+        self.assertEqual((higher_review["assessment_priority"], higher_review["workflow_urgency"]),
+                         ("prompt_review", "prompt_review"))
         self.assertIn("routine", higher_review["reason"])
         self.assertIn("severe", higher_review["reason"])
-        requested_soon = self.decision(urgency="soon")
-        self.assertEqual(requested_soon["workflow_urgency"], "standard")
-        self.assertEqual(requested_soon["request"]["urgency"], "soon")
-        self.assertIn("waiting is safe", requested_soon["reason"])
-        self.assertEqual(higher_review["service"], requested_soon["service"])
+
+        incomplete = self.decision(danger="unsure", urgency="soon")
+        self.assertEqual((incomplete["assessment_priority"], incomplete["workflow_urgency"]),
+                         ("clarify", "clarify"))
+        self.assertEqual(incomplete["action"], "clarify")
 
     def test_warning_or_reported_emergency_interrupts_before_evidence(self):
         with patch.object(care_decision, "_loaded", side_effect=AssertionError("read evidence")):
             cases = [
                 ({"danger": "yes", "urgency": "routine", "severity": "mild"}, "emergency"),
-                ({"danger": "no", "urgency": "emergency", "severity": "mild"}, "standard"),
+                ({"concern": "injury", "danger": "no", "urgency": "emergency", "severity": "mild"}, "standard"),
                 ({"urgency": "emergency", "concern": "invalid"}, "clarify"),
             ]
-            for request, workflow in cases:
+            for request, assessment in cases:
                 with self.subTest(request=request):
                     result = care_decision.evaluate(request, self.display, self.area)
                     self.assertEqual((result["status"], result["action"]), ("emergency", "interrupt"))
-                    self.assertEqual(result["workflow_urgency"], workflow)
+                    self.assertEqual(result["workflow_urgency"], "emergency")
+                    self.assertEqual(result["assessment_priority"], assessment)
                     self.assertIsNone(result["service"])
                     self.assertIsNone(result["evidence"])
                     self.assertIsNone(result["area"])

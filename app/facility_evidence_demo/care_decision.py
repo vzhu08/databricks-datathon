@@ -42,24 +42,35 @@ def _loaded(result, schema):
     return data
 
 
-def _workflow(selection):
-    if selection["danger"] == "yes":
+def _assessment_priority(*, danger, severity, concern):
+    if danger == "yes":
         return "emergency"
-    if selection["severity"] == "severe":
+    if severity == "severe":
         return "prompt_review"
-    if selection["danger"] == "unsure" or selection["severity"] == "unsure":
+    if "unsure" in (danger, severity, concern):
         return "clarify"
     return "standard"
 
 
-def _reason(selection, workflow):
+def _workflow_urgency(assessment, self_rating):
+    if self_rating == "emergency":
+        return "emergency"
+    if self_rating == "soon" and assessment == "standard":
+        return "prompt_review"
+    return assessment
+
+
+def _reason(selection, assessment):
     urgency = selection["urgency"]
-    if workflow == "prompt_review":
+    if assessment == "prompt_review":
         if urgency == "routine":
-            return "You selected routine. Reported severe symptoms raise the review priority."
-        return "Reported severe symptoms raise the review priority."
+            return "You selected routine. Reported severe symptoms raise the workflow priority to prompt review."
+        return "Reported severe symptoms set the automatic priority to prompt review."
+    if urgency == "soon" and assessment == "standard":
+        return ("Your request for help soon raises the workflow priority to prompt review. "
+                "The automatic priority stays standard.")
     if urgency == "soon":
-        return "You asked for help soon. The local rules did not add a warning. This evidence check cannot assess whether waiting is safe."
+        return "You asked for help soon. The missing information still needs clarification before browsing."
     if urgency == "unsure":
         return "Your time urgency is unclear. This evidence check cannot establish a safe waiting time."
     return "This workflow checks facility evidence. It cannot assess whether waiting is safe."
@@ -117,17 +128,22 @@ def evaluate(request, display=None, area=None):
             value = "unsure"
         selection[key] = value
 
-    workflow = _workflow(selection)
+    assessment = _assessment_priority(
+        danger=selection["danger"], severity=selection["severity"], concern=selection["concern"],
+    )
+    workflow = _workflow_urgency(assessment, selection["urgency"])
+    reason = _reason(selection, assessment)
     result = {
         "request": selection,
+        "assessment_priority": assessment,
         "workflow_urgency": workflow,
         "service": None,
         "evidence": None,
         "area": None,
         "eligible_destinations": None,
     }
-    if workflow == "emergency" or selection["urgency"] == "emergency":
-        if workflow == "emergency":
+    if workflow == "emergency":
+        if assessment == "emergency":
             reason = "Reported immediate danger interrupts facility browsing even when the requested priority is lower."
         else:
             reason = "Your emergency selection interrupts facility browsing regardless of the separate local workflow signal."
@@ -140,28 +156,27 @@ def evaluate(request, display=None, area=None):
                     next_check="Choose from the available responses.")
     if selection["danger"] == "unsure":
         return dict(result, status="needs_clarification", action="clarify",
-                    reason="Immediate danger is unresolved. " + _reason(selection, workflow),
+                    reason="Immediate danger is unresolved. " + reason,
                     next_check="Clarify immediate danger before using facility evidence.")
     if selection["concern"] == "unsure":
-        return dict(result, status="needs_clarification", action="clarify", reason=_reason(selection, workflow),
+        return dict(result, status="needs_clarification", action="clarify", reason=reason,
                     next_check="Clarify the injury or existing care need before selecting service evidence.")
     if selection["concern"] == "other":
-        return dict(result, status="no_supported_service", action="clarify", reason=_reason(selection, workflow),
+        return dict(result, status="no_supported_service", action="clarify", reason=reason,
                     next_check="Clarify the actual care need. This edition has no evidence view for this selection.")
     if selection["concern"] == "injury" and selection["injury_kind"] != "unsure":
         kind, capability = _INJURY_CAPABILITY[selection["injury_kind"]]
         return dict(
             result, status="no_supported_service", action="clarify",
-            reason=f"You selected {kind}. This edition cannot verify {capability}. " + _reason(selection, workflow),
+            reason=f"You selected {kind}. This edition cannot verify {capability}. " + reason,
             next_check=f"Verify the exact branch and its current ability to provide {capability}.",
         )
     if selection["severity"] == "unsure":
-        return dict(result, status="needs_clarification", action="clarify", reason=_reason(selection, workflow),
+        return dict(result, status="needs_clarification", action="clarify", reason=reason,
                     next_check="Clarify reported severity before continuing the walkthrough.")
 
     service = _SERVICES[selection["concern"]]
     result["service"] = service
-    reason = _reason(selection, workflow)
     if service == "trauma_care":
         reason += " The injury kind is unspecified, so the evidence check covers broad trauma care only."
     data = _loaded(display, loader.SCHEMA)
