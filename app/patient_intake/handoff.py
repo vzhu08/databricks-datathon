@@ -107,6 +107,12 @@ class PatientHandoff:
     def __call__(self, handle, expected_revision, assessment):
         if not _is_current(handle, expected_revision, assessment):
             return {"state": "assessment_blocked"}
+        if assessment.get("urgency") == "self_care" and assessment.get("next_step") is None:
+            return {"state": "no_reviewed_destination"}
+        next_step = assessment.get("next_step")
+        if (assessment.get("urgency") != "consultation"
+                or not isinstance(next_step, dict) or next_step.get("kind") != "consultation"):
+            return {"state": "assessment_blocked"}
         if self._read_order is None or self._read_release is None:
             return {"state": "no_reviewed_destination"}
 

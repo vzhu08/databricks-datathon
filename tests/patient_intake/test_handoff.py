@@ -80,7 +80,7 @@ class Encounter:
     def __init__(self, state="completed"):
         self.revision = 3
         self.assessment = {
-            "revision": 3, "state": state, "guidance": "Test-only provider guidance",
+            "revision": 3, "state": state, "urgency": "consultation", "guidance": "Test-only provider guidance",
             "next_step": {"kind": "consultation", "specialty_code": "nephrology"},
         }
         self.state = state
@@ -151,3 +151,107 @@ class PatientHandoffTests(unittest.TestCase):
         self.release.side_effect = edited
         self.assertEqual(self.handoff(self.handle, 3, self.handle.assessment),
                          {"state": "assessment_blocked"})
+
+
+class RuntimeHandoffTests(unittest.TestCase):
+    def setUp(self):
+        from app.patient_intake import PatientIntakeService, interview
+        from app.patient_intake.session import PatientSession
+
+        self.session_type = PatientSession
+        self.handle = self.open_encounter()
+        self.provider = Mock()
+        self.provider.assess.return_value = {
+            "state": "completed", "provider_id": "test-only", "provider_version": "v1",
+            "guidance": "Invented consultation guidance.", "uncertainty": "Test-only uncertainty.",
+            "urgency": "consultation", "possible_causes": [],
+            "next_step": {"kind": "consultation", "specialty_code": "nephrology"},
+        }
+        self.order = Mock(side_effect=lambda handle, revision: (
+            {"service": "dialysis", "required_capabilities": ["monitored"]}
+            if handle is self.handle and handle.read()[0] == revision else None
+        ))
+        self.release = Mock(return_value={"release_ref": "test-release", "as_of": AS_OF,
+                                          "campuses": [_campus()]})
+        self.handoff = Mock(wraps=PatientHandoff(read_verified_order=self.order,
+                                                 read_reviewed_release=self.release,
+                                                 today=lambda: date.fromisoformat(AS_OF)))
+        self.service = PatientIntakeService(interview=interview, provider=self.provider,
+                                            provider_identity=("test-only", "v1"), handoff=self.handoff)
+
+    def open_encounter(self):
+        session = self.session_type(notice_version="test-notice")
+        handle = session.open(consent=True, notice_version="test-notice")
+        self.addCleanup(session.delete, handle)
+        return handle
+
+    def complete(self, handle):
+        edit = self.service.edit(handle, handle.read()[0], description="Invented symptom statement", context={})
+        consent = self.service.consent(handle, edit["revision"], granted=True)
+        return self.service.assess(handle, consent["revision"])
+
+    def navigate(self, handle, receipt):
+        return self.service.navigate(handle, handle.read()[0], confirmation=receipt)
+
+    def test_other_encounter_cannot_reuse_confirmation_even_at_identical_revision(self):
+        completed = self.complete(self.handle)
+        receipt = self.service.confirm(self.handle, completed["revision"])
+        other = self.open_encounter()
+        self.assertEqual(completed, self.complete(other))
+        with self.assertRaises(ValueError):
+            self.navigate(other, receipt)
+        self.handoff.assert_not_called()
+        self.order.assert_not_called()
+        self.release.assert_not_called()
+        self.assertEqual(self.navigate(self.handle, receipt),
+                         {"state": "reviewed_destinations",
+                          "destinations": [{"facility_id": "TEST-ONLY-CAMPUS", "availability": "unknown"}]})
+        self.order.assert_called_once_with(self.handle, completed["revision"])
+
+    def test_edit_blocks_prior_receipt_before_handoff_or_evidence(self):
+        completed = self.complete(self.handle)
+        receipt = self.service.confirm(self.handle, completed["revision"])
+        edited = self.service.edit(self.handle, completed["revision"],
+                                   description="A different invented statement", context={})
+        self.assertEqual(edited["state"], "draft")
+        with self.assertRaises(ValueError):
+            self.navigate(self.handle, receipt)
+        self.handoff.assert_not_called()
+        self.order.assert_not_called()
+        self.release.assert_not_called()
+
+    def test_provider_failure_after_success_revokes_navigation(self):
+        completed = self.complete(self.handle)
+        receipt = self.service.confirm(self.handle, completed["revision"])
+        self.assertEqual(self.navigate(self.handle, receipt)["state"], "reviewed_destinations")
+        self.handoff.reset_mock()
+        self.order.reset_mock()
+        self.release.reset_mock()
+        self.provider.assess.side_effect = OSError("Test-only provider failure")
+        failed = self.service.assess(self.handle, completed["revision"])
+        self.assertEqual((failed["state"], failed["guidance"]), ("provider_unavailable", None))
+        with self.assertRaises(ValueError):
+            self.navigate(self.handle, receipt)
+        with self.assertRaises(ValueError):
+            self.service.confirm(self.handle, failed["revision"])
+        self.handoff.assert_not_called()
+        self.order.assert_not_called()
+        self.release.assert_not_called()
+
+    def test_unsafe_dispositions_never_dispatch_navigation(self):
+        reply = self.provider.assess.return_value
+        for state, urgency, assessment_state in [
+            ("urgent", "consultation_24", "urgent"),
+            ("completed", "emergency", "provider_unavailable"),
+            ("completed", "unknown", "provider_unavailable"),
+        ]:
+            with self.subTest(state=state, urgency=urgency):
+                handle = self.open_encounter()
+                self.provider.assess.return_value = dict(reply, state=state, urgency=urgency, next_step=None)
+                result = self.complete(handle)
+                self.assertEqual(result["state"], assessment_state)
+                with self.assertRaises(ValueError):
+                    self.service.confirm(handle, result["revision"])
+        self.handoff.assert_not_called()
+        self.order.assert_not_called()
+        self.release.assert_not_called()
