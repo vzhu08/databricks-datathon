@@ -12,6 +12,20 @@ Every implementation task has one named developer chat in this project. That cha
 
 Oliver’s nine developer chats now prioritize [national hospital service and equipment evidence](https://github.com/vzhu08/databricks-datathon/issues/161). Vincent leads campus verification, acquisition permissions, and the [existing VF audit](https://github.com/vzhu08/databricks-datathon/issues/58). Andrew owns UI/UX. The new assignments below take precedence over earlier intake and demo sequencing for these nine chats. Preserve existing branches and open PRs for later review.
 
+### Location resolution priority · November 22
+
+The user makes executive decisions in Oliver’s main chat. Oliver coordinates the repository and release. Vincent directs data work. Use the [location assignment and acceptance criteria](https://github.com/vzhu08/databricks-datathon/issues/57#issuecomment-7076084065) for this phase.
+
+| Owner and issue | Next deliverable |
+|---|---|
+| Vincent’s #57 campus developer · [PR #218](https://github.com/vzhu08/databricks-datathon/pull/218) | Correct the reference that supplies the branch address, preserve nearby conflicting street evidence, and replay every original. Report changes against the 527 campus candidates, 4,712 area results and 60 unresolved records in the earlier contested group. [Review and fixtures](https://github.com/vzhu08/databricks-datathon/issues/57#issuecomment-7076043458) |
+| Vincent’s **Update location-finding progress** chat · [#57](https://github.com/vzhu08/databricks-datathon/issues/57#issuecomment-7076084065) | After its facility-type report, compare the 146 unresolved locations with the 142 earlier search misses by original occurrence. Recover the finest supported geography from retained evidence. Count unresolved reasons and name the missing field for each remaining group. |
+| Vincent’s **Reconcile national campus and service…** chat · [#58](https://github.com/vzhu08/databricks-datathon/issues/58#issuecomment-7075721205) | Check the 186 service leads against the corrected directory and measure changes for the 52 current campus-level leads. Separate shared-source links, independent same-premises evidence and outstanding alternatives. |
+| Oliver’s **Developer D — Databricks evidence integration** chat · [#163](https://github.com/vzhu08/databricks-datathon/issues/163) | Independently verify the corrected aggregate when Vincent stages it. Reconcile 10,088 original records, 10,077 upstream IDs, all 11 duplicate pairs and 30,264 service decisions with the private manifest. |
+| Oliver’s main chat · [#40](https://github.com/vzhu08/databricks-datathon/issues/40) | Review the tested head, fixtures, national changes and handoffs before integration. Andrew retains UI/UX. The accepted synthetic finder and storm demo remain available. |
+
+Keep original fields, the selected campus and its supporting evidence, plausible alternatives, and the finest defensible area. Area results support coverage analysis. Exact campus and onsite-service verification have separate acceptance rules. A new acquisition proposal must identify a missing branch-specific field, its permitted source and the residual cohort it could resolve. [Archived alternative-site comparison](https://github.com/vzhu08/databricks-datathon/issues/57#issuecomment-7075950314)
+
 ### National service and equipment assignments
 
 | Developer chat | Active research issue | Branch and acquisition directory |
