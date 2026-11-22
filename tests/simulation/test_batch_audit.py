@@ -299,6 +299,34 @@ class PlannerIntegrationTests(unittest.TestCase):
                 if exact:
                     self.assertEqual(score, best)
 
+    def test_solver_on_seeded_tiny_graphs(self):
+        from app.simulation.batch_planner import solve
+
+        rng = random.Random(323)
+        for generation in range(20):
+            facilities = []
+            capacities = {}
+            for fid in ("a", "b", "c"):
+                capacities[fid] = rng.randrange(3)
+                slot = {"slot_id": fid, "resource_id": fid, "slots": capacities[fid],
+                        "service": "dialysis", "tools": [], "start_minute": 10}
+                facilities.append({"id": fid, "precision": "point", "resources": [slot]})
+            patients, travel = [], {}
+            for index in range(5):
+                pid = str(index)
+                patients.append({"id": pid, "priority": rng.choice(PRIORITIES), "arrival_minute": 0,
+                                 "deadline_minute": 10, "service": "dialysis", "required_tools": []})
+                travel[pid] = {fid: rng.choice((0, 1, 59, 600)) for fid in capacities if rng.randrange(3)}
+            priorities = {p["id"]: p["priority"] for p in patients}
+            choices = feasible_choices(travel, capacities)
+            minimum = min(objective(priorities, travel, allocation) for allocation in choices)
+            result = solve({"patients": patients, "facilities": facilities, "travel_seconds": travel,
+                            "geography": {"location_basis": "synthetic"}, "scenario": {"horizon_minutes": 10}})
+            with self.subTest(generation=generation):
+                self.assertEqual(audit_policy(self, patients, facilities, travel,
+                                              result["policies"]["exact_optimum"], exact=True), minimum)
+                audit_policy(self, patients, facilities, travel, result["policies"]["nearest_first"], exact=False)
+
     def test_generated_shift_reproducibility_scope_metrics_and_optimality(self):
         from app.simulation.batch_planner import make_instance, solve
 
