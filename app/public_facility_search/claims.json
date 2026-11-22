@@ -1,0 +1,24 @@
+[
+  {
+    "operator": "KEM Hospital, Pune",
+    "city": "Pune",
+    "service": "Maintenance haemodialysis",
+    "service_queries": ["dialysis", "haemodialysis", "hemodialysis", "maintenance dialysis", "maintenance haemodialysis", "maintenance hemodialysis"],
+    "source_url": "https://www.kemhospitalpune.org/specialities/nephrology/",
+    "source_date": null,
+    "checked_on": "2026-11-22",
+    "contact_label": "Hospital main line",
+    "contact_phone": "+91 20 2621 7300"
+  },
+  {
+    "operator": "Jehangir Hospital",
+    "city": "Pune",
+    "service": "Dialysis",
+    "service_queries": ["dialysis"],
+    "source_url": "https://www.jehangirhospital.com/nephrology-sp/",
+    "source_date": null,
+    "checked_on": "2026-11-22",
+    "contact_label": "Hospital appointments",
+    "contact_phone": "020-6681-9966"
+  }
+]
