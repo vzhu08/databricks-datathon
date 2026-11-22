@@ -1,5 +1,6 @@
 """Synthetic source bytes only. Never copy real hospital or operator rows here."""
 import copy
+import gzip
 import json
 from pathlib import Path
 import tempfile
@@ -9,7 +10,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 from research.acquisition.common import canonical, digest, envelope
 from research.acquisition.imaging_services.collector import collect, publish, summarize
-from research.acquisition.imaging_services.compare import compare, reconcile_legacy
+from research.acquisition.imaging_services.compare import compare, frozen_reach, reconcile_legacy
 from research.mri.maharashtra.inventory import URL
 
 
@@ -155,6 +156,29 @@ class ImagingTests(unittest.TestCase):
         self.assertEqual(report["directory_nodes"], 1)
         self.assertEqual(report["documentary_observations"], 1)
         self.assertEqual(report["latest_report_named_mri_unit_keys"], 1)
+
+    def test_frozen_reach_hash_payload_and_decision_product(self):
+        base = [{"facility_id": "a", "source_row": {"id": "one"}}]
+        occurrences = [{"original": base[0], "joint_identity": {"facility_id": "a", "state": "unknown",
+                        "outcomes": {"joint": "unmatched"}}}]
+        decisions = [dict(occurrence_key="a", service=s, status="unconfirmed", as_of="2026-11-21")
+                     for s in ("mri", "dialysis", "trauma_care")]
+        manifest = {"files": {}}
+        for name, rows in [("occurrences.jsonl.gz", occurrences), ("decisions.jsonl.gz", decisions)]:
+            data = gzip.compress(b"".join(canonical(r) + b"\n" for r in rows), mtime=0)
+            (self.root / name).write_bytes(data)
+            manifest["files"][name] = dict(bytes=len(data), sha256=digest(data), records=len(rows))
+        raw = canonical(manifest)
+        (self.root / "manifest.json").write_bytes(raw)
+        imaging = [{"facility_id": "a", "candidate_count": 1}]
+        result = frozen_reach(base, self.root, digest(raw), imaging)["frozen_reach.json"]
+        self.assertEqual(result["newly_reached"], 1)
+        self.assertEqual(result["unchanged_baseline_decisions"], 3)
+        self.assertEqual(result["service_status_transitions"], 0)
+        with self.assertRaisesRegex(ValueError, "manifest hash"):
+            frozen_reach(base, self.root, "0" * 64, imaging)
+        with self.assertRaisesRegex(ValueError, "payload/order"):
+            frozen_reach([{"facility_id": "other"}], self.root, digest(raw), imaging)
 
 
 if __name__ == "__main__":

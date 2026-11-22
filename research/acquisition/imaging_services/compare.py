@@ -1,5 +1,6 @@
 """Run source-control and expanded retrieval over every original VF occurrence."""
 from collections import Counter
+import gzip
 import json
 from pathlib import Path
 
@@ -7,6 +8,63 @@ from research.acquisition.common import canonical, digest, file_digest
 from research.matching.national import execute_national
 from research.service_status.projection import project
 from .collector import require
+
+
+def frozen_reach(base, ledger_root, manifest_sha256, imaging_rows):
+    """Compare reach to D's pinned joint trace; do not rerank or adjudicate."""
+    from .collector import local
+    root = Path(ledger_root)
+    require(file_digest(root / "manifest.json") == manifest_sha256, "frozen manifest hash mismatch")
+    manifest = json.loads((root / "manifest.json").read_text())
+    loaded = {}
+    for name, record in manifest["files"].items():
+        path = local(root, name)
+        require(path.stat().st_size == record["bytes"] and file_digest(path) == record["sha256"],
+                "frozen file hash/length mismatch")
+        if name.endswith(".jsonl.gz"):
+            with gzip.open(path, "rt", encoding="utf-8") as stream:
+                rows = [json.loads(line) for line in stream]
+            require(len(rows) == record["records"], "frozen record count mismatch")
+            if name in {"occurrences.jsonl.gz", "decisions.jsonl.gz"}:
+                loaded[name] = rows
+    occurrences, decisions = loaded["occurrences.jsonl.gz"], loaded["decisions.jsonl.gz"]
+    require([r["original"] for r in occurrences] == base, "frozen original payload/order mismatch")
+    originals = {r["facility_id"] for r in base}
+    images = {r["facility_id"]: r for r in imaging_rows}
+    require(len(images) == len(imaging_rows) and set(images) == originals, "imaging occurrence mismatch")
+    keys = [(d["occurrence_key"], d["service"]) for d in decisions]
+    expected = {(fid, service) for fid in originals for service in ("mri", "dialysis", "trauma_care")}
+    require(len(keys) == len(expected) and set(keys) == expected, "frozen three-service product mismatch")
+    by_state, overlay = {}, []
+    outcomes = Counter()
+    for occurrence in occurrences:
+        fid = occurrence["original"]["facility_id"]
+        joint = occurrence["joint_identity"]
+        require(joint["facility_id"] == fid, "joint occurrence mismatch")
+        outcome = joint["outcomes"]["joint"]
+        require(outcome in {"unmatched", "candidate_only", "ambiguous", "confirmed"}, "unknown joint outcome")
+        outcomes[outcome] += 1
+        old_reach = outcome != "unmatched"
+        imaging_reach = images[fid]["candidate_count"] > 0
+        state = joint["state"]
+        bucket = by_state.setdefault(state, Counter())
+        for key, condition in (("original_rows", True), ("joint_any_candidate", old_reach),
+                               ("imaging_any_candidate", imaging_reach), ("union_any_candidate", old_reach or imaging_reach),
+                               ("newly_reached", imaging_reach and not old_reach)):
+            bucket[key] += condition
+        overlay.append(dict(facility_id=fid, state=state, joint_outcome=outcome,
+                            imaging_candidate_count=images[fid]["candidate_count"],
+                            newly_reached=imaging_reach and not old_reach))
+    totals = {k: sum(s[k] for s in by_state.values()) for k in next(iter(by_state.values()))}
+    return {"frozen_reach.json": dict(frozen_manifest_sha256=manifest_sha256,
+                frozen_occurrences_sha256=manifest["files"]["occurrences.jsonl.gz"]["sha256"],
+                joint_outcomes=dict(outcomes), **totals, by_state=by_state,
+                unchanged_baseline_decisions=len(decisions),
+                baseline_decision_statuses=dict(Counter(d["status"] for d in decisions)),
+                service_status_transitions=0, confirmed_campus_gain=0,
+                measure="Candidate-reach union only; no joint top-five reranking, new campus review, or service adjudication.",
+                baseline_decision_dates=sorted({d["as_of"] for d in decisions})),
+            "frozen_reach_rows.json": overlay}
 
 
 def compare(base, metadata, base_sha256, control, additions, as_of, expected_rows=10088,

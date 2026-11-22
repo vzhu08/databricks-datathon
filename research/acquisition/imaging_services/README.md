@@ -48,6 +48,17 @@ python -m unittest discover -s tests/research/acquisition/imaging_services -v
 
 Output hashes include file newlines; `control_batch_hashes` and `addition_batch_hashes` in comparison metadata hash canonical JSON content without a newline. Outputs are deterministic and refuse an incompatible overwrite. Keep private candidate rows and service projections out of Git. Stage only source-authorized subsets and metadata with manifest hashes, readback and recipient-access receipts; restricted corpora require a separately permitted handoff.
 
+Once D's verified `service-evidence-ledger-v1` baseline is readable, measure reach against its retained joint trace without rerunning a completed source comparison:
+
+```sh
+python -m research.acquisition.imaging_services frozen-reach \
+  --base PRIVATE/base.json --ledger-root PRIVATE/d-ledger-readback \
+  --manifest-sha256 PINNED_MANIFEST_SHA256 \
+  --imaging-rows PRIVATE/national/expanded_rows.json --out PRIVATE/frozen-reach
+```
+
+This verifies all listed file hashes/counts, untouched original payload/order and the complete three-service decision product. It reports the candidate-reach union, including unknown geography, while preserving D's baseline dates. It does not rerank the joint top five, reconcile the service ledger or update any decision. The earlier comparison artifact remains an honest record of its unavailable-input boundary; this separate receipt supplies the subsequently available frozen-reach measurement.
+
 ## Source entry points and current boundaries
 
 - [HINDLABS network](https://hindlabs.in/networks) and [HLL diagnostics](https://www.lifecarehll.com/page/render/reference/Diagnostic_Services_Division): one operator lineage; inherited raw/derivative sharing restrictions remain in force.
