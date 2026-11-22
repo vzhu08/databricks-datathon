@@ -26,6 +26,15 @@ PINS = {
 }
 
 
+V2_BASE = "1aac721ecd9dc4f4f7ac5cfb881e5c2af9ff5898"
+V2_PINS = {
+    "M": "410594eddc6af4685f331d11ca5d7ce81b8b1de5",
+    "N": "94974d15291c7764d684baafe550378ffee1fa2a",
+    "O": "9315009a3d123864411ff6256d8b2bfc7bd18680",
+    "Q": "e7e847811a34d419be7199e23cbe027a4104006d",
+}
+
+
 def export(repo, root, commit, path):
     archive = subprocess.check_output(["git", "archive", "--format=zip", commit, path], cwd=repo)
     with ZipFile(io.BytesIO(archive)) as snapshot:
@@ -44,10 +53,25 @@ def stage_components(repo, root):
     export(repo, root, PINS["N"], "app/patient_intake/providers")
 
 
+def stage_v2(repo, root):
+    export(repo, root, V2_BASE, "app")
+    seen = set()
+    for commit in V2_PINS.values():
+        changes = subprocess.check_output(
+            ["git", "diff", "--name-status", V2_BASE + "..." + commit, "--", "app"], cwd=repo, text=True)
+        for line in changes.splitlines():
+            status, path = line.split("\t")
+            if status not in {"A", "M"} or path in seen or not path.startswith("app/patient_intake/"):
+                raise ValueError("Unexpected pinned v2 change")
+            export(repo, root, commit, path)
+            seen.add(path)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--commit", help="Export app/ from this composed candidate instead of individual modules")
     parser.add_argument("--repo", type=Path, default=ROOT, help="Repository containing the composed commit")
+    parser.add_argument("--v2", action="store_true", help="Run the approved v2 supplemental checks and frozen packet")
     args = parser.parse_args()
     cases = load_cases()
     with TemporaryDirectory() as temporary:
@@ -58,6 +82,9 @@ def main():
                 cwd=args.repo, text=True).strip()
             export(args.repo, app, commit, "app")
             provenance = {"composition": commit}
+        elif args.v2:
+            stage_v2(args.repo, app)
+            provenance = {"base": V2_BASE, "components": V2_PINS}
         else:
             stage_components(args.repo, app)
             provenance = {"base": BASE, "components": PINS}
@@ -77,6 +104,14 @@ def main():
                       python=sys.version.split()[0], provider="audit-stub/v2 and prebound MGP terminal fixtures",
                       packet_sha256=hashlib.sha256((HERE / "cases.v1.json").read_bytes()).hexdigest(),
                       observer_sha256=hashlib.sha256(observer.read_bytes()).hexdigest())
+        if args.v2:
+            supplement = HERE / "v2_observer.py"
+            extra = subprocess.run([sys.executable, "-I", "-S", "-B", str(supplement), str(app)])
+            report["v2_supplement"] = {"passed": extra.returncode == 0,
+                                       "sha256": hashlib.sha256(supplement.read_bytes()).hexdigest()}
+            if extra.returncode:
+                print(json.dumps(report, indent=2))
+                return extra.returncode
         print(json.dumps(report, indent=2))
         return run.returncode or int(bool(differences))
 

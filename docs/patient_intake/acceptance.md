@@ -69,6 +69,45 @@ The run on local composition `293669a68eab96bb28ee9087ec442a8082cd5b6a`, app tre
 
 The 35 cases started 50 offline mock exchanges. Three scenarios each entered the finder once. The verified order and the local search without external lookup permission returned the eligible fictional campus. The unconfirmed campus eligibility check returned no destination. No case entered the route adapter, route HTTP transport or default provider HTTPS exchange, attempted a socket operation or launched a subprocess. The `novel-intake` case verifies verbatim text reaches the mock exchange and that the patient can review a supplied fact. Fresh-input clinical interpretation, provider suitability in India, and patient-facing release remain unevaluated.
 
+## Approved v2 backend replay
+
+The frozen v1 packet and its historical receipt remain pinned. On the independently assembled v2 commit `b9fe64f6ac8bc048eedf0d9c32a9b79c83d4d315` (app tree `e4a8640cedc8900b2d6b9213d4ea01b644079ec8`), the same packet returned 15 passes, 20 partial cases and zero failures. All 165 previously measured fields matched. The separate v2 checks ran on both the exact commit and an export assembled from main `1aac721` plus the [four assigned heads](https://github.com/vzhu08/databricks-datathon/issues/230#issuecomment-7076574494).
+
+| Supplemental v2 check | Backend observation |
+| --- | --- |
+| Scope and uncertainty | Unsupported age and language each remained unsupported through consent and assessment with zero transmissions. An eligible edit required fresh consent. The completed view retained its exact uncertainty after confirmation and described the original prose as uninterpreted. |
+| Skip, unknown and omission | Only an explicit skip of an optional choice serialized to null. Explicit group skip serialized each issued item as unknown. Required item omission was rejected. Individually selected unknown and absent retained distinct wire values. |
+| Provider stop | A recognized stop supplied its guidance and withheld ordinary reassessment, confirmation and navigation. One synthetic exchange ran. |
+| Reset during creation | Reset while a patient create was in flight. A verified late ID was deleted before the known user ID. A timeout deleted only the known user, retained one unresolved creation record and left the replacement encounter in draft. Both paths used independent creation and cleanup budgets and in-process storage. |
+
+Run `python3 -B tests/patient_intake_audit/smoke.py --v2` to reproduce the frozen packet and eight supplemental checks. Add `--repo "$COMPOSITION_REPO" --commit "$COMPOSITION_SHA"` to run them on a composed Git tree. The eight checks are reported separately from the 35-case denominator.
+
+### Browser replay on the published v2 screen
+
+On Andrew’s [exact UI commit](https://github.com/vzhu08/databricks-datathon/commit/fec08c53abe3e1eb8ee4428dd8e08ea1ae92fe5a), the combined frozen score was **27 passed, 1 failed and 7 partial** across 35 cases and 179/186 observed fields. The app tree was `f0bc771d641f55d81e2914c49c57610c972d8c66`. Its patient backend matched the assigned four-head composition byte for byte. The browser observer ran 18 scenarios in Chromium 159.0.8154.6. The backend packet and the browser runs both recorded zero external network and route attempts. The browser used the published Streamlit entry point and its documented provider injection seam. The no-configuration scenario used the shipped composition. All other provider responses were synthetic.
+
+**Observed failure.** When the prebound provider returned an empty response without a disposition, the service returned `unsupported`. The browser showed “This could not be assessed” and “The assessment provider cannot assess this description.” It omitted the information that the provider had ended the interview. The frozen `terminated-empty.terminal_visible` expectation therefore failed. A recognized non-emergency `provider_stop` followed a different path on the same screen. Its supplied guidance was visible and no hospital action appeared.
+
+The published UI also displayed uncertainty and the uninterpreted-description notice, submitted a marked optional skip, and cleared prior guidance after edit, outage, reset during an in-flight call and expiry. The observer confirmed reset in the real store before releasing the delayed exchange. The age eligibility stop was visible before any exchange. The contradiction case showed that the provider could not account for the correction, but the copy attributed uncertainty to the patient even though both opposing observations had been confirmed. Andrew’s preceding `a6008d7` UI lacked both the supplied provider-stop guidance and the skip control. [First-screen findings](https://github.com/vzhu08/databricks-datathon/issues/231#issuecomment-7076624595)
+
+| Partial cases | Remaining evidence |
+| --- | --- |
+| `unsupported-language` | The patient screen fixes the language to English. No unsupported-language selection could be exercised. |
+| `cross-session-answer`, `cross-encounter-receipt` | Server-side rejection was measured. A browser capture of both sessions during attempted reuse of the other session’s issuance or receipt is still missing. |
+| `expired-session`, `shared-cache` | Expired guidance disappeared, and the second browser context did not display the first result or change it on reset. These display observations do not cover the full cross-session disclosure field. |
+| `privacy-sinks` | The sampled URL/history state and local/session storage contained zero fixture markers. The credential marker was absent from visible text, and the statement disappeared on reset and reload. The aggregate canary count and complete calibrated coverage remain unknown, including telemetry, IndexedDB, cache storage, client assets and full navigation history. |
+| `no-eligible-campus` | The unconfirmed campus remained ineligible. The patient entry point provides no external routing-permission action to turn on for this scenario. |
+
+To reproduce, use a clean checkout of the published UI SHA and the audit scripts from this PR. Install the project’s Streamlit environment and Playwright with Chromium. Run the server in its own terminal, choose a fresh private controls directory and use the same loopback origin for both processes. Capture the entire server log from startup. The final scorer returns nonzero for the observed failure and partial cases.
+
+```sh
+python3 -B tests/patient_intake_audit/smoke.py --v2 --repo "$UI_REPO" --commit "$UI_SHA" > "$BACKEND_REPORT"
+python3 -B tests/patient_intake_audit/ui_server.py "$UI_REPO/app" --port 18523 --controls "$CONTROLS" > "$SERVER_LOG" 2>&1
+# In the second terminal
+node tests/patient_intake_audit/ui_observer.cjs http://127.0.0.1:18523 "$CONTROLS" > "$BROWSER_REPORT"
+python3 -B tests/patient_intake_audit/ui_score.py "$BACKEND_REPORT" "$BROWSER_REPORT" "$SERVER_LOG"
+```
+
 ## Clinical evaluation for a release decision
 
 **Intended use to approve in advance.** A patient in India enters new symptoms, confirms their interpretation, and receives next-step guidance from a specified assessment provider and version. The clinical lead must approve the initial supported ages, acuity, languages, exclusions, care settings, output wording, escalation pathways and validated endpoints for that provider. Record whether any possible-cause list is in scope. A verified clinical order, independently reviewed campus and permission for routing are separately required where applicable. Narrow eligibility to the studied scope. Undefined or unsupported populations get an explicit stop. Facility-triage guidance is setting-specific; WHO describes the IITT as a tool for emergency units. [WHO IITT](https://www.who.int/tools/triage)
