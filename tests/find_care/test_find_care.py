@@ -97,6 +97,71 @@ class WordingTests(unittest.TestCase):
         _, missing = _run({"service": "mri", "location": {"pin": "999999"}})
         self.assertEqual("That place could not be located.", missing["headline"])
 
+    def test_every_answer_says_what_it_does_not_tell_you(self):
+        _, ok = _run({"service": "dialysis", "location": {"city": "Jaipur", "state": "Rajasthan"}})
+        self.assertEqual([words.NEAREST_NOT_BEST, words.STRAIGHT_LINE, words.NO_DATE], ok["limits"])
+        self.assertIn("not a judgement that it is the best place", ok["limits"][0])
+        self.assertIn("Limits: nearest match, not a quality judgement.", words.referral_note(ok, True))
+        # A department or a specialist is never worded as the service.
+        for service, part in (("dialysis", "not a working dialysis unit"), ("mri", "not a working MRI scanner"),
+                              ("trauma_care", "not a trauma service")):
+            related = words.limits("needs_confirmation", service, 50, {})
+            self.assertIn(part, related[0])
+            self.assertEqual([words.STRAIGHT_LINE, words.NO_DATE], related[1:])
+        _, leads = _run({"service": "dialysis", "location": {"pin": "302001"}, "radius_km": 2})
+        self.assertIn("not a working dialysis unit", leads["limits"][0])
+        self.assertIn("not a working dialysis unit", words.referral_note(leads, True))
+        # Not mentioned is not the same as not offered.
+        seen = 0
+        for case in FIXTURE["cases"]:
+            _, view = _run(case["query"])
+            if view["status"] == "no_match":
+                seen += 1
+                self.assertEqual(1, len(view["limits"]), case["id"])
+                self.assertIn("That is not the same as no facility offering it", view["limits"][0])
+            if view["status"] in ("ambiguous_location", "invalid_input"):
+                self.assertEqual([], view["limits"], case["id"])
+        self.assertGreater(seen, 0)
+
+    def test_the_limits_on_real_records_carry_no_facility_field(self):
+        for case in FIXTURE["cases"]:
+            query = case["query"]
+            response = search_facilities(**query, facilities=FIXTURE["facilities"])
+            view = words.present(words.withheld(response), query["service"], query["location"],
+                                 query.get("radius_km", 50))
+            told = " ".join(view["limits"])
+            for text in restricted(response):
+                self.assertNotIn(text, told, case["id"])
+            if response["status"] == "ok":
+                self.assertEqual([words.UNCHECKED_CLAIM], view["limits"], case["id"])
+            if response["status"] == "needs_confirmation":
+                self.assertEqual([words.NOT_THE_SERVICE[query["service"]], words.UNCHECKED_CLAIM], view["limits"])
+            if response["status"] == "no_match":
+                self.assertIn("That is not the same as no facility offering it", told)
+
+    def test_a_location_warning_is_a_slot_that_stays_empty_until_a_search_supplies_one(self):
+        query = {"service": "dialysis", "location": {"city": "Jaipur", "state": "Rajasthan"}}
+        response, view = _run(query)
+        cards = [view["top"], *view["backups"], *view["leads"]]
+        self.assertEqual([None] * len(cards), [card["location_warning"] for card in cards])
+        self.assertNotIn("Check the address", words.referral_note(view, True))
+        self.assertIsNone(words.location_warning(None))
+        self.assertIsNone(words.location_warning([]))
+        flagged = json.loads(json.dumps(response))
+        flagged["direct_results"][0]["location_warning"] = ["no_building_nearby", "far_from_town"]
+        flagged["direct_results"][1]["location_warning"] = "a_code_this_screen_does_not_know"
+        view = words.present(flagged, "dialysis", query["location"], 50)
+        self.assertEqual("The map pin for this facility may be wrong: no building is mapped near its map pin, and "
+                         "its map pin is far from the town in its address. Confirm the address by phone. The "
+                         "distance shown may be off.", view["top"]["location_warning"])
+        self.assertIn("it failed a location check", view["backups"][0]["location_warning"])
+        self.assertIn("Check the address: The map pin", words.referral_note(view, True))
+        # The order is the search's own: a warning never moves a facility.
+        self.assertEqual([card["facility_id"] for card in response["direct_results"]],
+                         [card["facility_id"] for card in [view["top"], *view["backups"]]])
+        # Real records keep no card, so they keep no warning either.
+        self.assertNotIn("location_warning", json.dumps(words.withheld(flagged)))
+
     def test_data_mode_is_explicit_and_a_half_configured_warehouse_is_a_setup_problem(self):
         self.assertEqual({"mode": "demo", "problems": []}, words.data_mode({}))
         self.assertEqual({"mode": "warehouse", "problems": []}, words.data_mode(WAREHOUSE))
@@ -311,6 +376,11 @@ class ScreenTests(unittest.TestCase):
             self.assertIn(part, text)
         for part in ("Why this facility", "What its record says", "About 6.7 km away, in a straight line."):
             self.assertIn(part, text)
+        for part in ("What this does not tell you", "not a judgement that it is the best place",
+                     "The journey by road can be much longer", "The record carries no date here",
+                     "Listed nearest first. The order says nothing about quality."):
+            self.assertIn(part, text)
+        self.assertNotIn("Check the address", text)
         self.assertIn("Send to: Example Regional Hospital", app.code[0].value)
         self.assertEqual(1, len(app.get("download_button")))
         # An example fills the form, so the form always shows what the answer is for.
@@ -320,6 +390,7 @@ class ScreenTests(unittest.TestCase):
         self.assertNotIn("You changed the request", text)
         app = self._step(app.button(key="example-Dialysis within 2 km of PIN 302001").click())
         self.assertIn("No facility within 2 km clearly offers dialysis.", self._text(app))
+        self.assertIn("A kidney department or a kidney specialist is not a working dialysis unit.", self._text(app))
         self.assertEqual(("302001", 2), (app.text_input(key="where").value, app.select_slider(key="radius").value))
 
     def test_the_first_press_answers_because_the_demonstration_form_starts_filled(self):
@@ -402,6 +473,8 @@ class ScreenTests(unittest.TestCase):
         self.assertIn("No facility is recommended from the real records yet.", text)
         self.assertIn("Records within 50 km mention dialysis, but none has been reviewed and approved", text)
         self.assertIn("names none, shows no record text or links, and offers no referral note", text)
+        self.assertIn("What this does not tell you", text)
+        self.assertIn(words.UNCHECKED_CLAIM, text)
         self._assert_nothing_restricted(app, raw)
         self.assertEqual({"request": {"service": "dialysis", "location": location, "radius_km": 50},
                           "data": "warehouse", "status": "withheld"}, json.loads(app.json[0].value))
@@ -409,6 +482,7 @@ class ScreenTests(unittest.TestCase):
         # Related-only evidence, a typed ambiguous city and a plain miss are withheld the same way.
         app = self._step(app.button(key="example-Dialysis within 2 km of PIN 302001").click())
         self.assertIn("mention something related to dialysis, but none has been reviewed", self._text(app))
+        self.assertIn("A kidney department or a kidney specialist is not a working dialysis unit.", self._text(app))
         self._assert_nothing_restricted(app)
         app.text_input(key="where").set_value("Jaipur")
         app = self._step(app.button(key="find").click())

@@ -65,6 +65,10 @@ STYLE = """
 .fc-record a { color: #14283b; }
 .fc-slip .fc-caveat { margin-top: 1.25rem; padding: 0.75rem 1rem; background: #f6ebcd; color: #6b4a00;
   border: 1.5px solid #b97a06; border-radius: 3px; font-weight: 600; }
+.fc-slip .fc-warning { margin-top: 0.6rem; padding: 0.5rem 0.8rem; background: #f6ebcd; color: #6b4a00;
+  border: 1.5px solid #b97a06; border-radius: 3px; font-size: 1rem; }
+.fc-slip ul.fc-limits { max-width: 62ch; }
+.fc-slip ul.fc-limits li { margin-bottom: 0.35rem; }
 .fc-slip ol, .fc-slip ul { margin: 0.5rem 0 0; padding-left: 1.4rem; }
 .fc-slip li { margin-bottom: 0.9rem; }
 .fc-stale { margin: 0 0 0.75rem; padding: 0.6rem 0.9rem; border: 1.5px solid #14283b; border-radius: 3px;
@@ -144,9 +148,25 @@ def record(card):
             f"{source}</div></div>")
 
 
+def warning(card):
+    """The location-warning badge for one facility. Empty until a search supplies a reviewed warning."""
+    if not card.get("location_warning"):
+        return ""
+    return f'<div class="fc-warning"><strong>Check the address.</strong> {safe(card["location_warning"])}</div>'
+
+
 def listed(card):
     place = f"{safe(card['place'])}. " if card["place"] else ""
-    return f"<li><strong>{safe(card['name'])}</strong><br>{place}{safe(card['distance'])}{record(card)}</li>"
+    return (f"<li><strong>{safe(card['name'])}</strong><br>{place}{safe(card['distance'])}{warning(card)}"
+            f"{record(card)}</li>")
+
+
+def not_told(view):
+    """What the answer does not tell the reader. Fixed wording, so it is shown for real records too."""
+    if not view["limits"]:
+        return ""
+    return ('<div class="fc-h">What this does not tell you</div><ul class="fc-limits">'
+            + "".join(f"<li>{safe(line)}</li>" for line in view["limits"]) + "</ul>")
 
 
 def slip(view, stale):
@@ -156,7 +176,7 @@ def slip(view, stale):
     top = view["top"] if DEMO and view["status"] == "ok" else None
     if top:
         place = f"{top['place']}. " if top["place"] else ""
-        parts.append(f'<div class="fc-trip">{safe(place + top["distance"])}</div>')
+        parts.append(f'<div class="fc-trip">{safe(place + top["distance"])}</div>{warning(top)}')
         parts.append(f'<div class="fc-h">Why this facility</div><div class="fc-text">{safe(view["why"])}</div>')
         parts.append(f'<div class="fc-h">What its record says</div>{record(top)}')
         if view["caveat"]:
@@ -167,6 +187,7 @@ def slip(view, stale):
             parts.append("<ul>" + "".join(listed(lead) for lead in view["leads"]) + "</ul>")
         if view["next_step"]:
             parts.append(f'<div class="fc-text" style="margin-top:1rem">{safe(view["next_step"])}</div>')
+    parts.append(not_told(view))
     if view["approximate_note"]:
         parts.append(f'<div class="fc-quiet">{safe(view["approximate_note"])}</div>')
     return f'<div class="fc-slip{" fc-old" if stale else ""}">{"".join(parts)}</div>'
@@ -243,6 +264,7 @@ with right:
                       args=(asked["service"], label, asked["radius_km"]))
         if DEMO and not stale and view["backups"]:
             st.subheader(f"If {view['top']['name']} cannot take the patient")
+            st.caption("Listed nearest first. The order says nothing about quality.")
             st.markdown('<div class="fc-slip fc-more"><ol start="2">'
                         + "".join(listed(backup) for backup in view["backups"]) + "</ol></div>",
                         unsafe_allow_html=True)
