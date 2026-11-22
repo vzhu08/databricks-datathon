@@ -6,6 +6,52 @@ and words what the team's search returns. It follows the
 [search contract](../docs/implementation/SEARCH_CONTRACT.md) and never ranks or filters on its own.
 `find_care.py` holds the wording and the two rules below as pure functions.
 
+## Check symptoms (the patient screen)
+
+The app opens on **Check symptoms**. Find care is the second choice in the switch at the top of the
+page. `patient_ui.py` is the patient screen over the patient runtime in `patient_intake/`
+([contract](../contracts/patient_intake/README.md)). It holds no clinical logic. Each time it is
+drawn it shows the runtime's current public view for the encounter and nothing else.
+
+| Step | What the patient sees | Runtime call, made once per button press |
+| --- | --- | --- |
+| Before you start | What is kept, for how long, and that nothing is sent yet. A tick box and Start | `PatientSession.open` after the agreement |
+| Describe | Free text in the patient's own words, and an optional age | `edit` |
+| Agree to send | Who receives the description. Nothing is sent before this | `consent`, then `assess` |
+| Questions | The provider's reading of the patient's words to confirm, doubt or reject, then follow-up questions | `answer`, then `assess` |
+| Result | Urgency, the provider's guidance and uncertainty, possible causes with no likelihood, and who assessed it | `view` only |
+| Where to go | Only after a completed result, and only from the runtime's reviewed handoff | `confirm`, then `navigate` |
+
+What it will not do:
+
+- **No provider, no assessment.** `patient_ui.compose` is the one place an assessment provider is
+  injected, and this repository configures none. The screen says assessment is switched off before
+  the patient writes anything, and after a description is saved the runtime itself returns
+  `provider_unavailable`. There is no scripted story, sample picker or fixture fallback.
+- **No stale result.** An edit, a withdrawn agreement, a failed or out-of-date step, an expiry and
+  Start over all leave only what the runtime holds now. The screen keeps no copy of a result.
+- **No repeat on redraw.** Runtime calls happen in button handlers. Drawing the page again never
+  repeats a consent, an assessment or an answer.
+- **No patient text outside the encounter.** Nothing goes in the URL, browser storage, a download
+  or a debug panel. Once a description is saved its widget copy is deleted, so the encounter store
+  (cleared on Start over and after 15 minutes) holds the only copy. Handles, continuations, receipts
+  and source references stay in the server session.
+- **No markup from a provider or a patient.** Their text is shown as plain text.
+- **No hospital for an urgent result**, and for a completed one only what the reviewed handoff
+  returns. Today that is "no reviewed hospital".
+- Pressing "I have read this" is the patient's own confirmation. The screen says it is not a
+  doctor's order and books nothing.
+
+Wiring a provider is a change in `compose` by the runtime owner: the adapter, its
+`(provider_id, provider_version)` identity and its server-side secrets. The label it returns is the
+name the patient is shown before agreeing to send anything. The screen passes `language: "en"` and
+the optional age as context, which is all the interview contract accepts today.
+
+Tests: `python3 -m unittest tests.patient_ui.test_patient_ui`. The wording tests run anywhere. The
+screen tests need Streamlit and drive the real session store, interview reducer, service and
+handoff, with a scripted stand-in provider and invented statements. They say nothing about a real
+provider or about clinical accuracy.
+
 ## Data mode
 
 The mode is named at the top of the screen (`Data: demonstration`, `Data: real records` or

@@ -1,0 +1,487 @@
+"""Check your symptoms: the patient screen over the patient runtime (app/patient_intake).
+
+The screen holds no clinical logic and no result of its own. Each time it is drawn it shows the
+runtime's current public view for the encounter and nothing else, so an edit, a failed step, an
+expiry or a reset can never leave an earlier result on the screen.
+
+* The encounter, its handle and the service stay in the server's Streamlit session. Nothing about
+  the patient goes in the URL, in browser storage, in a download or in a debug panel.
+* Every runtime call happens once, in the handler of the button the patient pressed. Drawing the
+  screen again never repeats a consent, an assessment or an answer.
+* `compose` is the one place an approved assessment provider is injected. None is configured in
+  this repository, so the runtime reports the assessment as unavailable. There is no scripted or
+  fixture fallback.
+
+The wording functions at the top are plain Python and are tested without Streamlit.
+"""
+import html
+
+if __package__:  # imported as app.patient_ui by the repository's tests
+    from .patient_intake import POLICY_VERSION, PatientIntakeService
+    from .patient_intake.handoff import PatientHandoff
+    from .patient_intake.interview import PatientInterview
+    from .patient_intake.privacy import PatientSessionError
+    from .patient_intake.session import DEFAULT_TTL_SECONDS, PatientSession
+else:  # imported as patient_ui from a deployed app/
+    from patient_intake import POLICY_VERSION, PatientIntakeService
+    from patient_intake.handoff import PatientHandoff
+    from patient_intake.interview import PatientInterview
+    from patient_intake.privacy import PatientSessionError
+    from patient_intake.session import DEFAULT_TTL_SECONDS, PatientSession
+
+PATIENT = "Check symptoms"
+STATE_KEY = "patient"
+NOTICE_VERSION = "patient-notice.v1"
+TTL_SECONDS = DEFAULT_TTL_SECONDS
+LANGUAGE = "en"
+MAX_DESCRIPTION = 4000
+MAX_ANSWER = 1500
+
+EMERGENCY = "If this could be an emergency, call 112 now. Do not wait for this screen."
+NOT_A_DOCTOR = ("This is an automated assessment from that provider. It is not a diagnosis, a "
+                "prescription or a doctor's order.")
+NOTICE = (
+    "What you write is kept in this server's memory for this visit only. It is cleared when you press "
+    "Start over, and in any case {minutes} minutes after you begin.",
+    "Nothing you write is put in the page address, saved in your browser or offered as a download.",
+    "Nothing is sent outside this server unless you agree to it on a later step, which names who receives it.",
+    "This screen cannot examine you. It does not replace a doctor.",
+)
+SWITCHED_OFF = ("Symptom assessment is switched off on this server. No assessment provider has been approved "
+                "and set up. You can write a description, but it will not be sent anywhere or assessed.")
+
+URGENCY = {
+    "emergency_ambulance": "Call an ambulance now",
+    "emergency": "Go to an emergency department now",
+    "consultation_24": "See a doctor within 24 hours",
+    "consultation": "See a doctor (not assessed as urgent)",
+    "self_care": "Self-care may be enough",
+}
+UNAVAILABLE = {
+    "unavailable": "The assessment service could not be reached, or none is set up on this server.",
+    "timeout": "The assessment service took too long to answer.",
+    "rate_limited": "The assessment service is handling too many requests at the moment.",
+    "budget_exhausted": "This visit has used all the assessment requests it is allowed.",
+    "invalid_response": "The assessment service sent a reply this screen could not safely show.",
+    "unauthorized": "This server is not authorised to use the assessment service.",
+    "configuration_changed": "The assessment set-up changed during your visit, so earlier results were withdrawn.",
+}
+UNSUPPORTED = {
+    "unsupported_context": "This assessment does not cover the age or language you entered.",
+    "unsupported_correction": ("You marked something the provider understood from your words as wrong or unsure, "
+                               "and this assessment cannot yet take that correction into account."),
+    "interview_limit": "This assessment reached its limit of follow-up questions without a result.",
+    "unsupported": "The assessment provider cannot assess this description.",
+}
+DESTINATION = {
+    "no_reviewed_destination": ("No hospital can be suggested. The team has not yet reviewed and approved a "
+                                "hospital for this kind of care. Your result above still stands."),
+    "navigation_unavailable": "The hospital check could not be completed. Your result above still stands.",
+    "unsupported_service": "The hospital check does not cover the care named in your result.",
+    "assessment_blocked": "Your result changed before the hospital check finished, so nothing is shown.",
+}
+ENDED = {
+    "expired": "Your visit reached its time limit and everything you wrote was cleared. Start again when you are ready.",
+    "reset": "Everything you wrote was cleared.",
+    "deleted": "Everything you wrote was cleared.",
+}
+NO_PROVIDER = "No assessment provider is set up on this server, so your description was not sent anywhere."
+OUT_OF_DATE = "That step was out of date, so it was not used. This is the current state of your visit."
+BAD_ANSWER = "Choose or write an answer to the question shown, then send it."
+FAILED = "That step could not be completed on this server. Nothing new was sent or assessed."
+PRESENCE = {"present": "you have this", "absent": "you do not have this", "unknown": "not clear"}
+TEMPORALITY = {"current": "now", "historical": "in the past", "unknown": "timing not clear"}
+
+
+def compose():
+    """Return (service, provider label) for one encounter.
+
+    This is the only place an assessment provider enters the screen. An approved provider needs its
+    adapter, its `(provider_id, provider_version)` identity and its server-side secrets wired here by
+    the runtime owner. Until then the service has no provider and reports the assessment as unavailable.
+    """
+    return PatientIntakeService(interview=PatientInterview(), handoff=PatientHandoff()), None
+
+
+def entry(st, other):
+    """The switch at the top of the app. The patient screen is the product and comes first; `other`
+    names the separate Find care screen."""
+    return st.radio("Screen", [PATIENT, other], horizontal=True, key="view", label_visibility="collapsed")
+
+
+def plain(text):
+    """Provider and patient text is shown as written, never interpreted as Markdown or HTML."""
+    out = str(text)
+    for mark in "\\`*_{}[]()#+-.!|<>~$:&":
+        out = out.replace(mark, "\\" + mark)
+    return out
+
+
+def step(view, *, has_statement, editing=False):
+    """Name the one thing the screen shows for a runtime view. The view decides; the screen never guesses."""
+    state = view.get("state")
+    if editing:
+        return "describe"
+    if state == "draft":
+        if not has_statement:
+            return "describe"
+        return "send" if view.get("consent") else "consent"
+    if state == "awaiting_clarification":
+        return "question" if isinstance(view.get("question"), dict) else "unavailable"
+    if state in ("urgent", "completed", "unsupported", "assessment_in_progress"):
+        return state
+    return "unavailable"
+
+
+def result_lines(view):
+    """The words for an urgent or completed result, in reading order. Provider text is passed through unchanged."""
+    urgency = view.get("urgency")
+    lines = {
+        "heading": URGENCY.get(urgency, "Assessment result"),
+        "guidance": view.get("guidance") or "",
+        "uncertainty": view.get("uncertainty") or "",
+        "causes": list(view.get("possible_causes") or []),
+        "provenance": (f"Assessed by {view.get('provider_id')}, version {view.get('provider_version')}, "
+                       f"under policy {view.get('policy_version')}."),
+        "next_step": None,
+    }
+    next_step = view.get("next_step")
+    if isinstance(next_step, dict) and next_step.get("kind") == "consultation":
+        code = next_step.get("specialty_code")
+        lines["next_step"] = ("The provider suggests seeing a doctor" + (f" (specialty code {code})" if code else "")
+                              + ". This is a suggestion from the provider, not a referral.")
+    return lines
+
+
+def reason_line(view):
+    """Why there is no result, in words. An unknown reason code still gets a plain sentence."""
+    reason = view.get("reason")
+    if view.get("state") == "unsupported":
+        return UNSUPPORTED.get(reason, UNSUPPORTED["unsupported"])
+    if view.get("state") == "draft":
+        if reason == "invalid_input":
+            return ("That description could not be used. Write what is troubling you in your own words, within "
+                    f"{MAX_DESCRIPTION:,} characters, and check the age is a whole number.")
+        if reason == "consent_or_input_required":
+            return "A description and your agreement to send it are both needed before an assessment."
+        return None
+    return UNAVAILABLE.get(reason, UNAVAILABLE["unavailable"])
+
+
+def destination_lines(result):
+    """Words for the hospital check. A reviewed hospital is listed by its approved identifier only."""
+    state = (result or {}).get("state")
+    if state == "reviewed_destinations":
+        names = [str(row.get("facility_id")) for row in result.get("destinations", []) if isinstance(row, dict)]
+        return {"text": ("Reviewed hospitals for this kind of care are listed below. Whether they can see you "
+                         "today is not known: phone before you travel."), "destinations": names}
+    return {"text": DESTINATION.get(state, DESTINATION["navigation_unavailable"]), "destinations": []}
+
+
+# ---------------------------------------------------------------------------------------------------
+# The Streamlit screen. Everything below runs on the server, inside one browser session's state.
+# ---------------------------------------------------------------------------------------------------
+
+STYLE = """
+<style>
+.block-container { max-width: 44rem; padding-top: 2.5rem; }
+.pt-emergency { border-left: 4px solid #b3261e; padding: .5rem .9rem; margin: .25rem 0 1rem;
+                background: rgba(179, 38, 30, .07); font-weight: 600; }
+</style>
+"""
+
+
+def _box(st):
+    return st.session_state.setdefault(STATE_KEY, {"visit": 0})
+
+
+def _drop(st, *prefixes):
+    """Remove widget values the screen no longer needs, so the encounter store is the only copy."""
+    for key in [key for key in st.session_state if isinstance(key, str) and key.startswith(prefixes)]:
+        del st.session_state[key]
+
+
+def _forget(st, box, flash=None):
+    """Drop the encounter and every widget value that belonged to it."""
+    _drop(st, "pt-")
+    visit = box.get("visit", 0) + 1
+    box.clear()
+    box.update(visit=visit)
+    if flash:
+        box["flash"] = flash
+
+
+def _statement(handle):
+    """The patient's own current description and age, read back from the encounter store."""
+    try:
+        interview = handle.read()[1].get("interview")
+        return interview["source"]["description"], interview["context"].get("age_years")
+    except (PatientSessionError, KeyError, TypeError, AttributeError):
+        return None
+
+
+def _act(st, action):
+    """Run one runtime step for one button press, and turn every failure into a plain message."""
+    box = _box(st)
+    box.pop("destination", None)
+    try:
+        action(box)
+    except PatientSessionError as error:
+        if error.code == "session_revision_stale":
+            box["flash"] = OUT_OF_DATE
+        elif error.code == "session_encounter_unavailable" and "session" in box:
+            _forget(st, box, ENDED.get(box["session"].status, ENDED["expired"]))
+        else:
+            box["flash"] = FAILED
+    except ValueError as error:
+        code = str(error)
+        box["flash"] = (BAD_ANSWER if code == "invalid_answer" else OUT_OF_DATE
+                        if code in ("revision_stale", "question_stale", "assessment_action_unavailable",
+                                    "confirmation_unavailable", "confirmation_invalid") else FAILED)
+    except Exception:  # noqa: BLE001 - a patient never sees a stack trace or an echoed value
+        box["flash"] = FAILED
+
+
+def _begin(st):
+    def action(box):
+        if st.session_state.get(f"pt-agree-{box['visit']}") is not True:
+            box["flash"] = "Tick the box to agree before you start."
+            return
+        service, provider = compose()
+        session = PatientSession(notice_version=NOTICE_VERSION, ttl_seconds=TTL_SECONDS)
+        handle = session.open(consent=True, notice_version=NOTICE_VERSION)
+        box.update(session=session, handle=handle, service=service, provider=provider)
+    _act(st, action)
+
+
+def _start_over(st):
+    def action(box):
+        try:
+            box["session"].reset(box["handle"])
+        except PatientSessionError:
+            pass  # already expired: the store is empty either way
+        _forget(st, box, ENDED["reset"])
+    _act(st, action)
+
+
+def _save(st):
+    def action(box):
+        key = box["visit"]
+        age = st.session_state.get(f"pt-age-{key}")
+        view = box["service"].edit(
+            box["handle"], box["revision"], description=st.session_state.get(f"pt-description-{key}") or "",
+            context={"age_years": int(age) if age is not None else None, "language": LANGUAGE})
+        box["editing"] = view["state"] == "draft" and view.get("reason") == "invalid_input"
+        if not box["editing"]:
+            _drop(st, f"pt-description-{key}", f"pt-age-{key}")
+        if box["provider"] is None and view["state"] == "draft" and not view.get("reason"):
+            # Nothing can receive the description. Ask the runtime, which answers that it is unavailable.
+            box["service"].assess(box["handle"], view["revision"])
+    _act(st, action)
+
+
+def _agree_and_send(st):
+    def action(box):
+        view = box["service"].consent(box["handle"], box["revision"], granted=True)
+        if view.get("consent"):
+            box["service"].assess(box["handle"], view["revision"])
+    _act(st, action)
+
+
+def _withdraw(st):
+    _act(st, lambda box: box["service"].consent(box["handle"], box["revision"], granted=False))
+
+
+def _send(st):
+    _act(st, lambda box: box["service"].assess(box["handle"], box["revision"]))
+
+
+def _answer(st, question):
+    def action(box):
+        key = f"pt-answer-{box['visit']}-{question['issuance_id']}"
+        if question["kind"] == "multiple":
+            value = [option["id"] for number, option in enumerate(question["options"])
+                     if st.session_state.get(f"{key}-{number}") is True]
+        else:
+            value = st.session_state.get(key)
+        if value in (None, "", []):
+            raise ValueError("invalid_answer")
+        view = box["service"].answer(box["handle"], box["revision"], question_id=question["issuance_id"], answers=value)
+        box["service"].assess(box["handle"], view["revision"])
+    _act(st, action)
+
+
+def _edit(st, editing=True):
+    _box(st).update(editing=editing)
+    _box(st).pop("destination", None)
+
+
+def _check_hospitals(st):
+    def action(box):
+        service, handle, revision = box["service"], box["handle"], box["revision"]
+        result = service.navigate(handle, revision, confirmation=service.confirm(handle, revision))
+        box["destination"] = {"revision": revision, "result": result}
+    _act(st, action)
+
+
+def _welcome(st, box):
+    st.subheader("Before you start")
+    st.markdown("\n".join("- " + line.format(minutes=TTL_SECONDS // 60) for line in NOTICE))
+    if compose()[1] is None:
+        st.warning(SWITCHED_OFF)
+    with st.form(f"pt-begin-{box['visit']}", border=False):
+        st.checkbox("I agree to what I write being kept in this server's memory for this visit.",
+                    key=f"pt-agree-{box['visit']}")
+        st.form_submit_button("Start", type="primary", on_click=_begin, args=(st,))
+
+
+def _describe(st, box, said):
+    st.subheader("What is troubling you?")
+    key = box["visit"]
+    with st.form(f"pt-describe-{key}", border=False):
+        # The earlier words come back from the encounter store, never from a copy kept by the screen.
+        st.text_area("Describe it in your own words", value=said[0] if said else "", key=f"pt-description-{key}",
+                     max_chars=MAX_DESCRIPTION, height=180,
+                     help="For example what you feel, where, since when, and what makes it better or worse.")
+        st.number_input("Age in years (optional)", min_value=0, max_value=120, step=1,
+                        value=said[1] if said else None, key=f"pt-age-{key}")
+        st.caption("Saving does not send your words anywhere. Changing your description later clears any result "
+                   "and asks for your agreement again.")
+        st.form_submit_button("Save and continue", type="primary", on_click=_save, args=(st,))
+    if said:
+        st.button("Keep what I wrote before", on_click=_edit, args=(st, False))
+
+
+def _said(st, said):
+    if said:
+        st.caption("You wrote")
+        st.text(said[0])
+
+
+def _question(st, box, question):
+    kind, key = question["kind"], f"pt-answer-{box['visit']}-{question['issuance_id']}"
+    labels = {option["id"]: plain(option["label"]) for option in question.get("options", [])}
+    st.subheader("A question about what you wrote" if kind == "evidence_review" else "A follow-up question")
+    with st.form(f"pt-question-{key}", border=False):
+        if kind == "evidence_review":
+            evidence = question.get("evidence", {})
+            st.markdown("The assessment provider understood this from your words:")
+            st.markdown(f"**{plain(evidence.get('label', ''))}** ({PRESENCE.get(evidence.get('presence'), 'not clear')}, "
+                        f"{TEMPORALITY.get(evidence.get('temporality'), 'timing not clear')})")
+            st.caption("This is the provider's reading, not a finding. Your answer is recorded as yours.")
+        if kind == "text":
+            st.text_area(plain(question["prompt"]), key=key, max_chars=MAX_ANSWER)
+        elif kind == "multiple":
+            st.markdown(plain(question["prompt"]))
+            st.caption("Choose all that apply.")
+            for number, label in enumerate(labels.values()):
+                st.checkbox(label, key=f"{key}-{number}")
+        else:
+            st.radio(plain(question["prompt"]), list(labels), format_func=labels.get, index=None, key=key)
+        st.caption("Your answer is sent to the assessment provider.")
+        st.form_submit_button("Send answer", type="primary", on_click=_answer, args=(st, question))
+
+
+def _result(st, box, view):
+    lines = result_lines(view)
+    (st.error if view["state"] == "urgent" else st.info)(lines["heading"])
+    st.markdown(plain(lines["guidance"]))
+    if view["state"] == "urgent":
+        st.markdown(f'<div class="pt-emergency">{html.escape(EMERGENCY)}</div>', unsafe_allow_html=True)
+    if lines["next_step"]:
+        st.markdown(plain(lines["next_step"]))
+    st.subheader("How sure this is")
+    st.markdown(plain(lines["uncertainty"]))
+    if lines["causes"]:
+        st.subheader("Possible causes")
+        st.caption("Possibilities the provider listed, in no order of likelihood. None of them is a diagnosis.")
+        st.markdown("\n".join("- " + plain(cause) for cause in lines["causes"]))
+    st.caption(plain(lines["provenance"]) + " " + NOT_A_DOCTOR)
+    if view["state"] != "completed":
+        st.caption("No hospital is suggested for an urgent result. Follow the guidance above.")
+        return
+    st.subheader("Where to go")
+    shown = box.get("destination")
+    if shown and shown["revision"] == view["revision"]:
+        found = destination_lines(shown["result"])
+        st.markdown(found["text"])
+        for name in found["destinations"]:
+            st.markdown("- " + plain(name))
+    else:
+        st.caption("Pressing this says you have read the result above. It is not a doctor's order, and it does "
+                   "not book anything.")
+        st.button("I have read this. Check for a reviewed hospital", on_click=_check_hospitals, args=(st,))
+
+
+def render():
+    """Draw the patient screen for the current server state. Called by app.py on every run."""
+    import streamlit as st
+
+    st.markdown(STYLE, unsafe_allow_html=True)
+    st.title("Check your symptoms")
+    st.markdown(f'<div class="pt-emergency">{html.escape(EMERGENCY)}</div>', unsafe_allow_html=True)
+    box = _box(st)
+    view = None
+    if "handle" in box:
+        try:
+            view = box["service"].view(box["handle"])
+        except PatientSessionError:
+            _forget(st, box, ENDED.get(box["session"].status, ENDED["expired"]))
+        except Exception:  # noqa: BLE001
+            _forget(st, box, FAILED)
+    flash = box.pop("flash", None)
+    if flash:
+        st.warning(flash)
+    if view is None:
+        _welcome(st, box)
+        return
+
+    box["revision"] = view["revision"]
+    said = _statement(box["handle"])
+    now = step(view, has_statement=said is not None, editing=box.get("editing", False))
+    if box["provider"] is None:
+        st.warning(SWITCHED_OFF)
+    if view["state"] == "draft" and reason_line(view):
+        st.warning(reason_line(view))
+
+    if now == "describe":
+        _describe(st, box, said)
+    else:
+        _said(st, said)
+    if now == "consent":
+        st.subheader("Send your description for assessment?")
+        st.markdown(f"To assess it, your description, your age and your answers to any follow-up questions are sent "
+                    f"to **{plain(box['provider'])}**. "
+                    "Nothing is sent until you agree, and you can withdraw your agreement afterwards.")
+        st.button("I agree. Send it for assessment", type="primary", on_click=_agree_and_send, args=(st,))
+    elif now == "send":
+        st.subheader("Ready to assess")
+        st.caption("You have agreed to send your description. Nothing has been assessed yet.")
+        st.button("Send for assessment", type="primary", on_click=_send, args=(st,))
+    elif now == "question":
+        _question(st, box, view["question"])
+    elif now in ("urgent", "completed"):
+        _result(st, box, view)
+    elif now == "unsupported":
+        st.subheader("This could not be assessed")
+        st.markdown(reason_line(view))
+        st.markdown("No assessment was made. If you are worried, see a doctor.")
+    elif now == "assessment_in_progress":
+        st.subheader("An assessment did not finish")
+        st.markdown("The last request was interrupted and gave no result. Change your description or start over.")
+    elif now == "unavailable":
+        st.subheader("No assessment is available")
+        st.markdown(NO_PROVIDER if box["provider"] is None else reason_line(view))
+        st.markdown("No assessment was made" + ("" if box["provider"] is None else ", and any earlier result has been withdrawn")
+                    + ". If you are worried, see a doctor.")
+        if box["provider"] is not None and view.get("reason") in ("unavailable", "timeout", "rate_limited"):
+            st.button("Try again", on_click=_send, args=(st,))
+
+    st.divider()
+    left, middle, right = st.columns(3)
+    if now != "describe":
+        left.button("Change my description", on_click=_edit, args=(st,))
+    if view.get("consent"):
+        middle.button("Withdraw my agreement", on_click=_withdraw, args=(st,))
+    right.button("Start over", on_click=_start_over, args=(st,), help="Clears everything you wrote.")
+    st.caption(f"This visit clears itself {TTL_SECONDS // 60} minutes after you pressed Start. Policy {POLICY_VERSION}.")

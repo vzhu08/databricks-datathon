@@ -230,7 +230,7 @@ class ScreenTests(unittest.TestCase):
         # The screen imports its neighbours by bare name, as it does when app/ is the deployment root.
         # Under test discovery those names can already belong to the test packages, so give them to app/
         # for the length of one test and hand them back afterwards.
-        bare = ("find_care", "data_access", "ranking")
+        bare = ("find_care", "data_access", "ranking", "patient_ui", "patient_intake")
         saved = {name: module for name, module in sys.modules.items() if name.split(".")[0] in bare}
         for name in saved:
             del sys.modules[name]
@@ -256,6 +256,10 @@ class ScreenTests(unittest.TestCase):
         self.addCleanup(patcher.stop)
         with mock.patch.dict(os.environ, self.env, clear=True):
             app = AppTest.from_file(str(APP / "app.py"), default_timeout=30).run()
+            self.assertFalse(app.exception, app.exception)
+            # The patient screen opens first. These tests are about Find care, the second choice.
+            switch = app.radio(key="view")
+            app = switch.set_value(switch.options[1]).run()
         self.assertFalse(app.exception, app.exception)
         return app
 
@@ -455,7 +459,7 @@ class ScreenTests(unittest.TestCase):
             self.assertNotIn("Data: demonstration.", text)
             self.assertNotIn("invented facilities, not the real records", text)
             self.assertEqual([], [button.key for button in app.button])  # no examples and no search form
-            self.assertEqual(0, len(app.text_input) + len(app.radio))
+            self.assertEqual(0, len(app.text_input) + len([radio for radio in app.radio if radio.key != "view"]))
             everything = self._everything(app)
             for value in present.values():
                 self.assertNotIn(value, everything)
@@ -482,6 +486,9 @@ class DeploymentShapeTests(unittest.TestCase):
     DRIVE = (
         "from streamlit.testing.v1 import AppTest\n"
         "app = AppTest.from_file('app.py', default_timeout=30).run()\n"
+        "assert not app.exception, app.exception\n"
+        "assert any('Check your symptoms' in t.value for t in app.title), [t.value for t in app.title]\n"
+        "app = app.radio(key='view').set_value('Find care (demonstration)').run()\n"
         "assert not app.exception, app.exception\n"
         "assert any('Data: demonstration.' in m.value for m in app.markdown), [m.value for m in app.markdown]\n"
         "app = app.button(key='example-Dialysis near Jaipur, Rajasthan').click().run()\n"
