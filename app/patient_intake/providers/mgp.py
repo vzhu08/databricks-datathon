@@ -136,7 +136,7 @@ class MgpSurveyCandidate:
 
         if result.status == "empty":
             if continuation is None:
-                return _reply("unsupported", reason="unsupported")
+                return _reply("provider_stop", guidance="The interview ended without a current question. No assessment is available.")
             return self._finished()
         if result.status != "received":
             return _failure(result)
