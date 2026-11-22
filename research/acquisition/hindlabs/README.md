@@ -26,7 +26,10 @@ annotations, inventories and generated packets stay in ignored local storage.
   record `as_of`. An annotated `expired` status requires a validity end and is
   normalized to `dated` or `historical` in the immutable source evidence.
 - `onsite_mri_documentary_candidate` is a queue for reviewing a named unit's
-  documentary service claim, including historical claims. It is not evidence of
+  affirmative operative service claim, including historical claims. It requires
+  a direct predicate such as “performs MRI scans” or “provides MRI services,” with
+  MRI outside the unit/host names. A name, location, ability, intention or an
+  unrecognized predicate is insufficient. It is not evidence of
   a confirmed host, present operation or VF service. Every emitted evidence row
   is inconclusive, unlinked and queued for review.
 - All snapshots share HLL lineage. Maharashtra nodes carry a potential overlap
@@ -76,7 +79,7 @@ Scope is checked against the original enclosing statement or complete HTML table
 row for both claim and host, not just the supplied quote. Selecting a nested span
 or cell cannot hide teleradiology, nearby, closure, negative or referral-only
 wording. Same-unit statements and continuations such as “Images are acquired
-elsewhere” stay in scope; an unrelated adjacent statement naming another unit
+elsewhere” or “However, it is now closed” stay in scope; an unrelated adjacent statement naming another unit
 does not veto an onsite claim. Ambiguous quotes matching multiple HTML blocks or
 rows require a narrower selector or quote. PDF scope uses statement spans in the
 validated page; without sentence boundaries, the larger passage is retained for
@@ -89,6 +92,14 @@ in its whitespace-normalized text (or the complete HTML row). Relevant statement
 fragments are separated by newlines. Original evidence/host excerpts and validated
 claim/host locators remain unchanged; expanded context is never substituted for a
 quoted excerpt.
+
+`affirmative_mri_operation` records whether the claim context contains a supported
+operative predicate with a separate MRI object. Direct performs/provides/offers/
+conducts/operates wording and bound same-unit pronouns are recognized; MRI reports,
+referrals and name-only mentions do not meet this test. Negation, closure,
+conditional/future wording, remote/nearby context and date assessments still veto
+candidacy even when another part of the passage contains an affirmative predicate.
+Unrecognized wording remains unconfirmed for manual review.
 
 Optional `dates` hold complete validity dates and/or the original
 partial operating dates and date-conflict notes. Annotation selection and meaning

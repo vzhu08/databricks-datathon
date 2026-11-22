@@ -134,6 +134,52 @@ def binds_mri_to_unit(excerpt, name, host):
             return True
     return False
 
+DISCOURSE_PREFIX = re.compile(
+    r'^(?:(?:however|nevertheless|nonetheless|but|yet|therefore|thus|instead|'
+    r'subsequently|still)\b[\s,:;-]*)+', re.I)
+OPERATIVE_PREDICATE = re.compile(
+    r'^(?:(?:currently|now|actively|routinely|regularly|still)\s+)*'
+    r'(?:(?:is|was|are|were|has\s+been|have\s+been)\s+)?'
+    r'(?:(?:currently|now|actively|routinely|regularly|still)\s+)*'
+    r'(?:provid(?:e|es|ed|ing)|perform(?:s|ed|ing)?|offer(?:s|ed|ing)?|'
+    r'conduct(?:s|ed|ing)?|operat(?:e|es|ed|ing))\s+'
+    r'(?:(?:an?|the|on[- ]site|onsite|routine|diagnostic|clinical)\s+)*'
+    r'(?:MRI|magnetic\s+resonance(?:\s+imaging)?)\b', re.I)
+OPERATIVE_CONTINUATION_SUBJECT = re.compile(
+    r'^(?:it|(?:this|that|the)\s+(?:unit|facility|centre|center))\s+', re.I)
+MRI_SERVICE_TAIL = re.compile(
+    r'(?:\s*(?:[.,;:!?]|$)|\s+(?:scans?|scanning|services?|imaging|examinations?|'
+    r'onsite|on[- ]site|at|inside|within|in|from|since|until|daily)\b)', re.I)
+
+def affirmative_mri_operation(context, name, host):
+    """Require a direct operative predicate and MRI object outside entity names.
+
+    This deliberately recognizes narrow affirmative wording. Ability, intention,
+    a modality in a unit name, and other unrecognized wording remain for review.
+    Source-scope vetoes still apply to contradictory or qualified statements.
+    """
+    if not name: return False
+    text = re.sub(r'(?<!\w)'+re.escape(norm(name))+r'(?!\w)', '[UNIT]', norm(context), flags=re.I)
+    if host:
+        text = re.sub(r'(?<!\w)'+re.escape(norm(host))+r'(?!\w)', '[HOST]', text, flags=re.I)
+    same_subject = False
+    for statement in re.split(r'(?<=[.!?;])\s+', text):
+        statement = DISCOURSE_PREFIX.sub('', statement)
+        if re.match(r'^\[UNIT\](?:\s|[,:.!?]|$)', statement):
+            same_subject = True
+            predicate = statement[len('[UNIT]'):].lstrip(' ,:')
+        else:
+            subject = OPERATIVE_CONTINUATION_SUBJECT.match(statement) if same_subject else None
+            if subject is None:
+                same_subject = False
+                continue
+            predicate = statement[subject.end():]
+        match = OPERATIVE_PREDICATE.match(predicate)
+        # Recognize a service object, not arbitrary MRI-related goods/actions.
+        if match and MRI_SERVICE_TAIL.match(predicate[match.end():]):
+            return True
+    return False
+
 def source_scope_flags(text):
     """Conservative source-wording vetoes; annotation labels cannot override them."""
     flags = []
@@ -146,18 +192,31 @@ def source_scope_flags(text):
         flags.append('source_remote_wording_not_onsite')
     if re.search(r'\bproposed\b|\bplanned\b|\bclosed\b|\bclosure\b|'
                  r'\b(?:ceased|stopped|suspended)\b|\bnot\s+(?:yet\s+)?operating\b|'
+                 r'\b(?:cannot|can\s+not|can[\x27’]t|unable\s+to|no\s+longer|never)\b|'
+                 r'\b(?:doesn|don|didn|isn|wasn|aren|weren)[\x27’]t\b|'
+                 r'\bnot\s+(?:able|capable)\b|'
                  r'\b(?:does|do|did)\s+not\s+(?:perform|provide|offer|conduct|operate)\b|'
                  r'\bno\s+MRI\b|\bMRI\s+(?:is\s+)?unavailable\b|'
                  r'\bnot\s+(?:available|offered|provided|performed)\b', text, re.I):
         flags.append('source_nonoperating_wording')
+    if re.search(r'\b(?:if|unless|would|could|might|will)\b|\bsubject\s+to\b|\bpending\b', text, re.I):
+        flags.append('source_conditional_or_future_operation')
     return flags
 
 CONTEXT_BLOCKS = {'p', 'li', 'dd', 'dt', 'blockquote', 'figcaption', 'address',
                   'h1', 'h2', 'h3', 'h4', 'h5', 'h6'}
 SAME_UNIT_CONTINUATION = re.compile(
-    r'^(?:it|its|they|their|this\s+(?:unit|centre|center|facility|service)|'
+    r'^(?:it|its|they|their|(?:this|that)\s+(?:unit|centre|center|facility|service)|'
     r'the\s+(?:unit|centre|center|facility|service)|images?|scans?|'
     r'MRI\s+(?:images?|scans?)|patients?|reporting|services?)\b', re.I)
+
+def names_unit_subject(statement, name):
+    statement = DISCOURSE_PREFIX.sub('', statement)
+    return bool(name and re.match(re.escape(norm(name))+r'(?!\w)', statement, re.I))
+
+def continues_unit_subject(statement, name):
+    return names_unit_subject(statement, name) or bool(
+        SAME_UNIT_CONTINUATION.match(DISCOURSE_PREFIX.sub('', statement)))
 
 def statement_context(text, excerpt, name):
     """Recover complete relevant statements; do not scan unrelated neighbors."""
@@ -171,18 +230,22 @@ def statement_context(text, excerpt, name):
                       for match in matches)}
     named = {i for i in touched if mentions_label(statements[i].group(), name)}
     selected = set(named or touched)
-    # Same-unit statements and subjectless continuations retain their qualifiers.
-    # An adjacent statement naming another unit is not evidence about this one.
+    # Track contiguous same-subject runs. This permits expansion in either
+    # direction without borrowing a pronoun whose antecedent is another unit.
+    same_subject = []
+    active = False
+    for statement in statements:
+        value = statement.group()
+        active = names_unit_subject(value, name) or (active and continues_unit_subject(value, name))
+        same_subject.append(active)
     for seed in list(selected):
+        if not same_subject[seed]: continue
         previous = seed - 1
-        while previous >= 0 and mentions_label(statements[previous].group(), name):
+        while previous >= 0 and same_subject[previous]:
             selected.add(previous)
             previous -= 1
         following = seed + 1
-        while following < len(statements):
-            value = statements[following].group()
-            if not (mentions_label(value, name) or SAME_UNIT_CONTINUATION.match(value)):
-                break
+        while following < len(statements) and same_subject[following]:
             selected.add(following)
             following += 1
     indices = sorted(selected)
@@ -389,6 +452,9 @@ def bind_annotation(spec, sources, index):
     record['mri_scope'] = requested_mri and binds_mri_to_unit(claim_context, name, host)
     if requested_mri and not record['mri_scope']:
         record['quality_flags'].append('mri_not_bound_to_named_unit')
+    record['affirmative_mri_operation'] = affirmative_mri_operation(claim_context, name, host)
+    if requested_mri and not record['affirmative_mri_operation']:
+        record['quality_flags'].append('no_affirmative_operating_mri_statement')
     scope_flags = source_scope_flags(claim_context + '\n' + (record['host_scope_context'] or ''))
     record['quality_flags'].extend(scope_flags)
     record['source_scope_blocks_onsite'] = bool(scope_flags)
@@ -476,7 +542,9 @@ def compile_packet(root, as_of, annotations='annotations.json'):
             host_source_url=record.get('host_source_url'),claim_locator=locator,
             claim_scope_context=record.get('claim_scope_context'),claim_scope_locator=record.get('claim_scope_locator'),
             host_scope_context=record.get('host_scope_context'),host_scope_locator=record.get('host_scope_locator'),
+            affirmative_mri_operation=bool(record.get('affirmative_mri_operation')),
             onsite_mri_documentary_candidate=bool(kind=='named_mri_service' and is_mri
+                and record.get('affirmative_mri_operation')
                 and not remote and relation!='nearby' and not record.get('source_scope_blocks_onsite')
                 and kind not in NON_OPERATIONAL and not time_flags),
             review_flags=sorted(set(flags + time_flags)),temporal_status=temporal,as_of=as_of,

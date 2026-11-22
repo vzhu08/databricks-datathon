@@ -52,7 +52,7 @@ class AdapterTests(unittest.TestCase):
     def test_node_and_host_remain_distinct_even_with_onsite_wording(self):
         annotation = claim('onsite', 'Example MRI Unit', host_campus='Example East Campus',
                            host_relation='onsite', host_location={'selector': 'p#onsite'},
-                           host_excerpt='Example MRI Unit operates inside Example East Campus.')
+                           host_excerpt='Example MRI Unit performs MRI scans inside Example East Campus.')
         result = self.compile([annotation])
         batch = result['batch.json']
         self.assertEqual(len(batch['external_facilities']), 4)
@@ -475,11 +475,11 @@ class CliRegressionTests(unittest.TestCase):
     def test_cli_modality_conflict_and_unrelated_mri_clause_remain_unresolved(self):
         raw = FIXTURE.read_bytes().replace(b'<h3>Example Laboratory Node</h3>',
                                            b'<h3>Example MRI Unit</h3>')
-        raw = raw.replace(b'Example MRI Unit operates inside Example East Campus.',
-            b'Example Laboratory Node provides blood tests. Example MRI Unit operates inside Example East Campus.')
+        raw = raw.replace(b'Example MRI Unit performs MRI scans inside Example East Campus.',
+            b'Example Laboratory Node provides blood tests. Example MRI Unit performs MRI scans inside Example East Campus.')
         annotation = claim('onsite', 'Example Laboratory Node')
         annotation['excerpt'] = ('Example Laboratory Node provides blood tests. '
-                                 'Example MRI Unit operates inside Example East Campus.')
+                                 'Example MRI Unit performs MRI scans inside Example East Campus.')
         corpus(self.root, [annotation], raw)
         result = self.run_cli()
         row = next(r for r in result['batch.json']['external_facilities'] if r['source_record_id']=='101')
@@ -554,7 +554,7 @@ class CliRegressionTests(unittest.TestCase):
         ]:
             with self.subTest(key=key):
                 html = '<p><span id="host-scope">'+excerpt+'</span>'+suffix+'</p>'
-                self.scope_corpus(html, 'Example MRI Unit operates inside Example East Campus.',
+                self.scope_corpus(html, 'Example MRI Unit performs MRI scans inside Example East Campus.',
                     selector='#onsite', record_fields=dict(host_campus='Example East Campus',
                     host_relation='onsite', host_excerpt=excerpt,
                     host_location=dict(selector='#host-scope')))
@@ -583,7 +583,7 @@ class CliRegressionTests(unittest.TestCase):
         own = 'Example MRI Unit is inside Example East Campus.'
         other = 'Other Diagnostic Unit is closed and provides remote reporting only.'
         self.scope_corpus('<p id="host-scope">'+own+' '+other+'</p>',
-            'Example MRI Unit operates inside Example East Campus.', selector='#onsite',
+            'Example MRI Unit performs MRI scans inside Example East Campus.', selector='#onsite',
             record_fields=dict(host_campus='Example East Campus', host_relation='onsite',
                                host_excerpt=own, host_location=dict(selector='#host-scope')))
         result = self.run_cli()
@@ -649,6 +649,114 @@ class CliRegressionTests(unittest.TestCase):
                 self.assertEqual(row['onsite_mri_documentary_candidate'], expected)
                 self.assertEqual(row['claim_scope_context'], statement)
                 self.assertEqual(row['claim_locator'], 'PDF page=1')
+
+    def test_cli_requires_affirmative_operation_beyond_mri_in_unit_name(self):
+        statements = [
+            'Example MRI Unit cannot perform MRI scans.',
+            'Example MRI Unit no longer performs MRI.',
+            'Example MRI Unit provides MRI. However, it is now closed.',
+            'Example MRI Unit.',
+            'Example MRI Unit is inside Example East Campus.',
+            'Example MRI Unit operates inside Example East Campus.',
+            'Example MRI Unit performs blood tests.',
+            'Example MRI Unit offers laboratory services.',
+            'Example MRI Unit can perform MRI scans.',
+            'Example MRI Unit may provide MRI.',
+            'Example MRI Unit will provide MRI.',
+            "Example MRI Unit doesn't perform MRI scans.",
+            'Example MRI Unit provides MRI referral services.',
+            'Example MRI Unit provides MRI reports.',
+            'Example MRI Unit provides MRI teleradiology reporting only.',
+            'Example MRI Unit offers MRI equipment.',
+            'Example MRI Unit provides MRI training.',
+        ]
+        for index, text in enumerate(statements):
+            for label, excerpt in [('full', text), ('clipped', 'Example MRI Unit')]:
+                with self.subTest(statement=text, quote=label):
+                    self.scope_corpus('<p id="scope">'+text+'</p>', excerpt)
+                    result = self.run_cli(str(index)+'-'+label)
+                    row = self.scope_row(result)
+                    self.assertFalse(row['onsite_mri_documentary_candidate'])
+                    if 'However' in text:
+                        self.assertIn('However, it is now closed.', row['claim_scope_context'])
+                        self.assertIn('source_nonoperating_wording', row['review_flags'])
+                    else:
+                        self.assertFalse(row['affirmative_mri_operation'])
+                        self.assertIn('no_affirmative_operating_mri_statement', row['review_flags'])
+                    evidence = next(e for e in result['batch.json']['facility_evidence']
+                                    if e['evidence_id']==row['evidence_id'])
+                    self.assertEqual(evidence['excerpt'], excerpt)
+                    self.assertEqual(evidence['locator'], 'HTML selector=#scope')
+
+    def test_cli_affirmative_operating_predicates_and_objects_remain_candidates(self):
+        for index, text in enumerate([
+            'Example MRI Unit provides MRI.',
+            'Example MRI Unit performs MRI scans onsite.',
+            'Example MRI Unit offers MRI services.',
+            'Example MRI Unit conducts magnetic resonance imaging.',
+            'Example MRI Unit is currently performing MRI scans.',
+            'Example MRI Unit provided MRI services.',
+            'Example MRI Unit is inside Example East Campus. It performs MRI scans onsite.',
+        ]):
+            with self.subTest(statement=text):
+                self.scope_corpus('<p id="scope">'+text+'</p>', 'Example MRI Unit')
+                row = self.scope_row(self.run_cli(str(index)))
+                self.assertTrue(row['affirmative_mri_operation'])
+                self.assertTrue(row['onsite_mri_documentary_candidate'])
+
+    def test_cli_connectives_keep_same_subject_closure_but_exclude_other_subject(self):
+        own = 'Example MRI Unit provides MRI.'
+        for index, connector in enumerate(['However, ', 'Nevertheless, ', 'But ', 'Yet ']):
+            for subject, expected in [('it', False), ('this unit', False),
+                                      ('the facility', False), ('Other Diagnostic Unit', True)]:
+                with self.subTest(connector=connector, subject=subject):
+                    continuation = connector+subject+' is now closed and cannot perform MRI.'
+                    self.scope_corpus('<p id="scope">'+own+' '+continuation+'</p>', own)
+                    row = self.scope_row(self.run_cli(str(index)+'-'+subject.replace(' ', '-')))
+                    self.assertEqual(row['onsite_mri_documentary_candidate'], expected)
+                    if expected:
+                        self.assertEqual(row['claim_scope_context'], own)
+                    else:
+                        self.assertIn(continuation, row['claim_scope_context'])
+                        self.assertIn('source_nonoperating_wording', row['review_flags'])
+
+    def test_cli_same_subject_host_continuation_vetoes_operative_claim(self):
+        host = 'Example MRI Unit is inside Example East Campus.'
+        self.scope_corpus('<p id="host-scope">'+host+' However, it is now closed.</p>',
+            'Example MRI Unit performs MRI scans inside Example East Campus.', selector='#onsite',
+            record_fields=dict(host_campus='Example East Campus', host_relation='onsite',
+                               host_excerpt=host, host_location=dict(selector='#host-scope')))
+        row = self.scope_row(self.run_cli())
+        self.assertTrue(row['affirmative_mri_operation'])
+        self.assertFalse(row['onsite_mri_documentary_candidate'])
+        self.assertIn('However, it is now closed.', row['host_scope_context'])
+        self.assertEqual(row['host_excerpt'], host)
+
+    def test_cli_prior_same_subject_closure_is_retained_for_a_later_clipped_claim(self):
+        excerpt = 'Example MRI Unit performs MRI scans onsite.'
+        text = 'Example MRI Unit provides MRI. However, it is now closed. '+excerpt
+        self.scope_corpus('<p id="scope">'+text+'</p>', excerpt)
+        row = self.scope_row(self.run_cli())
+        self.assertTrue(row['affirmative_mri_operation'])
+        self.assertFalse(row['onsite_mri_documentary_candidate'])
+        self.assertIn('However, it is now closed.', row['claim_scope_context'])
+
+    def test_cli_operation_is_not_inferred_from_conditions_or_another_unit(self):
+        cases = [
+            ('Example MRI Unit provides MRI if approval is granted.', False),
+            ('Example MRI Unit provides MRI subject to future approval.', False),
+            ('Other Diagnostic Unit is closed. However, it cannot perform MRI. '
+             'Example MRI Unit provides MRI scans onsite.', True),
+            ('Example MRI Unit is located in Example East Campus. '
+             'Other Diagnostic Unit provides MRI scans onsite.', False),
+        ]
+        for index, (text, expected) in enumerate(cases):
+            with self.subTest(statement=text):
+                self.scope_corpus('<p id="scope">'+text+'</p>', 'Example MRI Unit')
+                row = self.scope_row(self.run_cli(str(index)))
+                self.assertEqual(row['onsite_mri_documentary_candidate'], expected)
+                if expected:
+                    self.assertEqual(row['claim_scope_context'], 'Example MRI Unit provides MRI scans onsite.')
 
 
 if __name__=='__main__':unittest.main()
