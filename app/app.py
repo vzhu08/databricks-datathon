@@ -27,6 +27,7 @@ if str(HERE) not in sys.path:  # so the same imports work from the repository ro
     sys.path.append(str(HERE))
 
 import find_care as words  # noqa: E402
+import patient_ui  # noqa: E402
 from data_access import search_warehouse  # noqa: E402
 from ranking import search_facilities  # noqa: E402
 
@@ -172,7 +173,11 @@ def slip(view, stale):
     return f'<div class="fc-slip{" fc-old" if stale else ""}">{"".join(parts)}</div>'
 
 
-st.set_page_config(page_title="Find care", layout="wide")
+st.set_page_config(page_title="Check symptoms and find care", layout="wide")
+# The patient screen is the product and opens first. Find care below is the separate facility search.
+if patient_ui.entry(st, "Find care (demonstration)" if DEMO else "Find care") == patient_ui.PATIENT:
+    patient_ui.render()
+    st.stop()
 st.markdown(STYLE, unsafe_allow_html=True)
 st.title("Find care")
 if DATA["mode"] == "setup":
