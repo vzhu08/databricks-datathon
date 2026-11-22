@@ -1,8 +1,10 @@
 # Independent intake audit
 
-At corrected candidate `7afb714927346e5f26db4cd57740da75b20e4f62`, the same trusted-story conflict returned `invalid_input`, no care request, no finder result and zero ranker calls. All three valid controls continued to rank the expected service. Of the 52 frozen cases, 49 passed and three remain unrepresentable. There were zero state mismatches or unsafe recommendations among the 49 measured cases, zero forbidden ranker calls among the 46 expected-blocked final phases, and zero external attempts. The report records each observation and the separate test manifest used for the three pristine controls. [Independent result](results/7afb714.independent.json)
+At published core `109d9bebdd4447f8e48a20cd7df698a9e86b391f`, the same trusted-story conflict returned `invalid_input`, no care request, no finder result and zero ranker calls. All three valid controls continued to rank the expected service. Of the 52 frozen cases, 49 passed and three remain unrepresentable. There were zero state mismatches or unsafe recommendations among the 49 measured cases, zero forbidden ranker calls among the 46 expected-blocked final phases, and zero external attempts. The report records each observation and the separate test manifest used for the three pristine controls. [Independent result](results/109d9be.independent.json)
 
-The published manifest contained exactly R’s seven reviewed editions. The seven journeys matched their expected states and results across 18 transitions, including five ranked and 13 blocked transitions. All three shipped fixture and call-count checks passed with zero external attempts. [Published release result](results/7afb714.shipped.json)
+The published manifest contained exactly R’s seven reviewed editions. The seven journeys matched their expected states and results across 18 transitions, including five ranked and 13 blocked transitions. All three shipped fixture and call-count checks passed with zero external attempts. [Published release result](results/109d9be.shipped.json)
+
+Git records the #205 merge at `3ebb45a` and the subsequent #204 merge at `109d9be`. Both audit configurations stopped at startup on `3ebb45a` because it lacked the published scenario manifest. The results above cover the first published commit containing both changes.
 
 ## Original failure
 
@@ -52,9 +54,9 @@ To reproduce the corrected candidate results, use two fresh report paths. The in
 
 ```sh
 python3 -E -s -B tests/intake_audit/run.py \
-  --repo "$CANDIDATE_REPO" --sha 7afb714927346e5f26db4cd57740da75b20e4f62 \
+  --repo "$CANDIDATE_REPO" --sha 109d9bebdd4447f8e48a20cd7df698a9e86b391f \
   --packet tests/intake_audit/frozen/cases.v1.json \
   --driver tests/intake_audit/frozen/driver_v1.py --independent-controls --report "$INDEPENDENT_REPORT"
 python3 -E -s -B tests/intake_audit/run_shipped.py \
-  --repo "$CANDIDATE_REPO" --sha 7afb714927346e5f26db4cd57740da75b20e4f62 --report "$SHIPPED_REPORT"
+  --repo "$CANDIDATE_REPO" --sha 109d9bebdd4447f8e48a20cd7df698a9e86b391f --report "$SHIPPED_REPORT"
 ```

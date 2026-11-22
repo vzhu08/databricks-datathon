@@ -1,0 +1,36 @@
+{
+  "release_configuration": {
+    "name": "published",
+    "published_manifest_sha256": "f1b91b3f56f6448ef693ffc5ee763b1d4a4321b7195fb93ea76e95cc9740121d",
+    "active_manifest_sha256": "f1b91b3f56f6448ef693ffc5ee763b1d4a4321b7195fb93ea76e95cc9740121d"
+  },
+  "candidate_sha": "109d9bebdd4447f8e48a20cd7df698a9e86b391f",
+  "fixture_sha256": "f4eebc9aa0111740dddc76d0c064e7ae2aa501a99e6495d511bf0a62c195eea6",
+  "scenarios": [
+    "incomplete_history",
+    "injury_assessed",
+    "injury_unassessed",
+    "scheduled_dialysis",
+    "scheduled_mri",
+    "unsupported_concern",
+    "warning_with_mri_plan"
+  ],
+  "journeys": [
+    "injury_to_assessment",
+    "scheduled_dialysis",
+    "scheduled_mri",
+    "warning_overrides_plan",
+    "unsupported_concern",
+    "incomplete_history",
+    "edit_after_confirmation"
+  ],
+  "transitions": 18,
+  "expected_ranked_transitions": 5,
+  "expected_blocked_transitions": 13,
+  "observed_ranker_calls_across_both_replays": 10,
+  "external_attempts": 0,
+  "tests_run": 3,
+  "errors": 0,
+  "failures": 0,
+  "skips": 0
+}
