@@ -119,6 +119,21 @@ class RuntimeFlowTests(unittest.TestCase):
         self.assertIsNone(self.assess()["guidance"])
         self.assertEqual(self.adapter.assess.call_count, 2)
 
+    def test_write_superseded_before_readback_reports_stale(self):
+        original = self.handle.replace
+
+        def interrupted(revision, data):
+            committed = original(revision, data)
+            self.handle.replace = original
+            self.service.consent(self.handle, committed, granted=False)
+            return committed
+
+        self.handle.replace = interrupted
+        with self.assertRaisesRegex(ValueError, "revision_stale"):
+            self.assess()
+        self.adapter.assess.assert_not_called()
+        self.assertFalse(self.service.view(self.handle)["consent"])
+
     def test_late_completion_cannot_replace_an_edit(self):
         def delayed(*args, **kwargs):
             self.assertEqual(self.service.view(self.handle)["state"], "assessment_in_progress")
