@@ -54,7 +54,8 @@ NOTICE = (
     "This screen cannot examine you. It does not replace a doctor.",
 )
 SWITCHED_OFF = ("Symptom assessment is switched off on this server. No assessment provider has been approved "
-                "and set up. You can write a description, but it will not be sent anywhere or assessed.")
+                "and set up. You can write a description, but it will not be sent anywhere or assessed. "
+                "Find care, at the top of this page, works without it.")
 
 URGENCY = {
     "emergency_ambulance": "Call an ambulance now",

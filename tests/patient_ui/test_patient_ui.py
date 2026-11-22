@@ -233,6 +233,7 @@ class WordingTests(unittest.TestCase):
             self.assertNotIn("PATIENT_", text)
             self.assertNotIn("setting", text.lower())
         self.assertIn("not be sent anywhere", words.SETUP_PROBLEM)
+        self.assertIn("Find care, at the top of this page, works without it.", words.SWITCHED_OFF)
         self.assertNotIn("visit", words.UNAVAILABLE["budget_exhausted"].lower())
         self.assertNotIn("you", words.UNAVAILABLE["budget_exhausted"].lower())
 
