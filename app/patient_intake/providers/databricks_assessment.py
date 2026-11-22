@@ -29,7 +29,9 @@ _PRESSURE = re.compile(r"\b(?:press(?:ure|ing)|squeez(?:e|ing)|tight(?:ness)?|he
 _SYMPTOM = re.compile(
     r"\b(?:pain(?:ful)?|hurts?|ach(?:e|es|ing)|headaches?|migraines?|sore(?:ness)?|cramps?|"
     r"itch(?:y|es|ing)?|rash(?:es)?|swell(?:ing)?|swollen|stiff(?:ness)?|"
-    r"cough(?:s|ing)?|sneez(?:e|es|ing)|congest(?:ed|ion)|runny nose|sore throat|"
+    r"cough(?:s|ing)?|sneez(?:e|es|ing)|congest(?:ed|ion)|(?:runny|stuffy|blocked|dripping) nose|"
+    r"nose (?:(?:is|was|has been|keeps|started|feels) )?(?:running|dripping|runny|stuffy|blocked)|"
+    r"(?:scratchy|irritated) throat|throat (?:is|was|feels|felt|has been) (?:scratchy|irritated)|"
     r"fever(?:ish)?|chills|wheez(?:e|es|ing)|breathless(?:ness)?|short of breath|"
     r"nause(?:a|ous)|vomit(?:s|ing)?|diarrh(?:ea|oea)|heartburn|dizz(?:y|iness)|"
     r"fatigue(?:d)?|tired(?:ness)?|burn(?:s|ing)?|numb(?:ness)?|tingl(?:es|ing))\b", re.I

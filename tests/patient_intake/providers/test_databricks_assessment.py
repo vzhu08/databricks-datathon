@@ -95,14 +95,24 @@ class AssessmentTests(unittest.TestCase):
         self.assertEqual(self.exchange.call_count, 3)
 
     def test_nonspecific_confirmed_rows_cannot_support_causes(self):
-        for quote in ("Something is wrong.", "I feel different today."):
+        for quote in ("Something is wrong.", "I feel different today.", "I started running yesterday."):
             self.start(quote)
             self.exchange.side_effect = [result(extraction(quote)), result(differential())]
             for answer in ("no", "confirm", "unchanged"):
                 self.answer(answer)
             self.assertEqual(self.reply["state"], "provider_stop")
             self.assertNotIn("possible_causes", self.reply)
-        self.assertEqual(self.exchange.call_count, 2)
+        self.assertEqual(self.exchange.call_count, 3)
+
+    def test_colloquial_nasal_and_throat_descriptions_support_reviewed_rows(self):
+        for quote in ("My nose started running yesterday.", "My throat feels scratchy today.",
+                      "My nose keeps dripping this morning."):
+            self.start(quote)
+            self.exchange.side_effect = [result(extraction(quote)), result(differential())]
+            for answer in ("no", "confirm", "unchanged"):
+                self.answer(answer)
+            self.assertEqual(self.reply["state"], "experimental_assessment")
+        self.assertEqual(self.exchange.call_count, 6)
 
     def test_grounding_dispute_unknown_and_history_only_suppress_differential(self):
         for decision, presence, time in (("disagree", "present", "current"), ("uncertain", "present", "current"),
