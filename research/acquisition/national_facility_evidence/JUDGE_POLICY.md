@@ -1,0 +1,22 @@
+# Real-data judge walkthrough
+
+The corrected #239 brief and the approved #252 field list govern this display. Drive it from the pinned `display.json`, with a clear unavailable state if loading fails. The frozen manifest and owner readback are in the private project Volume. Keep dataset locations, private IDs, raw addresses, coordinates, quotations and crosswalks on the reader side. The judge data are the approved aggregate fields, methods and scope, and public attributed facts. For the map trace credit [OpenStreetMap contributors](https://www.openstreetmap.org/copyright). [Display and hashes](https://github.com/vzhu08/databricks-datathon/issues/239#issuecomment-7076437052) · [Approved fields](https://github.com/vzhu08/databricks-datathon/issues/252#issuecomment-7076403964)
+
+1. Begin with the national VF denominator and November 22 NABH result. Show the difference between screening a programme, selecting a printed premises key and verifying onsite service at an eligible destination. The #221 strict screen adds zero exact links.
+2. Open the real VF-derived trace at occurrence/service aggregate grain. Before the trace, the directory selects a campus-level research reference and L retains an external mention. After the trace, seven of the 52 reviewed research keys share the exact typed OSM object with their selected reference. The date/observation check still permits zero reviewed onsite pairs. The four keys with another retained group have no explicit competing-branch binding, so the trace can show unresolved alternatives with their actual denominator. Point/entrance precision remains unverified. [VF trace receipt](https://github.com/vzhu08/databricks-datathon/issues/58#issuecomment-7075721205)
+3. Show the separate Sanath Nagar investigation. The 2026 PIB release scopes the beds and historical activity to the twin complex. Adding the 2020 report establishes the Medical College & Hospital's historical in-house dialysis dedication at a stated date. Both reports cite the ESIC operator. The historical branch status leaves current building-level availability, entrance, staffing and travel unknown. The ESIC form is a link for shared premises. Keep its file and text outside the display projection. The public case has no documented VF or NABH link in this evidence. [2026 PIB release](https://www.pib.gov.in/PressReleasePage.aspx?PRID=2306323&lang=2&reg=48) · [2020 PIB release](https://www.pib.gov.in/PressReleasePage.aspx?PRID=1680350)
+
+| Policy | Result on the displayed cases | Tradeoff |
+| --- | --- | --- |
+| Current point score and urgency/detour rules | Zero eligible destinations. Scores, travel and routing stay absent | Straightforward when branch, current service and travel are documented |
+| Disclosed quality penalty among eligible sites | Zero eligible cases to penalize. Record provenance, recency and conflicting hypotheses separately. Shared origins count once | Can test sensitivity within an eligible set. A dependency on unvalidated weights and date choices limits interpretation |
+| Range or stable-winner rule | No measured branch-level travel or operational ranges. No stable rank | Would communicate support for a winner under measured alternatives. Incomparable geographic and time units cannot supply a range |
+| Shortlist, verify or abstain | Default to planning evidence and a specific verification request | Avoids silently selecting a wrong branch. The wait or departure cost remains unmeasured |
+
+The most decision-changing fact is a current dated statement from the operator identifying the exact physical branch or entrance and explicit onsite service. It would open a new eligibility review. Documented travel and operational capacity would still have their own tests. The evidence supports a real investigation when no routed result can be shown. A crisis component would require measured demand, dated operation and travel at compatible scopes. These cases have zero scored requests and no measured rates of wrong-branch selection, unsupported service, unstable ranking or deferral cost. The walkthrough proposes no production policy change.
+
+Regenerate the display from the pinned #221 method/aggregate directory, #58 aggregate readback and G's cleared #143 receipt directory.
+
+```text
+python -B -X utf8 -m research.acquisition.national_facility_evidence.judges <221-directory> <58-trace-directory> <G-operator-directory> <fresh-display-directory>
+```

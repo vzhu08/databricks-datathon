@@ -1,0 +1,53 @@
+# National facility evidence research baseline
+
+## Inputs and custody
+
+The run is issuer-first and additive. Reuse prepared VF Delta v0 and the frozen D collector decisions as immutable frames. Preserve every occurrence, upstream ID, payload, geography bucket and baseline service decision. India Post Delta v0 is postal area context. The pipeline uses grouped offices by PIN and never treats an office or centroid as a hospital. This work does not run the parked directory ranking.
+
+| Input | Unit | Initial use | Custody |
+| --- | --- | --- | --- |
+| [VF v0 and India Post v0](https://github.com/vzhu08/databricks-datathon/issues/6#issuecomment-7069335700) | 10,088 originals and 165,627 office rows | Preserve original payloads and derive postal area context | Team-readable Delta v0, pinned prepared working copies |
+| [D frozen collector frame](https://github.com/vzhu08/databricks-datathon/issues/163) | National original-occurrence and service frame | Preserve all original D decisions and use its geography labels | Existing private row edition, reuse the exact members |
+| [NABH #67/#173](https://github.com/vzhu08/databricks-datathon/issues/221#issuecomment-7076179691) | 21,615 listings | Source-first dialysis programme screen and strict branch-name/full-address/PIN link | Exact SQLite and qualification are privately readable; [#221](https://github.com/vzhu08/databricks-datathon/issues/221#issuecomment-7076224239) replay bundle contains methods and aggregates. Regenerate and verify its private row artifacts |
+| [G operator batch #143](https://github.com/vzhu08/databricks-datathon/issues/143#issuecomment-7074691844) | Authorized PIB observations | Keep target-service mentions with original report scope, including pooled and education wording | Existing eligible parsed PIB rows and provenance; restricted ESIC/Sansad/EHA joins stay in their approved location |
+| [K imaging batch #166](https://github.com/vzhu08/databricks-datathon/issues/166) | DMER printed institution rows and modality counts | Keep named institution hypotheses, report same-name/state leads and missing address; inventory counts are not scans | Existing permitted v4 row members; withheld HLL and other source rows stay held |
+| [G #232](https://github.com/vzhu08/databricks-datathon/issues/232), [K #233](https://github.com/vzhu08/databricks-datathon/issues/233), [J #234](https://github.com/vzhu08/databricks-datathon/issues/234), [A #235](https://github.com/vzhu08/databricks-datathon/issues/235), [C #241](https://github.com/vzhu08/databricks-datathon/issues/241) | Independent source-first experiments | Add pinned, scope-checked row members as they become eligible. Track a methods-only receipt separately | Use file-level permission and distinguish direct readback from producer-local replay. A methods-only result never supplies joinable rows |
+
+Inputs and sources are pinned by their exact bytes in the run manifest. The local specification records a provenance receipt, original edition, licence or permission, audience and custody for every file. Reviewer-only material, including the sealed #76 audit, stays outside capability checks, calibration, evidence and output. If labels are later cleared, freeze the procedure first and split by related premises/facility chain and source lineage together. Report decision, campus, source and challenge denominators separately.
+
+## Grains and decisions
+
+- **Original occurrence.** Use the frozen processing key with source payload and ordinal. Keep both copies of a duplicate under distinct keys. A repeated payload does not create independent evidence or a second premises.
+- **Source record.** Anchor the producer's original key or row locator to the edition and family. Edition-local row handles, accreditation numbers, organisation labels and machine tokens do not become cross-edition premises identifiers.
+- **Premises hypothesis.** Use an edition-scoped identifier and preserve the original address witness, its role, reported geography and any separately sourced display point and precision. No qualifying postal address leaves the site unresolved or label-only. A reviewed crosswalk may add a separately evidenced physical identifier. Keep rival premises and scoped aliases or renewals, including interval and source, rather than merging by chain, locality, shared PIN or map proximity.
+- **Claim.** Key to the source record with service, wording/scope, status, original field/locator, publication date, observation date, effective interval, lineage and contradiction. Allow unbound or pooled claims. Treat referral, programme, equipment inventory, plans and dated historic delivery at their original scope. Record explicit branch-level contradiction apart from missing evidence or ambiguous identity. Availability and capacity have separate fields and stay unknown when unmeasured.
+- **Link.** Compare every VF occurrence in each premises method. Keep the candidate references, method, positive basis, conflicts and review disposition. Reverse uniqueness considers distinct original payloads, and both identical copies are kept. Method unions preserve competing rights-scoped alternatives. An exact printed key is an administrative match, not independent physical verification. The postal method records compatible area context and disagreements separately from premises methods.
+
+The private working run writes original payloads, source records, premises, claims, two-way link dispositions, postal context and an unchanged copy of the frozen decisions. The shared release carries aggregates, methodology and a manifest that points to team-readable source rows and identifies private derived files by counts and whole-file fingerprints. No identifier or free-text record is copied into the shared aggregate edition. A separately cleared row projection can be released under its own manifest. A receipt-only input does not imply the writer holds its underlying rows.
+
+The report stratifies the original national population and each source-specific denominator. It reports per-method link coverage, marginal and overlapping support, conflicts, repeated-origin evidence, dated onsite claims, independent premises support, unknown availability/capacity and source-only records. Unlabelled candidate yields are coverage measures. Synthetic controls give challenge outcomes only, while national physical-link and service accuracy remain unknown. The output supplies research leads and a review path; none changes the frozen decisions or activates routing.
+
+## Replay
+
+Use Python 3.10 or later for the pinned #221 and #235 producer scripts. Place the exact prepared files in the local private layout referenced in `inputs.py`. Use the source and Volume receipts to recreate that layout under the existing permissions. The Windows acquisition checkout already has this layout below its ignored `data/local/nationwide` directory. Run from the repository root with fresh output paths.
+
+```text
+python -B -X utf8 -m research.acquisition.national_facility_evidence.run --data-root <private-nationwide-root> --pilot <verified-221-directory> --method-receipts <verified-peer-editions-directory> --private-out <fresh-private-working-directory> --release-out <fresh-shareable-aggregate-directory>
+python -B -X utf8 -m unittest discover -s tests/research/acquisition/national_facility_evidence -v
+```
+
+The optional peer-edition directory has three subdirectories named `issue-235-address-method-v1`, `k-233-mri-source-first-v1` and `k-233-cycle01-b-mri-v1`. Reuse their exact manifests and eligible members from the locations in `peer_methods.py`. The branch-normalized A0 replay regenerates and checks the scope-restricted crosswalk from the authorized #221 inputs. Its source premises are the same #221 premises and count once in the combined report. K's two receipts refer to the same 13 MRI observations and enter as comparative aggregates. The K crosswalk remains in the producer's scope. Without the optional directory the initial three evidence methods and grouped India Post comparison still run.
+
+Each additional row packet requires an exact SHA-256, verified team-readable row custody, and the original source terms and scope receipt. Supply `--packet <manifest.json> <sha256>` per cleared edition. Its schema is `national-facility-evidence-input-v1`, with method, publisher, source, terms, receipt, audience, custody, input counts and a fixed `files` map. Members are `records.jsonl`, `premises.jsonl`, `claims.jsonl` and `links.jsonl` with SHA-256, byte length and row count. The audience and custody fields are `existing_four_person_private_research` and `verified_team_readable_rows`. Review the actual permission and provenance first. The reader validates the approved metadata and byte pins. The model enforces referential integrity and explicit reviewed status. A methods-only package has a separate receipt path.
+
+| Private file | Grain and key |
+| --- | --- |
+| `vf-occurrences.jsonl` | Original occurrence. Frozen key, upstream ID, ordinal, original geography and payload digest with untouched original fields |
+| `postal-context.jsonl` | Original occurrence. Grouped PIN area outcome and original/PIN-state compatibility. Campus point role is absent |
+| `source-records.jsonl` | Edition/source-record key. Origin family, replay locator and source-scoped original fields |
+| `premises.jsonl` | Edition premises hypothesis. Original address, address witness, point role, precision and independent review |
+| `service-claims.jsonl` | Record/service claim. Premises link if established, claim scope, observed/effective and publication dates, status, wording and separate availability/capacity |
+| `occurrence-links.jsonl` / `source-premises-links.jsonl` | Forward occurrence and reverse premises dispositions with method-specific candidate edges and conflict flags |
+| `baseline-decisions.jsonl.gz` | Untouched frozen byte copy of the input decision frame |
+
+The shared `aggregate.json` includes the 38 geography buckets, method/combined link margins, postal area context, source records and distinct premises hypothesis counts, conflict and date coverage and separate producer aggregates. Source-only counts mean the retained method found no VF candidate. A missing match gives no estimate of true overlap. The manifest pins each shared artifact and identifies the private projected artifacts separately. Stage it once under the agreed four-person Volume and record a fresh readback giving the file, size, hash and count. D independently evaluates the locked edition. Oliver owns merge and submission.
