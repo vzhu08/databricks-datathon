@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from app.patient_intake.privacy import PatientSessionError
-from app.patient_intake.session import EncounterHandle, PatientSession
+from app.patient_intake.session import EncounterHandle, PatientSession, _CleanupMailbox
 
 
 NOTICE = "memory-notice-v1"
@@ -162,3 +162,96 @@ class SessionTests(unittest.TestCase):
             current = open_encounter(owner)
             callback(*old_args)
             self.assertEqual(current.read(), (0, {}))
+
+
+USER_REF = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+PATIENT_REF = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+SURVEY_REF = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+
+
+class CleanupMailboxTests(unittest.TestCase):
+    def test_close_before_create_response_reserves_capacity_and_enqueues_late_ids(self):
+        mailbox = _CleanupMailbox(capacity=1)
+        reservation = mailbox.reserve()
+        mailbox.request_cleanup(reservation)
+        mailbox.request_cleanup(reservation)
+        self.assertEqual(mailbox.counts(), {"awaiting_registration": 1})
+        self.assertIsNone(mailbox.claim())
+        with self.assertRaisesRegex(PatientSessionError, "^session_cleanup_full$"):
+            mailbox.reserve()
+
+        mailbox.register(reservation, {"users": USER_REF, "patients": PATIENT_REF, "surveys": SURVEY_REF})
+        self.assertEqual(mailbox.counts(), {"pending": 1})
+        claim = mailbox.claim()
+        self.assertEqual(claim.resources, (("surveys", SURVEY_REF), ("patients", PATIENT_REF),
+                                           ("users", USER_REF)))
+        self.assertIsNone(mailbox.claim())
+        mailbox.finish(claim, disposed=("surveys", "patients", "users"))
+        mailbox.request_cleanup(reservation)
+        self.assertEqual(mailbox.counts(), {})
+        self.assertIsNot(mailbox.reserve(), reservation)
+
+    def test_simultaneous_registration_and_notification_is_not_lost(self):
+        mailbox = _CleanupMailbox()
+        reservation = mailbox.reserve()
+        ready = Barrier(2, timeout=5)
+
+        def register():
+            ready.wait()
+            mailbox.register(reservation, {"surveys": SURVEY_REF})
+
+        def notify():
+            ready.wait()
+            mailbox.request_cleanup(reservation)
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            registered, notified = pool.submit(register), pool.submit(notify)
+            registered.result(timeout=5)
+            notified.result(timeout=5)
+        self.assertEqual(mailbox.counts(), {"pending": 1})
+        self.assertEqual(mailbox.claim().resources, (("surveys", SURVEY_REF),))
+
+    def test_partial_cleanup_drops_verified_ids_and_reports_exhaustion(self):
+        mailbox = _CleanupMailbox(attempts=2)
+        reservation = mailbox.reserve()
+        mailbox.register(reservation, {"users": USER_REF, "surveys": SURVEY_REF})
+        self.assertIsNone(mailbox.claim())
+        mailbox.request_cleanup(reservation)
+        first_attempt = mailbox.claim()
+        mailbox.finish(first_attempt, disposed=("surveys",))
+        mailbox.request_cleanup(reservation)
+        second_attempt = mailbox.claim()
+        self.assertEqual(second_attempt.resources, (("users", USER_REF),))
+        with self.assertRaisesRegex(PatientSessionError, "^session_cleanup_stale$"):
+            mailbox.finish(first_attempt, disposed=("users",))
+        mailbox.finish(second_attempt)
+        self.assertEqual(mailbox.counts(), {"exhausted": 1})
+        self.assertIsNone(mailbox.claim())
+
+    def test_unknown_create_remains_unresolved_after_known_ids_are_disposed(self):
+        mailbox = _CleanupMailbox()
+        reservation = mailbox.reserve()
+        mailbox.register(reservation, {"users": USER_REF}, creation_unresolved=True)
+        mailbox.request_cleanup(reservation)
+        mailbox.finish(mailbox.claim(), disposed=("users",))
+        self.assertEqual(mailbox.counts(), {"unresolved": 1})
+        self.assertIsNone(mailbox.claim())
+
+        rejected = mailbox.reserve()
+        mailbox.register(rejected, {})
+        mailbox.request_cleanup(rejected)
+        self.assertEqual(mailbox.counts(), {"unresolved": 1})
+
+    def test_foreign_notifications_and_claims_are_rejected(self):
+        mailbox, other = _CleanupMailbox(), _CleanupMailbox()
+        reservation = mailbox.reserve()
+        with self.assertRaisesRegex(PatientSessionError, "^session_cleanup_stale$"):
+            other.request_cleanup(reservation)
+        mailbox.register(reservation, {"surveys": SURVEY_REF})
+        mailbox.request_cleanup(reservation)
+        claim = mailbox.claim()
+        with self.assertRaisesRegex(PatientSessionError, "^session_cleanup_stale$"):
+            other.finish(claim, disposed=("surveys",))
+        mailbox.finish(claim, retryable=False)
+        self.assertEqual(mailbox.counts(), {"failed": 1})
+        self.assertEqual(other.counts(), {})
