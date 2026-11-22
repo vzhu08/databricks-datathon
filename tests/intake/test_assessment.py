@@ -181,6 +181,15 @@ class AssessmentTests(unittest.TestCase):
         self.scenario["concern_category"] = "injury"
         self.assertEqual(self.assess()["state"], "invalid_input")
 
+    def test_unsupported_need_stops_before_nonessential_context(self):
+        self.scenario.update(concern_category="general_medical", clinician_plan=None, service=None,
+                             known_answers={})
+        self.payload["answers"].pop("context.severity")
+        out = self.assess()
+        self.assertEqual(out["state"], "unsupported_care_need")
+        self.assertEqual(out["next_question_ids"], [])
+        self.assertIsNone(out["request"])
+
     def test_referral_and_scope_failures_never_return_cached_success(self):
         receipt = self.confirm()
         self.scenario["clinician_plan"]["scenario_version"] = "obsolete"

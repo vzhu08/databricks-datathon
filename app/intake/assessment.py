@@ -101,13 +101,15 @@ def _bind(out, p, s, receipt):
     # would silently accept tuples and integer keys as valid JSON arrays/strings.
     versioned = [POLICY_VERSION, p, s]
     wire = json.dumps(versioned, ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False)
-    if json.loads(wire) != versioned:
+    snapshot = json.loads(wire)
+    if snapshot != versioned:
         raise ValueError("Expected JSON fields")
     fingerprint = hashlib.sha256(wire.encode("ascii")).hexdigest()
     if type(receipt) is _Receipt and receipt in _issued:
         out["confirmation_status"] = "current" if _issued[receipt] == fingerprint else "stale"
     out.update(scenario_id=p["scenario_id"], scenario_version=s["scenario_version"],
                input_revision=p["input_revision"], input_fingerprint=fingerprint)
+    return snapshot[1], snapshot[2]
 
 
 def _state(out, state, reasons, *, messages=()):
@@ -128,9 +130,6 @@ def _referral(out, scenario):
 
     category = scenario["concern_category"]
     service = scenario["service"]
-    if category not in {*_EXPECTED_SERVICE, "kidney_symptom"}:
-        _with_concern(out, category, "intake_concern_unsupported")
-        return _state(out, "unsupported_care_need", ["intake_concern_unsupported"])
     if service is not None and service != _EXPECTED_SERVICE.get(category):
         return _state(out, "invalid_input", ["intake_concern_mismatch"])
 
@@ -158,7 +157,7 @@ def assess_intake(payload, *, scenario, confirmation=None):
     if not _valid_envelopes(payload, scenario):
         return out
     try:
-        _bind(out, payload, scenario, confirmation)
+        payload, scenario = _bind(out, payload, scenario, confirmation)
     except (TypeError, ValueError, RecursionError, OverflowError):
         return out
 
@@ -181,10 +180,14 @@ def assess_intake(payload, *, scenario, confirmation=None):
 
     step = next_question(answers, context_answers=known, warning_state=danger["state"])
     out["unknowns"] = _uncertainties(step)
-    if step["invalid_question_ids"] or danger["invalid_question_ids"]:
+    if step["status"] == "invalid" or danger["invalid_question_ids"]:
         return out
-    if danger["state"] == "no_reported_warning" and _outside_population(known, answers):
+    if step["status"] == "unsupported":
         return _state(out, "unsupported_care_need", ["intake_population_unsupported"])
+    category = scenario["concern_category"]
+    if danger["state"] == "no_reported_warning" and category not in _EXPECTED_SERVICE and category != "kidney_symptom":
+        _with_concern(out, category, "intake_concern_unsupported")
+        return _state(out, "unsupported_care_need", ["intake_concern_unsupported"])
     if step["next_question_ids"]:
         out["next_question_ids"] = list(step["next_question_ids"])
         return _state(out, "more_information_needed", ["intake_question_pending"])
@@ -199,11 +202,6 @@ def _uncertainties(result):
     return sorted({qid for field in ("missing_question_ids", "unknown_question_ids",
                                      "conflicting_question_ids", "invalid_question_ids")
                    for qid in result[field]})
-
-
-def _outside_population(known, answers):
-    return any(layer.get("context.age_group") == "child" or layer.get("context.pregnancy") == "pregnant"
-               for layer in (known, answers))
 
 
 def confirm_intake(payload, *, scenario):
