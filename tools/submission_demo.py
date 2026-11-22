@@ -28,7 +28,7 @@ def main():
     sys.addaudithook(block_network)
     sys.path.insert(0, str(ROOT))
 
-    from app import storm_page
+    from app import national_directory, storm_page
     from app.find_care import claim_lines, data_mode, present, withheld, withheld_summary
     from app.ranking import search_facilities
     from app.intake.__main__ import load_journeys, replay_journey
@@ -36,6 +36,13 @@ def main():
     from app.simulation.replay import replay
     from app.simulation.scenario import make_scenario
     from app.storm_ui import build, build_ask, build_finder, build_intake
+
+    try:
+        national_directory.load(ROOT / "app")
+    except national_directory.Unavailable:
+        pass
+    else:
+        raise RuntimeError("The offline notebook must keep the deployment-only directory input separate")
 
     require(data_mode({"FIND_CARE_DATA": "demo"})["mode"] == "demo", "Expected demo mode")
     require(data_mode({"FIND_CARE_DATA": "warehouse"})["mode"] == "setup",

@@ -32,6 +32,7 @@ SOURCE_FILES = {
 }
 ASSET_TYPES = {".woff2"}
 BLOCKED_PARTS = {"approved_data", "private", "secrets", "__pycache__", ".env"}
+DEPLOYMENT_ONLY = {"app/facility-area-display.json", "app/storm_ui/data/plan.json"}
 SENSITIVE = re.compile(rb"-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----|\bdapi[a-f0-9]{32}\b|\bAKIA[A-Z0-9]{16}\b")
 
 
@@ -173,7 +174,9 @@ def tracked_paths():
 
 def read_source(path, raw):
     name = PurePosixPath(path)
-    if name.is_absolute() or any(part.lower() in BLOCKED_PARTS or part in {".", ".."} for part in name.parts):
+    if path in DEPLOYMENT_ONLY or name.is_absolute() or any(
+        part.lower() in BLOCKED_PARTS or part in {".", ".."} for part in name.parts
+    ):
         raise ValueError(f"Unapproved source path: {path}")
     if name.suffix in ASSET_TYPES:
         if not raw.startswith(b"wOF2") or SENSITIVE.search(raw):

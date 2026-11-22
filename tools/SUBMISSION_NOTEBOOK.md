@@ -28,3 +28,6 @@ the narrative does not supply simulation inputs. Refresh when an integrated scen
 its allocator, roster or attribution manifest, seeded workload, or verified expected outputs.
 Tracked files under app/ and contracts/ already trigger the check. For scenario inputs outside
 those roots, add the exact reviewed paths to the generator after integration and clearance.
+The deployment-only national directory file and Storm plan are excluded from notebook packaging.
+For an approved reproducible run, use a separately named anonymous planning instance and retain
+its input pins and public geography attribution.
