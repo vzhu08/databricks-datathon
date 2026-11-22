@@ -38,8 +38,8 @@ class CareCommandTests(unittest.TestCase):
         common = ("--urgency", "routine", "--severity", "severe", "--danger", "no")
         first = self.run_cli("--concern", "injury", *common)
         second = self.run_cli("--concern", "mri", *common)
-        self.assertIn("Urgency: routine", first)
-        self.assertIn("Workflow urgency: prompt review", first)
+        self.assertIn("Self-rated urgency: routine", first)
+        self.assertIn("Combined workflow urgency: prompt review", first)
         self.assertIn("Service checked: trauma care", first)
         self.assertIn("Service checked: mri", second)
         self.assertNotIn("Service checked: trauma care", second)
@@ -47,16 +47,33 @@ class CareCommandTests(unittest.TestCase):
             self.assertIn("Facility evidence unavailable", output)
             self.assertIn("Area evidence unavailable", output)
 
+    def test_self_rating_and_safety_inputs_change_distinct_priorities(self):
+        def priorities(severity, urgency, danger="no"):
+            text = self.run_cli("--concern", "injury", "--severity", severity,
+                                "--urgency", urgency, "--danger", danger)
+            fields = dict(line.strip().split(": ", 1) for line in text.splitlines() if ": " in line)
+            self.assertEqual(fields["Self-rated urgency"], urgency)
+            return fields["Automatic assessment priority"], fields["Combined workflow urgency"]
+
+        self.assertEqual(priorities("moderate", "routine"), ("standard", "standard"))
+        self.assertEqual(priorities("moderate", "soon"), ("standard", "prompt review"))
+        self.assertEqual(priorities("severe", "routine"), ("prompt review", "prompt review"))
+        self.assertEqual(priorities("moderate", "routine", danger="yes"), ("emergency", "emergency"))
+        self.assertEqual(priorities("moderate", "emergency"), ("standard", "emergency"))
+
     def test_changing_injury_kind_and_concern(self):
         common = ("--severity", "moderate", "--urgency", "soon", "--danger", "no")
         dialysis = self.run_cli("--concern", "dialysis", "--injury-kind", "burn", *common)
         self.assertIn("Injury kind: unsure", dialysis)
-        for kind in ("head", "burn"):
+        for kind, capability in (("head", "assessment for head injuries"), ("burn", "burn care")):
             with self.subTest(kind=kind):
                 output = self.run_cli("--concern", "injury", "--injury-kind", kind, *common)
                 self.assertIn("Injury kind: " + kind, output)
                 self.assertIn("Outcome: no supported service", output)
                 self.assertNotIn("Service checked:", output)
+                next_check = next(line for line in output.splitlines() if line.startswith("Next check:"))
+                self.assertIn(capability, next_check)
+                self.assertIn("branch", next_check)
 
     def test_pinned_fixture_render_and_cross_service_scope(self):
         directory = Path(__file__).parent

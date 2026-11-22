@@ -76,8 +76,10 @@ def main(argv=None):
         print(result["next_check"])
     print("Judge selections")
     for key, value in result["request"].items():
-        print(f"  {key.replace('_', ' ').capitalize()}: {value.replace('_', ' ')}")
-    for title, key in (("Workflow urgency", "workflow_urgency"), ("Action", "action"),
+        label = "Self-rated urgency" if key == "urgency" else key.replace("_", " ").capitalize()
+        print(f"  {label}: {value.replace('_', ' ')}")
+    for title, key in (("Automatic assessment priority", "assessment_priority"),
+                       ("Combined workflow urgency", "workflow_urgency"), ("Action", "action"),
                        ("Outcome", "status"), ("Service checked", "service")):
         if result[key] is not None:
             print(f"{title}: {result[key].replace('_', ' ')}")
