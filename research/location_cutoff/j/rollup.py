@@ -14,13 +14,18 @@ V4_COUNTS = {"campus_located": 2524, "area_located": 7418, "unresolved": 146}
 def v4_area_keys(path, expected_keys):
     if file_digest(path) != V4_SHA:
         raise ValueError("Directory v4 occurrence digest differs")
+    statuses = {}
     with gzip.open(path, "rt") as stream:
-        rows = list(map(json.loads, stream))
-    if len(rows) != len(expected_keys) or {r["facility_id"] for r in rows} != expected_keys:
+        for row in map(json.loads, stream):
+            key = row["facility_id"]
+            if key in statuses:
+                raise ValueError("Duplicate directory v4 occurrence key")
+            statuses[key] = row["directory_location"]["status"]
+    if statuses.keys() != expected_keys:
         raise ValueError("Directory v4 occurrence keys differ")
-    if Counter(r["directory_location"]["status"] for r in rows) != V4_COUNTS:
+    if Counter(statuses.values()) != V4_COUNTS:
         raise ValueError("Directory v4 counts differ")
-    return {r["facility_id"] for r in rows if r["directory_location"]["status"] == "area_located"}
+    return {key for key, status in statuses.items() if status == "area_located"}
 
 
 def footprint_counts(rows, selected):
@@ -70,6 +75,8 @@ def run(directory, v4, subset):
     result = {"national": footprint_counts(rows, selection)}
     if subset is not None:
         chosen = [json.loads(line) for line in subset.read_text().splitlines()]
+        if not all(isinstance(key, str) for key in chosen):
+            raise ValueError("Subset must contain occurrence-key strings")
         if len(set(chosen)) != len(chosen) or not set(chosen) <= selection:
             raise ValueError("Subset contains a duplicate or unknown occurrence")
         selection = set(chosen)

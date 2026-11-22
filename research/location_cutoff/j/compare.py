@@ -5,6 +5,7 @@ import gzip
 import json
 import math
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from shapely import STRtree, from_wkb
 from shapely.affinity import scale
@@ -14,6 +15,7 @@ from research.acquisition.issuer_campus_geometry.compare import address_matches,
 from research.acquisition.issuer_campus_geometry.scan import names, norm, PBF_SHA
 from research.acquisition.osm_services.pbf import file_digest
 
+OUTLINES_SHA = "aa6ea4142666696c3f3f6eacd1bab50873dad7542825e23b2de218a5e57b3239"
 RADIUS_M = 300
 INACTIVE_BUILDINGS = {"no", "construction", "proposed", "demolished", "ruins"}
 
@@ -83,8 +85,10 @@ def evaluate(source, point, features, tree):
     return flags, candidates
 
 
-def compare(vf, outlines, ledger):
+def _compare(vf, outlines, ledger):
     frame = baseline(vf)
+    if file_digest(outlines) != OUTLINES_SHA:
+        raise ValueError("Unexpected clinical outline cache")
     features = []
     skipped = 0
     with outlines.open() as stream:
@@ -121,10 +125,18 @@ def compare(vf, outlines, ledger):
                                      "candidates": candidates}, separators=(",", ":")) + "\n")
     if len(seen) != frame["occurrence_count"]:
         raise ValueError("Incomplete national comparison")
-    return {"baseline": frame, "pbf_sha256": PBF_SHA, "outlines_sha256": file_digest(outlines),
+    return {"baseline": frame, "pbf_sha256": PBF_SHA, "outlines_sha256": OUTLINES_SHA,
             "outline_objects": len(features), "emitted_unusable_geometries": skipped,
             "point_classes": dict(classes), "occurrences": dict(sorted(counts.items())),
             "candidate_ledger_sha256": file_digest(ledger), "radius_m": RADIUS_M}
+
+
+def compare(vf, outlines, ledger):
+    with TemporaryDirectory(dir=ledger.parent) as temp:
+        staged = Path(temp) / "clinical.jsonl"
+        summary = _compare(vf, outlines, staged)
+        staged.replace(ledger)
+        return summary
 
 
 if __name__ == "__main__":
