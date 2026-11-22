@@ -20,14 +20,13 @@ class DatabricksChatProbe:
         if type(timeout) not in (int, float) or not 0 < timeout <= 10:
             raise ValueError("invalid physical timeout")
         self._timeout = timeout
-        self._endpoint = endpoint
         self._path = f"/serving-endpoints/{endpoint}/invocations"
         self._transport = transport
         self._budget = budget
         self._enabled = enabled is True
         self._output_limit_field = output_limit_field
 
-    def exchange(self, instruction, synthetic_input, *, json_output=False):
+    def exchange(self, instruction, synthetic_input):
         if not self._enabled:
             return Reply("unavailable")
         if not all(type(v) is str and v.strip() and len(v) <= limit
@@ -39,12 +38,7 @@ class DatabricksChatProbe:
                 {"role": "user", "content": synthetic_input},
             ],
             self._output_limit_field: 256,
-            "stream": False,
         }
-        if json_output:
-            payload["response_format"] = {"type": "json_object"}
-        if self._endpoint in ("databricks-gpt-oss-20b", "databricks-gpt-oss-120b"):
-            payload["reasoning_effort"] = "low"
         reply = self._transport.request("POST", self._path, encounter=self._budget, payload=payload,
                                         timeout=self._timeout)
         if reply.status != "received":
