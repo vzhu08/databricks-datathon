@@ -192,12 +192,20 @@ def _synthetic_finding(card, service):
                                missing_check="Check the exact physical branch or patient entrance.")
     pointer = _fixture_pointer(card.get("record_source_urls"))
     service_sources = ()
+    service_scope = scope
     if card.get("evidence_strength") in {"direct", "indirect"} and card.get("evidence_excerpt"):
         role = "support" if card["evidence_strength"] == "direct" else "context"
-        service_sources = (Observation(SYNTHETIC, card["evidence_excerpt"], scope, role=role, origin="demo_fixture",
+        excerpt = card["evidence_excerpt"]
+        # These are the two names explicitly stated in the shipped demo fixture.
+        # A text mention preserves the reported scope and never verifies a branch.
+        if role == "support" and (named := re.search(r"\b(?:North|South) Campus\b", excerpt)):
+            service_scope = f"Fixture statement names {named[0]}. Physical branch unverified."
+        elif role == "context":
+            service_scope = "Related specialty in the fictional record. Onsite scope unknown."
+        service_sources = (Observation(SYNTHETIC, excerpt, service_scope, role=role, origin="demo_fixture",
                                        field=card.get("evidence_field"), citation=pointer,
                                        citation_scope="record" if pointer else None),)
-    claim = summarize_claim("service", scope, service_sources, service=service,
+    claim = summarize_claim("service", service_scope, service_sources, service=service,
                             missing_check="Check a dated statement of onsite delivery at the exact branch.")
     return {"location": location, "service": claim}
 

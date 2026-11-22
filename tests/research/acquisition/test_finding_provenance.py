@@ -51,10 +51,14 @@ class FindingProvenanceTests(unittest.TestCase):
         self.assertEqual(direct["service"]["strength"], "reported")
         self.assertEqual(direct["service"]["sources"][0]["field"], "procedures")
         self.assertEqual(direct["service"]["sources"][0]["citation_scope"], "record")
+        self.assertIn("North Campus", direct["service"]["scope"])
+        self.assertIn("unverified", direct["service"]["scope"])
         self.assertEqual(backup["service"]["sources"][0]["field"], "capabilities")
         self.assertIsNone(backup["service"]["sources"][0]["citation"])
+        self.assertIn("South Campus", backup["service"]["scope"])
         self.assertEqual(indirect["service"]["strength"], "no_evidence")
         self.assertEqual(indirect["service"]["sources"][0]["role"], "context")
+        self.assertIn("Related specialty", indirect["service"]["scope"])
         for radius, signal in ((2, "related"), (50, "direct")):
             withheld = output[f"withheld_shape_{radius}_km"]
             self.assertEqual(withheld["findings"], [])

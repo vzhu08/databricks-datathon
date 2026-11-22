@@ -27,6 +27,8 @@ Run from the repository root. This command reads only the six synthetic faciliti
 python -m research.acquisition.national_facility_evidence.finding_examples
 ```
 
+Render `example.invalid` record references as text. The actual fixture field supplies the displayed claim.
+
 | Actual synthetic search | Location | Requested service |
 | --- | --- | --- |
 | Dialysis, PIN 302001, 50 km, first direct result | Reported position from the synthetic location fields | Unconfirmed · Reported. The fixture's `procedures` field says North Campus provides hemodialysis. The statement date and exact applicable premises remain unverified. The fixture link is a record pointer. |
