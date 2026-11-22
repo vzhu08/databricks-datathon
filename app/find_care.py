@@ -382,7 +382,7 @@ def referral_note(view, synthetic):
         lines.append(f"Send to: {top['name']}" + (f", {top['place']}" if top["place"] else ""))
         lines.append("Distance: " + top["distance"])
         lines.append(f"Its record says ({top['field']}): \"{top['excerpt']}\"")
-        lines += ["Record source: " + url for url in top["sources"]]
+        lines += ["Record reference: " + url for url in top["sources"]]
         if view["backups"]:
             lines.append("If it cannot take the patient: " + "; then ".join(
                 f"{card['name']} ({card['distance_km']:.1f} km)" for card in view["backups"]))
@@ -402,70 +402,96 @@ def referral_note(view, synthetic):
 
 
 # Claim-level provenance (#302). One location line and one service line per result card, then the sources
-# behind each. Demonstration cards come from the invented fixture, so the publisher is always named as the
-# synthetic demo record, and nothing in a demo card can be mistaken for a Virtue Foundation hospital.
-DEMO_PUBLISHER = "Synthetic demo record"
-RECORD_LINK_NOTE = "Record reference only. It points at the whole record and adds no independent source."
+# behind each. The facts come from B's mapper (`finding_provenance.project_find_care`), called on the raw
+# response with the service of the request that produced it. These functions only word its output:
+# they add no source, change no decision and read no facility field the mapper did not return.
+RECORD_REFERENCE = "Record reference"
+RECORD_LINK_NOTE = ("It points at the whole record, not at this statement, does not resolve in the demonstration, "
+                    "and adds no independent source.")
+STRENGTHS = {"reported": "Reported", "corroborated": "Corroborated", "no_evidence": "No evidence",
+             "conflicting_evidence": "Conflicting evidence", None: "Evidence not measured"}
+DECISIONS = {"yes": "Yes", "no": "No", "unconfirmed": "Unconfirmed"}
+PRECISIONS = {"reported_position": "a map point", "postal_area": "a postal area", "city": "a city",
+              "locality": "a locality", "district": "a district", "written_address": "a written address",
+              "identified_campus": "an identified campus", "verified_entrance": "a verified entrance",
+              "unknown": "an unknown precision"}
+ORIGINS = {"demo_fixture": "the invented demonstration record itself, with no other origin"}
+ROLES = {"support": "Supports", "conflict": "Conflicts with", "context": "Context for"}
 
 
-def _claim(label, state, strength, line, missing, sources, records, origins):
-    return {"label": label, "state": state, "strength": strength, "line": line, "missing_check": missing,
-            "sources": sources, "source_records": records, "independent_supporting_origins": origins}
+def _count(value, one, many):
+    if value is None:
+        return f"{many} unknown"
+    return f"{value} {one if value == 1 else many}"
 
 
-def claim_lines(card, service, group, index):
-    """The location and service claims for one demonstration result card, keyed by its list and index.
+def _sentence(text):
+    text = str(text).strip()
+    return text if text.endswith((".", "?", "!")) else text + "."
 
-    `card` is a card from `present` (a top result, a backup or a related lead) and `service` the service
-    of the request that produced it, never the form's current value. Reads only the card's own fields.
+
+def _source(source, label):
+    """One source behind a claim, as plain parts. A citation is text, never a link."""
+    origin = ORIGINS.get(source.get("origin"), source.get("origin")) if source.get("lineage") == "known" else None
+    return {
+        "role": ROLES.get(source.get("role"), "Context for") + " " + label.lower(),
+        "fact": source.get("fact") or "",
+        "publisher": source.get("publisher") or "unknown",
+        "origin": origin or "unknown",
+        "field": f"{FIELDS.get(source.get('field'), source.get('field'))} field" if source.get("field") else "unknown",
+        "scope": _sentence(source.get("scope") or "Scope unknown"),
+        "date": source.get("observed_on") or "unknown",
+        "reference": source.get("citation") if source.get("citation_scope") == "record" else None,
+        "citation": source.get("citation") if source.get("citation_scope") == "claim" else None,
+    }
+
+
+def claim_view(finding, service, place=""):
+    """The words for one mapped finding: its location claim and its service claim.
+
+    `finding` is one entry of `project_find_care(...)["findings"]`, `service` the service of the request
+    that produced it (never the form's current value) and `place` the card's own place line.
     """
     phrase = SERVICE_PHRASE.get(service, service)
-    name = SERVICES.get(service, service)
-    field = card["field"]
-    links = [{"url": url, "note": RECORD_LINK_NOTE} for url in card["sources"]]
-    point = card.get("has_point")
-    place = card["place"] or "no place recorded"
-    location_source = {
-        "role": "support", "publisher": DEMO_PUBLISHER, "origin": "This invented record. No other origin.",
-        "fact": ("A map point and " + place) if point else place, "field": "location fields",
-        "date": "unknown", "links": links,
-    }
-    location = _claim(
-        "Location", "Reported", "Reported",
-        ("Reported in the demo record: " + place + (" and a recorded map point" if point else "")
-         + ". Building and entrance unverified."),
-        "Confirm the building and the entrance the patient should go to.",
-        [location_source], 1, 1)
-    statement = {
-        "role": "support" if card["strength"] == "direct" else "context",
-        "publisher": DEMO_PUBLISHER, "origin": "This invented record. No other origin.",
-        "fact": f"“{card['excerpt']}”", "field": f"{field} field", "date": "unknown", "links": links,
-    }
-    if card["strength"] == "direct":
-        service_claim = _claim(
-            name, "Unconfirmed", "Reported",
-            f"Unconfirmed · Reported in the demo record's {field} field only. Branch and service date unknown.",
-            f"A dated statement from the facility or an authority that {phrase} runs at this branch now.",
-            [statement], 1, 1)
-    else:
-        service_claim = _claim(
-            name, "Unconfirmed", "No evidence",
-            f"Unconfirmed · No evidence of onsite {phrase}. The {field} field mentions something related, "
-            "kept below as context.",
-            f"Phone the facility to ask whether it provides {phrase} itself.",
-            [statement], 1, 0)
-    return {"result_group": group, "index": index, "location": location, "service": service_claim}
+    views = []
+    location = finding["location"]
+    fields = sorted({FIELDS.get(src.get("field"), src.get("field")) for src in location["sources"] if src.get("field")})
+    where = (f"as {PRECISIONS.get(location['precision'], 'an unknown precision')}"
+             + (f" in the record's {' and '.join(fields)} field" if fields else ""))
+    views.append({"label": "Location", "claim": location,
+                  "line": (f"{STRENGTHS.get(location['strength'], 'Evidence not measured')} {where}"
+                           + (f": {place}" if place else "") + ". Building and entrance unverified.")})
+    claim = finding["service"]
+    strength = STRENGTHS.get(claim["strength"], "Evidence not measured")
+    if claim["strength"] == "no_evidence":
+        strength = f"No evidence of onsite {phrase}"
+    views.append({"label": SERVICES.get(service, service), "claim": claim,
+                  "line": (f"{DECISIONS.get(claim['decision'], 'Unconfirmed')} · {strength} · "
+                           f"{_sentence(claim['scope'])} Service date {claim['as_of'] or 'unknown'}.")})
+    for view in views:
+        claim = view.pop("claim")
+        view["sources"] = [_source(source, view["label"]) for source in claim["sources"]]
+        view["counts"] = (_count(claim["source_records"], "record", "records") + ", "
+                          + _count(claim["independent_supporting_origins"], "known supporting origin",
+                                   "known supporting origins"))
+        view["missing_check"] = claim["missing_check"]
+        view["review"] = (f"Reviewed for {claim['review']['scope']} as of {claim['review']['as_of']}."
+                          if claim.get("review") else None)
+    return {"result_group": finding["result_group"], "index": finding["index"],
+            "location": views[0], "service": views[1]}
 
 
-def withheld_summary(response, service):
-    """The result-level evidence line for the real records, after `withheld`. Names no facility."""
-    if response.get("status") != "withheld":
+def withheld_summary(summary, service):
+    """The result-level evidence line for the real records, from the mapper's warehouse summary. Names no facility."""
+    if not summary or summary.get("status") != "withheld" or summary.get("text_signal") not in ("direct", "related"):
         return None
     phrase = SERVICE_PHRASE.get(service, service)
-    found = phrase if response.get("evidence") == "direct" else f"something related to {phrase}"
-    return {"state": "Unconfirmed",
-            "line": f"{SERVICES.get(service, service)} · Unconfirmed · Records nearby mention {found}.",
+    found = phrase if summary["text_signal"] == "direct" else f"something related to {phrase}"
+    return {"state": DECISIONS.get(summary.get("decision"), "Unconfirmed"),
+            "line": (f"{SERVICES.get(service, service)} · {DECISIONS.get(summary.get('decision'), 'Unconfirmed')} · "
+                     f"Records nearby mention {found}."),
             "detail": ("Source shown: Virtue Foundation facility records. Independent corroboration unknown. "
                        "At this level the location precision, the branch, the dates and the number of "
                        "independent sources are all unknown, so no source list can be shown."),
-            "missing_check": "A reviewed, dated statement that the service runs at a named branch."}
+            "missing_check": summary.get("missing_check")
+            or "A reviewed, dated statement that the service runs at a named branch."}
