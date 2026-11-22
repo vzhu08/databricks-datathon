@@ -153,3 +153,25 @@ class AssessmentFactoryRuntimeCases(FactoryScreenFixture):
                 self.assertIsNone(view["next_step"])
                 self.assert_terminal_no_handoff(service, handle, handoff, view)
         self.assertEqual(len(exchange.requests), 4)
+
+    def test_confirmed_warning_and_vague_report_stop_before_final_exchange(self):
+        warning = "I have heavy pressure in the middle of my chest right now and I am short of breath."
+        vague = "Something is wrong."
+        exchange, _ = self.connect([extracted(warning), extracted(vague)])
+        service, handle, handoff, draft = self.open_service(lane="demo", source=warning)
+        view = self.dispatch(service, handle, draft)
+        view = self.respond(service, handle, view, "no")
+        result = self.respond(service, handle, view, "confirm")
+        self.assertEqual((result["state"], result["urgency"]), ("experimental_assessment", "emergency_ambulance"))
+        self.assertEqual(result["possible_causes"], [])
+        self.assert_terminal_no_handoff(service, handle, handoff, result)
+        self.assertEqual(len(exchange.requests), 1)
+
+        service, handle, handoff, draft = self.open_service(lane="demo", source=vague)
+        view = self.dispatch(service, handle, draft)
+        for answer in ("no", "confirm", "worsened"):
+            view = self.respond(service, handle, view, answer)
+        self.assertEqual(view["state"], "provider_stop")
+        self.assertEqual(view["possible_causes"], [])
+        self.assert_terminal_no_handoff(service, handle, handoff, view)
+        self.assertEqual(len(exchange.requests), 2)
