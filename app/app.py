@@ -361,3 +361,9 @@ with right:
             else:
                 st.caption("The request and the search status. The response itself is not shown for real records.")
                 st.json({"request": asked, "data": "warehouse", "status": response["status"]})
+
+# Below the search: how often outside sources back up what the real directory's records mention. Counts only.
+# Imported here, beside its one use, so this stays clear of the imports other sections add at the top.
+import capability_coverage  # noqa: E402
+
+capability_coverage.render(st, HERE, DEMO)
