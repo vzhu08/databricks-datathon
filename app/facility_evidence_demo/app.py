@@ -169,7 +169,8 @@ show(f"<style>{STYLE}</style>")
 show('<header class="fe-top"><p class="fe-kicker">Facility evidence walkthrough</p>'
      "<h1>Where can this patient get care, and what does the evidence support?</h1></header>")
 # The interactive flow comes first, so an emergency answer shows before any evidence file is read.
-care_ui.flow()
+if care_ui.flow():
+    st.stop()  # an emergency: nothing below is drawn and no evidence file is opened
 show('<p class="fe-kicker fe-divider">The evidence behind every answer</p>')
 loaded = loader.load()
 if loaded["status"] != "ok":

@@ -82,13 +82,17 @@ The top of the page asks, one question at a time: immediate danger, how soon hel
 runs P's `care_decision.evaluate` again, so no earlier answer or result is kept. An injury kind is cleared
 when the need changes.
 
-- Reported danger or "Emergency now" shows emergency guidance at once, stops asking, and reads no evidence file.
+- Reported danger or "Emergency now" shows emergency guidance at once and stops the page there: no further
+  question, no evidence section and no evidence file read.
+- Start over, and any question that leaves the screen, gets a new widget identity, so the browser never keeps
+  an old checked answer.
 - Otherwise the result shows three priorities side by side: the user's own urgency (`request.urgency`), the
   automatic check (`assessment_priority`, which never reads the user's choice) and the combined
   `workflow_urgency`. It also shows the reason, the service checked, that service's evidence with its source
   and dates (dialysis adds the dated public case), national location precision and the next check.
 - The evidence files are read by the same pinned loaders, and only when the decision needs them. A missing
-  file shows "Data unavailable". Nothing is stored or sent, and no assessment provider is used.
+  file shows "Data unavailable". The anonymous choices are checked with local rules only, and the
+  assessment provider stays off.
 
 Tests: `python -m unittest tests.facility_evidence_demo.test_care_ui` (9 Streamlit checks on the synthetic
 editions).

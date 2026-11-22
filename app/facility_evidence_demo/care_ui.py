@@ -45,42 +45,62 @@ def show(markup):
     st.markdown(markup, unsafe_allow_html=True)
 
 
+def widget_key(key):
+    """A widget's identity. It changes on Start over and whenever the question was hidden, so the browser
+    never keeps an old checked answer for a question that is being asked afresh."""
+    generation = st.session_state.get("care_gen", {}).get(key, 0)
+    return f"care_{st.session_state.get('care_visit', 0)}_{generation}_{key}"
+
+
 def ask(question):
     key, text, help_text, options = question
     labels = dict(options)
-    return st.radio(text, [value for value, _ in options], index=None, key=f"care_{key}", horizontal=True,
+    return st.radio(text, [value for value, _ in options], index=None, key=widget_key(key), horizontal=True,
                     format_func=labels.get, help=help_text or None)
 
 
 def start_over():
-    for key in KEYS:
-        st.session_state.pop(f"care_{key}", None)
+    """Every question gets a new identity, so nothing stays checked in the browser."""
+    st.session_state["care_visit"] = st.session_state.get("care_visit", 0) + 1
+    st.session_state["care_gen"] = {}
+
+
+def interrupts(chosen):
+    return chosen.get("danger") == "yes" or chosen.get("urgency") == "emergency"
+
+
+def questions():
+    """Ask progressively. Returns the answers and the questions that were on screen."""
+    chosen, asked = {}, []
+
+    def put(question):
+        asked.append(question[0])
+        value = ask(question)
+        if value is not None:
+            chosen[question[0]] = value
+        return value
+
+    for question in (DANGER, URGENCY):
+        if put(question) is None or interrupts(chosen):
+            return chosen, asked
+    concern = put(CONCERN)
+    if concern is None:
+        return chosen, asked
+    if concern == "injury":
+        put(INJURY)
+    put(SEVERITY)
+    return chosen, asked
 
 
 def collect():
-    """Ask progressively. Stops asking as soon as an answer means emergency."""
-    chosen = {}
-    for question in (DANGER, URGENCY):
-        value = ask(question)
-        if value is None:
-            return chosen
-        chosen[question[0]] = value
-        if value in ("yes", "emergency"):
-            return chosen
-    concern = ask(CONCERN)
-    if concern is None:
-        return chosen
-    chosen["concern"] = concern
-    if concern == "injury":
-        kind = ask(INJURY)
-        if kind is None:
-            return chosen
-        chosen["injury_kind"] = kind
-    else:  # an injury kind from an earlier answer never carries over to another need
-        st.session_state.pop("care_injury_kind", None)
-    severity = ask(SEVERITY)
-    if severity is not None:
-        chosen["severity"] = severity
+    """The current answers. A question that is not on screen loses its answer and its widget identity, so
+    what is checked on screen and what is evaluated always agree when it is asked again."""
+    chosen, asked = questions()
+    generations = dict(st.session_state.get("care_gen", {}))
+    for key in KEYS:
+        if key not in asked:
+            generations[key] = generations.get(key, 0) + 1
+    st.session_state["care_gen"] = generations
     return chosen
 
 
@@ -93,8 +113,11 @@ def decide(chosen):
 
 
 def complete(chosen):
-    return "danger" in chosen and (chosen.get("danger") == "yes" or chosen.get("urgency") == "emergency"
-                                   or "severity" in chosen)
+    if interrupts(chosen):
+        return True
+    if any(key not in chosen for key in ("danger", "urgency", "concern", "severity")):
+        return False
+    return chosen["concern"] != "injury" or "injury_kind" in chosen
 
 
 def priorities(result):
@@ -149,8 +172,6 @@ def render(result, chosen):
              f"<p>{esc(result['reason'])}</p>"
              "<p>Facility browsing is stopped. Do not wait for this page.</p></section>")
         return
-    if not complete(chosen):
-        return
     service = SERVICE.get(result["service"], "")
     head = {
         "no_reviewed_destination": "No reviewed facility yet",
@@ -175,11 +196,18 @@ def render(result, chosen):
 
 
 def flow():
+    """Draw the care flow. Returns True when the answers are an emergency, so the page stops there."""
     show('<section class="fe-care" aria-labelledby="fe-care-h"><p class="fe-kicker">Try it</p>'
          '<h2 id="fe-care-h">Where could this patient get care?</h2>'
-         '<p class="fe-intro">Answer a few questions. Nothing you choose is stored or sent anywhere. '
-         "This is a demonstration, not medical advice.</p></section>")
+         '<p class="fe-intro">Answer a few questions. Your anonymous choices are checked with local rules only, '
+         "and the assessment provider stays off. This is a demonstration, not medical advice.</p></section>")
     chosen = collect()
-    if chosen:
-        render(decide(chosen), chosen)
-        st.button("Start over", on_click=start_over, key="care_start_over")
+    if not chosen:
+        return False
+    interrupted = False
+    if complete(chosen):
+        result = decide(chosen)
+        render(result, chosen)
+        interrupted = result["status"] == "emergency"
+    st.button("Start over", on_click=start_over, key="care_start_over")
+    return interrupted
