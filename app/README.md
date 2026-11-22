@@ -158,7 +158,10 @@ counts every figure it shows from the assignments. The file must state `geograph
 SHA-256 of a roster approved in `storm_plan.APPROVED_ROSTERS`, a map credit, and a cleared precision class
 and source on every facility. Any other file is refused. The view states what is real (the locations, each
 labelled mapped facility point, campus simulation anchor or area only, with the publisher and licence the
-file gives) and what is simulated (patients, need, urgency, services, staffed places, travel). The map has
+file gives) and what is simulated (patients, need, urgency, services, staffed places, travel). Results are also broken down by patient class (when the
+file gives each patient a `patient_class`) and by service, each with its own unmet reasons, and every
+staffed resource shows the basis of its service and capacity (simulated unless the file says otherwise).
+The map has
 no background and makes no request. The file is not kept in Git: it is placed at deployment after the
 actual run, and without it the page is the replay alone. The format is in `storm_plan.checked`.
 

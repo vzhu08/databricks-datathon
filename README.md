@@ -1,20 +1,20 @@
 # CMU × Databricks Datathon · Fall 2026
 
-A facility finder for community health workers in India. Given a need such as dialysis, MRI, or trauma care and a starting location, it helps the worker decide which facility to verify before a referral. The result shows nearby candidates, the text behind the match, and which details still need confirmation.
+A community health worker in Jaipur needs to find dialysis for a patient. Which facility should they verify first? Find care shows the evidence behind a nearby result and what still needs checking. Before a referral, confirm the correct branch, the service and a staffed appointment.
 
-**National result.** Outside evidence places a named facility in a supported area for **7,895 of 10,088 original records (78.3%)**. The coverage section below explains the rule and what it says about geographic precision.
+[Open the live Databricks app](https://vf-find-care-7474658456464525.aws.databricksapps.com/) (sign-in and app access required) · [Root submission notebook](submission.ipynb) · [Download the verified offline notebook](https://github.com/vzhu08/databricks-datathon/raw/3ef5079e36ec15d47b7709e2ef359641ceb4a25e/submission.ipynb)
+
+**National result.** Outside evidence places a named facility in a supported area for **7,895 of 10,088 original Virtue Foundation (VF) records (78.3%)**. [Exploration](#exploration) · [Modeling](#modeling) · [Impact](#impact)
 
 ## Try the hosted demo
 
-[Open the presenter app](https://vf-find-care-7474658456464525.aws.databricksapps.com/). It requires Databricks sign-in and app access. The app opens on **Check symptoms** with the assessment provider off. An experimental Databricks assessment provider is optional and requires separate operator setup and consent.
+The app opens on **Check symptoms** with the assessment provider off. An experimental Databricks assessment provider is optional and requires separate operator setup and consent.
 
-1. Choose **Find care (demonstration)** → **Recommend a campus** → **Routine dialysis: keeps a scarce station free**. Leave the road-time checkbox off for this example. Campus B appears in both the recommendation and referral note, at **12 simulated minutes**. It preserves Campus A’s simulated monitored slot.
-2. For the separate record search, choose **Look up the example records** → **Dialysis near Jaipur, Rajasthan** → **Why this finding?**. The fictional result is about **6.7 km away in a straight line**. The recorded map point has an unverified building and entrance. Dialysis is **Unconfirmed** because the branch and service date are unknown. This lookup uses six invented facilities.
-3. Choose **Storm demo (simulated)** → focus **Clock minute** and press **End** to reach minute 20. The patients, campuses, staffed slots and travel times are fictional.
+1. **Find care (demonstration)** → **Look up the example records** → **Dialysis near Jaipur, Rajasthan** → **Why this finding?**. The fictional result is about **6.7 km away in a straight line**. Its procedures field names dialysis at North Campus, with physical branch, entrance and service date still unverified. Use that record as a lead to check before travel.
+2. **Recommend a campus** → **Routine dialysis: keeps a scarce station free**. The example uses simulated minutes and recommends fictional Campus B in both the result and referral note. The separate normal form defaults to TomTom ordinary-car traffic in the signed-in presenter. It sends one bounded batch on **Find a facility**, using simulated endpoints. The result shows the request time and supplier notice. Unavailable road time stays unavailable.
+3. **Storm demo (simulated)** → **Planning simulation: 120 simulated patients, real locations** for the Pune comparison. **Checked 8-request replay** is the smaller, fully fictional comparison.
 
-The private presenter also offers **Use road time with traffic (ordinary car)**. Oliver verified that an explicit submit sent simulated endpoints to TomTom and returned a recommendation with the request timestamp and approved attribution. The result used real traffic estimates for those synthetic endpoints. Modeled staffed slots and campus identities are fictional. If road time is unavailable, the app shows the failure instead of substituting simulated minutes. [Signed-in routing check](https://github.com/vzhu08/databricks-datathon/issues/319#issuecomment-7081867284)
-
-Hosted finder checked on **November 22, 2026**, at deployment `01f1e68e7cfd12509bb0ec4924f117bc`, source `0df2ef3`. The screenshot below is from the same storm scenario on the earlier `046adf9` release. [Storm release verification](https://github.com/vzhu08/databricks-datathon/issues/319#issuecomment-7081607270) · [Recording walkthrough](https://github.com/vzhu08/databricks-datathon/issues/305)
+Verified on **November 22, 2026**, using Databricks Free Edition, deployment `01f1e691dbe61f44b15964084cc46203`, source `94b6443`. The real VF SQL run used the same workspace. The notebook runs offline and includes a separate invented-site control. [Edition and VF SQL verification](https://github.com/vzhu08/databricks-datathon/issues/336#issuecomment-7082010831) · [Hosted acceptance](https://github.com/vzhu08/databricks-datathon/issues/304#issuecomment-7082157852) · [Notebook replay](https://github.com/vzhu08/databricks-datathon/issues/307#issuecomment-7082076850)
 
 To run the synthetic app locally from the repository root:
 
@@ -25,33 +25,7 @@ FIND_CARE_DATA=demo streamlit run app/app.py
 
 [Local walkthrough and configuration](app/README.md#operator-walkthrough)
 
-## From source record to recommendation
-
-The first three stages build evidence from the real dataset. The last two use synthetic inputs in the storm replay.
-
-```mermaid
-flowchart LR
-    A["VF Delta v0<br/>Private Databricks"] --> B["Source families<br/>Branch and precision"]
-    B --> C["Dated evidence<br/>Yes / No / Unconfirmed"]
-    C --> D["Eligibility and urgency<br/>Comparable travel times"]
-    D --> E["Staffed slots and scarcity<br/>Recommend or withhold"]
-```
-
-We pin the Virtue Foundation snapshot and evidence editions in private Databricks, preserving every original occurrence and key for reproducibility. We compare facility names, addresses and other identity cues to resolve the branch. A locality, postal area or district can support a directory result. Routing needs a defensible destination point. Multiple listings copied from the same publisher count as one origin. [Implementation plan](docs/implementation/PLAN.md) · [Matching and validation](docs/implementation/VALIDATION_RESEARCH.md)
-
-Service evidence records who made the claim, where it appears, which campus it refers to, and when it applies. **Yes** requires reviewed evidence of onsite service at the identified campus. **No** requires a reviewed statement of absence or referral elsewhere. Missing dates, equipment inventories, claims about another campus and unresolved disagreements can leave the result **Unconfirmed**. Even a confirmed service needs a separate staffed-capacity check before travel. [Service rules](docs/implementation/SERVICE_STATUS.md)
-
-The allocation policy is deterministic given an urgency, time limit, comparable travel times and staffed resource pools. The highest-urgency request takes the fastest feasible option. A less urgent request can take a bounded detour to preserve the last reachable specialist slot. Unknown or stale capacity does not supply a slot. A missing comparison can make scarcity indeterminate and withhold the detour. An optional TomTom adapter supplies ordinary-car travel estimates in the routing work. The hosted storm uses a fixed travel matrix. [Policy and travel design](docs/implementation/ROUTING_AND_SURGE_DEMO.md) · [Optional routing adapter](https://github.com/vzhu08/databricks-datathon/pull/310)
-
-## Worked example · simulated storm
-
-A routine dialysis request arrives first. Nearest first chooses Campus A in **8 minutes**. Urgency-aware chooses Campus B in **12 minutes**, preserving A’s monitored slot for the next, highest-urgency request. The demo processes arrivals as they occur. It does not look ahead. At a tighter detour limit, or with no known staffed option at B, the model cannot make that same assignment.
-
-![Hosted synthetic storm comparison at the end of the shift. Nearest first assigned seven of eight requests, one of two highest-urgency requests within the travel limit, and added zero minutes. Urgency-aware assigned eight of eight, two of two within the limit, and added four minutes.](docs/demo/screenshots/06-hosted-storm-comparison.jpg)
-
-*Hosted replay, storm seed 17, with a 10-minute detour limit. “Served” means assigned a feasible modeled staffed slot during the shift. Extra travel is summed in minutes relative to each policy’s fastest feasible option at assignment. The four minutes come from the first routine request. This is an allocation result for the scenario. Treatment outcomes and live capacity were outside the model.* [Pinned replay data](contracts/fixtures/storm_replay.json) · [Reproduce the simulation](app/simulation/README.md)
-
-## National coverage
+## Exploration
 
 ### How many VF facilities can we locate?
 
@@ -145,15 +119,61 @@ Ayurveda has 147 matches, of which seven have a coded or registry-system match. 
 - **A blood bank inside a hospital needs a host match.** We joined historical blood-bank directory records to the named hospital and its area. A nearby collection site, separate storage unit or general transfusion mention could not supply that link. We counted repeated National Health Portal records once per VF row. The outside directory evidence supported 114 of 567 VF mentions. Blood-group stock remains unknown. [Blood-bank comparison](https://github.com/vzhu08/databricks-datathon/issues/58#issuecomment-7081734491)
 - **An address can be usable while a precise pin is uncertain.** We compared named registry and map records at locality, landmark and PIN level. Coordinate-free listings could still support the written area. For nearby points we used agreement under 1 km and tracked possible shared VF/map sourcing. This raised supported search areas from 3,144 to 7,895 of 10,088 original VF rows. It gives a patient a facility name and an area to search; a verified entrance and an available service require their own evidence. [Location rule and national replay](https://github.com/vzhu08/databricks-datathon/issues/57#issuecomment-7081461436)
 
+## Modeling
+
+### From source record to recommendation
+
+The first three stages build evidence from the real dataset. The last two use modeled inputs in the storm comparisons. The exercise uses evidence to decide which claims can support a lookup, then demonstrates allocation on separate inputs.
+
+```mermaid
+flowchart LR
+    A["VF Delta v0<br/>Private Databricks"] --> B["Source families<br/>Branch and precision"]
+    B --> C["Dated evidence<br/>Yes / No / Unconfirmed"]
+    C --> D["Eligibility and urgency<br/>Comparable travel times"]
+    D --> E["Staffed slots and scarcity<br/>Recommend or withhold"]
+```
+
+We pin the Virtue Foundation snapshot and evidence editions in private Databricks, preserving every original occurrence and key for reproducibility. We compare facility names, addresses and other identity cues to resolve the branch. A locality, postal area or district can support a directory result. Routing needs a defensible destination point. Multiple listings copied from the same publisher count as one origin. [Implementation plan](docs/implementation/PLAN.md) · [Matching and validation](docs/implementation/VALIDATION_RESEARCH.md)
+
+Service evidence records who made the claim, where it appears, which campus it refers to, and when it applies. **Yes** requires reviewed evidence of onsite service at the identified campus. **No** requires a reviewed statement of absence or referral elsewhere. Missing dates, equipment inventories, claims about another campus and unresolved disagreements can leave the result **Unconfirmed**. Even a confirmed service needs a separate staffed-capacity check before travel. [Service rules](docs/implementation/SERVICE_STATUS.md)
+
+The allocation policy is deterministic given an urgency, time limit, comparable travel times and staffed resource pools. The highest-urgency request takes the fastest feasible option. A less urgent request can take a bounded detour to preserve the last reachable specialist slot. Unknown or stale capacity does not supply a slot. A missing comparison can make scarcity indeterminate and withhold the detour. An optional TomTom adapter supplies ordinary-car travel estimates in the routing work. The hosted storm uses a fixed travel matrix. [Policy and travel design](docs/implementation/ROUTING_AND_SURGE_DEMO.md) · [Optional routing adapter](https://github.com/vzhu08/databricks-datathon/pull/310)
+
+### Worked example · dialysis near Jaipur
+
+The catalogue keeps explicit service mentions within the requested distance and shows them nearest first. The fictional North Campus phrase qualifies as a direct mention. A related specialty by itself is a weaker lead, and the reported map point does not establish a building or entrance. The “Why this finding?” panel shows which record field supports the result and which branch and date checks remain open.
+
+In the separate simulated recommendation, Campus A is the fastest feasible option at **8 minutes**. The routine request goes to Campus B in **12 minutes**, within the 10-minute detour limit, to preserve A’s last reachable monitored slot. The highest-urgency monitored request can then take A. In the checked eight-request replay, nearest first places **7/8**, urgency-aware places **8/8**, and the first routine request adds **four minutes** in total. Both policies process requests as they arrive. [Pinned replay data](contracts/fixtures/storm_replay.json) · [Reproduce the simulation](app/simulation/README.md)
+
+## Impact
+
+For the health worker, the next step is to confirm the campus and patient entrance, then ask whether the service is running and a staffed appointment is available. A match or a modeled recommendation gives a starting point for that check.
+
+For the district planner, the **Pune edition 1** comparison uses 12 public facility locations and the same 120 simulated requests and 144 simulated staffed slots over six hours. Eight sites have mapped points and four use campus anchors. Patients, starting points, service capability, staffing and travel are modeled. Travel uses straight-line geodesic distance at an assumed **30 km/h**. The exact planner sees the full shift and minimizes unmet highest, time-sensitive and routine requests in that order, then minimizes modeled travel. Nearest first commits each request to the fastest compatible slot as it arrives. [Public geography recipe](https://github.com/vzhu08/databricks-datathon/pull/332) · [Independent allocation replay](https://github.com/vzhu08/databricks-datathon/issues/323#issuecomment-7081879579)
+
+| Simulated measure | Nearest first | Exact offline plan |
+| --- | ---: | ---: |
+| Assigned a feasible staffed slot | 112 / 120 | 117 / 120 |
+| Highest urgency assigned | 19 / 25 | 22 / 25 |
+| Time-sensitive assigned | 42 / 44 | 44 / 44 |
+| Routine assigned | 51 / 51 | 51 / 51 |
+| Unmet, all with compatible slots exhausted | 8 | 3 |
+| Modeled travel for the 110 requests placed by both policies | 497.8 min | 395.4 min |
+
+For example, nearest first took the minute-45 dialysis slot for a routine request 192 modeled seconds away. The exact plan moved that request to another site at 442 seconds and used the freed slot for a highest-urgency request 38 seconds away. It placed seven requests that nearest first left unmet and left two unmet that nearest first placed, a net gain of five. The travel row compares the same 110 requests. The app’s total travel cards sum different assigned groups. These are feasible modeled assignments. Treatment outcomes and actual staffed availability require separate evidence.
+
+![Hosted Pune planning simulation for 120 simulated patients, 12 real facility locations and 144 simulated staffed places. Nearest first places 112 and the exact offline plan places 117.](docs/demo/screenshots/07-hosted-pune-comparison.jpg)
+
+*Pune edition 1, seed 17, as shown in the signed-in presenter at `94b6443`. Facility geography uses public OSM and NHP evidence. © OpenStreetMap contributors.* [Hosted acceptance](https://github.com/vzhu08/databricks-datathon/issues/304#issuecomment-7082157852) · [OpenStreetMap attribution](https://www.openstreetmap.org/copyright)
+
 ## What we checked
 
 | Scope | Result and limit |
 | --- | --- |
 | **Real national dataset** | The frozen Delta v0 replay preserves **10,088 original occurrences**, including duplicate occurrences, with **10,077 distinct upstream IDs**. The directory v4 readback places **2,524** in the campus category, **7,418** in the area-only category and **146** in unresolved. These are directory classes. Route-ready destinations require a separate check. [Directory readback](https://github.com/vzhu08/databricks-datathon/issues/160#issuecomment-7075940482) |
 | **Real service evidence** | The independently recounted comparison found **186 external leads** among **30,264 occurrence/service decisions**. All 30,264 remained unconfirmed in that edition. The frozen 30-case sample still awaits independent human review and accuracy measurement. [Replay and readback](https://github.com/vzhu08/databricks-datathon/issues/168#issuecomment-7075091984) |
-| **Hosted and checked** | Provider-off symptom screen, simulated recommendation and referral note, separate six-facility record lookup, and the storm replay. Oliver verified one successful live-traffic recommendation. An initial post-idle request stopped with road time unavailable and no assignment. [Hosted check](https://github.com/vzhu08/databricks-datathon/issues/319#issuecomment-7081867284) |
-| **Prepared for a later hosted check** | The [national location summary](https://github.com/vzhu08/databricks-datathon/issues/302#issuecomment-7081689837) has an approved counts file and local UI check. The [120-request Pune allocation](https://github.com/vzhu08/databricks-datathon/issues/323#issuecomment-7081879579) has an independent replay on 12 cleared locations with synthetic patients and capacity. Both await signed-in presenter checks. |
-| **In development** | The provisional VF-only lookup rule and default-live routing with revised attribution still await their own hosted checks. [VF-only scope](https://github.com/vzhu08/databricks-datathon/issues/330) · [Routing follow-up](https://github.com/vzhu08/databricks-datathon/issues/304#issuecomment-7081759806) |
+| **Hosted and checked** | Provider-off symptom screen, synthetic recommendation and referral note, separate record lookup, default TomTom routing on a normal submit, national named-location summary, and Pune edition 1. [Hosted check](https://github.com/vzhu08/databricks-datathon/issues/304#issuecomment-7082157852) |
+| **Separate release checks** | The provisional VF-only lookup rule and the evidence-enriched four-class storm scenario have separate acceptance. The standalone notebook's verified earlier 120-request control uses invented sites. [VF-only scope](https://github.com/vzhu08/databricks-datathon/issues/330) · [Storm follow-up](https://github.com/vzhu08/databricks-datathon/issues/323) · [Offline notebook receipt](https://github.com/vzhu08/databricks-datathon/issues/307#issuecomment-7082076850) |
 
 The offline evidence walkthrough uses approved display files. Real source snapshots and Marketplace rows stay outside Git. [Offline walkthrough](app/facility_evidence_demo/README.md) · [Search contract](docs/implementation/SEARCH_CONTRACT.md) · [Release board](docs/implementation/OWNERSHIP.md)
 

@@ -26,6 +26,7 @@ TIERS = (
     ("unresolved", "Still open"),
 )
 OPEN = "unresolved"
+OPEN_ROW = '<tr class="nd-open">'
 HEADING = "National directory"
 LABEL = "Real Virtue Foundation records · counts only"
 APART_DEMO = ("These counts are about the real directory, not the six invented facilities the search below "
@@ -148,7 +149,8 @@ def view(summary):
 def markup(found, demo):
     """The section as HTML. Every word from the file is escaped; the one link must be an https address."""
     safe = lambda text: html.escape(str(text), quote=False)  # noqa: E731
-    rows = "".join(f"<tr{' class=\"nd-open\"' if still_open else ''}><td>{safe(label)}</td>"
+    # Built without a quote or backslash inside an f-string expression: the hosted Python is older than 3.12.
+    rows = "".join((OPEN_ROW if still_open else "<tr>") + f"<td>{safe(label)}</td>"
                    f'<td class="nd-n">{count}</td><td class="nd-n">{part}</td></tr>'
                    for label, count, part, still_open in found["rows"])
     link = found["attribution"]
