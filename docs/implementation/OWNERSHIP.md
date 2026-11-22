@@ -4,6 +4,19 @@ This board on `origin/main` is authoritative. Oliver (`oliverchennn`) is the int
 
 Use GitHub repository issues and this board for all team communication. Record assignments, review requests, blockers, decisions and acknowledgments here or in the owning issue. Link implementation PRs from the issue. [Team instructions](../../AGENTS.md)
 
+
+## Location research cutoff on November 22 at 05:00 Eastern
+
+[Oliver's sprint, acceptance and owner handoffs](https://github.com/vzhu08/databricks-datathon/issues/270) supersede earlier location-research priorities for this hour. Run the five methods in parallel. Use remaining time for distinct experiments with independent witnesses. Report partials at 04:55 ET and freeze exact-location work at 05:00 ET (10:00 UTC). Vincent then retains supported sites and publishes the smallest defensible geography for every other occurrence, including an unknown category. Andrew owns any UI changes. D independently reconciles the outcome and Oliver owns integration.
+
+| Account and effort | Named owner chats and assignments |
+| --- | --- |
+| Oliver, 50% | A compares competing addresses. I audits contact-key false matches. J checks physical footprints. G resolves rural code and village ambiguity. H checks local-script arrival clues. K reviews eligible dated signage and entrances. L tests dated moves and issuer addresses. F evaluates distinct follow-on methods. D freezes the blinded review sample and independently counts gains, errors and overlap. |
+| Vincent / B, 25% | [B](https://github.com/vzhu08/databricks-datathon/issues/239) starts three separate data chats. B1 owns the national contact join, B2 rural register and site matching, and B3 national reconciliation and the geographic fallback. |
+| Andrew / C, 25% | [C's source-research chat](https://github.com/vzhu08/databricks-datathon/issues/241) owns official branch and arrival verification, the dated entrance evidence kit and its blinded handoff to K and D. Andrew's UI chats retain their existing assignments. |
+
+Each named sprint owner has a separate `codex/loc5-<owner>` branch and `research/location_cutoff/<owner>/` with matching tests if code is needed. F owns `docs/research/location_cutoff/f/` only. Only synthetic fixtures enter Git. Store permitted private occurrence-level evidence in Databricks. Use aggregate GitHub receipts with edition, denominator, observed precision, counterexamples and unresolveds. Use no worker timers. The 05:00 alarm is a single reminder in Oliver's main chat.
+
 ## Current scope
 
 Oliver's main chat owns every merge, revert, PR disposition, branch retirement and release; the user makes executive decisions there. Vincent's data chat owns acquisition/refinement, distributes data assignments and recommends data changes to Oliver. Andrew owns all demo UI and UX. Ayush [confirmed his return](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7072161199) and takes one short, nonblocking check at a time. Vincent assigned Ayush’s Developer E chat the [Telangana roster reuse check](https://github.com/vzhu08/databricks-datathon/issues/64#issuecomment-7072186490). Vincent retains the national dialysis comparison. The two orchestrators each have one five-minute board checker. [Ownership acknowledgement](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7071089326) · [Assignments and checker consolidation](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7071100414)
