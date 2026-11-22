@@ -2,6 +2,8 @@
 
 The Storm planning simulation uses 12 mapped Pune locations with agreement between two public data sources. The geography supplies fixed anchors for modeled travel. Demand, facility capabilities, staffed capacity and travel are simulation inputs. The agreement measures names and mapped positions, and source independence is unknown. Treat entrances, current operations, and services as unverified.
 
+This recipe reproduces the original geographic roster. A separately pinned variant adds two civic-address matches and reviews operator evidence for four care classes. [Pune evidence-enriched v1](PUNE_EVIDENCE_ENRICHED_V1.md)
+
 ## Why Pune
 
 The national comparison applied the same 735 India ADM2 shapes to all 10,088 original Virtue Foundation (VF) occurrences. Pune led with 267 named-in-area occurrences and 177 occurrences with an admitted point cluster within one district. The next district, Ahmadabad, had 251 and 173, respectively. Neither measure establishes physical-site uniqueness. The 7,895 of 10,088 national named-in-area result measures supported area geography. [National district comparison](https://github.com/vzhu08/databricks-datathon/issues/323#issuecomment-7081734925)
