@@ -102,7 +102,9 @@ _KEEP_CITY = re.compile(r"\b(?:steel|salt lake|lake|port|sports) city$", re.I)  
 _PREFIX = re.compile(r"^(?:near(?:by)?|in|at|around|close to|next to)\s+", re.I)
 _SUFFIX = re.compile(r"(?:\s*,?\s*\bindia|\s+(?:city|town|district|dist\.?))$", re.I)
 # a PIN must stand alone: no letters, digits or decimal points touching it ("AB560034", "12.560034" are not PINs)
-_PIN_IN_TEXT = re.compile(r"(?<![\w.])([1-9]\d{2})[ -]?(\d{3})(?![\w.])")
+# A full stop beside the digits rules a PIN out only when it is a decimal point ("26.302001", "302001.5"),
+# so the full stop that ends a sentence ("302001. Or 302002") does not hide a PIN from the one-PIN rule.
+_PIN_IN_TEXT = re.compile(r"(?<!\w)(?<!\d\.)([1-9]\d{2})[ -]?(\d{3})(?!\w)(?!\.\d)")
 _SIX_DIGITS = re.compile(r"\d{3}[ -]?\d{3}")
 _PIN_WORDS = re.compile(r"\b(?:pin(?:\s*code)?|pincode|postal code|zip)\b[\s:#.-]*", re.I)
 
@@ -238,6 +240,8 @@ def parse_location(text):
         return {"pin": digits}
     pair = _COORDINATES.fullmatch(text)
     if pair:
+        if all(_PIN_IN_TEXT.fullmatch(number) for number in pair.groups()):  # "302001 302002" is two PIN codes
+            raise ValueError("Type one PIN code.")
         return {"latitude": float(pair[1]), "longitude": float(pair[2])}
     if digits.isdigit():
         raise ValueError("A PIN code has six digits.")
