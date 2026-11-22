@@ -477,6 +477,33 @@ class ScreenTests(unittest.TestCase):
         self.assertIn("A kidney department or a kidney specialist is not a working dialysis unit.", self._text(app))
         self.assertEqual(("302001", 2), (app.text_input(key="where").value, app.select_slider(key="radius").value))
 
+    def test_free_places_change_the_choice_and_a_changed_request_hides_it(self):
+        """#304 in the actual layout: a routine diversion, the highest urgency, and an unknown-capacity case."""
+        app = self._app()
+        self.assertIn("Road time with traffic is switched off here", self._text(app))
+        self.assertIn("call 112 now", self._text(app))
+        app = self._step(app.button(key="capacity-Routine dialysis: keeps a scarce station free").click())
+        text = self._text(app)
+        for part in ("Counting free places", "Suggested by free places: Campus B.",
+                     "Fastest with a free place: Campus A, 8 min (simulated).", "Campus B adds 4 min.",
+                     "monitored dialysis station", "Simulated drive minutes", "not the facilities above",
+                     "Send the patient to Example Regional Hospital."):
+            self.assertIn(part, text)
+        self.assertEqual("routine", app.radio(key="urgency").value)
+        app = self._step(app.button(key="capacity-Highest urgency dialysis: fastest free place").click())
+        self.assertIn("Suggested by free places: Campus A.", self._text(app))
+        self.assertIn("Highest urgency: the fastest campus", self._text(app))
+        app = self._step(app.button(key="capacity-Dialysis from the south: nearest campus capacity unknown").click())
+        self.assertIn("free staffed places unknown or out of date", self._text(app))
+        # Changing only the urgency hides the old capacity answer; it never shows under the new request.
+        changed = self._step(app.radio(key="urgency").set_value("highest"))
+        text = self._text(changed)
+        self.assertIn("Hidden because the request changed", text)
+        self.assertNotIn("Suggested by free places", text)
+        again = self._step(changed.button(key="find").click())
+        self.assertIn("Suggested by free places", self._text(again))
+        self.assertEqual("highest", again.session_state["capacity"]["asked"]["urgency"])
+
     def test_the_first_press_answers_because_the_demonstration_form_starts_filled(self):
         app = self._app()
         self.assertEqual("Jaipur, Rajasthan", app.text_input(key="where").value)

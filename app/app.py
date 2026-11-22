@@ -26,6 +26,7 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:  # so the same imports work from the repository root and from a deployed `app/`
     sys.path.append(str(HERE))
 
+import find_capacity as capacity  # noqa: E402
 import find_care as words  # noqa: E402
 import patient_ui  # noqa: E402
 from data_access import search_warehouse  # noqa: E402
@@ -34,6 +35,8 @@ from ranking import search_facilities  # noqa: E402
 # Kept inside app/ so a deployment of this folder alone still has its demonstration facilities.
 # tests/find_care checks it is the same file as contracts/fixtures/search.json.
 FIXTURE = HERE / "demo_facilities.json"
+# Road time with traffic only when the operator switched the provider on. Off, nothing can call out.
+TRAFFIC_ON = os.environ.get("TOMTOM_ENABLED") == "true"
 DATA = words.data_mode(os.environ)
 DEMO = DATA["mode"] == "demo"
 # label, care, the line typed into "Where", distance
@@ -41,6 +44,12 @@ EXAMPLES = [
     ("Dialysis near Jaipur, Rajasthan", "dialysis", "Jaipur, Rajasthan", 50),
     ("MRI scan near PIN 302001", "mri", "302001", 50),
     ("Dialysis within 2 km of PIN 302001", "dialysis", "302001", 2),
+]
+# Capacity examples (#304) on the simulated Jaipur campuses: label, care, urgency, starting area, needs a tool
+CAPACITY_EXAMPLES = [
+    ("Routine dialysis: keeps a scarce station free", "dialysis", "routine", "central", False),
+    ("Highest urgency dialysis: fastest free place", "dialysis", "highest", "central", False),
+    ("Dialysis from the south: nearest campus capacity unknown", "dialysis", "routine", "south", False),
 ]
 # Same paper, ink and caution colours as the offline Find care page, and the same referral slip.
 STYLE = """
@@ -75,6 +84,8 @@ STYLE = """
 .fc-stale { margin: 0 0 0.75rem; padding: 0.6rem 0.9rem; border: 1.5px solid #14283b; border-radius: 3px;
   background: #ffffff; color: #14283b; font-weight: 600; }
 .fc-old { opacity: 0.55; }
+.fc-emergency { margin: 0.25rem 0 0.75rem; padding: 0.5rem 0.8rem; border-left: 4px solid #b3261e;
+  background: #fbeceb; color: #5c1410; font-weight: 600; }
 .fc-claims { margin-top: 0.75rem; padding: 0.7rem 1rem; border-left: 4px solid #4b6274; background: #f7f9fa; }
 .fc-claim { margin: 0.2rem 0; }
 .fc-claim strong { font-weight: 700; }
@@ -125,6 +136,18 @@ def ask(service, location, radius_km):
                     "approximate_location": False, "message": str(error)}
     st.session_state["asked"] = {"service": service, "location": location, "radius_km": radius_km}
     st.session_state["response"] = response
+    st.session_state.pop("capacity", None)
+    if DEMO:
+        # The one place a capacity check, and so any road-time request, can start: an explicit submit.
+        st.session_state["capacity"] = capacity.run(
+            service, st.session_state.get("urgency", "routine"), st.session_state.get("origin", "central"),
+            st.session_state.get("needs_tool", False), TRAFFIC_ON and st.session_state.get("traffic", False),
+            travel=_travel() if TRAFFIC_ON and st.session_state.get("traffic", False) else None)
+
+
+def _travel():
+    from travel import hosted  # imported only when the operator has switched road time on
+    return hosted
 
 
 def submit():
@@ -140,9 +163,11 @@ def submit():
     ask(st.session_state["service"], location, st.session_state["radius"])
 
 
-def fill(service, where, radius_km):
+def fill(service, where, radius_km, urgency="routine", origin="central", needs_tool=False):
     """Put a request into the form, so the form always shows what the answer is for, then search."""
     st.session_state.update(service=service, where=where, radius=radius_km)
+    if DEMO:
+        st.session_state.update(urgency=urgency, origin=origin, needs_tool=needs_tool, traffic=False)
     submit()
 
 
@@ -202,6 +227,26 @@ def not_told(view):
         return ""
     return ('<div class="fc-h">What this does not tell you</div><ul class="fc-limits">'
             + "".join(f"<li>{safe(line)}</li>" for line in view["limits"]) + "</ul>")
+
+
+def capacity_slip(check):
+    """The capacity-aware choice on the simulated Jaipur campuses, beside (never instead of) the search."""
+    lines = capacity.explain(check)
+    parts = [f'<div class="fc-for">{safe(words.SERVICES[check["asked"]["service"]])}, '
+             f'{safe(capacity.URGENCIES[check["asked"]["urgency"]].lower())} urgency, from '
+             f'{safe(capacity.ORIGINS[check["asked"]["origin_id"]].lower())} Jaipur (simulated campuses A to F).</div>',
+             f'<div class="fc-trip" style="margin-top:1rem">{safe(lines["headline"])}</div>']
+    for key in ("chosen", "fastest", "why"):
+        if lines[key]:
+            parts.append(f'<div class="fc-text" style="margin-top:0.5rem">{safe(lines[key])}</div>')
+    for line in lines["status"]:
+        parts.append(f'<div class="fc-quiet">{safe(line)}</div>')
+    if lines["excluded"] or lines["unavailable_minutes"]:
+        parts.append('<div class="fc-h">Not suggested</div><ul class="fc-limits">'
+                     + "".join(f"<li>{safe(line)}</li>" for line in lines["excluded"] + lines["unavailable_minutes"])
+                     + "</ul>")
+    parts.append(f'<div class="fc-quiet">Travel time: {safe(lines["time_label"])}</div>')
+    return f'<div class="fc-slip fc-more">{"".join(parts)}</div>'
 
 
 def withheld_line(response, service):
@@ -288,12 +333,31 @@ with left:
     st.caption("A city or town (add the state after a comma), a six-digit PIN code, or coordinates.")
     radius = st.select_slider("Search within", options=list(words.RADII), key="radius",
                               format_func=lambda km: f"{km} km")
+    if DEMO:
+        st.radio("3. How urgent", list(capacity.URGENCIES), format_func=capacity.URGENCIES.get, key="urgency",
+                 horizontal=True)
+        st.markdown(f'<div class="fc-emergency">{safe(patient_ui.EMERGENCY)}</div>', unsafe_allow_html=True)
+        st.selectbox("Starting area for the free-places check (simulated Jaipur)", list(capacity.ORIGINS),
+                     format_func=capacity.ORIGINS.get, key="origin")
+        if service in capacity.TOOLS:
+            st.checkbox(f"Needs {capacity.TOOLS[service][1]}", key="needs_tool")
+        if TRAFFIC_ON:
+            st.checkbox("Use road time with traffic (ordinary car)", key="traffic")
+            st.caption("Sends only the simulated starting point and the simulated campus points to "
+                       f"{capacity.TRAFFIC_SOURCE}. No patient details are sent. One request per press.")
+        else:
+            st.caption("Road time with traffic is switched off here. Drive minutes are simulated.")
     st.button("Find a facility", type="primary", use_container_width=True, on_click=submit, key="find")
     if st.session_state.get("problem"):
         st.error(st.session_state["problem"])
     st.caption("Or start from an example")
     for label, ex_service, ex_where, ex_radius in EXAMPLES:
         st.button(label, key="example-" + label, on_click=fill, args=(ex_service, ex_where, ex_radius))
+    if DEMO:
+        st.caption("Or see how free places change the choice")
+        for label, ex_service, ex_urgency, ex_origin, ex_tool in CAPACITY_EXAMPLES:
+            st.button(label, key="capacity-" + label, on_click=fill,
+                      args=(ex_service, "Jaipur, Rajasthan", 50, ex_urgency, ex_origin, ex_tool))
 
 with right:
     response, asked = st.session_state.get("response"), st.session_state.get("asked")
@@ -320,6 +384,19 @@ with right:
             label = ", ".join(part for part in (choice.get("city"), choice.get("state")) if part)
             st.button(label, key="choice-" + label, on_click=fill,
                       args=(asked["service"], label, asked["radius_km"]))
+        check = st.session_state.get("capacity")
+        if DEMO and check:
+            now = {"service": service, "urgency": st.session_state.get("urgency"),
+                   "origin_id": st.session_state.get("origin"),
+                   "needs_tool": bool(st.session_state.get("needs_tool")) and service in capacity.TOOLS,
+                   "traffic": TRAFFIC_ON and bool(st.session_state.get("traffic"))}
+            st.subheader("Counting free places")
+            if stale or now != check["asked"]:
+                st.caption("Hidden because the request changed. Press Find a facility to check free places again.")
+            else:
+                st.caption("A second, separate example: six invented campuses with staffed places and drive times. "
+                           "They are not the facilities above.")
+                st.markdown(capacity_slip(check), unsafe_allow_html=True)
         if DEMO and not stale and view["backups"]:
             st.subheader(f"If {view['top']['name']} cannot take the patient")
             st.caption("Listed nearest first. The order says nothing about quality.")
