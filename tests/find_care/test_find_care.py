@@ -22,7 +22,7 @@ APP = ROOT / "app"
 WAREHOUSE = {"DATABRICKS_WAREHOUSE_ID": "test-warehouse", "DATABRICKS_PREPARED_TABLE": "test_catalog.test_schema.prepared",
              "DATABRICKS_HOST": "https://workspace.example.invalid", "DATABRICKS_CLIENT_ID": "test-client",
              "DATABRICKS_CLIENT_SECRET": "test-secret"}
-SETTINGS = ("DATABRICKS_", words.DATA_SETTING)
+SETTINGS = ("DATABRICKS_", words.DATA_SETTING, "TOMTOM_", "FIND_CARE_")
 
 
 def restricted(response=None):
@@ -367,7 +367,8 @@ class ScreenTests(unittest.TestCase):
         # The screen imports its neighbours by bare name, as it does when app/ is the deployment root.
         # Under test discovery those names can already belong to the test packages, so give them to app/
         # for the length of one test and hand them back afterwards.
-        bare = ("find_care", "data_access", "ranking", "patient_ui", "patient_intake")
+        bare = ("find_care", "data_access", "ranking", "patient_ui", "patient_intake", "find_capacity",
+                "capacity_recommendation", "simulation", "travel", "storm_page")
         saved = {name: module for name, module in sys.modules.items() if name.split(".")[0] in bare}
         for name in saved:
             del sys.modules[name]
@@ -399,6 +400,10 @@ class ScreenTests(unittest.TestCase):
             app = switch.set_value(switch.options[1]).run()
         self.assertFalse(app.exception, app.exception)
         return app
+
+    def _lookup(self, app):
+        """The demonstration opens on the recommendation. The record lookup is its second, separate job."""
+        return self._step(app.radio(key="mode").set_value("lookup"))
 
     def _step(self, action):
         with mock.patch.dict(os.environ, self.env, clear=True):
@@ -438,27 +443,31 @@ class ScreenTests(unittest.TestCase):
         self.assertEqual(0, len(app.code))
         self.assertEqual([], [button.key for button in app.button if str(button.key).startswith("choice-")])
 
-    def test_the_judge_path_on_demonstration_data(self):
+    def test_the_record_lookup_on_demonstration_data_directs_nobody(self):
         app = self._app()
         text = self._text(app)
         self.assertIn("Data: demonstration.", text)
         self.assertIn("six invented facilities", text)
         self.assertIn("The recommendation appears here.", text)
+        app = self._lookup(app)
+        self.assertIn("Nothing here is a recommendation.", self._text(app))
         app = self._step(app.button(key="example-Dialysis near Jaipur, Rajasthan").click())
         text = self._text(app)
-        for part in ("Send the patient to Example Regional Hospital.", "North Campus provides hemodialysis",
-                     "procedures field", "Phone to confirm", "How this was decided", "example.invalid",
-                     "cannot take the patient"):
-            self.assertIn(part, text)
-        for part in ("Why this facility", "What its record says", "About 6.7 km away, in a straight line."):
+        for part in ("Nearest record that states the service: Example Regional Hospital.",
+                     "Record lookup. This is not a recommendation.", "North Campus provides hemodialysis",
+                     "procedures field", "Phone to confirm", "How the lookup works", "example.invalid",
+                     "Other records that state the service", "Why it is listed first", "What its record says",
+                     "About 6.7 km away, in a straight line."):
             self.assertIn(part, text)
         for part in ("What this does not tell you", "not a judgement that it is the best place",
                      "The journey by road can be much longer", "The record carries no date here",
                      "Listed nearest first. The order says nothing about quality."):
             self.assertIn(part, text)
-        self.assertNotIn("Check the address", text)
-        self.assertIn("Send to: Example Regional Hospital", app.code[0].value)
-        self.assertEqual(1, len(app.get("download_button")))
+        # #304: the lookup is not a destination. No directive, no note, nothing to save, no campus from the model.
+        for part in ("Send the patient", "Send to", "Referral note", "cannot take the patient", "Campus B",
+                     "Check the address"):
+            self.assertNotIn(part, self._everything(app))
+        self.assertEqual((0, 0), (len(app.code), len(app.get("download_button"))))
         # An example fills the form, so the form always shows what the answer is for.
         self.assertEqual(("dialysis", "Jaipur, Rajasthan", 50),
                          (app.radio(key="service").value, app.text_input(key="where").value,
@@ -477,44 +486,149 @@ class ScreenTests(unittest.TestCase):
         self.assertIn("A kidney department or a kidney specialist is not a working dialysis unit.", self._text(app))
         self.assertEqual(("302001", 2), (app.text_input(key="where").value, app.select_slider(key="radius").value))
 
-    def test_free_places_change_the_choice_and_a_changed_request_hides_it(self):
-        """#304 in the actual layout: a routine diversion, the highest urgency, and an unknown-capacity case."""
+    def _note(self, app):
+        self.assertEqual((1, 1), (len(app.code), len(app.get("download_button"))))
+        return app.code[0].value
+
+    def test_the_recommendation_and_its_referral_note_name_the_models_campus_and_no_other(self):
+        """#304: a routine case names B in the result and the note, the highest urgency names A in both."""
         app = self._app()
-        self.assertIn("Road time with traffic is switched off here", self._text(app))
-        self.assertIn("call 112 now", self._text(app))
-        app = self._step(app.button(key="capacity-Routine dialysis: keeps a scarce station free").click())
         text = self._text(app)
-        for part in ("Counting free places", "Suggested by free places: Campus B.",
-                     "Fastest with a free place: Campus A, 8 min (simulated).", "Campus B adds 4 min.",
-                     "monitored dialysis station", "Simulated drive minutes", "not the facilities above",
-                     "Send the patient to Example Regional Hospital."):
+        self.assertIn("Road time with traffic is switched off here", text)
+        self.assertIn("call 112 now", text)
+        self.assertIn("four simulated starting areas in Jaipur", text)
+        # No typed place or search distance exists here to be silently swapped for a default starting area.
+        self.assertEqual((0, 0), (len(app.text_input), len(app.select_slider)))
+        self.assertEqual("central", app.radio(key="origin").value)
+
+        app = self._step(app.button(key="capacity-Routine dialysis: keeps a scarce station free").click())
+        text, note = self._text(app), self._note(app)
+        for part in ("Send the patient to Campus B.", "12 min (simulated). 2 free staffed places",
+                     "Fastest with a free place: Campus A, 8 min. Not recommended for this patient.",
+                     "Campus B is 4 min further.", "monitored dialysis station", "Simulated drive minutes",
+                     "If Campus B cannot take the patient", "Campus C (14 min)", "Why this campus",
+                     "an invented campus at a simulated point", "Nothing is booked", "How this was decided"):
             self.assertIn(part, text)
+        self.assertIn("Send to: Campus B", note)
+        self.assertNotIn("Send to: Campus A", note)
         self.assertEqual("routine", app.radio(key="urgency").value)
+        # The catalogue hospitals never appear beside the recommendation, in any element or kept state.
+        for part in ("Example Regional Hospital", "Example Community Clinic", "example.invalid", "km away"):
+            self.assertNotIn(part, self._everything(app))
+
         app = self._step(app.button(key="capacity-Highest urgency dialysis: fastest free place").click())
-        self.assertIn("Suggested by free places: Campus A.", self._text(app))
-        self.assertIn("Highest urgency: the fastest campus", self._text(app))
+        text, note = self._text(app), self._note(app)
+        self.assertIn("Send the patient to Campus A.", text)
+        self.assertIn("Highest urgency: it is the fastest campus", text)
+        self.assertIn("Send to: Campus A", note)
+        self.assertNotIn("Send the patient to Campus B", text)
+        self.assertNotIn("Send to: Campus B", note)
+
         app = self._step(app.button(key="capacity-Dialysis from the south: nearest campus capacity unknown").click())
+        self.assertIn("Send the patient to Campus C.", self._text(app))
         self.assertIn("free staffed places unknown or out of date", self._text(app))
-        # Changing only the urgency hides the old capacity answer; it never shows under the new request.
-        changed = self._step(app.radio(key="urgency").set_value("highest"))
-        text = self._text(changed)
-        self.assertIn("Hidden because the request changed", text)
-        self.assertNotIn("Suggested by free places", text)
-        again = self._step(changed.button(key="find").click())
-        self.assertIn("Suggested by free places", self._text(again))
-        self.assertEqual("highest", again.session_state["capacity"]["asked"]["urgency"])
+        self.assertEqual("south", app.radio(key="origin").value)
+        self.assertIn("Send to: Campus C", self._note(app))
+
+        # Any change to the request removes the earlier destination and its note until the next press.
+        for change in (lambda a: a.radio(key="urgency").set_value("highest"),
+                       lambda a: a.radio(key="origin").set_value("west"),
+                       lambda a: a.checkbox(key="needs_tool").set_value(True),
+                       lambda a: a.radio(key="service").set_value("mri")):
+            changed = self._step(change(app))
+            everything = self._everything(changed)
+            self.assertIn("the earlier recommendation was removed", self._text(changed))
+            for part in ("Send the patient", "Send to", "Campus C", "Referral note"):
+                self.assertNotIn(part, everything)
+            self.assertEqual((0, 0), (len(changed.code), len(changed.get("download_button"))))
+            self.assertNotIn("capacity", changed.session_state)
+            app = self._step(changed.button(key="capacity-Dialysis from the south: nearest campus capacity unknown").click())
+            self.assertIn("Send to: Campus C", self._note(app))
+        app.radio(key="urgency").set_value("highest")
+        app.radio(key="origin").set_value("central")
+        again = self._step(app.button(key="find").click())
+        self.assertIn("Send the patient to Campus A.", self._text(again))
+        self.assertEqual({"service": "dialysis", "urgency": "highest", "origin_id": "central", "needs_tool": False,
+                          "traffic": False}, again.session_state["capacity"]["asked"])
+        # Switching to the record lookup takes the recommendation and its note off the screen.
+        lookup = self._lookup(again)
+        self.assertNotIn("Send the patient", self._text(lookup))
+        self.assertEqual(0, len(lookup.code))
+
+    def test_road_time_needs_the_operators_caption_and_a_failed_request_leaves_no_destination(self):
+        """#304: stubbed provider. A failed ETA never falls back to simulated minutes or an earlier campus."""
+        app = self._app(TOMTOM_ENABLED="true")
+        self.assertIn("Road time with traffic is switched off here", self._text(app))
+        self.assertEqual([], [box.key for box in app.checkbox if box.key == "traffic"])
+
+        app = self._app(TOMTOM_ENABLED="true", FIND_CARE_TRAFFIC_ATTRIBUTION="Caption supplied by the operator")
+        self.assertIn("No patient details are sent. One request per press.", self._text(app))
+        self.assertNotIn("Caption supplied by the operator", self._text(app))  # shown with a road-time result only
+        import travel.hosted as hosted
+        sent = "2026-11-22T15:40:00Z"
+        calls, answers = [], {}
+
+        def stub(request, snapshot, *, origin_id, provider=None):
+            calls.append(origin_id)
+            return {row["facility_id"]: dict(answers.get(row["facility_id"]) or
+                                             {"status": "unavailable", "minutes": None, "source": "stub",
+                                              "reason": "provider_unavailable", "outcome": "unavailable",
+                                              "requested_at": sent if row["facility_id"] != "F" else None})
+                    for row in snapshot["candidates"]}
+
+        patcher = mock.patch.object(hosted, "demo_car_travel", stub)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        app = self._step(app.button(key="capacity-Routine dialysis: keeps a scarce station free").click())
+        self.assertIn("Send the patient to Campus B.", self._text(app))
+        self.assertEqual([], calls)  # examples and simulated minutes never call the provider
+        ticked = self._step(app.checkbox(key="traffic").set_value(True))
+        self.assertNotIn("Campus B", self._everything(ticked))
+        self.assertEqual([], calls)  # ticking the box sends nothing
+
+        failed = self._step(ticked.button(key="find").click())
+        text, everything = self._text(failed), self._everything(failed)
+        self.assertEqual(["central"], calls)
+        self.assertIn("No campus is recommended.", text)
+        self.assertIn("No simulated time is used in their place.", text)
+        self.assertIn("Campus A: road time unavailable (provider unavailable), requested at 15:40:00 UTC on 22 Nov 2026.",
+                      text)
+        self.assertIn("Campus F: road time unavailable (provider unavailable), no request was sent.", text)
+        self.assertIn("Caption supplied by the operator", text)
+        for part in ("Send the patient", "Send to", "Referral note", "min (simulated)", "12 min", "8 min"):
+            self.assertNotIn(part, everything)
+        self.assertEqual((0, 0), (len(failed.code), len(failed.get("download_button"))))
+        self._step(failed)  # drawing the screen again asks the provider nothing
+        self.assertEqual(["central"], calls)
+
+        known = {"status": "known", "source": "stub", "reason": None, "outcome": "ok", "requested_at": sent}
+        answers.update(A={**known, "minutes": 30.0}, B={**known, "minutes": 10.5}, C={**known, "minutes": 19.0})
+        worked = self._step(failed.button(key="find").click())
+        text, note = self._text(worked), self._note(worked)
+        self.assertEqual(["central", "central"], calls)
+        self.assertIn("Send the patient to Campus B.", text)
+        self.assertIn("10.5 min (by road, ordinary car with traffic).", text)
+        self.assertIn("from TomTom", text)
+        self.assertIn("This time was requested at 15:40:00 UTC on 22 Nov 2026.", text)
+        self.assertIn("Caption supplied by the operator", text)
+        self.assertNotIn("Simulated drive minutes", text)
+        self.assertIn("Send to: Campus B", note)
+        self.assertIn("requested at 15:40:00 UTC", note)
 
     def test_the_first_press_answers_because_the_demonstration_form_starts_filled(self):
         app = self._app()
+        app = self._step(app.button(key="find").click())
+        self.assertIn("Send the patient to Campus B.", self._text(app))
+        app = self._lookup(app)
         self.assertEqual("Jaipur, Rajasthan", app.text_input(key="where").value)
         app = self._step(app.button(key="find").click())
-        self.assertIn("Send the patient to Example Regional Hospital.", self._text(app))
+        self.assertIn("Nearest record that states the service: Example Regional Hospital.", self._text(app))
         self.assertEqual(0, len(app.error))
 
-    def test_a_changed_request_marks_the_answer_out_of_date_and_takes_the_note_away(self):
-        app = self._app()
+    def test_a_changed_lookup_marks_the_answer_out_of_date_and_hides_its_sources(self):
+        app = self._lookup(self._app())
         app = self._step(app.button(key="find").click())
-        self.assertEqual((1, 1), (len(app.code), len(app.get("download_button"))))
+        self.assertIn("Other records that state the service", self._text(app))
         for change in (lambda a: a.radio(key="service").set_value("mri"),
                        lambda a: a.text_input(key="where").set_value("302001"),
                        lambda a: a.select_slider(key="radius").set_value(10)):
@@ -523,7 +637,7 @@ class ScreenTests(unittest.TestCase):
             self.assertIn("You changed the request. The answer below is for the earlier one.", text)
             self.assertIn("fc-old", text)
             self.assertEqual((0, 0), (len(changed.code), len(changed.get("download_button"))))
-            self.assertNotIn("cannot take the patient", text)
+            self.assertNotIn("Other records that state the service", text)
             self.assertIn("Dialysis near Jaipur, Rajasthan, within 50 km.", text)  # still says what it answers
             # #302: an out-of-date answer shows no sources, so dialysis evidence never sits under MRI.
             self.assertNotIn("data-claims", text)
@@ -531,7 +645,7 @@ class ScreenTests(unittest.TestCase):
             # Putting the request back, or asking again, makes the answer current.
             back = self._step(changed.button(key="example-Dialysis near Jaipur, Rajasthan").click())
             self.assertNotIn("You changed the request", self._text(back))
-            self.assertEqual((1, 1), (len(back.code), len(back.get("download_button"))))
+            self.assertIn("data-claims", self._text(back))
             app = back
         app.radio(key="service").set_value("mri")
         app = self._step(app.button(key="find").click())
@@ -540,28 +654,28 @@ class ScreenTests(unittest.TestCase):
         self.assertIn("MRI scan near Jaipur, Rajasthan, within 50 km.", text)
 
     def test_demonstration_can_be_chosen_outright_beside_warehouse_settings(self):
-        app = self._app(**WAREHOUSE, FIND_CARE_DATA="demo")
+        app = self._lookup(self._app(**WAREHOUSE, FIND_CARE_DATA="demo"))
         app = self._step(app.button(key="example-Dialysis near Jaipur, Rajasthan").click())
         self.assertIn("Data: demonstration.", self._text(app))
-        self.assertIn("Send the patient to Example Regional Hospital.", self._text(app))
+        self.assertIn("Nearest record that states the service: Example Regional Hospital.", self._text(app))
 
     def test_typed_city_asks_which_place_then_answers(self):
-        app = self._app()
+        app = self._lookup(self._app())
         app.text_input(key="where").set_value("Jaipur")
         app = self._step(app.button(key="find").click())
         self.assertIn("More than one place has that name.", self._text(app))
         app = self._step(app.button(key="choice-Jaipur, Rajasthan").click())
-        self.assertIn("Send the patient to Example Regional Hospital.", self._text(app))
+        self.assertIn("Nearest record that states the service: Example Regional Hospital.", self._text(app))
         self.assertEqual("Jaipur, Rajasthan", app.text_input(key="where").value)
         self.assertNotIn("You changed the request", self._text(app))
 
     def test_an_empty_location_is_refused_in_plain_words(self):
-        app = self._app()
+        app = self._lookup(self._app())
         app = self._step(app.button(key="find").click())
         app.text_input(key="where").set_value("")
         app = self._step(app.button(key="find").click())
         self.assertIn("Type a city or town, a PIN code, or coordinates.", self._text(app))
-        self.assertNotIn("Send the patient", self._text(app))  # the earlier answer is gone, not left standing
+        self.assertNotIn("Nearest record", self._text(app))  # the earlier answer is gone, not left standing
         self.assertEqual((0, 0), (len(app.code), len(app.get("download_button"))))
 
     def test_a_direct_statement_in_the_warehouse_never_becomes_a_referral(self):
@@ -654,7 +768,7 @@ class ScreenTests(unittest.TestCase):
             # Choosing the demonstration outright still works beside the same settings.
             app = self._app(**present, FIND_CARE_DATA="demo")
             self.assertIn("Data: demonstration.", self._text(app))
-            self.assertEqual(3, len([button for button in app.button if str(button.key).startswith("example-")]))
+            self.assertEqual(3, len([button for button in app.button if str(button.key).startswith("capacity-")]))
 
     def test_a_warehouse_read_failure_reports_unavailable_and_recommends_nothing(self):
         app = self._app(FakeWarehouse(error=ConnectionError("Example Regional Hospital")), **WAREHOUSE)
@@ -678,9 +792,15 @@ class DeploymentShapeTests(unittest.TestCase):
         "app = app.radio(key='view').set_value('Find care (demonstration)').run()\n"
         "assert not app.exception, app.exception\n"
         "assert any('Data: demonstration.' in m.value for m in app.markdown), [m.value for m in app.markdown]\n"
+        "app = app.button(key='find').click().run()\n"
+        "assert not app.exception, app.exception\n"
+        "assert any('Send the patient to Campus B.' in m.value for m in app.markdown)\n"
+        "assert 'Send to: Campus B' in app.code[0].value\n"
+        "app = app.radio(key='mode').set_value('lookup').run()\n"
         "app = app.button(key='example-Dialysis near Jaipur, Rajasthan').click().run()\n"
         "assert not app.exception, app.exception\n"
-        "assert any('Send the patient to Example Regional Hospital.' in m.value for m in app.markdown)\n"
+        "assert any('Nearest record that states the service: Example Regional Hospital.' in m.value for m in app.markdown)\n"
+        "assert len(app.code) == 0\n"
         "print('demonstration answered')\n"
     )
 
