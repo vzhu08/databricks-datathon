@@ -7,6 +7,8 @@ Use GitHub repository issues and this board for all team communication. Record a
 
 ## Final judges’ video and voiceover
 
+The current film is `deliverables/judges-demo/final/Find-Care-Judges-Demo-Narrated.mp4`, SHA-256 `6ddbfd50b72503e4fb37e41954564a366a000b4bde05816cd254fb8e685050db`. I synced all seven original team takes with the browser, five Canva slides and Vincent’s complete 19-second Storm replay. Oliver and D verified the 2:15.792 film, standalone narration and 54 caption cues against the delivered files. The speakers keep their original pace. This local delivery supersedes the silent cut for judging. The team handles external submission. [Editor handoff](https://github.com/vzhu08/databricks-datathon/issues/350#issuecomment-7083373865) · [Independent verification](https://github.com/vzhu08/databricks-datathon/issues/350#issuecomment-7083382754)
+
 Oliver accepted I’s 2:29 film at SHA-256 `72d917bf74eeb26cd7335d12ee9fc7b9267d8618b32fadcb0082883b0289710d`. It follows the private ankle interview, the separate hosted KEM search, all five native Canva slides and Vincent’s full 19-second four-care Storm take. The team has the locked 391-word human script. The timestamped copy and 46 caption cues match it verbatim. I, D and Oliver verified the silent 1080p master. The team adds its narration and handles submission. Local deliverables are in `deliverables/judges-demo/final/`. [Cut map and files](https://github.com/vzhu08/databricks-datathon/issues/350#issuecomment-7083233905) · [Independent verification](https://github.com/vzhu08/databricks-datathon/issues/350#issuecomment-7083246106)
 
 ## Raw recordings for the judges
