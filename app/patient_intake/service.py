@@ -40,7 +40,8 @@ def _matches_confirmation(receipt, tag):
 def _empty(revision, state="draft", consent=False):
     return dict(state=state, revision=revision, policy_version=POLICY_VERSION, consent=consent,
                 provider_id=None, provider_version=None, question=None, guidance=None,
-                uncertainty=None, urgency=None, possible_causes=[], next_step=None, reason=None)
+                uncertainty=None, urgency=None, possible_causes=[], next_step=None, reason=None,
+                description_status=None)
 
 
 _ANY_REVISION = object()
@@ -56,10 +57,16 @@ def _read(handle, expected=_ANY_REVISION):
     return revision, data
 
 
+def _unsupported_context(data):
+    assessment = data["assessment"]
+    return assessment["state"] == "unsupported" and assessment["reason"] == "unsupported_context"
+
+
 class PatientIntakeService:
     """Use one trusted adapter configuration and a server-owned handle per encounter."""
 
-    def __init__(self, *, interview, provider=None, provider_identity=None, handoff=None, max_turns=8):
+    def __init__(self, *, interview, provider=None, provider_identity=None, provider_bindings=None,
+                 handoff=None, max_turns=8):
         if type(max_turns) is not int or not 1 <= max_turns <= 32:
             raise ValueError("invalid_turn_limit")
         if provider_identity is not None and (type(provider_identity) is not tuple
@@ -67,7 +74,10 @@ class PatientIntakeService:
             raise ValueError("invalid_provider_configuration")
         self._interview = interview
         self._provider = provider
-        self._identity = provider_identity
+        if provider_bindings is not None and (provider is not None or not callable(provider_bindings)):
+            raise ValueError("invalid_provider_configuration")
+        self._bindings = provider_bindings
+        self._identity = provider_identity if provider is not None or provider_bindings is not None else None
         self._handoff = handoff
         self._max_turns = max_turns
 
@@ -81,45 +91,63 @@ class PatientIntakeService:
         return a
 
     def _consented(self, data):
-        return (self._identity is not None and self._provider is not None
+        return (self._identity is not None
+                and data.get("consent_bound", False) is (self._bindings is not None)
                 and data["consent_identity"] == list(self._identity)
                 and data.get("consent_policy") == POLICY_VERSION)
 
-    def _commit(self, handle, revision, data, state, **display):
+    def _commit(self, handle, revision, data, state, *, retire_provider=False, **display):
         a = dict(_empty(revision + 1, state, self._consented(data)), **display)
+        if data["interview"] is not None:
+            a["description_status"] = "uninterpreted"
         if state != "awaiting_clarification":
             data["server_question"] = None
         data["state"] = state
         data["assessment"] = a
         data["result_secret"] = _result_secret() if state == "completed" else None
-        handle.replace(revision, data)
-        return self.view(handle)
+        if retire_provider:
+            committed_revision = handle.replace(revision, data, retire_provider=True)
+        else:
+            committed_revision = handle.replace(revision, data)
+        _, committed = _read(handle, committed_revision)
+        return committed["assessment"]
 
     def edit(self, handle, expected_revision, *, description, context):
         rev, data = _read(handle, expected_revision)
-        data.update(continuation=None, consent_identity=None, interview=None)
+        ineligible = _unsupported_context(data)
+        retire = data.get("consent_bound", False)
+        data.update(continuation=None, consent_identity=None, consent_policy=None, consent_bound=False,
+                    interview=None, interview_ended=False)
         try:
             data["interview"] = _snapshot(self._interview.start(description, context))
         except (TypeError, ValueError) as error:
-            if getattr(error, "code", None) == "unsupported_context":
-                return self._commit(handle, rev, data, "unsupported", reason="unsupported_context")
-            return self._commit(handle, rev, data, "draft", reason="invalid_input")
+            if getattr(error, "code", None) == "unsupported_context" or ineligible:
+                return self._commit(handle, rev, data, "unsupported", reason="unsupported_context", retire_provider=retire)
+            return self._commit(handle, rev, data, "draft", reason="invalid_input", retire_provider=retire)
         try:
-            return self._commit(handle, rev, data, "draft")
+            return self._commit(handle, rev, data, "draft", retire_provider=retire)
         except ValueError as error:
             if getattr(error, "code", None) != "session_invalid_payload":
                 raise
         data["interview"] = None
-        return self._commit(handle, rev, data, "draft", reason="invalid_input")
+        if ineligible:
+            return self._commit(handle, rev, data, "unsupported", reason="unsupported_context", retire_provider=retire)
+        return self._commit(handle, rev, data, "draft", reason="invalid_input", retire_provider=retire)
 
     def consent(self, handle, expected_revision, *, granted):
         rev, data = _read(handle, expected_revision)
         if type(granted) is not bool:
             raise ValueError("invalid_consent")
+        if _unsupported_context(data):
+            return data["assessment"]
+        retire = data.get("consent_bound", False)
+        if granted and retire and self._consented(data):
+            return data["assessment"]
+        data["consent_bound"] = granted and self._identity is not None and self._bindings is not None
         data["continuation"] = None
         data["consent_policy"] = POLICY_VERSION if granted else None
-        data["consent_identity"] = list(self._identity) if granted and self._identity and self._provider else None
-        return self._commit(handle, rev, data, "draft")
+        data["consent_identity"] = list(self._identity) if granted and self._identity else None
+        return self._commit(handle, rev, data, "draft", retire_provider=retire)
 
     def answer(self, handle, expected_revision, *, question_id, answers):
         rev, data = _read(handle, expected_revision)
@@ -137,9 +165,12 @@ class PatientIntakeService:
 
     def assess(self, handle, expected_revision):
         rev, data = _read(handle, expected_revision)
-        if data["assessment"]["state"] in ("assessment_in_progress", "awaiting_clarification", "urgent"):
+        if _unsupported_context(data):
+            return data["assessment"]
+        if (data.get("interview_ended") or data["assessment"]["state"] in
+                ("assessment_in_progress", "awaiting_clarification", "urgent", "provider_stop")):
             raise ValueError("assessment_action_unavailable")
-        if not self._identity or self._provider is None:
+        if self._identity is None:
             return self._commit(handle, rev, data, "provider_unavailable", reason="unavailable")
         if not self._consented(data) or data["interview"] is None:
             return self._commit(handle, rev, data, "draft", reason="consent_or_input_required")
@@ -149,7 +180,7 @@ class PatientIntakeService:
         data["calls_used"] += 1
         self._commit(handle, rev, data, "assessment_in_progress", **provenance)
         attempt, data = _read(handle, rev + 1)
-        state, fields = self._evaluate(data)
+        state, fields = self._evaluate(handle, attempt, data)
         try:
             return self._commit(handle, attempt, data, state, **provenance, **fields)
         except ValueError as error:
@@ -162,12 +193,15 @@ class PatientIntakeService:
         return self._commit(handle, attempt, reserved, "provider_unavailable",
                             reason="invalid_response", **provenance)
 
-    def _evaluate(self, data):
+    def _evaluate(self, handle, attempt, data):
         # An ambiguous transport failure cannot safely reuse the old provider turn.
         continuation = data["continuation"]
         data["continuation"] = None
         try:
-            raw = self._provider.assess(_snapshot(data["interview"]), continuation=continuation)
+            provider = self._provider
+            if self._bindings is not None:
+                provider = handle.bind_provider(attempt, self._bindings)
+            raw = provider.assess(_snapshot(data["interview"]), continuation=continuation)
         except Exception:
             return "provider_unavailable", {"reason": "unavailable"}
         try:
@@ -180,6 +214,8 @@ class PatientIntakeService:
                 data["continuation"] = reply.get("continuation")
                 data["server_question"] = question
                 return state, {"question": _snapshot(self._interview.question_view(question))}
+            if state in ("urgent", "provider_stop"):
+                data["interview_ended"] = True
             if state == "completed" and self._interview.has_unresolved_evidence(data["interview"]) is not False:
                 return "unsupported", {"reason": "unsupported_correction"}
             return state, reply
