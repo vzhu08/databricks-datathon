@@ -26,6 +26,7 @@
   - No dates: 148 with two staleness signals
   - Non-independent sources: 7,489 of 7,916 "matches" are VF's own upstream
   - Coverage: 189 districts with no VF record, 149 of them with 10+ listings elsewhere (describes the listings, not care)
+  - Road vs straight line: the median trip is 1.5× longer (2.35× in the northeast), and in 31% of cases the nearest facility by road is a different one
 - Speaker line: "Pins are the problem that changes answers. Duplicates and broken rows barely move the top result."
 
 ## Slide 3. "What the app does about it, and what closes the gap"

@@ -19,6 +19,7 @@ We replayed 2,968 top-5 searches: 742 district centres × 4 services, ranked by 
 - **Pin repair changes the answer.** Applying the proposed pin repairs, which are unreviewed leads and not applied in the app, changes the top answer in **21% of searches**.
 - **Other fixes barely move the top answer.** Dropping broken rows changes it in 0.2% of searches, and collapsing duplicates and chains in 0%.
 - **Why evidence is a badge, not a filter.** Keeping only records with independent identity evidence would leave **47% of searches (822 of 1,739) with nothing within 50 km**.
+- **Road distance.** Straight-line distance understates the trip ([#40 receipt](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7076509677)). The median road distance is 1.5× the straight line, rising to 2.1× in hill districts and 2.35× in the northeast. In 31% of cases the nearest facility by road is not the nearest in a straight line, and island districts have no road route.
 - **Caveat.** Origins are district centres, not population-weighted, and the pin repairs are themselves leads.
 
 ## How often a field is wrong: stratified audit sample
