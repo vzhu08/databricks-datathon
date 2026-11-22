@@ -332,6 +332,50 @@ class ExperimentalAssessmentTests(unittest.TestCase):
             self.service.confirm(self.handle, result["revision"])
         self.handoff.assert_not_called()
 
+    def review_observation(self, revision, presence, decision):
+        self.provider.assess.return_value = {
+            "state": "awaiting_clarification",
+            "provider_id": self.identity[0],
+            "provider_version": self.identity[1],
+            "question": {
+                "id": f"fixture-{revision}", "kind": "evidence_review", "prompt": "Fixture review",
+                "options": [{"id": choice, "label": choice} for choice in ("confirm", "disagree", "uncertain")],
+                "evidence": {"concept_id": "fixture-observation", "label": "Invented description",
+                             "source_ref": "description", "presence": presence, "temporality": "current"},
+            },
+        }
+        question = self.service.assess(self.handle, revision)
+        return self.service.answer(self.handle, question["revision"],
+                                   question_id=question["question"]["issuance_id"], answers=decision)
+
+    def test_uncertain_evidence_withholds_consultation_and_keeps_emergency_available(self):
+        consent = self.service.consent(self.handle, 1, granted=True)
+        reviewed = self.review_observation(consent["revision"], "present", "uncertain")
+        self.provider.assess.return_value = self.reply()
+        result = self.service.assess(self.handle, reviewed["revision"])
+        self.assertEqual((result["state"], result["reason"]), ("unsupported", "unsupported_correction"))
+        self.assertEqual(result["possible_causes"], [])
+        self.assertIsNone(result["guidance"])
+        self.assertIsNone(result["next_step"])
+
+        self.provider.assess.return_value = self.reply("emergency", possible_causes=[])
+        emergency = self.service.assess(self.handle, result["revision"])
+        self.assertEqual(emergency["state"], "experimental_assessment")
+        self.assertEqual(emergency["urgency"], "emergency")
+        self.assertEqual(emergency["guidance"], "Fixture guidance")
+        self.handoff.assert_not_called()
+
+    def test_conflicting_confirmations_withhold_consultation_24(self):
+        consent = self.service.consent(self.handle, 1, granted=True)
+        present = self.review_observation(consent["revision"], "present", "confirm")
+        conflicting = self.review_observation(present["revision"], "absent", "confirm")
+        self.provider.assess.return_value = self.reply("consultation_24")
+        result = self.service.assess(self.handle, conflicting["revision"])
+        self.assertEqual((result["state"], result["reason"]), ("unsupported", "unsupported_correction"))
+        self.assertIsNone(result["urgency"])
+        self.assertEqual(result["possible_causes"], [])
+        self.handoff.assert_not_called()
+
     def test_rejects_legacy_terminal_states_and_invalid_experimental_fields(self):
         from app.patient_intake.contracts import _provider_reply
         invalid = (

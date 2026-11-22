@@ -217,10 +217,13 @@ class PatientIntakeService:
                 data["continuation"] = reply.get("continuation")
                 data["server_question"] = question
                 return state, {"question": _snapshot(self._interview.question_view(question))}
+            needs_resolved_evidence = state == "completed" or (
+                state == "experimental_assessment" and reply["urgency"] not in ("emergency", "emergency_ambulance")
+            )
+            if needs_resolved_evidence and self._interview.has_unresolved_evidence(data["interview"]) is not False:
+                return "unsupported", {"reason": "unsupported_correction"}
             if state in _TERMINAL_INTERVIEW_STATES:
                 data["interview_ended"] = True
-            if state == "completed" and self._interview.has_unresolved_evidence(data["interview"]) is not False:
-                return "unsupported", {"reason": "unsupported_correction"}
             return state, reply
         except Exception as error:
             if getattr(error, "code", None) == "interview_limit":
