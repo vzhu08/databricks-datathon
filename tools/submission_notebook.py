@@ -374,11 +374,11 @@ library.
 
 | Criterion | What to see after Run all |
 | --- | --- |
-| [Exploration](#exploration) | Published Virtue Foundation area coverage and two service evidence comparisons, with their denominators. |
-| [Modeling](#modeling) | A service-and-location search with its facility claims and alternative, plus exact vs. nearest-first placement on identical simulated inputs. |
-| [Impact](#impact) | A health worker's verification step and a planner's view of feasible appointments and unmet requests. |
+| [Exploration](#judge-exploration) | Published Virtue Foundation area coverage and two service evidence comparisons, with their denominators. |
+| [Modeling](#judge-modeling) | A service-and-location search with its facility claims and alternative, plus exact vs. nearest-first placement on identical simulated inputs. |
+| [Impact](#judge-impact) | A health worker's verification step and a planner's view of feasible appointments and unmet requests. |
 
-The [national findings](#national-directory-finding) summarize the restricted VF analysis at
+The [national findings](#judge-national-findings) summarize the restricted VF analysis at
 published aggregate scope. The runnable finder uses invented facilities. The Storm control
 uses simulated demand, resources and travel. [Organizer criteria](https://cmudsc.com/datathon-fall2026/) · [Challenge brief](https://docs.google.com/document/d/e/2PACX-1vQxhDNQmgZhPgjG0M6LCb_UXNV8CJryqBNQQuqWfIg_dm40ZU1AYAXzZKViC6haFoCmLNiRVfUSBMjf/pub)
 """, "markdown"),
@@ -398,7 +398,9 @@ Canonical input SHA-256 `{fingerprint}`
 
 The setup cell pins each included file. Text inputs use LF for hashing.
 """, "markdown"),
-        cell("national-area-finding", """## National directory finding
+        cell("national-area-finding", """<a id="judge-national-findings" name="judge-national-findings"></a>
+
+## National directory finding
 
 The national comparison found written-area support for the named facility on **7,895/10,088 (78.3%)**
 original Virtue Foundation occurrences. **2,193 occurrences remained unresolved** under
@@ -432,7 +434,9 @@ specific synthetic source field. The independent evidence path, emergency interr
 comparisons run immediately afterward.
 """, "markdown"),
         cell("run", RUN),
-        cell("exploration", """## Exploration
+        cell("exploration", """<a id="judge-exploration" name="judge-exploration"></a>
+
+## Exploration
 
 This cell reproduces published **aggregate arithmetic** on the full VF analysis and matched
 capability subsets. Radiotherapy uses the Atomic Energy Regulatory Board licensing list.
@@ -443,7 +447,9 @@ and [AERB and other publisher narratives](https://github.com/vzhu08/databricks-d
 describe the evidence represented in the numerators.
 """, "markdown"),
         cell("exploration-output", EXPLORATION),
-        cell("modeling", """## Modeling
+        cell("modeling", """<a id="judge-modeling" name="judge-modeling"></a>
+
+## Modeling
 
 This cell reads outputs from the embedded finder, provenance mapper and Storm allocator. The
 offline search uses the demo candidates and straight-line distance. The Storm control compares
@@ -455,7 +461,9 @@ The public method describes eight mapped facility points and four outline interi
 This notebook's runnable control uses invented sites. [Pune geography recipe](https://github.com/vzhu08/databricks-datathon/blob/d98a601/research/acquisition/pune_planning_geography/README.md)
 """, "markdown"),
         cell("modeling-output", MODELING),
-        cell("impact", """## Impact
+        cell("impact", """<a id="judge-impact" name="judge-impact"></a>
+
+## Impact
 
 The finder shows which claim to verify before travel. The planner quantifies feasible modeled
 appointments and exposes where a staffing change could be tested.
