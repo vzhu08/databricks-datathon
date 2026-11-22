@@ -252,6 +252,58 @@ class TypedLineScreenTests(unittest.TestCase):
         self.assertIn(self.LEAD, self._text(app))
         self.assertTrue(app.code[0].value.startswith("Confirmation call script"))
 
+    def test_a_typed_place_that_was_never_searched_says_so(self):
+        """Enter in the field keeps the text and searches nothing. A first search by Enter showed no change."""
+        note = "Nothing has been searched yet. Press Search the example records to search for the place you typed."
+        app = self._lookup(self._app())
+        # The field opens with an example place. That is not something the person typed, so there is no note,
+        # and the empty answer says which button to press.
+        self.assertNotIn("Nothing has been searched yet", self._text(app))
+        self.assertIn("Press Search the example records, or start from an example.", self._text(app))
+        app = self._step(app.text_input(key="where").set_value("302001"))  # what Enter does
+        self.assertIn(note, self._text(app))
+        self.assertNotIn("Example Regional Hospital", self._everything(app))
+        self.assertEqual(0, len(app.code))
+        app = self._step(app.button(key="find").click())
+        self.assertNotIn("Nothing has been searched yet", self._text(app))
+        self.assertIn(self.LEAD, self._text(app))
+        # A refused line already has its own message under the field, so the note is not added to it.
+        app = self._press(app, "?!?!")
+        self.assertEqual(["Type a city or town, a PIN code, or coordinates."], [node.value for node in app.error])
+        self.assertNotIn("Nothing has been searched yet", self._text(app))
+        app = self._step(app.text_input(key="where").set_value("PIN 302001"))
+        self.assertFalse(app.error)
+        self.assertIn(note, self._text(app))
+        self.assertFalse(app.get("download_button"))
+        # On real records the note names that form's button and shows nothing restricted.
+        app = self._app(base.FakeWarehouse(base.FIXTURE["facilities"]), **base.WAREHOUSE)
+        self.assertNotIn("Nothing has been searched yet", self._text(app))
+        self.assertIn("Press Find a facility to search.", self._text(app))
+        app = self._step(app.text_input(key="where").set_value("Jaipur, Rajasthan"))
+        self.assertIn("Nothing has been searched yet. Press Find a facility to search", self._text(app))
+        self._assert_nothing_restricted(app)
+
+    def test_a_location_edit_names_the_search_button_and_removes_current_actions(self):
+        for warehouse, button in ((False, "Search the example records"), (True, "Find a facility")):
+            with self.subTest(mode=button):
+                if warehouse:
+                    source = base.FakeWarehouse(base.FIXTURE["facilities"])
+                    app = self._app(source, **base.WAREHOUSE)
+                else:
+                    app = self._lookup(self._app())
+                app = self._press(app, "302001")
+                app = self._step(app.text_input(key="where").set_value("302001. Or 302002"))
+                self.assertIn(f"Press {button} to update it.", self._text(app))
+                _, slips = self._feedback(app)
+                self.assertEqual(1, len(slips))
+                self.assertIn("fc-old", slips[0])
+                self.assertFalse(app.get("download_button"))
+                app = self._step(app.button(key="find").click())
+                self.assertEqual(["Type one PIN code."], [node.value for node in app.error])
+                self.assertFalse(self._feedback(app)[1])
+                if warehouse:
+                    self._assert_nothing_restricted(app)
+
     def test_on_real_records_every_press_is_answered_and_nothing_restricted_is_shown(self):
         warehouse = base.FakeWarehouse(base.FIXTURE["facilities"])
         app = self._app(warehouse, **base.WAREHOUSE)

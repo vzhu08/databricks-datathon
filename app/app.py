@@ -61,6 +61,8 @@ RECOMMEND, LOOKUP = "recommend", "lookup"
 MODES = {RECOMMEND: "Recommend a campus", LOOKUP: "Look up the example records"}
 DATA = words.data_mode(os.environ)
 DEMO = DATA["mode"] == "demo"
+SEARCH_LABEL = "Search the example records" if DEMO else "Find a facility"  # the record lookup's button
+START_WHERE = "Jaipur, Rajasthan" if DEMO else ""  # what the lookup's place field opens with
 # label, care, the line typed into "Where", distance
 EXAMPLES = [
     ("Dialysis near Jaipur, Rajasthan", "dialysis", "Jaipur, Rajasthan", 50),
@@ -199,10 +201,11 @@ def submit():
     if mode() == RECOMMEND:
         return recommend()
     st.session_state.pop("capacity", None)
+    where = st.session_state.get("where", "")
     try:
-        location = words.parse_location(st.session_state.get("where", ""))
+        location = words.parse_location(where)
     except ValueError as error:
-        st.session_state["problem"] = str(error)
+        st.session_state["problem"] = {where: str(error)}
         st.session_state.pop("asked", None)
         st.session_state.pop("response", None)
         return
@@ -590,7 +593,7 @@ else:
                 "approved destinations.</div>", unsafe_allow_html=True)
 
 st.session_state.setdefault("service", "dialysis")
-st.session_state.setdefault("where", "Jaipur, Rajasthan" if DEMO else "")
+st.session_state.setdefault("where", START_WHERE)
 st.session_state.setdefault("radius", 50)
 # Kept in step with the form even while a field is off screen, so an answer is always checked against
 # the whole request and never against a default the reader did not choose.
@@ -637,10 +640,11 @@ with left:
         st.caption("A city or town (add the state after a comma), a six-digit PIN code, or coordinates.")
         radius = st.select_slider("Search within", options=list(words.RADII), key="radius",
                                   format_func=lambda km: f"{km} km")
-        st.button("Search the example records" if DEMO else "Find a facility", type="primary",
-                  use_container_width=True, on_click=submit, key="find")
-        if st.session_state.get("problem"):
-            st.error(st.session_state["problem"])
+        st.button(SEARCH_LABEL, type="primary", use_container_width=True, on_click=submit, key="find")
+        rejected = st.session_state.get("problem")
+        problem = rejected.get(where) if isinstance(rejected, dict) else None
+        if problem:
+            st.error(problem)
         st.caption("Or start from an example")
         for label, ex_service, ex_where, ex_radius in EXAMPLES:
             st.button(label, key="example-" + label, on_click=fill, args=(ex_service, ex_where, ex_radius))
@@ -714,16 +718,21 @@ with right:
                 st.json({"request": check["asked"], "travel_kind": check["travel_kind"],
                          "travel": check["travel_rows"], "result": check["result"]})
     elif not response:
+        if where.strip() and where != START_WHERE and not problem:
+            # Enter in the field only keeps the text. Without this line a first search by Enter shows nothing.
+            st.markdown(f'<div class="fc-stale">Nothing has been searched yet. Press {safe(SEARCH_LABEL)} to '
+                        "search for the place you typed.</div>", unsafe_allow_html=True)
         with st.container(border=True):
             if DEMO:
                 st.markdown("**The best supported lead appears here.**")
                 st.write("You see which of six invented facility records mention the service, the words each "
                          "relied on, how well they are supported and what is still unknown, with a call script "
-                         "for checking the first one. Nothing here is a referral or a recommendation.")
+                         "for checking the first one. Nothing here is a referral or a recommendation. "
+                         f"Press {SEARCH_LABEL}, or start from an example.")
             else:
                 st.markdown("**The recommendation appears here.**")
                 st.write("You are told whether nearby records mention the service. No facility is named until "
-                         "the team has reviewed and approved destinations.")
+                         f"the team has reviewed and approved destinations. Press {SEARCH_LABEL} to search.")
     else:
         try:
             shown_now = {"service": service, "location": words.parse_location(where), "radius_km": radius}
@@ -736,7 +745,7 @@ with right:
         found = decisions.explain(decision, asked["service"]) if decision else None
         if stale:
             st.markdown('<div class="fc-stale">You changed the request. The answer below is for the earlier one. '
-                        "Press the button to update it.</div>", unsafe_allow_html=True)
+                        f"Press {safe(SEARCH_LABEL)} to update it.</div>", unsafe_allow_html=True)
         st.markdown(slip(view, stale, asked["service"], response, found), unsafe_allow_html=True)
         for choice in view["choices"] if DEMO and not stale else []:
             label = ", ".join(part for part in (choice.get("city"), choice.get("state")) if part)
