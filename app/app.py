@@ -529,9 +529,16 @@ elif DATA["mode"] in ("warehouse", "setup"):
 lookup_mode = st.radio("Find care mode", lookup_modes, horizontal=True, key="lookup_source")
 if lookup_mode == "Public facility evidence":
     st.caption("Search the reviewed public-source collection by city and service. Coverage is limited.")
-    place = st.text_input("City", value="Pune", max_chars=120)
-    service = st.text_input("Service", value="maintenance haemodialysis", max_chars=120)
-    if st.button("Search public sources", type="primary"):
+    # The widget's max_chars silently rejects an over-limit paste, leaving the previous query in place.
+    limit = 120
+    hint = f"Enter up to {limit} characters."
+    place = st.text_input("City", value="Pune", help=hint)
+    service = st.text_input("Service", value="maintenance haemodialysis", help=hint)
+    submitted = st.button("Search public sources", type="primary")
+    over_limit = [label for label, value in (("City", place), ("Service", service)) if len(value) > limit]
+    if submitted and over_limit:
+        st.warning(f"Shorten {' and '.join(over_limit)} to {limit} characters or fewer and search again.")
+    elif submitted:
         try:
             claims = search_public_facilities(place=place, service=service)
         except (OSError, ValueError):
