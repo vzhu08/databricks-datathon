@@ -35,6 +35,127 @@ BLOCKED_PARTS = {"approved_data", "private", "secrets", "__pycache__", ".env"}
 SENSITIVE = re.compile(rb"-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----|\bdapi[a-f0-9]{32}\b|\bAKIA[A-Z0-9]{16}\b")
 
 
+CAPABILITY_COVERAGE = """## Outside support for capabilities mentioned by VF
+
+Each denominator is the number of original VF occurrences that mention the capability in the
+screened description, specialties, procedure, equipment or capability fields. It includes
+occurrences with unresolved geography. A qualifying outside record supports that capability at
+the matched facility. Multiple matches count once per original occurrence and capability.
+A single occurrence can contribute to several capabilities.
+
+| Capability | VF mentions with outside support | Coverage |
+| --- | ---: | ---: |
+| Dental care | 1,526 / 4,481 | 34.1% |
+| Blood banking | 114 / 567 | 20.1% |
+| Eye care | 564 / 3,000 | 18.8% |
+| Cancer care / oncology | 186 / 2,370 | 7.8% |
+| Radiotherapy (licensed centre) | 38 / 269 | 14.1% |
+| Dialysis | 17 / 1,047 | 1.6% |
+| MRI | 0 / 949 | 0.0% |
+| Trauma care | 12 / 1,042 | 1.2% |
+
+Dental care, blood banking and eye care together cover 2,168 distinct originals with outside
+support. Dental includes 1,356 coded, service-field or roster matches and 170 specialist-title
+matches. The broader affirmative VF-or-outside screen is a separate measure. The operational
+dialysis, MRI and trauma ledger retains 30,264 unconfirmed decisions.
+
+[Published capability table and definitions](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7081776129)
+"""
+
+CAPABILITY_APPENDIX = """## Appendix · other measured capabilities
+
+These 49 rows and the eight rows in the main table give all 57 capability results. A zero is
+an observed lack of a qualifying match in this comparison. Each row has its own mention cohort.
+
+| Capability | VF mentions with outside support | Coverage |
+| --- | ---: | ---: |
+| Orthopedics | 207 / 3,888 | 5.3% |
+| Cardiology | 198 / 3,247 | 6.1% |
+| Maternity | 196 / 4,607 | 4.3% |
+| Pediatrics | 180 / 3,573 | 5.0% |
+| Dermatology | 160 / 2,428 | 6.6% |
+| Fertility care | 157 / 1,474 | 10.7% |
+| Ayurveda | 147 / 508 | 28.9% |
+| Outpatient care | 137 / 4,255 | 3.2% |
+| Laboratory services | 112 / 1,364 | 8.2% |
+| Homeopathy | 74 / 355 | 20.8% |
+| Kidney transplant programme | 62 / 448 | 13.8% |
+| General surgery | 61 / 3,365 | 1.8% |
+| Physiotherapy | 53 / 1,259 | 4.2% |
+| Audiology | 36 / 352 | 10.2% |
+| Emergency care | 35 / 2,772 | 1.3% |
+| Intensive care | 29 / 2,295 | 1.3% |
+| Liver transplant programme | 24 / 158 | 15.2% |
+| Speech therapy | 11 / 177 | 6.2% |
+| Prosthetics | 10 / 428 | 2.3% |
+| Addiction treatment | 9 / 132 | 6.8% |
+| Naturopathy | 9 / 57 | 15.8% |
+| Ultrasound | 9 / 2,051 | 0.44% |
+| CT | 8 / 1,482 | 0.54% |
+| Pharmacy | 8 / 1,083 | 0.74% |
+| X-ray | 8 / 2,474 | 0.32% |
+| Ambulance | 7 / 1,184 | 0.59% |
+| Heart transplant | 6 / 74 | 8.1% |
+| IVF | 6 / 855 | 0.70% |
+| Eye bank | 5 / 78 | 6.4% |
+| Inpatient care | 5 / 1,874 | 0.27% |
+| Occupational therapy | 5 / 106 | 4.7% |
+| Cornea transplant | 4 / 180 | 2.2% |
+| Acupuncture | 3 / 48 | 6.3% |
+| LASIK | 3 / 499 | 0.60% |
+| Pancreas transplant programme | 3 / 16 | 18.8% |
+| Hospice | 2 / 175 | 1.1% |
+| Blood transfusion | 1 / 93 | 1.1% |
+| Cataract surgery | 1 / 700 | 0.14% |
+| Chiropractic | 1 / 16 | 6.3% |
+| IUI | 1 / 477 | 0.21% |
+| Lung transplant | 1 / 44 | 2.3% |
+| Acupressure | 0 / 21 | 0.0% |
+| Blood apheresis | 0 / 65 | 0.0% |
+| Blood storage | 0 / 37 | 0.0% |
+| Chemotherapy | 0 / 290 | 0.0% |
+| Dental implants | 0 / 1,494 | 0.0% |
+| Haematology lab | 0 / 9 | 0.0% |
+| Hair transplant | 0 / 239 | 0.0% |
+| ICSI | 0 / 375 | 0.0% |
+
+Ayurveda includes seven coded or registry-system matches. The other matches used specialist
+facility titles. An organ-specific match measures registration at the indicated programme scope.
+
+[Published capability table and definitions](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7081776129)
+"""
+
+SOURCE_NOTES = """## What the sources establish
+
+- **Stroke awards give historical recognition a date.** We indexed World Stroke Organization /
+  Angels Initiative awards by hospital label, quarter and tier. The India table yielded 545 awards
+  under 102 hospital labels from 2019 Q2 through 2026 Q3. Exact normalized names linked seven
+  award labels to 11 VF originals. These are historical leads. Physical branch, treatment type
+  and current availability remain unresolved. [Award criteria](https://www.world-stroke.org/what-we-do/education-and-research/improving-access-to-quality-stroke-care/wso-awards) · [National join receipt](https://github.com/vzhu08/databricks-datathon/issues/239#issuecomment-7080899299)
+- **Radiotherapy licensing and recorded treatment have different dates and meanings.** The June
+  2026 AERB list contains 802 licensed centres. Institution name and postal PIN connected 38 of
+  269 VF radiotherapy mentions to licensed centres. A separate name, city and state comparison
+  connected seven VF originals to ICMR institutions that reported treatment given in 2012–14.
+  The licence establishes licensed status in its edition. The treatment records are historical;
+  present delivery and equipment uptime require further evidence. [AERB list](https://www.aerb.gov.in/images/PDF/Radiotheraphy/RSD3.pdf) · [ICMR treatment tables](https://www.ncdirindia.org/All_Reports/HBCR_REPORT_2012_2014/ALL_CONTENT/Printed_Version.htm) · [Coverage receipt](https://github.com/vzhu08/databricks-datathon/issues/58#issuecomment-7081734491)
+- **Transplant registration is organ- and role-specific.** We checked facility name, location,
+  organ and registered role in the NOTTO register. Retrieval-only sites were ineligible for
+  transplant evidence. The registered programme comparison matched 62 of 448 kidney-transplant
+  mentions and 24 of 158 liver-transplant mentions. Staffing, procedures performed and current
+  access need separate evidence. [NOTTO register](https://notto.mohfw.gov.in/hospitals) · [Coverage receipt](https://github.com/vzhu08/databricks-datathon/issues/58#issuecomment-7081734491)
+- **Blood banking needs a link to the host hospital.** A named hospital and area supported
+  joining historical blood-bank directory entries to 114 of 567 VF banking mentions. Nearby
+  collection sites, separate storage units and transfusion wording were insufficient. Repeated
+  National Health Portal records counted once per original VF occurrence. Blood-group stock
+  remains unknown. [Blood-bank coverage receipt](https://github.com/vzhu08/databricks-datathon/issues/58#issuecomment-7081734491)
+- **Directory and map evidence can support a written area.** We compared named records at
+  landmark, locality and PIN level, including entries without coordinates. Where nearby points
+  agreed within 1 km, we tracked possible shared VF/map lineage. The rule expanded written-area
+  support from 3,144 to 7,895 originals. Precise entrances and current onsite services require
+  separate observations. [National location replay](https://github.com/vzhu08/databricks-datathon/issues/57#issuecomment-7081461436)
+"""
+
+
 def git(*args, input_bytes=None):
     return subprocess.run(
         ["git", *args], cwd=ROOT, input=input_bytes, stdout=subprocess.PIPE, check=True,
@@ -208,6 +329,8 @@ recalculate the national result.
 
 [National result and method](https://github.com/vzhu08/databricks-datathon/issues/57#issuecomment-7081461436)
 """, "markdown"),
+        cell("capability-coverage", CAPABILITY_COVERAGE, "markdown"),
+        cell("source-stories", SOURCE_NOTES, "markdown"),
         cell("setup", "SOURCE_MANIFEST = " + repr(manifest) + "\n\n" + START),
     ]
     for path, raw in sorted(sources.items()):
@@ -240,6 +363,7 @@ browser and Streamlit are optional. The cells above install no packages and star
 The full enrichment schema validator uses the separate optional dependency in
 databricks/enrichment/requirements.txt. The default run executes only the local coverage code.
 """, "markdown"),
+        cell("capability-appendix", CAPABILITY_APPENDIX, "markdown"),
     ])
     return {
         "cells": cells,

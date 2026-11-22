@@ -76,6 +76,21 @@ def main():
     require(restricted_claim["state"] == "Unconfirmed" and winner["name"] not in str(restricted_claim),
             "The warehouse provenance view must stay at result level")
 
+    from research.acquisition.national_facility_evidence.finding_examples import examples
+
+    provenance = examples()
+    direct, backup = provenance["demo_50_km"]["findings"]
+    lead, = provenance["demo_2_km"]["findings"]
+    withheld_mapping = provenance["withheld_shape_50_km"]
+    require(direct["location"]["precision"] == "reported_position"
+            and direct["service"]["decision"] == "unconfirmed"
+            and direct["service"]["sources"][0]["field"] == "procedures"
+            and backup["service"]["sources"][0]["field"] == "capabilities"
+            and lead["service"]["sources"][0]["role"] == "context"
+            and withheld_mapping["findings"] == []
+            and withheld_mapping["summary"]["independent_supporting_origins"] is None,
+            "The integrated mapper must preserve claim scope and the warehouse display boundary")
+
     journeys, _ = load_journeys()
     runs = [replay_journey(journeys, name) for name in journeys["journeys"]]
     require(len(runs) == 7, "Expected the seven fictional intake journeys")
@@ -198,6 +213,11 @@ def main():
                 "requested_service": direct_claims["service"]["state"],
                 "related_service": related["strength"],
                 "withheld_summary": restricted_claim["state"],
+            },
+            "provenance_mapper": {
+                "direct_findings": len(provenance["demo_50_km"]["findings"]),
+                "related_findings": len(provenance["demo_2_km"]["findings"]),
+                "withheld_findings": len(withheld_mapping["findings"]),
             },
         },
         "intake": {"fictional_journeys": len(runs), "finder_steps": finder_steps, "warning_stops_finder": True},
