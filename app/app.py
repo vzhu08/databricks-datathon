@@ -12,7 +12,13 @@ The data mode is explicit (find_care.data_mode) and named at the top of the scre
   permission reach this screen through a verified interface.
 * setup problem: a half-configured warehouse says what is missing and never shows invented data.
 
-The screen never ranks: it words what the search returns (app/find_care.py).
+On demonstration data the screen has two clearly separate jobs. "Recommend a campus" is the one
+actionable answer: the campus P's capacity model chose (app/find_capacity.py) is the only destination,
+and the time, reasons, alternatives and referral note all come from that one result. "Look up the
+example records" is the earlier six-hospital record search with its evidence lines. It directs nobody
+anywhere and exports no note. The two use different invented places and are never joined.
+
+The screen never ranks: it words what the model or the search returns.
 """
 import html
 import json
@@ -26,6 +32,7 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:  # so the same imports work from the repository root and from a deployed `app/`
     sys.path.append(str(HERE))
 
+import find_capacity as capacity  # noqa: E402
 import find_care as words  # noqa: E402
 import finding_provenance as provenance  # noqa: E402
 import national_directory  # noqa: E402
@@ -37,6 +44,14 @@ from ranking import search_facilities  # noqa: E402
 # Kept inside app/ so a deployment of this folder alone still has its demonstration facilities.
 # tests/find_care checks it is the same file as contracts/fixtures/search.json.
 FIXTURE = HERE / "demo_facilities.json"
+# Road time with traffic is offered only when the operator switched the provider on and supplied the
+# verified attribution caption to show with every result. Without both, times are simulated and nothing
+# can call out.
+ATTRIBUTION_SETTING = "FIND_CARE_TRAFFIC_ATTRIBUTION"
+ATTRIBUTION = str(os.environ.get(ATTRIBUTION_SETTING) or "").strip()
+TRAFFIC_ON = os.environ.get("TOMTOM_ENABLED") == "true" and bool(ATTRIBUTION)
+RECOMMEND, LOOKUP = "recommend", "lookup"
+MODES = {RECOMMEND: "Recommend a campus", LOOKUP: "Look up the example records"}
 DATA = words.data_mode(os.environ)
 DEMO = DATA["mode"] == "demo"
 # label, care, the line typed into "Where", distance
@@ -44,6 +59,12 @@ EXAMPLES = [
     ("Dialysis near Jaipur, Rajasthan", "dialysis", "Jaipur, Rajasthan", 50),
     ("MRI scan near PIN 302001", "mri", "302001", 50),
     ("Dialysis within 2 km of PIN 302001", "dialysis", "302001", 2),
+]
+# Recommendation examples (#304) on the simulated Jaipur campuses: label, care, urgency, starting area, needs a tool
+CAPACITY_EXAMPLES = [
+    ("Routine dialysis: keeps a scarce station free", "dialysis", "routine", "central", False),
+    ("Highest urgency dialysis: fastest free place", "dialysis", "highest", "central", False),
+    ("Dialysis from the south: nearest campus capacity unknown", "dialysis", "routine", "south", False),
 ]
 # Same paper, ink and caution colours as the offline Find care page, and the same referral slip.
 STYLE = """
@@ -78,6 +99,9 @@ STYLE = """
 .fc-stale { margin: 0 0 0.75rem; padding: 0.6rem 0.9rem; border: 1.5px solid #14283b; border-radius: 3px;
   background: #ffffff; color: #14283b; font-weight: 600; }
 .fc-old { opacity: 0.55; }
+.fc-slip .fc-answer.fc-lookup { font-size: 1.5rem; line-height: 1.25; }
+.fc-emergency { margin: 0.25rem 0 0.75rem; padding: 0.5rem 0.8rem; border-left: 4px solid #b3261e;
+  background: #fbeceb; color: #5c1410; font-weight: 600; }
 .fc-claims { margin-top: 0.75rem; padding: 0.7rem 1rem; border-left: 4px solid #4b6274; background: #f7f9fa; }
 .fc-claim { margin: 0.2rem 0; }
 .fc-claim strong { font-weight: 700; }
@@ -130,8 +154,34 @@ def ask(service, location, radius_km):
     st.session_state["response"] = response
 
 
+def _travel():
+    from travel import hosted  # imported only when the operator has switched road time on
+    return hosted
+
+
+def mode():
+    """Which of the two jobs the form is doing. Real records only ever get the record search."""
+    return st.session_state.get("mode", RECOMMEND) if DEMO else LOOKUP
+
+
+def recommend():
+    """The one place a recommendation, and so any road-time request, can start: an explicit press.
+
+    The earlier result is dropped first, so a failure can never leave an old destination on the screen.
+    """
+    for key in ("capacity", "asked", "response", "problem"):
+        st.session_state.pop(key, None)
+    traffic = TRAFFIC_ON and bool(st.session_state.get("traffic"))
+    st.session_state["capacity"] = capacity.run(
+        st.session_state["service"], st.session_state.get("urgency", "routine"), st.session_state.get("origin"),
+        st.session_state.get("needs_tool", False), traffic, travel=_travel() if traffic else None)
+
+
 def submit():
-    """Search for what the form shows now. Runs before the screen is drawn again."""
+    """Answer what the form shows now. Runs before the screen is drawn again."""
+    if mode() == RECOMMEND:
+        return recommend()
+    st.session_state.pop("capacity", None)
     try:
         location = words.parse_location(st.session_state.get("where", ""))
     except ValueError as error:
@@ -144,8 +194,15 @@ def submit():
 
 
 def fill(service, where, radius_km):
-    """Put a request into the form, so the form always shows what the answer is for, then search."""
-    st.session_state.update(service=service, where=where, radius=radius_km)
+    """Put a record lookup into the form, so the form always shows what the answer is for, then search."""
+    st.session_state.update(service=service, where=where, radius=radius_km, mode=LOOKUP)
+    submit()
+
+
+def fill_recommendation(service, urgency, origin, needs_tool):
+    """Put a recommendation request into the form, then ask for it. Examples never use road time."""
+    st.session_state.update(service=service, urgency=urgency, origin=origin, needs_tool=needs_tool,
+                            traffic=False, mode=RECOMMEND)
     submit()
 
 
@@ -224,6 +281,42 @@ def not_told(view):
             + "".join(f"<li>{safe(line)}</li>" for line in view["limits"]) + "</ul>")
 
 
+def bullets(lines):
+    return '<ul class="fc-limits">' + "".join(f"<li>{safe(line)}</li>" for line in lines) + "</ul>"
+
+
+def recommendation_slip(check):
+    """The recommendation: the one campus the capacity model chose, or plainly none. Nothing else is a destination."""
+    lines = capacity.explain(check)
+    parts = [f'<div class="fc-for">{safe(capacity.request_line(check))}</div>',
+             f'<div class="fc-answer" role="heading" aria-level="2">{safe(lines["headline"])}</div>']
+    if lines["trip"]:
+        parts.append(f'<div class="fc-trip">{safe(lines["trip"])}</div>')
+    if lines["why"]:
+        title = "Why this campus" if lines["destination"] else "Why"
+        parts.append(f'<div class="fc-h">{title}</div><div class="fc-text">{safe(lines["why"])}</div>')
+    if lines["fastest"]:
+        parts.append(f'<div class="fc-text" style="margin-top:0.5rem">{safe(lines["fastest"])}</div>')
+    if lines["uncertain"]:
+        parts.append(f'<div class="fc-caveat">{safe(lines["uncertain"])}</div>')
+    if lines["evidence"]:
+        parts.append('<div class="fc-h">How well this is supported</div><div class="fc-claims">'
+                     + "".join(f'<div class="fc-claim">{safe(line)}</div>' for line in lines["evidence"]) + "</div>")
+    if lines["alternatives"]:
+        parts.append(f'<div class="fc-h">If {safe(lines["destination"])} cannot take the patient</div>'
+                     '<div class="fc-text">Others with a free staffed place inside the travel limit, fastest first: '
+                     f'{safe("; ".join(lines["alternatives"]))}. The order says nothing about quality.</div>')
+    if lines["excluded"] or lines["travel_failures"]:
+        parts.append('<div class="fc-h">Not recommended</div>' + bullets(lines["excluded"] + lines["travel_failures"]))
+    if lines["limits"]:
+        parts.append('<div class="fc-h">What this does not tell you</div>' + bullets(lines["limits"]))
+    parts.append(f'<div class="fc-quiet">Travel time: {safe(lines["time_label"])}</div>')
+    if check["travel_kind"] == capacity.TRAFFIC:
+        # The operator-verified caption stays visible with every road-time result, a failed one included.
+        parts.append(f'<div class="fc-quiet" data-attribution="traffic">{safe(ATTRIBUTION)}</div>')
+    return f'<div class="fc-slip">{"".join(parts)}</div>'
+
+
 def withheld_line(response, service):
     """The result-level evidence summary for real records. Names no facility and lists no source."""
     mapped = provenance.project_find_care(response, service, mode="warehouse")
@@ -241,13 +334,16 @@ def slip(view, stale, service=None, response=None):
     The evidence lines are drawn only for a current answer, for the service of the request it answers.
     """
     shown = None if stale else service
-    parts = [f'<div class="fc-for">{safe(view["request_line"])}</div>',
-             f'<div class="fc-answer" role="heading" aria-level="2">{safe(view["headline"])}</div>']
     top = view["top"] if DEMO and view["status"] == "ok" else None
+    # On demonstration data this is a record lookup. It lists what a record says and sends nobody anywhere.
+    headline = f"Nearest record that states the service: {top['name']}." if top else view["headline"]
+    lookup = '<div class="fc-quiet">Record lookup. This is not a recommendation.</div>' if DEMO else ""
+    parts = [f'<div class="fc-for">{safe(view["request_line"])}</div>',
+             f'<div class="fc-answer fc-lookup" role="heading" aria-level="2">{safe(headline)}</div>{lookup}']
     if top:
         place = f"{top['place']}. " if top["place"] else ""
         parts.append(f'<div class="fc-trip">{safe(place + top["distance"])}</div>{warning(top)}')
-        parts.append(f'<div class="fc-h">Why this facility</div><div class="fc-text">{safe(view["why"])}</div>')
+        parts.append(f'<div class="fc-h">Why it is listed first</div><div class="fc-text">{safe(view["why"])}</div>')
         parts.append(f'<div class="fc-h">What its record says</div>{record(top)}')
         if shown:
             parts.append(f'<div class="fc-h">How well this is supported</div>{claims(top, shown, "direct_results", 0)}')
@@ -286,10 +382,10 @@ if DATA["mode"] == "setup":
     st.caption(f"To run on the invented demonstration facilities instead, set {words.DATA_SETTING} to demo.")
     st.stop()
 if DEMO:
-    st.markdown('<div class="fc-lede">Say what care a patient needs and where they are. You get the nearest '
-                "facility whose record says it offers that care, with the words it relied on.</div>"
-                '<div class="fc-mode"><strong>Data: demonstration.</strong> This screen is running on six '
-                "invented facilities, not the real records.</div>", unsafe_allow_html=True)
+    st.markdown('<div class="fc-lede">Say what care a patient needs, how urgent it is and where they start. You '
+                "get one campus to send them to, chosen by free staffed places and travel time.</div>"
+                '<div class="fc-mode"><strong>Data: demonstration.</strong> This screen is running on invented '
+                "campuses and six invented facilities, not the real records.</div>", unsafe_allow_html=True)
     if not FIXTURE.exists():
         st.error("The demonstration facilities (demo_facilities.json) are missing from this deployment.")
         st.stop()
@@ -303,35 +399,100 @@ else:
 st.session_state.setdefault("service", "dialysis")
 st.session_state.setdefault("where", "Jaipur, Rajasthan" if DEMO else "")
 st.session_state.setdefault("radius", 50)
+# Kept in step with the form even while a field is off screen, so an answer is always checked against
+# the whole request and never against a default the reader did not choose.
+for key, start in (("mode", RECOMMEND), ("urgency", "routine"), ("origin", "central"), ("needs_tool", False),
+                   ("traffic", False)):
+    st.session_state.setdefault(key, start)
 # Counts for the whole real directory, the same whatever is asked below. No search or patient state is read.
 national_directory.render(st, HERE, DEMO)
 left, right = st.columns([5, 9], gap="large")
 
 with left:
     st.subheader("Your request")
+    if DEMO:
+        st.radio("What you want", list(MODES), format_func=MODES.get, key="mode", horizontal=True)
+    MODE = mode()
     service = st.radio("1. Care needed", list(words.SERVICES), format_func=words.SERVICES.get, key="service",
                        horizontal=True)
-    where = st.text_input("2. Where the patient is", key="where", placeholder="For example: Jaipur, Rajasthan")
-    st.caption("A city or town (add the state after a comma), a six-digit PIN code, or coordinates.")
-    radius = st.select_slider("Search within", options=list(words.RADII), key="radius",
-                              format_func=lambda km: f"{km} km")
-    st.button("Find a facility", type="primary", use_container_width=True, on_click=submit, key="find")
-    if st.session_state.get("problem"):
-        st.error(st.session_state["problem"])
-    st.caption("Or start from an example")
-    for label, ex_service, ex_where, ex_radius in EXAMPLES:
-        st.button(label, key="example-" + label, on_click=fill, args=(ex_service, ex_where, ex_radius))
+    where, radius = st.session_state["where"], st.session_state["radius"]
+    if MODE == RECOMMEND:
+        st.radio("2. How urgent", list(capacity.URGENCIES), format_func=capacity.URGENCIES.get, key="urgency",
+                 horizontal=True)
+        st.markdown(f'<div class="fc-emergency">{safe(patient_ui.EMERGENCY)}</div>', unsafe_allow_html=True)
+        st.radio("3. Where the patient starts (simulated Jaipur)", list(capacity.ORIGINS),
+                 format_func=capacity.ORIGINS.get, key="origin", horizontal=True)
+        st.caption(capacity.ORIGIN_NOTE)
+        if service in capacity.TOOLS:
+            st.checkbox(f"Needs {capacity.TOOLS[service][1]}", key="needs_tool")
+        if TRAFFIC_ON:
+            st.checkbox("Use road time with traffic (ordinary car)", key="traffic")
+            st.caption("Sends only the simulated starting point and the simulated campus points to "
+                       f"{capacity.TRAFFIC_SOURCE}. No patient details are sent. One request per press. "
+                       "If a road time fails, no simulated time is used in its place.")
+        else:
+            st.caption("Road time with traffic is switched off here. Drive minutes are simulated.")
+        st.button("Find a facility", type="primary", use_container_width=True, on_click=submit, key="find")
+        st.caption("Or start from an example")
+        for label, ex_service, ex_urgency, ex_origin, ex_tool in CAPACITY_EXAMPLES:
+            st.button(label, key="capacity-" + label, on_click=fill_recommendation,
+                      args=(ex_service, ex_urgency, ex_origin, ex_tool))
+    else:
+        where = st.text_input("2. Where the patient is", key="where", placeholder="For example: Jaipur, Rajasthan")
+        st.caption("A city or town (add the state after a comma), a six-digit PIN code, or coordinates.")
+        radius = st.select_slider("Search within", options=list(words.RADII), key="radius",
+                                  format_func=lambda km: f"{km} km")
+        st.button("Search the example records" if DEMO else "Find a facility", type="primary",
+                  use_container_width=True, on_click=submit, key="find")
+        if st.session_state.get("problem"):
+            st.error(st.session_state["problem"])
+        st.caption("Or start from an example")
+        for label, ex_service, ex_where, ex_radius in EXAMPLES:
+            st.button(label, key="example-" + label, on_click=fill, args=(ex_service, ex_where, ex_radius))
 
 with right:
     response, asked = st.session_state.get("response"), st.session_state.get("asked")
-    if not response:
+    check = st.session_state.get("capacity")
+    if MODE == RECOMMEND:
+        now = {"service": service, "urgency": st.session_state["urgency"], "origin_id": st.session_state["origin"],
+               "needs_tool": bool(st.session_state["needs_tool"]) and service in capacity.TOOLS,
+               "traffic": TRAFFIC_ON and bool(st.session_state["traffic"])}
+        if check and now != check["asked"]:
+            # A changed request shows no destination at all, and an earlier road-time result is not kept.
+            st.session_state.pop("capacity", None)
+            check = None
+            st.markdown('<div class="fc-stale">You changed the request, so the earlier recommendation was removed. '
+                        "Press Find a facility for a new one.</div>", unsafe_allow_html=True)
+        if not check:
+            with st.container(border=True):
+                st.markdown("**The recommendation appears here.**")
+                st.write("You get one campus to send the patient to, how long the trip is, why it was chosen "
+                         "over the others, and what nobody has confirmed. Press Find a facility, or start "
+                         "from an example.")
+        else:
+            st.markdown(recommendation_slip(check), unsafe_allow_html=True)
+            note = capacity.referral_note(check)
+            if note:  # no recommendation, no destination to hand on
+                st.subheader("Referral note")
+                st.caption("Use the copy button on the note, or save it as a file.")
+                st.code(note, language=None, wrap_lines=True)
+                st.download_button("Save referral note", note, file_name="referral-note.txt", mime="text/plain")
+            st.subheader("How this was decided")
+            st.markdown("\n".join(f"{number}. {plain(rule)}" for number, rule in enumerate(capacity.HOW, start=1)))
+            with st.expander("Technical details"):
+                st.caption("The request, the travel observations and the unedited result from the capacity model.")
+                st.json({"request": check["asked"], "travel_kind": check["travel_kind"],
+                         "travel": check["travel_rows"], "result": check["result"]})
+    elif not response:
         with st.container(border=True):
-            st.markdown("**The recommendation appears here.**")
-            st.write("You get one facility to send the patient to, the words from its record that back it, "
-                     "and what nobody has confirmed yet. Press Find a facility, or start from an example."
-                     if DEMO else
-                     "You are told whether nearby records mention the service. No facility is named until "
-                     "the team has reviewed and approved destinations.")
+            if DEMO:
+                st.markdown("**The matching records appear here.**")
+                st.write("You see which of six invented facility records mention the service, the words each "
+                         "relied on and how well they are supported. Nothing here is a recommendation.")
+            else:
+                st.markdown("**The recommendation appears here.**")
+                st.write("You are told whether nearby records mention the service. No facility is named until "
+                         "the team has reviewed and approved destinations.")
     else:
         try:
             shown_now = {"service": service, "location": words.parse_location(where), "radius_km": radius}
@@ -341,27 +502,21 @@ with right:
         view = words.present(response, asked["service"], asked["location"], asked["radius_km"])
         if stale:
             st.markdown('<div class="fc-stale">You changed the request. The answer below is for the earlier one. '
-                        "Press Find a facility to update it.</div>", unsafe_allow_html=True)
+                        "Press the button to update it.</div>", unsafe_allow_html=True)
         st.markdown(slip(view, stale, asked["service"], response), unsafe_allow_html=True)
         for choice in view["choices"] if DEMO and not stale else []:
             label = ", ".join(part for part in (choice.get("city"), choice.get("state")) if part)
             st.button(label, key="choice-" + label, on_click=fill,
                       args=(asked["service"], label, asked["radius_km"]))
         if DEMO and not stale and view["backups"]:
-            st.subheader(f"If {view['top']['name']} cannot take the patient")
+            st.subheader("Other records that state the service")
             st.caption("Listed nearest first. The order says nothing about quality.")
             st.markdown('<div class="fc-slip fc-more"><ol start="2">'
                         + "".join(listed(backup, asked["service"], "direct_results", index)
                                   for index, backup in enumerate(view["backups"], start=1)) + "</ol></div>",
                         unsafe_allow_html=True)
-        # An out-of-date answer can be read but not handed on: no backups, no note to copy, nothing to save.
-        if DEMO and not stale and view["status"] in ("ok", "needs_confirmation"):
-            st.subheader("Referral note")
-            st.caption("Use the copy button on the note, or save it as a file.")
-            note = words.referral_note(view, synthetic=True)
-            st.code(note, language=None, wrap_lines=True)
-            st.download_button("Save referral note", note, file_name="referral-note.txt", mime="text/plain")
-        st.subheader("How this was decided")
+        # A record lookup hands nothing on: the only referral note is the recommendation's.
+        st.subheader("How the lookup works" if DEMO else "How this was decided")
         if DEMO:
             st.markdown("\n".join(f"{number}. {plain(rule)}" for number, rule in enumerate(words.HOW, start=1)))
         else:
