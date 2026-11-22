@@ -577,12 +577,11 @@ if lookup_mode == "Public facility evidence":
                 st.write(f"Page checked {claim['checked_on']}. Treatment observation date unknown.")
                 st.write("Current availability, staffing, appointment acceptance and exact entrance are unknown.")
                 st.caption("Source scope: public operator evidence. No reviewed match to a Virtue Foundation record.")
-                st.markdown("**Next step.** " + plain(
-                    f"Call the published {claim['contact_label'].lower()} ({claim['contact_phone']}) "
-                    "to confirm the service and current availability."))
+                st.write(f"**Next step.** Call the published {claim['contact_label'].lower()} "
+                         f"({claim['contact_phone']}) to confirm the service and current availability.")
             if claims:
-                st.subheader("How this was decided")
-                st.markdown("\n".join(f"{number}. {plain(rule)}" for number, rule in enumerate(PUBLIC_HOW, start=1)))
+                # Not a subheader: on this view each subheader is an operator's name.
+                st.markdown("**How this was decided**\n\n" + "\n".join(f"{number}. {plain(rule)}" for number, rule in enumerate(PUBLIC_HOW, start=1)))
     national_directory.render(st, HERE, False)
     st.stop()
 if DATA["mode"] == "setup":
