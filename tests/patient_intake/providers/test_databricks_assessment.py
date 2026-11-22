@@ -118,19 +118,47 @@ class AssessmentTests(unittest.TestCase):
             self.assertEqual(self.reply["state"], "provider_stop")
         self.assertEqual(self.exchange.call_count, 6)
 
-    def test_missing_line_and_opposing_reviewed_polarities_abstain(self):
+    def test_missing_line_abstains(self):
         yes, no = "My ankle is swollen today.", "My ankle is not swollen today."
         self.start(yes + "\n" + no)
         self.exchange.return_value = result(extraction(yes))
         self.answer("no")
         self.assertEqual(self.reply["state"], "provider_stop")
-        both = extraction(yes)
-        both["observations"] += extraction(no, "absent")["observations"]
-        self.exchange.return_value = result(both)
-        self.start(yes + "\n" + no)
-        for answer in ("no", "confirm", "confirm", "unchanged"):
+        self.assertEqual(self.exchange.call_count, 1)
+
+    def review_mixed(self, positive, negative, assessment):
+        mixed = extraction(negative, "absent")
+        mixed["observations"] += extraction(positive)["observations"]
+        self.start(negative + "\n" + positive)
+        self.exchange.side_effect = [result(mixed), result(assessment)]
+        for answer in ("no", "confirm", "confirm"):
             self.answer(answer)
-        self.assertEqual(self.reply["state"], "provider_stop")
+        question = self.reply["question"]
+        self.assertIn("Absent: “" + negative + "”", question["prompt"])
+        self.assertIn("Present: “" + positive + "”", question["prompt"])
+        self.assertEqual([o["id"] for o in question["options"]], ["consistent", "inconsistent", "unsure"])
+
+    def test_compatible_history_retains_negative_and_only_positive_can_support_a_cause(self):
+        positive, negative = "My throat is sore today.", "I have no fever today."
+        for cited, state in ((1, "experimental_assessment"), (0, "provider_unavailable")):
+            assessment = differential("viral respiratory infection")
+            assessment["causes"][0]["row"] = cited
+            self.review_mixed(positive, negative, assessment)
+            self.answer("consistent")
+            self.assertEqual(self.reply["state"], state)
+            payload = json.loads(json.loads(self.exchange.call_args.args[4])["messages"][1]["content"])
+            self.assertEqual(payload["reviewed"], [dict(quote=negative, presence="absent", temporality="current"),
+                                                   dict(quote=positive, presence="present", temporality="current")])
+            self.assertEqual(payload["clarification"], {"topic": "consistency", "answer": "consistent"})
+        self.assertEqual(self.exchange.call_count, 4)
+
+    def test_inconsistent_or_unsure_mixed_reviews_stop_before_final_model_call(self):
+        for decision in ("inconsistent", "unsure"):
+            self.review_mixed("My ankle is swollen today.", "My ankle is not swollen today.", differential())
+            self.answer(decision)
+            self.assertEqual(self.reply["state"], "provider_stop")
+            self.assertNotIn("possible_causes", self.reply)
+            self.assertIn("Edit your description", self.reply["guidance"])
         self.assertEqual(self.exchange.call_count, 2)
 
     def test_complete_response_strict_schema_and_evidence_index(self):

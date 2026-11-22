@@ -74,6 +74,15 @@ class DatabricksAssessmentProvider(DatabricksInterviewProvider):
             return dict(id=plan["nonce"] + "-safety", kind="single", prompt=_WARNING_QUESTION,
                         options=[dict(id=k, label=v) for k, v in
                                  (("yes", "Yes"), ("no", "No"), ("unsure", "Unsure"))])
+        if pos == len(plan["spans"]) and plan["topic"] == "consistency":
+            statements = [f'{presence.capitalize()}: “{source[start:end]}”'
+                          for start, end, presence, timing in plan["spans"] if timing == "current"]
+            prompt = ("Can all these statements be true because they refer to different symptoms or times?\n"
+                      + "\n".join(statements))
+            return dict(id=plan["nonce"] + "-consistency", kind="single", prompt=prompt,
+                        options=[dict(id="consistent", label="Yes, they fit together"),
+                                 dict(id="inconsistent", label="No, I need to correct my description"),
+                                 dict(id="unsure", label="I’m unsure")])
         return super()._question(source, plan, pos)
 
     def _emergency(self):
@@ -104,6 +113,11 @@ class DatabricksAssessmentProvider(DatabricksInterviewProvider):
             if (review["patient_presence"] == "present" and review["candidate"]["temporality"] == "current"
                     and (_WARNING_WORDS.search(quote) or (_CHEST.search(quote) and _PRESSURE.search(quote)))):
                 return self._emergency()
+        if pos == len(plan["spans"]):
+            current = {row["patient_presence"] for row in data["patient_evidence"]
+                       if row["candidate"]["temporality"] == "current"}
+            if current == {"present", "absent"}:
+                plan = dict(plan, topic="consistency")
         return super()._issue(data, plan, pos)
 
     def _finish(self, data, payload):
@@ -112,11 +126,10 @@ class DatabricksAssessmentProvider(DatabricksInterviewProvider):
                     and _SYMPTOM.search(row["quote"])}
         if not eligible:
             return self._stop("There is too little specific information about a current symptom. Describe what you feel, where and when, or speak with a clinician.")
-        # The reviewed rows carry literal quotes, not normalized clinical concepts.
-        # Opposite current polarities cannot reliably be reconciled by row ID.
-        if any(row["presence"] == "absent" and row["temporality"] == "current" for row in payload["reviewed"]):
-            return self._stop("Your review includes both present and absent symptoms. "
-                              "A clinician can help interpret these observations together.")
+        if (any(row["presence"] == "absent" and row["temporality"] == "current" for row in payload["reviewed"])
+                and payload["clarification"] != {"topic": "consistency", "answer": "consistent"}):
+            return self._stop("It is unclear how these statements fit together. "
+                              "Edit your description to clarify the symptoms and when they occurred.")
         obj, failure = self._model(_ASSESS, dict(payload, context=data["context"], vocabulary=_CAUSES))
         if failure:
             return failure
