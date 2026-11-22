@@ -100,14 +100,25 @@ Three-service artifact SHA:
 `666a652f20f8c8930d7a202b782798ea32a9e0e9ef0e09e4622a1c9daa1852f1`.
 The public aggregate receipt records the remaining private output digests.
 
-**Live Databricks:** not performed; F has no configured CLI profile. The
-[staged writer handoff](https://github.com/vzhu08/databricks-datathon/issues/160#issuecomment-7074617801)
-contains six eligible files (6,262,639 payload bytes) plus a manifest, SHA
+**Live Databricks:** uploaded and owner-readback verified in private staging:
+`dbfs:/Volumes/workspace/datathon_acquisition/matching_inputs/scheme-f-167-v1-eea92b588c4093d1fa3ea84a858ebf230aee10213af00e3d53d9ac56888ddd64/`.
+The [updated storage receipt](https://github.com/vzhu08/databricks-datathon/issues/160#issuecomment-7074656641)
+records seven files (six payloads plus manifest), 6,265,476 bytes. Manifest SHA:
 `eea92b588c4093d1fa3ea84a858ebf230aee10213af00e3d53d9ac56888ddd64`.
-The package contains authorized VF-derived unconfirmed status and current/prior
-provenance and aggregate inventories, with no source originals or excerpts.
-The existing writer must upload and return hash/size/count readback; F retains
-receipt ownership. Raw source sharing and campus review remain separate holds.
+Every file was downloaded and checked against its hash and size. The status
+readback preserves 10,088 occurrences, 10,077 IDs and 30,264 unconfirmed decisions.
+Local verification receipt SHA:
+`bbf58441dc2bf904bb4f207f7f8f83fdc5182899cfb59b51a64789d3aff0fb81`.
+
+The existing Oliver profile was discovered after the initial default-profile
+failure. Staging grants show Oliver as owner and Vincent, Andrew and Ayush with
+READ_VOLUME; independent teammate readback is not claimed. No credentials or
+grants changed. The package contains authorized VF-derived unconfirmed status
+and current/prior provenance and aggregate inventories, with no source originals
+or excerpts. Oliver has READ_VOLUME only on the dedicated intake. Vincent's
+copy to `workspace.default.datathon_vf_research_intake` and its readback remain
+pending; F retains receipt ownership. Raw-source sharing and campus review
+remain separate holds.
 
 **Submission:** not performed. Vincent reviews evidence and rights; Oliver owns
 merge, release and readiness decisions. No routing inputs were changed.
