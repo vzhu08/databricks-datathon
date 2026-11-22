@@ -1,0 +1,111 @@
+{
+  "$comment": "Field schema for the judge display edition (#239, #252). Key names and types only: no values. Every object is closed, so a key that is not listed here puts the screen in its data-unavailable state. Provisional until Vincent confirms it against the frozen display.json.",
+  "type": "object",
+  "required": ["schema_version", "edition", "national_result", "vf_trace", "public_case", "result"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "synthetic": {"type": "boolean"},
+    "edition": {
+      "type": "object",
+      "required": ["label", "as_of"],
+      "properties": {"label": {"type": "string"}, "as_of": {"type": "date"}, "audience": {"type": "string"}}
+    },
+    "national_result": {
+      "type": "object",
+      "required": ["as_of", "originals", "upstream_ids", "frozen_unconfirmed_decisions", "pilot", "source_url"],
+      "properties": {
+        "as_of": {"type": "date"},
+        "originals": {"type": "count"},
+        "upstream_ids": {"type": "count"},
+        "frozen_unconfirmed_decisions": {"type": "count"},
+        "pilot": {
+          "type": "object",
+          "required": ["as_of", "listings_screened", "programme_mentions", "premises_keys", "exact_vf_links",
+                       "dated_onsite_claims"],
+          "properties": {
+            "as_of": {"type": "date"},
+            "listings_screened": {"type": "count"},
+            "programme_mentions": {"type": "count"},
+            "premises_keys": {"type": "count"},
+            "exact_vf_links": {"type": "count"},
+            "dated_onsite_claims": {"type": "count"}
+          }
+        },
+        "source_url": {"type": "url"}
+      }
+    },
+    "vf_trace": {
+      "type": "object",
+      "required": ["lead_keys", "campus_located_keys", "originals", "same_object_keys", "same_object_by_service",
+                   "cohort_associations", "dated_service_associations", "map_origins", "missing_branch_crosswalk",
+                   "source_url", "credit"],
+      "properties": {
+        "lead_keys": {"type": "count"},
+        "campus_located_keys": {"type": "count"},
+        "originals": {"type": "count"},
+        "same_object_keys": {"type": "count"},
+        "same_object_by_service": {"type": "count_map"},
+        "exact_object_associations": {"type": "count"},
+        "cohort_associations": {"type": "count"},
+        "dated_service_associations": {"type": "count"},
+        "map_origins": {"type": "count"},
+        "other_group_keys": {"type": "count"},
+        "competing_branch_bindings": {"type": "count"},
+        "missing_branch_crosswalk": {"type": "count"},
+        "source_url": {"type": "url"},
+        "credit": {
+          "type": "object",
+          "required": ["text", "url"],
+          "properties": {"text": {"type": "string"}, "url": {"type": "url"}}
+        }
+      }
+    },
+    "public_case": {
+      "type": "object",
+      "required": ["title", "vf_link", "facts", "unknown"],
+      "properties": {
+        "title": {"type": "string"},
+        "vf_link": {"type": "string"},
+        "facts": {
+          "type": "list",
+          "items": {
+            "type": "object",
+            "required": ["statement", "as_of", "scope", "source_label", "source_url"],
+            "properties": {
+              "statement": {"type": "string"},
+              "as_of": {"type": "string"},
+              "scope": {"type": "string"},
+              "source_label": {"type": "string"},
+              "source_url": {"type": "url"}
+            }
+          }
+        },
+        "reference_links": {
+          "type": "list",
+          "items": {
+            "type": "object",
+            "required": ["label", "url"],
+            "properties": {"label": {"type": "string"}, "url": {"type": "url"}, "note": {"type": "string"}}
+          }
+        },
+        "unknown": {"type": "list", "items": {"type": "string"}}
+      }
+    },
+    "result": {
+      "type": "object",
+      "required": ["eligible_destinations", "next_check"],
+      "properties": {
+        "eligible_destinations": {"type": "count"},
+        "next_check": {"type": "string"},
+        "policies": {
+          "type": "list",
+          "items": {
+            "type": "object",
+            "required": ["policy", "result"],
+            "properties": {"policy": {"type": "string"}, "result": {"type": "string"}}
+          }
+        }
+      }
+    }
+  }
+}

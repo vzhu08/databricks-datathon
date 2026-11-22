@@ -1,0 +1,40 @@
+{
+  "schema_version": "judge-display-v1",
+  "synthetic": true,
+  "edition": {"label": "Synthetic test edition", "as_of": "2000-01-02", "audience": "Tests only"},
+  "national_result": {
+    "as_of": "2000-01-01",
+    "originals": 1000,
+    "upstream_ids": 999,
+    "frozen_unconfirmed_decisions": 3000,
+    "pilot": {"as_of": "2000-01-02", "listings_screened": 2000, "programme_mentions": 9, "premises_keys": 8,
+              "exact_vf_links": 0, "dated_onsite_claims": 0},
+    "source_url": "https://example.org/synthetic/national"
+  },
+  "vf_trace": {
+    "lead_keys": 30, "campus_located_keys": 10, "originals": 9, "same_object_keys": 3,
+    "same_object_by_service": {"dialysis": 1, "trauma care": 2},
+    "exact_object_associations": 4, "cohort_associations": 20, "dated_service_associations": 0,
+    "map_origins": 1, "other_group_keys": 1, "competing_branch_bindings": 0, "missing_branch_crosswalk": 5,
+    "source_url": "https://example.org/synthetic/trace",
+    "credit": {"text": "Synthetic map contributors", "url": "https://example.org/synthetic/credit"}
+  },
+  "public_case": {
+    "title": "Synthetic campus (test only)",
+    "vf_link": "none_documented",
+    "facts": [
+      {"statement": "A synthetic release reports a pooled service at the campus.", "as_of": "January 2000",
+       "scope": "Whole campus", "source_label": "Synthetic release A", "source_url": "https://example.org/synthetic/a"},
+      {"statement": "An older synthetic release dates a service at one building.", "as_of": "1 January 1999",
+       "scope": "One building", "source_label": "Synthetic release B", "source_url": "https://example.org/synthetic/b"}
+    ],
+    "reference_links": [{"label": "Synthetic address report", "url": "https://example.org/synthetic/c",
+                         "note": "link only"}],
+    "unknown": ["Which building runs the service today", "Entrance", "Staffed capacity", "Travel time"]
+  },
+  "result": {
+    "eligible_destinations": 0,
+    "next_check": "Ask the synthetic operator to name the building that runs the service today.",
+    "policies": [{"policy": "Synthetic baseline rule", "result": "Zero eligible destinations."}]
+  }
+}
