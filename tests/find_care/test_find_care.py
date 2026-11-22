@@ -861,11 +861,11 @@ class ScreenTests(unittest.TestCase):
                      "Status: Provisional · Synthetic demo record",
                      "“The North Campus provides hemodialysis.” (procedures field",
                      "Independent sources for the service: 1. Service statement dated: unknown.",
-                     "Citation: https://example.invalid/north-campus. It points to the whole record",
+                     "Record reference: https://example.invalid/north-campus",
                      "Location evidence: Reported as a map point", "Building and entrance unverified.",
                      "Dialysis evidence: Unconfirmed · Reported · Fixture statement names North Campus. "
                      "Physical branch unverified. Service date unknown. (1 record, 1 known supporting origin.)",
-                     "Citation: https://example.invalid/north-campus. It points to the whole record",
+                     "Record reference: https://example.invalid/north-campus",
                      "Why this lead: Its record states the service. Nobody has confirmed the statement.",
                      "Free staffed places: unknown. Travel time by road: unknown.",
                      "1. Do you provide dialysis at this site today, yourselves",
@@ -876,7 +876,6 @@ class ScreenTests(unittest.TestCase):
             self.assertIn(part, script)
         for part in ("Referral note", "Send to:", "Send the patient", "booked", "reserved for", "Campus B"):
             self.assertNotIn(part, script)
-        self.assertEqual(1, script.count("https://example.invalid/north-campus"))  # the citation is given once
         # The lookup says what it gives and keeps the emergency line in view. It never promises a destination.
         self.assertIn("You get the best supported lead among the example records", text)
         self.assertIn("Nobody is sent anywhere.", text)

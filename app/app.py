@@ -330,13 +330,15 @@ def note_evidence(card, service, group, index):
     mapped = finding(st.session_state.get("response"), service, group, index)
     if not mapped:
         return []
-    found, lines = words.claim_view(mapped, service, card["place"]), []
+    found, lines, references = words.claim_view(mapped, service, card["place"]), [], []
     for claim in (found["location"], found["service"]):
         lines.append(f"{claim['label']} evidence: {claim['line']} ({claim['counts']}.)")
+        references += [source["reference"] for source in claim["sources"] if source["reference"]]
     for source in found["location"]["sources"]:
         if source["citation"]:
             lines.append(f"Location citation: {source['citation']}. {words.citation_scope_note(source['citation_scope'])}")
-    # The service statement's own citation is already on the script's "Citation" line, so it is not repeated.
+    for reference in dict.fromkeys(references):
+        lines.append(f"{words.RECORD_REFERENCE}: {reference} ({words.RECORD_LINK_NOTE})")
     return lines
 
 
