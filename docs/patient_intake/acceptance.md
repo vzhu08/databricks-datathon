@@ -34,6 +34,19 @@ With no observations argument the scorer reports all 35 as `NOT_RUN` and exits n
 
 **Engineering acceptance proposal.** Require 35/35 observed passes, all four positive controls, zero ordinary referrals from blocked paths, zero stale or cross-session disclosures, zero canary leaks and zero live attempts during engineering runs. If a public boundary cannot express a case, keep it in the denominator and record the exact limitation for the release owner. Distinguish a missing release prerequisite from an observed failure. Pin changes to runtime, transport, policy, terms, budget or UI and replay affected paths. The 52 prior fictional-demo cases and 10,088-row national coverage metrics have their own reports.
 
+## Server observer binding
+
+Run the offline smoke check from a clone containing the four source commits named in [smoke.py](../../tests/patient_intake_audit/smoke.py). For an assembled candidate, supply the repository and commit recorded by its owner.
+
+```sh
+python3 -B tests/patient_intake_audit/smoke.py
+python3 -B tests/patient_intake_audit/smoke.py --repo "$COMPOSITION_REPO" --commit "$COMPOSITION_SHA"
+```
+
+The worker calls M’s service, Q’s interview reducer, O’s session and P’s handoff with an independent scripted provider at M’s normalized response boundary. The handoff controls use a test order scoped to the exact handle and revision and wrap P’s real ranker to count calls. The worker blocks Python socket operations and subprocess launches. The report names the source pins, interpreter, provider stub, packet and observer hashes, unavailable cases and disagreements on observed fields. Exit zero means the measurements it collected agreed with the frozen expectations.
+
+The first run on R’s `48e73ed84f6cb2f19f7aca929d8741ec48c955cd` captured 56 of 186 fields across 18 of 35 cases. Seventeen cases had no bound observer, and every exercised case still had missing observations. The measurements cover normalized provider calls, API state and the synthetic handoff. Browser wording, privacy surfaces, external route-provider starts, physical provider transport and interpretation of new symptom text remain unmeasured by this runner. The scripted provider supplies the fictional evidence and questions. The final engineering replay requires the integrated patient entry point. [R’s composition receipt](https://github.com/vzhu08/databricks-datathon/issues/229#issuecomment-7076393528)
+
 ## Clinical evaluation for a release decision
 
 **Intended use to approve in advance.** A patient in India enters new symptoms, confirms their interpretation, and receives next-step guidance from a specified assessment provider and version. The clinical lead must approve the initial supported ages, acuity, languages, exclusions, care settings, output wording, escalation pathways and validated endpoints for that provider. Record whether any possible-cause list is in scope. A verified clinical order, independently reviewed campus and permission for routing are separately required where applicable. Narrow eligibility to the studied scope. Undefined or unsupported populations get an explicit stop. Facility-triage guidance is setting-specific; WHO describes the IITT as a tool for emergency units. [WHO IITT](https://www.who.int/tools/triage)
