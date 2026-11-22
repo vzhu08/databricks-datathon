@@ -27,6 +27,7 @@ if str(HERE) not in sys.path:  # so the same imports work from the repository ro
     sys.path.append(str(HERE))
 
 import find_care as words  # noqa: E402
+import national_directory  # noqa: E402
 import patient_ui  # noqa: E402
 import storm_page  # noqa: E402
 from data_access import search_warehouse  # noqa: E402
@@ -283,6 +284,8 @@ else:
 st.session_state.setdefault("service", "dialysis")
 st.session_state.setdefault("where", "Jaipur, Rajasthan" if DEMO else "")
 st.session_state.setdefault("radius", 50)
+# Counts for the whole real directory, the same whatever is asked below. No search or patient state is read.
+national_directory.render(st, HERE, DEMO)
 left, right = st.columns([5, 9], gap="large")
 
 with left:
