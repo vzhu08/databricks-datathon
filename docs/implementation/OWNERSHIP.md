@@ -10,7 +10,25 @@ Oliver's main chat owns every merge, revert, PR disposition, branch retirement a
 
 Every implementation task has one named developer chat in this project. That chat owns the code, tests, fixes and PR and may use subagents. Oliver’s main chat assigns the work, reviews the evidence and handles repository decisions. Record the assignment and handoff on the task issue.
 
-Oliver’s Developer I and J chats own the two supplemental hospital service and equipment collections below. Vincent keeps campus linkage, location verification and the existing [VF service-statement audit](https://github.com/vzhu08/databricks-datathon/issues/58). I and J deliver source IDs, dated locators and national coverage to Vincent for adjudication and Oliver for integration. [Coordination thread](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7071857514)
+Oliver’s nine developer chats now prioritize [national hospital service and equipment evidence](https://github.com/vzhu08/databricks-datathon/issues/161). Vincent leads campus verification, acquisition permissions, and the [existing VF audit](https://github.com/vzhu08/databricks-datathon/issues/58). Andrew owns UI/UX. The new assignments below take precedence over earlier intake and demo sequencing for these nine chats. Preserve existing branches and open PRs for later review.
+
+### National service and equipment assignments
+
+| Developer chat | Active research issue | Branch and acquisition directory |
+| --- | --- | --- |
+| A | [National trauma, burn and transfusion support evidence](https://github.com/vzhu08/databricks-datathon/issues/164) | `codex/service-a-trauma-blood` · `trauma_support/` |
+| D | [National hospital service ledger and cross-source reconciliation](https://github.com/vzhu08/databricks-datathon/issues/163) | `codex/service-d-national-ledger` · `service_evidence_ledger/` |
+| F | [National insurance scheme service scope and procedure activity](https://github.com/vzhu08/databricks-datathon/issues/167) | `codex/service-f-scheme-scope` · `scheme_services/` |
+| G | [ESIC and charitable hospital operational services](https://github.com/vzhu08/databricks-datathon/issues/143) | `codex/oliver-esic-service-evidence` · `esic_services/` |
+| H | [Railway hospital service activity and operating evidence](https://github.com/vzhu08/databricks-datathon/issues/165) | `codex/service-h-hospital-activity` · `railway_activity/` |
+| I | [Hospital biomedical equipment and maintenance](https://github.com/vzhu08/databricks-datathon/issues/110) | `codex/oliver-biomedical-equipment` · `biomedical_equipment/` |
+| J | [Mapped service tags and renal providers](https://github.com/vzhu08/databricks-datathon/issues/111) | `codex/oliver-osm-service-evidence` · `osm_services/` |
+| K | [National MRI, CT and diagnostic operator evidence](https://github.com/vzhu08/databricks-datathon/issues/166) | `codex/service-k-imaging` · `imaging_services/` |
+| L | [Independent hospital readiness and repeat-claim reliability audit](https://github.com/vzhu08/databricks-datathon/issues/168) | `codex/service-l-readiness-audit` · `service_readiness_audit/` |
+
+Write within the assigned directory under `research/acquisition/` and its matching tests. I, J and G continue their current source lanes. D owns the combined ledger and L independently assesses reliability. Each collection owner delivers a dated, attributable observation or a specific acquisition blocker, then a national comparison across all 10,088 originals with separate counts for raw mentions, source families, campus linkage and service decisions. Keep conflicting, copied and historical observations with their provenance. A single publication repeated across sites contributes one upstream family.
+
+Record local edition rights and private Databricks receipts on [#160](https://github.com/vzhu08/databricks-datathon/issues/160). Vincent and Oliver review evidence and incremental coverage on [#161](https://github.com/vzhu08/databricks-datathon/issues/161) before any change to the routing inputs. Fixture results, live warehouse readbacks and submission status each require a separate receipt.
 
 The [routing and storm-surge plan](ROUTING_AND_SURGE_DEMO.md) adds a fictional local demonstration alongside the national evidence work.
 
@@ -45,7 +63,7 @@ The [intake assignment](https://github.com/vzhu08/databricks-datathon/issues/124
 
 Andrew’s [intake preview](https://github.com/vzhu08/databricks-datathon/pull/153) uses a provisional engine. At `17d3b94`, Oliver [replayed all 4,362 confirmation and display checks](https://github.com/vzhu08/databricks-datathon/issues/136#issuecomment-7074252976). Andrew will connect the UI to D’s accepted contract and A’s validated finder request, then rerun the fixture and browser checks before merge.
 
-A and K first finish their open PR corrections or record their blockers. I and J first hand off their current collection results or blockers. D owns the read-only app-input check on #6. After B verifies the manifest on Vincent’s dedicated team Volume, D [checks recipient access using Oliver’s account](https://github.com/vzhu08/databricks-datathon/issues/126). Vincent owns source staging and permitted-use records. Andrew also owns the [existing-demo screenshots and operator notes](https://github.com/vzhu08/databricks-datathon/issues/125). G verifies the integrated fictional journey before release.
+Oliver has parked unrelated intake implementation for these nine chats during the national service collection. A and K retain their open PRs. D retains the read-only app-input and [recipient-access checks](https://github.com/vzhu08/databricks-datathon/issues/126). Vincent owns source staging and permitted-use records. Andrew also owns the [existing-demo screenshots and operator notes](https://github.com/vzhu08/databricks-datathon/issues/125). G retains the integrated fictional journey check for release.
 
 ## Latest messages
 
