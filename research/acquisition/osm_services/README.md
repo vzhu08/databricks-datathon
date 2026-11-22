@@ -33,7 +33,7 @@ dependency in `requirements-pbf.txt`; no dependency changes to the demo app.
 python -m pip install -r research/acquisition/osm_services/requirements-pbf.txt
 python -m research.acquisition.osm_services \
   --hot /private/input/hotosm_ind_health_facilities_osm_geojson.zip \
-  --out data/local/osm-services/hot-20261009-v3
+  --out data/local/osm-services/hot-20261009-final
 python -m research.acquisition.osm_services \
   --pbf /private/input/india-261101.osm.pbf \
   --sha256 c0a4a9382e67c8afc8427ab865358dcf42226ab3876f8477667585eaab6731b7 \
