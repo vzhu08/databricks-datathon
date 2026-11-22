@@ -193,7 +193,7 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(seen["results"][0]["travel_total"], "24.5")
         self.assertEqual(seen["places"], 5)
         self.assertEqual(seen["resources"][0], {"facility": "Invented clinic one", "service": "dialysis", "slots": 2,
-                                                "used": [2, 2]})
+                                                "basis": "Simulated", "used": [2, 2]})
         self.assertIn("Time sensitive", storm_plan.markup(found))
         # Two patients in one single-place bucket is refused even though the facility has two places in all.
         crowded = copy.deepcopy(found)
@@ -231,6 +231,95 @@ class PlanTests(unittest.TestCase):
         self.assertIn("not a record of a real storm", storm_plan.NOTICE)
         self.assertEqual(page.count('href="'), 3)  # the map credit twice and one facility source
         self.assertNotIn("http://", page.replace("http://www.w3.org", ""))
+
+    def test_one_patient_the_shared_cohort_and_the_planner_note_are_counted_from_the_rows(self):
+        found = storm_plan.view(storm_plan.checked(plan()))
+        case = found["difference"]
+        self.assertEqual((case["id"], case["priority"], case["service"], case["reason"], case["near"]),
+                         ("P3", "emergency", "dialysis", "Nearest facility full", None))
+        self.assertEqual(case["best"], {"label": "Invented clinic one", "precision": "mapped facility point",
+                                        "minutes": "5", "start": None, "basis": "simulated"})
+        self.assertIsNone(case["holder"])  # this plan names no slots, so nobody is named as holding the place
+        self.assertEqual(found["shared"], {"patients": 4, "near": "24.5", "best": "50.5"})
+        self.assertEqual(found["advice"], [
+            "Assigning the same staffed places differently placed 1 more of the 6 simulated patients, 1 of them "
+            "emergency priority, with no added capacity.",
+            "Even at the optimum 1 had no place, 1 of them needing trauma care, which no site in this file offers. "
+            "That is the gap to test next: where that service could be staffed."])
+        page = storm_plan.markup(plan())
+        for words in ("One simulated patient, two decisions", 'data-case="P3"', "not placed (nearest facility full)",
+                      "placed at Invented clinic one (mapped facility point; service and capacity simulated), "
+                      "5 minutes of modelled travel", "For a district planner", "not treatment outcomes",
+                      "The 4 patients placed under both policies travelled 24.5 minutes in total under nearest first "
+                      "and 50.5 under the exact optimum", "To reproduce.", "Seed 3."):
+            self.assertIn(words, page)
+
+        def slotted(found):  # named slots: the optimum gives P3 the place nearest first gave to P2
+            found["facilities"][0]["resources"] = [
+                {"slot_id": "a", "service": "dialysis", "slots": 1, "start_minute": 0},
+                {"slot_id": "b", "service": "dialysis", "slots": 1, "start_minute": 60}]
+            found["facilities"][1]["resources"][0]["slot_id"] = "c"
+            for patient, minute in (("P1", 1), ("P2", 2), ("P3", 30)):
+                next(row for row in found["patients"] if row["id"] == patient)["arrival_minute"] = minute
+            near, best = found["policies"]["nearest_first"], found["policies"]["exact_optimum"]
+            near["assignments"][0]["slot_id"], near["assignments"][1]["slot_id"] = "a", "b"
+            best["assignments"][0]["slot_id"], best["assignments"][1]["slot_id"] = "b", "a"
+            best["assignments"][2]["slot_id"] = "c"
+
+        seen = storm_plan.view(storm_plan.checked(changed(slotted)))["difference"]
+        self.assertEqual(seen["holder"], {"id": "P2", "priority": "routine", "arrival": 2})
+        self.assertEqual((seen["arrival"], seen["best"]["start"]), (30, 60))
+        page = storm_plan.markup(changed(slotted))
+        self.assertIn("Under nearest first that same place went to P2, a routine-priority patient, who arrived at "
+                      "minute 2.", page)
+        self.assertIn("in the place starting at minute 60", page)
+
+        def same(found):  # identical results: nothing to single out, and the note says the places were enough
+            found["policies"]["nearest_first"] = copy.deepcopy(found["policies"]["exact_optimum"])
+            found["patients"] = [row for row in found["patients"] if row["id"] != "P6"]
+            for result in found["policies"].values():
+                result["unserved"] = []
+
+        level = storm_plan.view(storm_plan.checked(changed(same)))
+        self.assertIsNone(level["difference"])
+        self.assertEqual(level["advice"], ["Both policies placed every simulated patient, so in this scenario the "
+                                           "staffed places were enough."])
+        self.assertNotIn("One simulated patient, two decisions", storm_plan.markup(changed(same)))
+
+    def test_each_patient_class_and_service_is_counted_with_its_own_unmet_reasons(self):
+        kinds = {"P1": "routine_scheduled", "P2": "routine_scheduled", "P3": "high_acuity_trauma",
+                 "P4": "minor_injury", "P5": "routine_scheduled", "P6": "minor_injury"}
+
+        def classed(found):
+            for patient in found["patients"]:
+                patient["patient_class"] = kinds[patient["id"]]
+            found["facilities"][1]["resources"][1]["basis"] = "vf_only_record_text"
+
+        found = storm_plan.checked(changed(classed))
+        seen = storm_plan.view(found)
+        self.assertEqual(seen["by_class"]["rows"], [
+            {"group": "routine_scheduled", "patients": 3, "placed": [3, 3]},
+            {"group": "high_acuity_trauma", "patients": 1, "placed": [0, 1]},
+            {"group": "minor_injury", "patients": 2, "placed": [1, 1]}])
+        self.assertEqual(seen["by_class"]["unmet"], [
+            {"group": "high_acuity_trauma", "reason": "Nearest facility full", "counts": [1, 0]},
+            {"group": "minor_injury", "reason": "No facility offers service", "counts": [1, 1]}])
+        self.assertEqual(seen["by_service"]["rows"], [
+            {"group": "dialysis", "patients": 3, "placed": [2, 3]},
+            {"group": "mri", "patients": 2, "placed": [2, 2]},
+            {"group": "trauma_care", "patients": 1, "placed": [0, 0]}])
+        self.assertEqual([row["basis"] for row in seen["resources"]], ["Simulated", "Simulated", "Vf only record text"])
+        page = storm_plan.markup(found)
+        for words in ("By patient class", "High acuity trauma", "Minor injury", "Routine scheduled",
+                      "By service needed", "<th>Patient class</th><th>Reason</th>", "Service and capacity basis",
+                      "Vf only record text"):
+            self.assertIn(words, page)
+        # Without classes the same tables are by service, and no class table is drawn.
+        plain_page = storm_plan.markup(plan())
+        self.assertIsNone(storm_plan.view(plan())["by_class"])
+        self.assertNotIn("By patient class", plain_page)
+        self.assertIn("<th>Service</th><th>Reason</th>", plain_page)
+        self.assertIn("By service needed", plain_page)
 
     def test_generated_sites_are_never_presented_as_real(self):
         def producer_fixture(found):  # the shape of the planner's default, synthetic output
