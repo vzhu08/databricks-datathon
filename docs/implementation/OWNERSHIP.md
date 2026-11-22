@@ -26,6 +26,25 @@ The [routing and storm-surge plan](ROUTING_AND_SURGE_DEMO.md) adds a fictional l
 
 All new implementation, collection, dataset scouting and reporting must serve the full pinned national Virtue Foundation base. The acceptance denominator is 10,088 original facility rows, including the 11 repeated-ID pairs. Count geographically unknown and unsupported rows. Show coverage by state/UT and service. Regional source totals and sampled audits have their own denominators. Standalone local investigations and proposed state pilots are retired. [Plan](PLAN.md) · [National evidence task](https://github.com/vzhu08/databricks-datathon/issues/58)
 
+## Synthetic intake and demo preparation
+
+The [intake assignment](https://github.com/vzhu08/databricks-datathon/issues/124) starts with a fictional presenting problem. The demo may pass a confirmed, current simulated care request to the urgency-aware finder. Escalation, unresolved safety questions and unsupported concerns stop ordinary routing. D proposes the shared interface, A and Andrew review it, and Oliver approves it before dependent implementation. Each linked issue specifies its developer chat, paths, tests and handoff.
+
+| Developer | Assignment | Branch |
+| --- | --- | --- |
+| Oliver · D | [Define the intake contract and assessment engine](https://github.com/vzhu08/databricks-datathon/issues/127) | `codex/intake-d-contract` |
+| Oliver · H | [Define danger-sign handling for fictional scenarios](https://github.com/vzhu08/databricks-datathon/issues/128) | `codex/intake-h-danger` |
+| Oliver · K | [Gate service requests on a simulated referral or assessment](https://github.com/vzhu08/databricks-datathon/issues/129) | `codex/intake-k-referrals` |
+| Oliver · A | [Connect confirmed synthetic requests to the existing urgency-aware finder](https://github.com/vzhu08/databricks-datathon/issues/130) | `codex/intake-a-finder` |
+| Oliver · F | [Build the bounded question catalogue and progression](https://github.com/vzhu08/databricks-datathon/issues/131) | `codex/intake-f-questions` |
+| Oliver · J | [Create the fictional intake-to-finder journeys](https://github.com/vzhu08/databricks-datathon/issues/132) | `codex/intake-j-journeys` |
+| Oliver · L | [Independently challenge the synthetic intake rules](https://github.com/vzhu08/databricks-datathon/issues/133) | `codex/intake-l-independent` |
+| Oliver · I | [Document sources and limits for demo intake rules](https://github.com/vzhu08/databricks-datathon/issues/134) | `codex/intake-i-source-scope` |
+| Oliver · G | [Verify the offline intake workflow end to end](https://github.com/vzhu08/databricks-datathon/issues/135) | `codex/intake-g-end-to-end` |
+| Andrew · C | [Add the synthetic intake journey to the offline Find care screen](https://github.com/vzhu08/databricks-datathon/issues/136) | `codex/andrew-intake-ui` |
+
+A and K first finish their open PR corrections or record their blockers. I and J first hand off their current collection results or blockers. D reports the read-only app-input check on #6, while the [private team storage copy](https://github.com/vzhu08/databricks-datathon/issues/126) depends on B’s verified manifest. Vincent owns source staging and permitted-use records. Andrew also owns the [existing-demo screenshots and operator notes](https://github.com/vzhu08/databricks-datathon/issues/125). G verifies the integrated fictional journey before release.
+
 ## Latest messages
 
 | When (ET) | From | Applies to | Update |
