@@ -35,6 +35,8 @@ class Reply:
     data: Optional[dict] = field(default=None, repr=False)
     rate: RateMetadata = field(default_factory=RateMetadata)
     http_status: Optional[int] = None
+    error_code: Optional[str] = None
+    error_fields: tuple[str, ...] = ()
 
 
 class Budget:
@@ -54,13 +56,15 @@ class Budget:
             return True
 
 
-def _https(host, method, path, headers, body, timeout):
+def _https(host, method, path, headers, body, timeout, *, error_body_limit=0):
     conn = HTTPSConnection(host, timeout=timeout)
     try:
         conn.request(method, path, body=body, headers=headers)
         response = conn.getresponse()
         content_type = response.getheader("Content-Type", "").split(";")[0].strip().lower()
         data = response.read(MAX_RESPONSE + 1) if response.status in (200, 201) else b""
+        if error_body_limit and 400 <= response.status <= 599 and content_type == "application/json":
+            data = response.read(error_body_limit + 1)
         return response.status, content_type, data, {key: response.getheader(key) for key in _RATE_HEADERS}
     finally:
         conn.close()
@@ -134,6 +138,8 @@ def _decode(status, media, raw, rate):
 class Transport:
     """One shared instance per server process. A timed-out worker retains its slot."""
 
+    _decode_response = staticmethod(_decode)
+
     def __init__(self, *, host, headers, attempts=0, exchange=_https, clock=monotonic):
         self._host = host
         self._headers = {**headers, "Content-Type": "application/json"}
@@ -182,7 +188,7 @@ class Transport:
                     delay = max(COOLDOWN_FALLBACK, rate.retry_after_seconds or 0, rate.reset_seconds or 0)
                     with self._gate:
                         self._resume_at = max(self._resume_at, self._clock() + delay)
-                reply = _decode(status, media, raw, rate)
+                reply = self._decode_response(status, media, raw, rate)
             except TimeoutError:
                 reply = Reply("timeout")
             except (OSError, HTTPException):

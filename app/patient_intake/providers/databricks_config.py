@@ -21,7 +21,8 @@ class _ConfiguredTransport:
 class _WorkspaceExchange:
     """Resolve the workspace and refresh auth inside the transport's bounded worker."""
 
-    def __init__(self):
+    def __init__(self, *, error_body_limit=0):
+        self._error_body_limit = error_body_limit
         self._lock = Lock()
         self._config = None
 
@@ -36,7 +37,8 @@ class _WorkspaceExchange:
                 or not url.hostname or url.path not in ("", "/") or url.query or url.fragment
                 or not url.hostname.endswith((".cloud.databricks.com", ".azuredatabricks.net", ".gcp.databricks.com"))):
             raise ValueError("invalid workspace configuration")
-        return _https(url.hostname, method, path, {**headers, **config.authenticate()}, body, timeout)
+        return _https(url.hostname, method, path, {**headers, **config.authenticate()}, body, timeout,
+                      error_body_limit=self._error_body_limit)
 
 
 _lock = Lock()
