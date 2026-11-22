@@ -15,6 +15,8 @@ if (origin.protocol !== "http:" || origin.hostname !== "127.0.0.1") throw Error(
 const observations = {};
 const external = [];
 const errors = [];
+const budgetStop = /^(This visit has used all the assessment requests it is allowed|This server has no assessment requests left in its allowance)\.$/;
+const unresolvedEvidence = /cannot yet (take that correction into account|resolve that)/;
 const text = (page, value) => page.getByText(value, { exact: true });
 const button = (page, value) => page.getByRole("button", { name: value, exact: true });
 
@@ -83,7 +85,7 @@ async function runCase(browser, id) {
         await save(page, "Changed fictional description.");
         await button(page, "I agree. Send it for assessment").click();
         if (id === "budget-exhausted")
-          return { budget_stop_visible: await visible(page, "This visit has used all the assessment requests it is allowed.") };
+          return { budget_stop_visible: await visible(page, budgetStop) };
         await visible(page, "No assessment is available");
         return { unavailable_or_review_visible: true, old_result_visible: await text(page, "Earlier synthetic result").isVisible() };
       }
@@ -91,7 +93,7 @@ async function runCase(browser, id) {
         await answer(page, "unknown");
         await page.getByRole("radio", { name: "unknown", exact: true, checked: false }).waitFor();
         await answer(page, "unknown");
-        return { bounded_stop_visible: await visible(page, "This visit has used all the assessment requests it is allowed.") };
+        return { bounded_stop_visible: await visible(page, budgetStop) };
       case "provider-stop":
         await text(page, "No assessment is available").or(text(page, "This assessment has stopped")).first().waitFor();
         return { provider_guidance_visible: await text(page, "Synthetic provider stop guidance").isVisible(),
@@ -106,7 +108,7 @@ async function runCase(browser, id) {
         await page.getByText("you do not have this", {exact:false}).waitFor();
         await answer(page, "Matches my statement");
         await visible(page, "This could not be assessed");
-        return { unresolved_visible: await page.getByText("cannot yet take that correction into account", {exact:false}).isVisible(),
+        return { unresolved_visible: await page.getByText(unresolvedEvidence).isVisible(),
                  attributed_uncertainty_to_patient: await page.getByText("wrong or unsure", {exact:false}).isVisible() };
       case "same-count-edit":
         await answer(page, "yes");
