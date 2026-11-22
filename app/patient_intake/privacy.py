@@ -18,6 +18,9 @@ class ErrorCode(str, Enum):
     INVALID_PAYLOAD = "session_invalid_payload"
     INVALID_CONFIGURATION = "session_invalid_configuration"
     UNAVAILABLE = "session_unavailable"
+    CLEANUP_FULL = "session_cleanup_full"
+    CLEANUP_STALE = "session_cleanup_stale"
+    CLEANUP_INVALID = "session_cleanup_invalid"
 
 
 class PatientSessionError(ValueError):

@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from app.patient_intake.privacy import PatientSessionError, copy_patient_data
-from app.patient_intake.session import PatientSession
+from app.patient_intake.session import CleanupMailbox, PatientSession
 
 
 CANARY = "SYNTHETIC-PRIVATE-EXCEPTION-lilac-816"
@@ -64,3 +64,20 @@ class PrivacyTests(unittest.TestCase):
         self.assertIsNone(caught.exception.__context__)
         self.assertIsNone(owner._active)
         timer.return_value.cancel.assert_called_once()
+
+    def test_cleanup_accepts_only_resource_references_and_exposes_coarse_status(self):
+        mailbox = CleanupMailbox()
+        reservation = mailbox.reserve()
+        identifier = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        attempt = reservation.admit_create("users")
+        for outcome, resource_id in (("created", CANARY), ("unknown", CANARY), (CANARY, identifier)):
+            with self.assertRaises(PatientSessionError) as caught:
+                reservation.settle_create(attempt, outcome=outcome, resource_id=resource_id)
+            self.assertEqual(str(caught.exception), "session_cleanup_invalid")
+            self.assertNotIn(CANARY, repr(caught.exception))
+        self.assertEqual(mailbox.counts(), {"creating": 1})
+        reservation.settle_create(attempt, outcome="created", resource_id=identifier)
+        reservation.retire()
+        claim = mailbox.claim()
+        self.assertNotIn(identifier, repr(claim))
+        self.assertEqual(mailbox.counts(), {"in_flight": 1})
