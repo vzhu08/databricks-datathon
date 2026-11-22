@@ -63,6 +63,105 @@ test fails if the two differ.
 Not done here: no deployment has been made, and the screen has not read the real table. Live
 deployment and publication need a separate decision.
 
+## Operator walkthrough
+
+For whoever runs the demo or records the video. Everything in this section uses invented
+facilities. Nothing here needs a Databricks account.
+
+### Two separate things to show
+
+| | Offline pages | Streamlit app |
+| --- | --- | --- |
+| Source folder | `app/storm_ui/` | `app/` |
+| Start it | Open `app/storm_ui/index.html` in a browser. No server or install. | `streamlit run app.py` from `app/` (below) |
+| What it is | Find care with urgency (campuses A to F, travel in minutes), then the storm stress test (`replay.html`) | The screen packaged for Databricks Apps (six invented facilities, straight-line distance) |
+| Data | Answers and replays computed ahead of time from invented records | `demo_facilities.json`, or the prepared table when configured |
+
+They share no code path at run time and their invented facilities differ, so do not present one
+as the other. The storm replay exists only in the offline pages.
+
+### Start the Streamlit demonstration
+
+```
+cd app
+pip install -r requirements.txt
+FIND_CARE_DATA=demo streamlit run app.py
+```
+
+`FIND_CARE_DATA=demo` is the explicit synthetic mode, and `app.yaml` sets the same value for a
+deployed app. Expected startup: Streamlit prints a local address, and the page shows the title
+**Find care**, a band reading **Data: demonstration. This screen is running on six invented
+facilities, not the real records.**, and a form already filled with Dialysis, "Jaipur, Rajasthan"
+and 50 km.
+
+| Do this | Expect |
+| --- | --- |
+| Press **Find a facility** | "Send the patient to Example Regional Hospital.", about 6.7 km away, with the quoted record text, its field and its source |
+| Press the example **Dialysis within 2 km of PIN 302001** | "No facility within 2 km clearly offers dialysis." Nothing is recommended. This is the weak-evidence result |
+| Change the form after an answer | The answer is greyed and marked as being for the earlier request |
+
+### Recognising incomplete configuration
+
+If the screen opens with a red box, **Data: not available. This app is set to read the real
+facility records, but its setup is incomplete.**, followed by one line per missing setting and no
+form, the app is not in demonstration mode and at least one of the five warehouse settings is
+missing or malformed. It never falls back to invented data on its own. For a demonstration, set
+`FIND_CARE_DATA=demo` and restart. The settings are listed under [Data mode](#data-mode).
+
+### What has been run, and what has not
+
+Run locally, on invented facilities only: both offline pages in a browser; the Streamlit
+demonstration through its test harness and as a real server started from a copy of `app/` alone
+with the command in `app.yaml`; and the real-records screen against a mocked warehouse that
+returns the invented facilities.
+
+Not run: no deployment to Databricks Apps, no read of the prepared table by this screen, and no
+start with the settings Databricks supplies. Those wait for an authorised live deployment, which
+is Oliver's decision.
+
+If that deployment is made from a workspace folder holding a copy of `app/`, no Git access is
+involved. If it is made from this repository, the repository is private, so the app's service
+principal needs a Git credential and the source code path must be `app`. Both routes are in
+Databricks' [Deploy a Databricks app](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/deploy).
+
+### The walkthrough in pictures
+
+Captured from `main` at `9c6f0a6`, 1100 px wide, saved at 1650 px. Every facility, campus, record,
+slot count and travel time shown is invented.
+
+**1. Find care, offline.** A routine dialysis request gets one campus, the reason, the record text
+behind it and two backups. The rule weighs urgency: at routine urgency a fresher record outweighs
+a trip that is 4 minutes shorter.
+
+![Offline Find care page answering "Send the patient to Campus B. About 12 minutes by road.", with the reason Campus B outranks the nearer Campus A, the quoted record text, a caution that nobody has confirmed a free place, and two backup campuses](../docs/demo/screenshots/01-find-care-answer.png)
+
+**2. Weak evidence, offline.** Most-urgent trauma care, where no record confirms the service
+within the 20-minute limit. The page recommends nothing and says what each record does say.
+
+![Offline Find care page answering "No campus is confirmed for trauma care within 20 minutes." It lists two campuses whose records mention trauma care, each marked not confirmed with the reason, and recommends neither](../docs/demo/screenshots/02-find-care-weak-evidence.png)
+
+**3. Storm stress test, offline.** One simulated storm shift (seed 17, 10-minute detour cap)
+played under two rules with the same eight patients. Nearest-first places 7 of 8. The
+urgency-aware rule places 8 of 8 by sending routine dialysis Patient 1 to Campus B in 12 minutes
+in place of Campus A in 8, which keeps A's last monitored dialysis slot free for the
+highest-urgency Patient 2. The cost is 4 extra minutes of travel in total. Developer D's
+[clarity receipt](https://github.com/vzhu08/databricks-datathon/issues/90) records the same
+figures. This is a simulation on invented slot counts and travel times. "Placed" means the model
+found a feasible appointment. It is not a measured patient outcome.
+
+![Storm stress test at minute 20 of 20. Two schematic maps of six fictional campuses side by side. Nearest first: served 7 of 8, not served 1, extra travel 0 minutes. Urgency-aware: served 8 of 8, not served 0, extra travel 4 minutes](../docs/demo/screenshots/03-storm-stress-test.png)
+
+**4. The packaged Streamlit demonstration.** The screen that `app.yaml` starts, in demonstration
+mode, after pressing Find a facility.
+
+![Streamlit Find care screen with the band "Data: demonstration", the request form on the left, and the answer "Send the patient to Example Regional Hospital. Jaipur, Rajasthan, 302001. About 6.7 km away, in a straight line.", followed by why this facility, the quoted record text with its field and source, and a caution to phone first](../docs/demo/screenshots/04-streamlit-demonstration.png)
+
+**5. Real-records mode, mocked.** The same screen set to real records, with a mocked warehouse
+that returns the six invented facilities. No real record was read to make this image. It shows
+what the screen does when the search finds a matching record: it names no facility.
+
+![Streamlit Find care screen with the band "Data: real records", answering "No facility is recommended from the real records yet. Records within 50 km mention dialysis, but none has been reviewed and approved as a place to send a patient." No facility name, record text or link is shown. Mocked warehouse, invented facilities](../docs/demo/screenshots/05-streamlit-real-records-mocked.png)
+
 ## Checks
 
 ```
