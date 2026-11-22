@@ -8,11 +8,13 @@ Use GitHub repository issues and this board for all team communication. Record a
 
 Oliver's main chat owns every merge, revert, PR disposition, branch retirement and release; the user makes executive decisions there. Vincent's data chat owns acquisition/refinement, distributes data assignments and recommends data changes to Oliver. Andrew owns all demo UI and UX. Ayush takes one short, nonblocking check. The two orchestrators each have one five-minute board checker. [Ownership acknowledgement](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7071089326) · [Assignments and checker consolidation](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7071100414)
 
+Every implementation task has one named developer chat in this project. That chat owns the code, tests, fixes and PR and may use subagents. Oliver’s main chat assigns the work, reviews the evidence and handles repository decisions. Record the assignment and handoff on the task issue.
+
 The [routing and storm-surge plan](ROUTING_AND_SURGE_DEMO.md) adds a fictional local demonstration alongside the national evidence work.
 
 | Owner | Active demo task | Handoff |
 | --- | --- | --- |
-| Oliver | [#87 · Model, allocation and replay](https://github.com/vzhu08/databricks-datathon/issues/87) | Release a tested, synthetic replay to Andrew and maintain the integration queue. |
+| Oliver · Developer D chat | [#87 · Model, allocation and replay](https://github.com/vzhu08/databricks-datathon/issues/87) | D owns model evaluation and replay follow-ups, including the evaluation once blinded human labels are available. The tested replay is with Andrew. Oliver owns policy and merge decisions. |
 | Vincent | [#88 · Data orchestration](https://github.com/vzhu08/databricks-datathon/issues/88) | Supply dated campus-level evidence, typed capacity, coverage and reuse limits. |
 | Andrew | [#89 · All UI/UX](https://github.com/vzhu08/databricks-datathon/issues/89) | Implement the playable offline map, explanations and accessible comparison. |
 | Ayush | [#90 · One replay clarity check](https://github.com/vzhu08/databricks-datathon/issues/90) | Return one short comment after Andrew posts a playable build. |
@@ -72,7 +74,7 @@ These entries preserve decisions and results at the time they were posted. Curre
 
 ## Integration desk
 
-Oliver owns repository triage, assignments, reviews, merges and branch maintenance on a five-minute cadence. Oliver records the state of his own integration checker in #40. Vincent’s five-minute follow-up covers B assignments. Oliver is the workspace contact for the manual schema and count in #36 and for artifacts and Codex chats on his machine. Each open PR keeps its own review history. The coordinator tests proposed merges against current main and records live verification separately. After integration, prune retired branches whose exact merged tips are reachable from main, protecting active assignments, protected branches, open PR heads/bases and checked-out worktrees. Recheck the remote refs after deletion.
+Oliver owns repository triage, assignments, reviews, merges and branch maintenance on a five-minute cadence. Oliver records the state of his own integration checker in #40. Vincent’s five-minute follow-up covers B assignments. Oliver is the workspace contact for the manual schema and count in #36 and for artifacts and Codex chats on his machine. Each open PR keeps its own review history. The coordinator reviews the developer chat’s checks against current main and records live verification separately. After integration, prune retired branches whose exact merged tips are reachable from main, protecting active assignments, protected branches, open PR heads/bases and checked-out worktrees. Recheck the remote refs after deletion.
 
 - [INT-01](https://github.com/vzhu08/databricks-datathon/issues/10) · Oliver · `codex/integrate-search-baseline`. Integrate Vincent’s [search baseline](https://github.com/vzhu08/databricks-datathon/pull/1) at `8f069c5` with the corrections for off-site, planned and incoming-referral wording. The integration checkout passed 18 offline tests. Live warehouse verification awaits D’s prepared-table mapping.
 - Ayuush’s [baseline preparation notebook](https://github.com/vzhu08/databricks-datathon/pull/2) now preserves upstream IDs and creates a fresh Delta destination. The synthetic local Spark/Delta check exercised two same-name campuses, input and existing-output guards, malformed coordinates, and compatibility with D’s surrogate IDs. D owns live verification in [#6](https://github.com/vzhu08/databricks-datathon/issues/6).
