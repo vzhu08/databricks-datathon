@@ -151,6 +151,14 @@ MRI_SERVICE_TAIL = re.compile(
     r'(?:\s*(?:[.,;:!?]|$)|\s+(?:scans?|scanning|services?|imaging|examinations?|'
     r'onsite|on[- ]site|at|inside|within|in|from|since|until|daily)\b)', re.I)
 
+EXTERNAL_PERFORMANCE = re.compile(
+    r'\boff[\s\-\u2010-\u2014]?site\b|'
+    r'\b(?:acquired|performed|scanned|conducted|provided|offered|scans?|scanning|imaging)\s+elsewhere\b|'
+    r'\b(?:only\s+elsewhere|elsewhere\s+only)\b|'
+    r'\b(?:at|in|within)\s+(?:another|(?:(?:an?|the)\s+)?(?:other|separate|different|external))\s+'
+    r'(?:(?:MRI|imaging|radiology|diagnostic|medical)\s+)*(?:hospitals?|campus(?:es)?|facilit(?:y|ies)|'
+    r'sites?|centres?|centers?|units?|locations?|clinics?)\b', re.I)
+
 def affirmative_mri_operation(context, name, host):
     """Require a direct operative predicate and MRI object outside entity names.
 
@@ -185,8 +193,7 @@ def source_scope_flags(text):
     flags = []
     if re.search(r'\bnear(?:by)?\b|\badjacent\s+to\b|\bnext\s+to\b|\bopposite\b|\bbeside\b', text, re.I):
         flags.append('source_nearby_wording_not_onsite')
-    if re.search(r'\bteleradiology\b|\bremote\b|\boff[- ]site\b|'
-                 r'\b(?:acquired|performed|scanned)\s+elsewhere\b|'
+    if EXTERNAL_PERFORMANCE.search(text) or re.search(r'\bteleradiology\b|\bremote\b|'
                  r'\b(?:refers?|referred|referring)\b|\breferrals?[- ]only\b|'
                  r'\breferrals?\s+(?:to|for)\b|\bonly\s+referrals?\b', text, re.I):
         flags.append('source_remote_wording_not_onsite')

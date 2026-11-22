@@ -568,16 +568,50 @@ class CliRegressionTests(unittest.TestCase):
 
     def test_cli_unrelated_adjacent_statement_does_not_veto_actual_onsite_claim(self):
         own = 'Example MRI Unit provides MRI scans onsite.'
-        other = 'Other Diagnostic Unit is closed and provides referral-only teleradiology from a nearby office.'
-        for key, text in [('before', other+' '+own), ('after', own+' '+other)]:
-            for label, excerpt in [('clipped', 'Example MRI Unit provides MRI'), ('full', text)]:
-                with self.subTest(key=key, quote=label):
-                    self.scope_corpus('<p id="scope">'+text+'</p>', excerpt)
-                    result = self.run_cli(key+'-'+label)
+        neighbors = [
+            'Other Diagnostic Unit is closed and provides referral-only teleradiology from a nearby office.',
+            'Other Diagnostic Unit performs MRI scans only at another hospital.',
+        ]
+        for index, other in enumerate(neighbors):
+            for key, text in [('before', other+' '+own), ('after', own+' '+other)]:
+                for label, excerpt in [('clipped', 'Example MRI Unit provides MRI'), ('full', text)]:
+                    with self.subTest(neighbor=index, key=key, quote=label):
+                        self.scope_corpus('<p id="scope">'+text+'</p>', excerpt)
+                        result = self.run_cli(f'{index}-{key}-{label}')
+                        row = self.scope_row(result)
+                        self.assertTrue(row['onsite_mri_documentary_candidate'])
+                        self.assertEqual(row['claim_scope_context'], own)
+                        self.assertFalse(any(flag.startswith('source_') for flag in row['review_flags']))
+
+    def test_cli_external_only_performance_is_not_onsite(self):
+        own = 'Example MRI Unit performs MRI scans'
+        for index, place in enumerate([
+            'offsite only', 'off-site only', 'off site only', 'off‑site only',
+            'only at another hospital', 'only at a separate facility',
+            'at a different campus only', 'elsewhere only', 'elsewhere',
+        ]):
+            full = f'{own} {place}.'
+            for label, excerpt in [('full', full), ('clipped', own)]:
+                with self.subTest(place=place, quote=label):
+                    self.scope_corpus(f'<p id="scope">{full}</p>', excerpt)
+                    result = self.run_cli(f'offsite-{index}-{label}')
                     row = self.scope_row(result)
-                    self.assertTrue(row['onsite_mri_documentary_candidate'])
-                    self.assertEqual(row['claim_scope_context'], own)
-                    self.assertFalse(any(flag.startswith('source_') for flag in row['review_flags']))
+                    self.assertTrue(row['affirmative_mri_operation'])
+                    self.assertFalse(row['onsite_mri_documentary_candidate'])
+                    self.assertIn('source_remote_wording_not_onsite', row['review_flags'])
+                    self.assertEqual(row['claim_scope_context'], full)
+                    self.assertEqual(result['summary.json']['named_mri_documentary_candidates'], 0)
+
+    def test_cli_external_only_host_statement_vetoes_onsite_claim(self):
+        host = 'Example MRI Unit serves Example East Campus'
+        self.scope_corpus(f'<p id="host-scope">{host}. Its scans are performed only at another hospital.</p>',
+            'Example MRI Unit performs MRI scans inside Example East Campus.', selector='#onsite',
+            record_fields=dict(host_campus='Example East Campus', host_relation='onsite', host_excerpt=host,
+                               host_location=dict(selector='#host-scope')))
+        row = self.scope_row(self.run_cli())
+        self.assertFalse(row['onsite_mri_documentary_candidate'])
+        self.assertIn('source_remote_wording_not_onsite', row['review_flags'])
+        self.assertEqual(row['host_relation'], 'remote')
 
     def test_cli_unrelated_host_neighbor_does_not_veto_onsite_claim(self):
         own = 'Example MRI Unit is inside Example East Campus.'
@@ -692,6 +726,9 @@ class CliRegressionTests(unittest.TestCase):
         for index, text in enumerate([
             'Example MRI Unit provides MRI.',
             'Example MRI Unit performs MRI scans onsite.',
+            'Example MRI Unit performs MRI scans only at Example East Campus.',
+            'Example MRI Unit performs MRI scans at another time of day.',
+            'Example MRI Unit performs MRI scans onsite for patients from another hospital.',
             'Example MRI Unit offers MRI services.',
             'Example MRI Unit conducts magnetic resonance imaging.',
             'Example MRI Unit is currently performing MRI scans.',

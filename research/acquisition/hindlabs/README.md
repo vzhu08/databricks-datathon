@@ -99,6 +99,9 @@ conducts/operates wording and bound same-unit pronouns are recognized; MRI repor
 referrals and name-only mentions do not meet this test. Negation, closure,
 conditional/future wording, remote/nearby context and date assessments still veto
 candidacy even when another part of the passage contains an affirmative predicate.
+External performance qualifiers include `offsite`, `off-site`, `off site`, and
+statements that place scans at another hospital, campus or facility. The same
+checks apply to the independently located host wording.
 Unrecognized wording remains unconfirmed for manual review.
 
 Optional `dates` hold complete validity dates and/or the original
