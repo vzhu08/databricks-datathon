@@ -57,6 +57,17 @@ NOTICES = str(os.environ.get(NOTICES_SETTING) or "").strip()
 TRAFFIC_ON = os.environ.get("TOMTOM_ENABLED") == "true" and bool(CAPTION) and bool(NOTICES)
 TRAVEL_SOURCES = {True: f"Road time with traffic ({capacity.TRAFFIC_SOURCE}, ordinary car)",
                   False: "Simulated minutes"}
+# How a public-source result comes about, in the order a reader can check it.
+PUBLIC_HOW = (
+    "The collection holds a few claims paraphrased from hospital operators' own web pages. Each links to the "
+    "page it came from and gives the day that page was checked.",
+    "A claim is listed when its city is the one you typed and the service you typed is a wording that page "
+    "supports. Nothing else is matched or guessed.",
+    "Claims are shown in the collection's own order. They are not ranked, and the order says nothing about "
+    "quality.",
+    "An operator's page is not a check of today's service. Availability, staffing, appointments and the "
+    "entrance are unknown, so the next step is always a phone call.",
+)
 RECOMMEND, LOOKUP = "recommend", "lookup"
 MODES = {RECOMMEND: "Recommend a campus", LOOKUP: "Look up the example records"}
 DATA = words.data_mode(os.environ)
@@ -533,6 +544,7 @@ elif DATA["mode"] in ("warehouse", "setup"):
 lookup_mode = st.radio("Find care mode", lookup_modes, horizontal=True, key="lookup_source")
 if lookup_mode == "Public facility evidence":
     st.caption("Search the reviewed public-source collection by city and service. Coverage is limited.")
+    st.markdown(f'<div class="fc-emergency">{safe(patient_ui.EMERGENCY)}</div>', unsafe_allow_html=True)
     # The widget's max_chars silently rejects an over-limit paste, leaving the previous query in place.
     limit = 120
     hint = f"Enter up to {limit} characters."
@@ -564,8 +576,11 @@ if lookup_mode == "Public facility evidence":
                 st.write(f"Page checked {claim['checked_on']}. Treatment observation date unknown.")
                 st.write("Current availability, staffing, appointment acceptance and exact entrance are unknown.")
                 st.caption("Source scope: public operator evidence. No reviewed match to a Virtue Foundation record.")
-                st.write(f"Call the published {claim['contact_label'].lower()} ({claim['contact_phone']}) "
-                         "to confirm the service and current availability.")
+                st.write(f"**Next step.** Call the published {claim['contact_label'].lower()} "
+                         f"({claim['contact_phone']}) to confirm the service and current availability.")
+            if claims:
+                # Not a subheader: on this view each subheader is an operator's name.
+                st.markdown("**How this was decided**\n\n" + "\n".join(f"{number}. {plain(rule)}" for number, rule in enumerate(PUBLIC_HOW, start=1)))
     national_directory.render(st, HERE, False)
     st.stop()
 if DATA["mode"] == "setup":
@@ -575,8 +590,12 @@ if DATA["mode"] == "setup":
     st.caption(f"To run on the invented demonstration facilities instead, set {words.DATA_SETTING} to demo.")
     st.stop()
 if DEMO:
-    st.markdown('<div class="fc-lede">Say what care a patient needs, how urgent it is and where they start. You '
-                "get one campus to send them to, chosen by free staffed places and travel time.</div>"
+    # The opening line describes the job the form is doing now, so the lookup never promises a destination.
+    lede = ("Say what care a patient needs, how urgent it is and where they start. You get one campus to send "
+            "them to, chosen by free staffed places and travel time." if mode() == RECOMMEND else
+            "Say what care a patient needs and where they are. You get the best supported lead among the "
+            "example records, what its record says and a call script to confirm it. Nobody is sent anywhere.")
+    st.markdown(f'<div class="fc-lede">{lede}</div>'
                 '<div class="fc-mode"><strong>Data: demonstration.</strong> This screen is running on invented '
                 "campuses and six invented facilities, not the real records.</div>", unsafe_allow_html=True)
     if not FIXTURE.exists():
@@ -633,6 +652,7 @@ with left:
             st.button(label, key="capacity-" + label, on_click=fill_recommendation,
                       args=(ex_service, ex_urgency, ex_origin, ex_tool))
     else:
+        st.markdown(f'<div class="fc-emergency">{safe(patient_ui.EMERGENCY)}</div>', unsafe_allow_html=True)
         where = st.text_input("2. Where the patient is", key="where", placeholder="For example: Jaipur, Rajasthan")
         st.caption("A city or town (add the state after a comma), a six-digit PIN code, or coordinates.")
         radius = st.select_slider("Search within", options=list(words.RADII), key="radius",

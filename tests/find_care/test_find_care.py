@@ -460,6 +460,10 @@ class ScreenTests(unittest.TestCase):
         self.assertEqual("Pune", next(field for field in app.text_input if field.label == "City").value)
         app = self._step(next(button for button in app.button if button.label == "Search public sources").click())
         self.assertIn("KEM Hospital, Pune", self._text(app))
+        # A judge can find the source, see how the result came about and say what to do next.
+        for part in ("call 112 now", "Next step", "How this was decided", "They are not ranked",
+                     "the next step is always a phone call"):
+            self.assertIn(part, self._text(app))
         self.assertIn("Current availability, staffing, appointment acceptance and exact entrance are unknown.",
                       self._text(app))
         self.assertEqual(1, len(app.get("link_button")))
@@ -469,6 +473,8 @@ class ScreenTests(unittest.TestCase):
         self.assertIn("**Pune** in **City**", app.info[0].value)
         self.assertIn("**dialysis** or **maintenance haemodialysis** in **Service**", app.info[0].value)
         self.assertIn("select **Search public sources** again", app.info[0].value)
+        self.assertIn("call 112 now", self._text(app))
+        self.assertNotIn("How this was decided", self._text(app))
         self.assertNotIn("Send the patient", self._text(app))
         self.assertNotIn("KEM Hospital, Pune", self._text(app))
         self.assertFalse(app.get("link_button"))
@@ -882,7 +888,7 @@ class ScreenTests(unittest.TestCase):
                      "Status: Provisional · Synthetic demo record",
                      "“The North Campus provides hemodialysis.” (procedures field",
                      "Independent sources for the service: 1. Service statement dated: unknown.",
-                     "Citation: https://example.invalid/north-campus. It points to the whole record",
+                     "Record reference: https://example.invalid/north-campus",
                      "Location evidence: Reported as a map point", "Building and entrance unverified.",
                      "Dialysis evidence: Unconfirmed · Reported · Fixture statement names North Campus. "
                      "Physical branch unverified. Service date unknown. (1 record, 1 known supporting origin.)",
@@ -897,6 +903,11 @@ class ScreenTests(unittest.TestCase):
             self.assertIn(part, script)
         for part in ("Referral note", "Send to:", "Send the patient", "booked", "reserved for", "Campus B"):
             self.assertNotIn(part, script)
+        # The lookup says what it gives and keeps the emergency line in view. It never promises a destination.
+        self.assertIn("You get the best supported lead among the example records", text)
+        self.assertIn("Nobody is sent anywhere.", text)
+        self.assertNotIn("You get one campus to send them to", text)
+        self.assertIn("call 112 now", text)
         # The other record with the same name is a separate lead with its own claims, not merged into the first.
         self.assertIn('data-claims="direct_results-1"', text)
         self.assertIn("Fixture statement names South Campus.", text)
