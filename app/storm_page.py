@@ -26,6 +26,10 @@ HOW = ("Press Play or Next to run one shift, or Skip to the result to reach the 
        "farther to keep the last specialist slot free for someone urgent. Select a patient in the table to see why "
        "each side chose as it did. Show as: Text only gives the same replay without the maps.")
 REPLAY = "Checked 8-request replay"
+TWO_VIEWS = ("Two views of the same question: who gets a staffed place when demand outruns capacity. The replay "
+             "steps through a few invented requests one at a time, so you can see why each policy chose as it did. "
+             "The planning simulation places {patients:,} simulated patients across {sites:,} {where} and compares "
+             "nearest first with the best possible assignment.")
 RUN_ROADS = "Run signed-in road-time comparison"
 _TRAFFIC_RESULT = "storm_traffic_display"
 UNAVAILABLE = "The storm replay files are not in this deployment, so the replay cannot be shown."
@@ -143,6 +147,12 @@ def _render_planning(st, plan):
             storm_plan.render(st, plan)
 
 
+def views_note(plan):
+    """One line above the switch saying what the two views are, with the plan's own counts."""
+    where = "real site locations" if storm_plan.real(plan) else "simulated sites"
+    return TWO_VIEWS.format(patients=len(plan["patients"]), sites=len(plan["facilities"]), where=where)
+
+
 def render(st):
     """Draw the page. Called by app.py before any patient or facility code runs."""
     st.title("Storm demo")
@@ -151,6 +161,7 @@ def render(st):
     except storm_plan.Unavailable:
         plan = None
     if plan is not None:
+        st.caption(views_note(plan))
         views = [REPLAY, storm_plan.choice(plan)]
         if st.radio("Storm view", views, horizontal=True, key="storm_view", label_visibility="collapsed") != REPLAY:
             _render_planning(st, plan)
