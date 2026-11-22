@@ -8,6 +8,12 @@
   - 1,047 pins more than 100 km from their PIN
   - 118 rows in duplicate clusters
 - Sensitivity callout: *"1 in 6 raw top answers points to a facility that isn't where the map puts it. Fixing pins changes the top answer in 21% of searches."*
+- Audit callout (stratified sample of 152, weighted, 95% CI):
+  - map point wrong 12% (6–23%)
+  - PIN wrong 6% (2–15%)
+  - type disagrees 13% (3–43%)
+  - name contradicted 0% (upper bound 13%)
+  - about 3 in 10 dialysis (30%) and MRI (27%) claims backed by outside or own-site evidence, none contradicted
 - Speaker line: "The hand-read samples check our methods. They are not approvals, and no record has been approved for referral."
 
 ## Slide 2. "Eight problems, sized"

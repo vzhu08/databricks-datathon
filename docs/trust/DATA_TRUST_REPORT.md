@@ -21,6 +21,33 @@ We replayed 2,968 top-5 searches: 742 district centres × 4 services, ranked by 
 - **Why evidence is a badge, not a filter.** Keeping only records with independent identity evidence would leave **47% of searches (822 of 1,739) with nothing within 50 km**.
 - **Caveat.** Origins are district centres, not population-weighted, and the pin repairs are themselves leads.
 
+## How often a field is wrong: stratified audit sample
+
+**Design.** A stratified sample of 152 named rows: 8 strata (integrity tier × hospital or not), 19 rows each, systematic draw, seed 20261122, covering 32 states. It is weighted to all 10,034 named rows with a combined ratio estimator. The 95% intervals are Wilson intervals on the effective sample size.
+
+**Evidence.** Each field was checked automatically against:
+- independent records of the same facility;
+- the India Post directory;
+- the facility's own website, from September 2026 Common Crawl captures (60 of 165 sites readable).
+
+A hand-read of 10 web verdicts found 8 right; the rules were then fixed for the 2 name-variant misses. These are estimates, not a reviewed truth set.
+
+| Field | Error estimate | 95% CI | Weighted share of rows with evidence |
+|---|---:|---:|---:|
+| Map point wrong (far from its PIN, or from the same facility elsewhere) | **12%** | 6–23% | 89% |
+| PIN wrong (invalid, wrong state, or an outside source gives another) | **6%** | 2–15% | 98% |
+| Facility type disagrees with outside sources | **13%** | 3–43% | 16% |
+| Name contradicted by outside evidence | **0%** | upper bound 13% | 41% |
+
+**Agreement with full counts.** The point rate agrees with a full-population check, which finds 10.4% of named rows more than 100 km from every post office of their own PIN. The point check partly reuses the integrity signal the strata are built on, so the census figure is shown beside it.
+
+**Service claims.** For dialysis and MRI we drew a simple random sample of 30 claimants each (seed 20261123):
+- 30% of dialysis claims (9 of 30, CI 17–48%) were backed by outside or own-site evidence.
+- 27% of MRI claims (8 of 30, CI 14–44%) were backed the same way.
+- **None was contradicted.**
+
+The rest are self-reported only. A claim with no evidence counts as unbacked, not as wrong.
+
 ## The problems, sized
 
 | Problem | How big it is | What the app does now | What would close the gap |
