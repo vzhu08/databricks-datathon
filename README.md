@@ -23,19 +23,17 @@ FIND_CARE_DATA=demo streamlit run app/app.py
 
 ## From source record to recommendation
 
-The first four steps build evidence from the real dataset. The routing and allocation steps shown in the storm replay use synthetic inputs.
+The first three stages build evidence from the real dataset. The last two use synthetic inputs in the storm replay.
 
 ```mermaid
-flowchart TD
-    A["Virtue Foundation Delta v0<br/>Keep all 10,088 original records"] --> B["Private Databricks ingestion<br/>Pin editions and preserve original keys"]
-    B --> C["Compare independent source families<br/>Resolve branch and geographic precision"]
-    C --> D["Check evidence scope, origin, dates and conflicts<br/>Service status: Yes / No / Unconfirmed"]
-    D --> E["Check eligibility and urgency<br/>Require the correct service and tools"]
-    E --> F["Compare travel times on the same basis<br/>Check staffed slots and specialist scarcity"]
-    F --> G["Recommend a destination with reasons<br/>or withhold it when required inputs are missing"]
+flowchart LR
+    A["VF Delta v0<br/>Private Databricks"] --> B["Source families<br/>Branch and precision"]
+    B --> C["Dated evidence<br/>Yes / No / Unconfirmed"]
+    C --> D["Eligibility and urgency<br/>Comparable travel times"]
+    D --> E["Staffed slots and scarcity<br/>Recommend or withhold"]
 ```
 
-We preserve duplicate original occurrences for reproducibility. We compare facility names, addresses and other identity cues to resolve the branch. A locality, postal area or district can support a directory result. Routing needs a defensible destination point. Multiple listings copied from the same publisher count as one origin. [Implementation plan](docs/implementation/PLAN.md) · [Matching and validation](docs/implementation/VALIDATION_RESEARCH.md)
+We pin the Virtue Foundation snapshot and evidence editions in private Databricks, preserving every original occurrence and key for reproducibility. We compare facility names, addresses and other identity cues to resolve the branch. A locality, postal area or district can support a directory result. Routing needs a defensible destination point. Multiple listings copied from the same publisher count as one origin. [Implementation plan](docs/implementation/PLAN.md) · [Matching and validation](docs/implementation/VALIDATION_RESEARCH.md)
 
 Service evidence records who made the claim, where it appears, which campus it refers to, and when it applies. **Yes** requires reviewed evidence of onsite service at the identified campus. **No** requires a reviewed statement of absence or referral elsewhere. Missing dates, equipment inventories, claims about another campus and unresolved disagreements can leave the result **Unconfirmed**. Even a confirmed service needs a separate staffed-capacity check before travel. [Service rules](docs/implementation/SERVICE_STATUS.md)
 
