@@ -124,7 +124,8 @@ class ScreenTests(unittest.TestCase):
         self.source = Path(folder) / "app"
         shutil.copytree(APP, self.source, ignore=shutil.ignore_patterns("__pycache__", national.FILE))
         bare = ("find_care", "data_access", "ranking", "patient_ui", "patient_intake", "storm_page",
-                "national_directory", "capacity_recommendation", "travel")
+                "national_directory", "capacity_recommendation", "travel", "find_capacity", "simulation",
+                "finding_provenance")
         saved = {name: module for name, module in sys.modules.items() if name.split(".")[0] in bare}
         for name in saved:
             del sys.modules[name]
@@ -170,8 +171,12 @@ class ScreenTests(unittest.TestCase):
                       "not the six invented facilities", "Building accuracy, present-day operation"):
             self.assertIn(words, first[0])
         self.assertIn('data-national="shown"', first[0])
-        # A different service and a finished search leave the section exactly as it was.
+        # A different service, a finished recommendation and a finished record lookup leave the section as it was.
         app = self._step(app.radio(key="service").set_value("mri"))
+        app = self._step(app.button(key="find").click())
+        self.assertIn("capacity", app.session_state)
+        self.assertEqual(first, self._section(app))
+        app = self._step(app.radio(key="mode").set_value("lookup"))
         app = self._step(app.button(key="find").click())
         self.assertIn("response", app.session_state)
         self.assertEqual(first, self._section(app))
@@ -187,6 +192,9 @@ class ScreenTests(unittest.TestCase):
         self.assertIn(national.UNAVAILABLE, section[0])
         self.assertNotIn("7,895", section[0])
         self.assertNotIn("10,088", section[0])
+        app = self._step(app.button(key="find").click())
+        self.assertEqual("recommended", app.session_state["capacity"]["result"]["status"])
+        app = self._step(app.radio(key="mode").set_value("lookup"))
         app = self._step(app.button(key="find").click())
         self.assertEqual("ok", app.session_state["response"]["status"])
 

@@ -201,9 +201,27 @@ A table that cannot be read gives "The facility records cannot be reached right 
 
 ## What each mode shows
 
-**Demonstration.** One facility, the exact words from its invented record with the field they came
-from, its record sources, what is not confirmed, up to two backups, a referral note to copy or
-save, and the request and response under Technical details.
+**Demonstration.** Two separate jobs, chosen at the top of the form.
+
+*Recommend a campus* (opens first) is the one actionable answer. The reader gives the care, the
+urgency and one of four simulated Jaipur starting areas. The capacity model (`capacity_recommendation`)
+picks one of the invented campuses A to F by free staffed places and travel time, and that campus
+alone is the destination: the headline, the time, the reason, the fallback list and the referral note
+are all read from the same result (`find_capacity.py`). When the model recommends nothing, there is no
+destination and no note. A changed request removes the earlier recommendation until the next press.
+Travel minutes are the scenario's simulated minutes unless road time is set up. Road time with traffic
+needs three operator settings: `TOMTOM_ENABLED=true`, `TOMTOM_COPYRIGHT_CAPTION` (the verified caption,
+shown beside every road-time result) and `TOMTOM_COPYRIGHT_NOTICES` (the complete supplier notices, one
+press away on the same result). With all three, road time is the default source: one ordinary press of
+Find a facility sends one bounded batch, with no second opt-in. Nothing is sent when the page opens or
+redraws, from the record lookup, or from an example. Examples always use simulated minutes and say so.
+Each result shows the provider's own request time and the car mode, for failed and partial results too.
+A failed road time, a used-up allowance included, is never replaced by simulated or straight-line
+minutes. If any of the three settings is missing, no road-time source is offered.
+
+*Look up the example records* is the six-facility record search: the words from each invented record,
+the field they came from, the location and service evidence lines, and what is not confirmed. It
+directs nobody anywhere and offers no referral note. Its facilities are never joined to campuses A to F.
 
 **Real records.** The v0 search answers `ok` when a record states the service and orders by
 straight-line distance. That is not enough for a referral, and the team's verified count of
@@ -220,8 +238,8 @@ The screen has no print control of its own in either mode.
 
 In both modes the form always shows the request the answer is for: an example fills the form before
 it searches. When the form is changed after an answer, the answer is marked as being for the earlier
-request and greyed, and the backups, the referral note and the download are taken away until Find a
-facility is pressed again.
+request and greyed, and the other records and their evidence lines are taken away until the button is
+pressed again. A changed recommendation request removes the recommendation and its note outright.
 
 ## Run it
 
@@ -267,14 +285,16 @@ FIND_CARE_DATA=demo streamlit run app.py
 `FIND_CARE_DATA=demo` is the explicit synthetic mode, and `app.yaml` sets the same value for a
 deployed app. Expected startup: Streamlit prints a local address, and the page shows the title
 **Find care**, a band reading **Data: demonstration. This screen is running on six invented
-facilities, not the real records.**, and a form already filled with Dialysis, "Jaipur, Rajasthan"
-and 50 km.
+facilities, not the real records.** (the demonstration band also names the invented campuses), and
+a form already set to Recommend a campus, Dialysis, Routine and Central.
 
 | Do this | Expect |
 | --- | --- |
-| Press **Find a facility** | "Send the patient to Example Regional Hospital.", about 6.7 km away, with the quoted record text, its field and its source |
-| Press the example **Dialysis within 2 km of PIN 302001** | "No facility within 2 km clearly offers dialysis." Nothing is recommended. This is the weak-evidence result |
-| Change the form after an answer | The answer is greyed and marked as being for the earlier request |
+| Press **Find a facility** | "Send the patient to Campus B.", 12 simulated minutes, 4 minutes further than Campus A to keep its last monitored dialysis station free. The referral note says "Send to: Campus B" |
+| Press the example **Highest urgency dialysis** | "Send the patient to Campus A.", in the result and the note |
+| Change the urgency or the starting area | The recommendation and its note are removed until the next press |
+| Choose **Look up the example records**, then **Dialysis near Jaipur, Rajasthan** | "Nearest record that states the service: Example Regional Hospital.", marked as not a recommendation, with no referral note |
+| Press the example **Dialysis within 2 km of PIN 302001** | "No facility within 2 km clearly offers dialysis." This is the weak-evidence result |
 
 ### Recognising incomplete configuration
 

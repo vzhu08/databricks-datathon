@@ -1,0 +1,351 @@
+{
+ "schema": "capability-coverage-display.v1",
+ "source": "https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7081776129",
+ "directory_rows": 10088,
+ "headline": [
+  {
+   "capability": "Dental care",
+   "supported": 1526,
+   "mentions": 4481,
+   "stated_percent": "34.1"
+  },
+  {
+   "capability": "Blood banking",
+   "supported": 114,
+   "mentions": 567,
+   "stated_percent": "20.1"
+  },
+  {
+   "capability": "Eye care",
+   "supported": 564,
+   "mentions": 3000,
+   "stated_percent": "18.8"
+  },
+  {
+   "capability": "Cancer care / oncology",
+   "supported": 186,
+   "mentions": 2370,
+   "stated_percent": "7.8"
+  },
+  {
+   "capability": "Radiotherapy (licensed centre)",
+   "supported": 38,
+   "mentions": 269,
+   "stated_percent": "14.1"
+  },
+  {
+   "capability": "Dialysis",
+   "supported": 17,
+   "mentions": 1047,
+   "stated_percent": "1.6"
+  },
+  {
+   "capability": "MRI",
+   "supported": 0,
+   "mentions": 949,
+   "stated_percent": "0.0"
+  },
+  {
+   "capability": "Trauma care",
+   "supported": 12,
+   "mentions": 1042,
+   "stated_percent": "1.2"
+  }
+ ],
+ "other": [
+  {
+   "capability": "Orthopedics",
+   "supported": 207,
+   "mentions": 3888,
+   "stated_percent": "5.3"
+  },
+  {
+   "capability": "Cardiology",
+   "supported": 198,
+   "mentions": 3247,
+   "stated_percent": "6.1"
+  },
+  {
+   "capability": "Maternity",
+   "supported": 196,
+   "mentions": 4607,
+   "stated_percent": "4.3"
+  },
+  {
+   "capability": "Pediatrics",
+   "supported": 180,
+   "mentions": 3573,
+   "stated_percent": "5.0"
+  },
+  {
+   "capability": "Dermatology",
+   "supported": 160,
+   "mentions": 2428,
+   "stated_percent": "6.6"
+  },
+  {
+   "capability": "Fertility care",
+   "supported": 157,
+   "mentions": 1474,
+   "stated_percent": "10.7"
+  },
+  {
+   "capability": "Ayurveda",
+   "supported": 147,
+   "mentions": 508,
+   "stated_percent": "28.9"
+  },
+  {
+   "capability": "Outpatient care",
+   "supported": 137,
+   "mentions": 4255,
+   "stated_percent": "3.2"
+  },
+  {
+   "capability": "Laboratory services",
+   "supported": 112,
+   "mentions": 1364,
+   "stated_percent": "8.2"
+  },
+  {
+   "capability": "Homeopathy",
+   "supported": 74,
+   "mentions": 355,
+   "stated_percent": "20.8"
+  },
+  {
+   "capability": "Kidney transplant programme",
+   "supported": 62,
+   "mentions": 448,
+   "stated_percent": "13.8"
+  },
+  {
+   "capability": "General surgery",
+   "supported": 61,
+   "mentions": 3365,
+   "stated_percent": "1.8"
+  },
+  {
+   "capability": "Physiotherapy",
+   "supported": 53,
+   "mentions": 1259,
+   "stated_percent": "4.2"
+  },
+  {
+   "capability": "Audiology",
+   "supported": 36,
+   "mentions": 352,
+   "stated_percent": "10.2"
+  },
+  {
+   "capability": "Emergency care",
+   "supported": 35,
+   "mentions": 2772,
+   "stated_percent": "1.3"
+  },
+  {
+   "capability": "Intensive care",
+   "supported": 29,
+   "mentions": 2295,
+   "stated_percent": "1.3"
+  },
+  {
+   "capability": "Liver transplant programme",
+   "supported": 24,
+   "mentions": 158,
+   "stated_percent": "15.2"
+  },
+  {
+   "capability": "Speech therapy",
+   "supported": 11,
+   "mentions": 177,
+   "stated_percent": "6.2"
+  },
+  {
+   "capability": "Prosthetics",
+   "supported": 10,
+   "mentions": 428,
+   "stated_percent": "2.3"
+  },
+  {
+   "capability": "Addiction treatment",
+   "supported": 9,
+   "mentions": 132,
+   "stated_percent": "6.8"
+  },
+  {
+   "capability": "Naturopathy",
+   "supported": 9,
+   "mentions": 57,
+   "stated_percent": "15.8"
+  },
+  {
+   "capability": "Ultrasound",
+   "supported": 9,
+   "mentions": 2051,
+   "stated_percent": "0.44"
+  },
+  {
+   "capability": "CT",
+   "supported": 8,
+   "mentions": 1482,
+   "stated_percent": "0.54"
+  },
+  {
+   "capability": "Pharmacy",
+   "supported": 8,
+   "mentions": 1083,
+   "stated_percent": "0.74"
+  },
+  {
+   "capability": "X-ray",
+   "supported": 8,
+   "mentions": 2474,
+   "stated_percent": "0.32"
+  },
+  {
+   "capability": "Ambulance",
+   "supported": 7,
+   "mentions": 1184,
+   "stated_percent": "0.59"
+  },
+  {
+   "capability": "Heart transplant",
+   "supported": 6,
+   "mentions": 74,
+   "stated_percent": "8.1"
+  },
+  {
+   "capability": "IVF",
+   "supported": 6,
+   "mentions": 855,
+   "stated_percent": "0.70"
+  },
+  {
+   "capability": "Eye bank",
+   "supported": 5,
+   "mentions": 78,
+   "stated_percent": "6.4"
+  },
+  {
+   "capability": "Inpatient care",
+   "supported": 5,
+   "mentions": 1874,
+   "stated_percent": "0.27"
+  },
+  {
+   "capability": "Occupational therapy",
+   "supported": 5,
+   "mentions": 106,
+   "stated_percent": "4.7"
+  },
+  {
+   "capability": "Cornea transplant",
+   "supported": 4,
+   "mentions": 180,
+   "stated_percent": "2.2"
+  },
+  {
+   "capability": "Acupuncture",
+   "supported": 3,
+   "mentions": 48,
+   "stated_percent": "6.3"
+  },
+  {
+   "capability": "LASIK",
+   "supported": 3,
+   "mentions": 499,
+   "stated_percent": "0.60"
+  },
+  {
+   "capability": "Pancreas transplant programme",
+   "supported": 3,
+   "mentions": 16,
+   "stated_percent": "18.8"
+  },
+  {
+   "capability": "Hospice",
+   "supported": 2,
+   "mentions": 175,
+   "stated_percent": "1.1"
+  },
+  {
+   "capability": "Blood transfusion",
+   "supported": 1,
+   "mentions": 93,
+   "stated_percent": "1.1"
+  },
+  {
+   "capability": "Cataract surgery",
+   "supported": 1,
+   "mentions": 700,
+   "stated_percent": "0.14"
+  },
+  {
+   "capability": "Chiropractic",
+   "supported": 1,
+   "mentions": 16,
+   "stated_percent": "6.3"
+  },
+  {
+   "capability": "IUI",
+   "supported": 1,
+   "mentions": 477,
+   "stated_percent": "0.21"
+  },
+  {
+   "capability": "Lung transplant",
+   "supported": 1,
+   "mentions": 44,
+   "stated_percent": "2.3"
+  },
+  {
+   "capability": "Acupressure",
+   "supported": 0,
+   "mentions": 21,
+   "stated_percent": "0.0"
+  },
+  {
+   "capability": "Blood apheresis",
+   "supported": 0,
+   "mentions": 65,
+   "stated_percent": "0.0"
+  },
+  {
+   "capability": "Blood storage",
+   "supported": 0,
+   "mentions": 37,
+   "stated_percent": "0.0"
+  },
+  {
+   "capability": "Chemotherapy",
+   "supported": 0,
+   "mentions": 290,
+   "stated_percent": "0.0"
+  },
+  {
+   "capability": "Dental implants",
+   "supported": 0,
+   "mentions": 1494,
+   "stated_percent": "0.0"
+  },
+  {
+   "capability": "Haematology lab",
+   "supported": 0,
+   "mentions": 9,
+   "stated_percent": "0.0"
+  },
+  {
+   "capability": "Hair transplant",
+   "supported": 0,
+   "mentions": 239,
+   "stated_percent": "0.0"
+  },
+  {
+   "capability": "ICSI",
+   "supported": 0,
+   "mentions": 375,
+   "stated_percent": "0.0"
+  }
+ ]
+}
