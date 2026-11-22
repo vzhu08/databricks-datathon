@@ -29,6 +29,14 @@ NOTICE = ("Planning simulation. The facility locations are real, each at the pre
           "Everything else is simulated: the patients, where they start, what they need and how urgent they are, "
           "which services each facility offers, how many staffed places it has, and the travel times. This is not "
           "a record of a real storm and says nothing about what any facility offers today.")
+NOTICE_SYNTHETIC = ("Planning simulation on a test geography. Everything on this page is simulated, including the "
+                    "sites and where they are: no district and no actual hospital is represented. The patients, "
+                    "their needs and urgency, the services, the staffed places and the travel times are simulated "
+                    "too.")
+SYNTHETIC = "synthetic"  # geography.location_basis for generated sites; any other value names a real roster
+SITES_NOTE = "The sites are generated for the test geography. No real place is shown."
+LABEL = "Real facility locations · simulated patients, services, staffed places and travel"
+LABEL_SYNTHETIC = "Simulated sites, patients, services, staffed places and travel · no real place is shown"
 AREA_NOTE = ("A mapped facility point is a named point on a public map. A campus simulation anchor is a point "
              "chosen inside a mapped campus outline. A ring marks a facility known only to an area. None of these "
              "is a building entrance.")
@@ -122,7 +130,7 @@ def checked(plan):
     if plan["schema_version"] != SCHEMA:
         raise ValueError("unknown plan version")
     place, scenario = plan["geography"], plan["scenario"]
-    for key in ("name", "selection", "source", "verification"):
+    for key in ("name", "selection", "source", "verification", "location_basis"):
         _text(place[key], "geography " + key)
     for credit in place.get("attribution", []):
         _text(credit["text"], "attribution")
@@ -210,6 +218,11 @@ def load(path=None):
         return checked(json.loads(path.read_text(encoding="utf-8")))
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
         raise Unavailable(str(error)) from error
+
+
+def real(plan):
+    """Whether the file says its facility locations are real. Generated sites are never presented as real."""
+    return plan["geography"]["location_basis"].strip().lower() != SYNTHETIC
 
 
 def _minutes(value):
@@ -317,7 +330,7 @@ def chart(plan, width=720, height=440, pad=28):
 
 def markup(plan):
     """The section as HTML. Every word from the file is escaped."""
-    found = view(plan)
+    found, actual = view(plan), real(plan)
     safe = lambda text: html.escape(str(text), quote=False)  # noqa: E731
     place, scenario, results, total = found["geography"], found["scenario"], found["results"], found["patients"]
     credits = " ".join(f'<a href="{html.escape(item["url"], quote=True)}" target="_blank" rel="noopener noreferrer">'
@@ -369,8 +382,8 @@ def markup(plan):
                     for field, title in (("venue", "Cleared for"), ("roster_sha256", "Roster SHA-256"))
                     if isinstance(place.get(field), str) and place[field].strip())
     return (
-        f'<div class="sp" data-plan="shown"><div class="sp-label">Real facility locations · simulated patients, '
-        f"services, staffed places and travel · seed {scenario['seed']}</div>"
+        f'<div class="sp" data-plan="shown" data-locations="{"real" if actual else "simulated"}">'
+        f'<div class="sp-label">{LABEL if actual else LABEL_SYNTHETIC} · seed {scenario["seed"]}</div>'
         f'<h3 class="sp-top">{safe(place["name"])}: {total:,} simulated patients, {found["facilities"]:,} facilities, '
         f'{found["places"]:,} staffed places</h3>'
         f'<div class="sp-pair">{cards}</div><div class="sp-say">{safe(found["say"])} '
@@ -379,8 +392,10 @@ def markup(plan):
         f"{pairs}</tr></thead><tbody>{priority}</tbody></table></div>"
         f'<h3>Why patients were not placed</h3><div class="sp-scroll"><table><thead><tr><th>Reason</th>{heads}</tr>'
         f"</thead><tbody>{reasons}</tbody></table></div>"
-        f'<h3>Where the facilities are</h3><div class="sp-map">{chart(plan)}</div>'
-        f'<div class="sp-key">{key}</div><div class="sp-key">{safe(AREA_NOTE)} No roads or background map are '
+        f'<h3>{"Where the facilities are" if actual else "Where the simulated sites are"}</h3>'
+        f'<div class="sp-map">{chart(plan)}</div>'
+        f'<div class="sp-key">{key}</div><div class="sp-key">{safe(AREA_NOTE if actual else SITES_NOTE)} '
+        "No roads or background map are "
         f"drawn. Point at a mark for the facility's label. {credits}</div>"
         f'<h3>About the area</h3><ul class="sp-facts">'
         f'<li><strong>Why this area.</strong> {safe(place["selection"])}</li>'
@@ -400,9 +415,10 @@ def markup(plan):
 
 def choice(plan):
     """The name of this view in the Storm page's own switch."""
-    return f"{CHOICE}: {len(plan['patients']):,} simulated patients, real locations"
+    where = "real locations" if real(plan) else "simulated sites"
+    return f"{CHOICE}: {len(plan['patients']):,} simulated patients, {where}"
 
 
 def render(st, plan):
-    st.warning(NOTICE)
+    st.warning(NOTICE if real(plan) else NOTICE_SYNTHETIC)
     st.markdown(STYLE + markup(plan), unsafe_allow_html=True)

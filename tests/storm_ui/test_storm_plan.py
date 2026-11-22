@@ -22,6 +22,7 @@ def plan():
         "schema_version": "storm-plan-v1",
         "geography": {"name": "Invented district", "selection": "Invented for the tests.",
                       "source": "Invented coordinates.", "verification": "None.", "venue": "Tests only",
+                      "location_basis": "public_roster",
                       "roster_sha256": "ab" * 32,
                       "attribution": [{"text": "Example map credit", "url": "https://example.invalid/copyright"}]},
         "scenario": {"seed": 3, "priorities": ["emergency", "urgent", "routine"], "horizon": "One invented shift.",
@@ -219,6 +220,25 @@ class PlanTests(unittest.TestCase):
         self.assertIn("not a record of a real storm", storm_plan.NOTICE)
         self.assertEqual(page.count('href="'), 3)  # the map credit twice and one facility source
         self.assertNotIn("http://", page.replace("http://www.w3.org", ""))
+
+    def test_generated_sites_are_never_presented_as_real(self):
+        found = changed(lambda plan_: plan_["geography"].update(location_basis="synthetic"))
+        page = storm_plan.markup(storm_plan.checked(found))
+        self.assertFalse(storm_plan.real(found))
+        self.assertIn('data-locations="simulated"', page)
+        self.assertIn("no real place is shown", page)
+        self.assertIn(storm_plan.SITES_NOTE, page)
+        self.assertIn("Where the simulated sites are", page)
+        self.assertNotIn("Real facility locations", page)
+        self.assertNotIn("Where the facilities are", page)
+        self.assertEqual(storm_plan.choice(found), "Planning simulation: 6 simulated patients, simulated sites")
+        self.assertIn("no actual hospital is represented", storm_plan.NOTICE_SYNTHETIC)
+        self.assertNotIn("locations are real", storm_plan.NOTICE_SYNTHETIC)
+        # A file that does not say which it is, is refused: the page will not guess.
+        with self.assertRaises(KeyError):
+            storm_plan.checked(changed(lambda plan_: plan_["geography"].pop("location_basis")))
+        self.assertTrue(storm_plan.real(plan()))
+        self.assertIn('data-locations="real"', storm_plan.markup(plan()))
 
     def test_words_from_the_file_cannot_add_markup(self):
         def hostile(found):
