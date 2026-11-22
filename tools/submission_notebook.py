@@ -273,18 +273,83 @@ def include_base64(path, text):
 '''
 
 
-RUN = '''if _materialized != set(_expected):
+RUN = '''import json
+
+if _materialized != set(_expected):
     raise RuntimeError("Run all of the embedded source cells before the demonstration.")
 # Inherit only the OS settings needed to start Python. The guarded driver blocks network use.
 _os_names = {"path", "systemroot", "windir", "systemdrive", "temp", "tmp", "comspec", "ld_library_path", "dyld_library_path"}
 _demo_env = {name: value for name, value in os.environ.items() if name.lower() in _os_names}
 result = subprocess.run(
-    [sys.executable, "-I", "-B", str(PROJECT_ROOT / "tools/submission_demo.py")],
+    [sys.executable, "-I", "-B", "-X", "utf8", str(PROJECT_ROOT / "tools/submission_demo.py")],
     cwd=PROJECT_ROOT, env=_demo_env, capture_output=True, encoding="utf-8", timeout=120,
 )
 if result.returncode:
     raise RuntimeError(result.stderr or result.stdout)
+report = json.loads(result.stdout)
 print(result.stdout, end="")
+'''
+
+
+EXPLORATION = '''originals = 10_088
+supported_at_area = 7_895
+unresolved = originals - supported_at_area
+print(f"Published VF baseline: {supported_at_area:,}/{originals:,} ({supported_at_area / originals:.1%}) "
+      f"with written-area support, {unresolved:,} unresolved.")
+for service, supported, mentions in (("Radiotherapy license", 38, 269), ("MRI", 0, 949)):
+    print(f"{service}: {supported}/{mentions:,} VF mentions matched outside support ({supported / mentions:.1%}).")
+print("AERB licenses address a regulated activity. They do not measure staffed capacity or live availability.")
+print("The MRI comparison found no outside matches under this method. Onsite MRI status remains unknown.")
+'''
+
+
+MODELING = r'''finder = report["find_care"]
+alternative = finder["nearby_alternative"]
+print("Fictional request: find dialysis within 50 km of Jaipur, Rajasthan.")
+print(f"First result: {finder['facility']}, North Campus, {finder['straight_line_km']} km straight-line.")
+print(f"Reported service ({finder['evidence']['field']}): {finder['evidence']['statement']}")
+print(finder["explanation"]["location"])
+print(finder["explanation"]["service"])
+print(f"Alternative: {alternative['facility']}, {alternative['campus']}, "
+      f"{alternative['straight_line_km']} km straight-line. Its {alternative['field']} field says "
+      f"\"{alternative['statement']}\"")
+print(finder["ranking_reason"])
+
+batch = report["storm_batch"]
+print(f"\nStorm control: seed {batch['scenario']['seed']}, {batch['requested']} simulated requests, "
+      f"{batch['sites']} invented sites, {batch['scenario']['horizon_minutes']} minutes.")
+print(batch["scenario"]["objective"] + ".")
+print(batch["scenario"]["travel_basis"] + ".")
+case = batch["case"]
+rescued = case["rescued"]
+earlier = case["moved_nearest"]
+later = case["moved_exact"]
+print(f"Nearest-first ran out of compatible slots for highest-priority {rescued['patient']}. "
+      f"Routine {earlier['patient']} had used the sole place in {earlier['slot_id']}.")
+print(f"The exact plan gives that dialysis place to {rescued['patient']} "
+      f"and moves {earlier['patient']} to {later['slot_id']}, a feasible alternative.")
+shared = batch["shared_travel"]
+print(f"Across the same {shared['cohort']} assigned requests, modeled travel totals "
+      f"{shared['nearest_first_seconds']:,} seconds nearest-first and "
+      f"{shared['exact_optimum_seconds']:,} seconds exact.")
+'''
+
+
+IMPACT = r'''print("Health worker: call the exact campus to confirm onsite dialysis, the entrance, and current "
+      "staffed availability before advising travel.")
+for check in report["find_care"]["verification"]:
+    print("  " + check)
+
+print("\nDistrict planner: compare feasible placements and inspect the parts of the shift where stock ran out.")
+batch = report["storm_batch"]
+for key, label in (("nearest_first", "Nearest-first"), ("exact_optimum", "Exact planning")):
+    metrics = batch["policies"][key]
+    print(f"{label}: {metrics['assigned']}/{batch['requested']} assigned, {metrics['unmet']} unmet.")
+    for priority, counts in metrics["by_priority"].items():
+        print(f"  {priority.replace('_', ' ').title()}: {counts['assigned']} assigned, {counts['unmet']} unmet.")
+    for reason, count in metrics["unserved_reasons"].items():
+        print(f"  Unmet because {reason.replace('_', ' ')}: {count}.")
+print("Use the exhausted slot as a staffing sensitivity test. These are modeled appointments for invented demand.")
 '''
 
 
@@ -297,27 +362,37 @@ def notebook(revision, sources):
     fingerprint = digest(json_bytes({"files": files, "generator_sha256": generator_pin}))
     manifest = {"source_revision": revision, "input_sha256": fingerprint, "generator_sha256": generator_pin, "files": files}
     cells = [
-        cell("overview", f"""# Datathon facility finder and storm demo
+        cell("overview", """# Find care and plan a constrained shift
 
-Run all cells with Python 3.10 or later. This single notebook contains the implementation and the
-synthetic inputs. It verifies the embedded files, reconstructs the source in a temporary directory,
-and runs the same project functions used by the app. The default run requires only Python's standard
-library. It makes no provider, routing or Databricks requests.
+**Run all** with Python 3.10 or later, then jump to the three judge outputs below. This file checks
+and extracts its embedded sources, runs the app logic offline, and needs only the Python standard
+library.
 
-The replay covers the facility request, ranking and evidence, warehouse withholding, fictional intake
-journeys, the aggregate evidence walkthrough, and the hosted Storm page and allocation comparison. It also checks
-the offline browser bundles, original-occurrence mapping, and synthetic service decisions. The Databricks and Streamlit
-implementation is included for review. The live provider adapters are inactive in this notebook.
+| Criterion | What to see after Run all |
+| --- | --- |
+| [Exploration](#exploration) | Published Virtue Foundation area coverage and two service evidence comparisons, with their denominators. |
+| [Modeling](#modeling) | A service-and-location search with its facility claims and alternative, plus exact vs. nearest-first placement on identical simulated inputs. |
+| [Impact](#impact) | A health worker's verification step and a planner's view of feasible appointments and unmet requests. |
 
-The project’s national research frame has 10,088 original Virtue Foundation occurrences, including
-both members of 11 duplicate pairs, and three service decisions per original. The notebook runs
-invented records and a scenario with invented capacity. Its results describe those fixtures.
+The [national findings](#national-directory-finding) summarize the restricted VF analysis at
+published aggregate scope. The runnable finder uses invented facilities. The Storm control
+uses simulated demand, resources and travel. [Organizer rubric](https://github.com/vzhu08/databricks-datathon/issues/336)
+""", "markdown"),
+        cell("reproducibility", f"""## Execution and source pins
 
-Integrated source commit: `{revision}`
+The Databricks and Streamlit implementations are included for review. Run all in a Python notebook
+or in an authorized Databricks Free Edition workspace. This offline replay is separate from signed-in
+app and workspace verification. It sends no provider, routing, or Databricks requests.
 
-Canonical input SHA-256: `{fingerprint}`
+The VF research frame preserves 10,088 original occurrences, including both members of 11 duplicate
+pairs, and keeps three service decisions per original. The replay verifies the duplicate-preserving
+contract on synthetic records.
 
-Every included file has a source digest in the setup cell. Input hashes use LF for text files.
+Integrated source commit `{revision}`
+
+Canonical input SHA-256 `{fingerprint}`
+
+The setup cell pins each included file. Text inputs use LF for hashing.
 """, "markdown"),
         cell("national-area-finding", """## National directory finding
 
@@ -353,6 +428,31 @@ specific synthetic source field. The independent evidence path, emergency interr
 comparisons run immediately afterward.
 """, "markdown"),
         cell("run", RUN),
+        cell("exploration", """## Exploration
+
+This cell reproduces published **aggregate arithmetic** on the full VF analysis and matched
+capability subsets. Radiotherapy uses the Atomic Energy Regulatory Board licensing list.
+The branch comparison joins institution name and postal PIN on the June 2026 list.
+[AERB license list](https://www.aerb.gov.in/images/PDF/Radiotheraphy/RSD3.pdf)
+The [coverage table and measured scopes](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7081776129)
+and [AERB and other publisher narratives](https://github.com/vzhu08/databricks-datathon/issues/319#issuecomment-7081794326)
+describe the evidence represented in the numerators.
+""", "markdown"),
+        cell("exploration-output", EXPLORATION),
+        cell("modeling", """## Modeling
+
+This cell reads outputs from the embedded finder, provenance mapper and Storm allocator. The
+offline search uses the demo candidates and straight-line distance. The Storm control compares
+arrival-order nearest-first with full-batch assignment on the same feasible appointments and
+capacity. The priority-ordered objective and travel values are conditional on that synthetic shift.
+""", "markdown"),
+        cell("modeling-output", MODELING),
+        cell("impact", """## Impact
+
+The finder shows which claim to verify before travel. The planner quantifies feasible modeled
+appointments and exposes where a staffing change could be tested.
+""", "markdown"),
+        cell("impact-output", IMPACT),
         cell("optional-ui", """## Optional local browser views
 
 The source reconstructed under `PROJECT_ROOT` remains available for the life of this kernel.

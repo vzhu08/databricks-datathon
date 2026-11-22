@@ -28,8 +28,9 @@ def main():
     sys.addaudithook(block_network)
     sys.path.insert(0, str(ROOT))
 
-    from app import national_directory, storm_page
-    from app.find_care import claim_lines, data_mode, present, withheld, withheld_summary
+    from app import national_directory, storm_page, storm_plan
+    from app.find_care import claim_view, data_mode, present, withheld, withheld_summary
+    from app.finding_provenance import project_find_care
     from app.ranking import search_facilities
     from app.intake.__main__ import load_journeys, replay_journey
     from app.facility_evidence_demo import area, care_decision, loader
@@ -60,9 +61,10 @@ def main():
     require([row["facility_id"] for row in answer["direct_results"]] == ["demo-north", "demo-south"],
             "Unexpected synthetic result order")
     view = present(answer, **request)
-    direct_claims = claim_lines(view["top"], request["service"], "direct_results", 0)
-    require(direct_claims["location"]["strength"] == "Reported" and
-            direct_claims["service"]["state"] == "Unconfirmed" and
+    mapped = project_find_care(answer, request["service"], mode="demo")
+    direct_claims = claim_view(mapped["findings"][0], request["service"], view["top"]["place"])
+    require(direct_claims["location"]["line"].startswith("Reported as a map point") and
+            direct_claims["service"]["line"].startswith("Unconfirmed") and
             direct_claims["service"]["sources"][0]["publisher"] == "Synthetic demo record",
             "The integrated provenance view must show distinct synthetic claims")
 
@@ -72,14 +74,16 @@ def main():
             [row["facility_id"] for row in lead_answer["indirect_leads"]] == ["demo-near"],
             "Expected the related-only synthetic control")
     lead_view = present(lead_answer, **nearby)
-    related = claim_lines(lead_view["leads"][0], "dialysis", "indirect_leads", 0)["service"]
-    require(related["strength"] == "No evidence" and related["sources"][0]["role"] == "context",
+    mapped_lead = project_find_care(lead_answer, nearby["service"], mode="demo")["findings"][0]
+    related = claim_view(mapped_lead, nearby["service"], lead_view["leads"][0]["place"])["service"]
+    require(mapped_lead["service"]["strength"] == "no_evidence" and related["sources"][0]["role"].startswith("Context"),
             "Related wording must remain contextual")
     restricted = withheld(answer)
     require(restricted["status"] == "withheld" and
             not any(restricted[field] for field in ("direct_results", "indirect_leads", "location_choices")),
             "The warehouse display gate must discard row results")
-    restricted_claim = withheld_summary(restricted, request["service"])
+    mapped_summary = project_find_care(restricted, request["service"], mode="warehouse")["summary"]
+    restricted_claim = withheld_summary(mapped_summary, request["service"])
     require(restricted_claim["state"] == "Unconfirmed" and winner["name"] not in str(restricted_claim),
             "The warehouse provenance view must stay at result level")
 
@@ -135,6 +139,7 @@ def main():
     require(page_summary["synthetic"] and [item["served"] for item in page_summary["policies"]] == [7, 8]
             and "data:font/woff2;base64," in frame and "<script src=" not in frame,
             "The hosted Storm frame must be self-contained and use the pinned replay")
+    batch = batch_comparison(storm_plan)
 
     browser_bundles = {
         "scenarios.js": build,
@@ -215,10 +220,16 @@ def main():
                          "statement": winner["evidence_excerpt"]},
             "availability": winner["availability"],
             "warehouse_display": restricted["status"],
+            "nearby_alternative": {"facility": view["backups"][0]["name"], "campus": "South Campus",
+                                   "straight_line_km": round(view["backups"][0]["distance_km"], 1),
+                                   "field": view["backups"][0]["field"], "statement": view["backups"][0]["excerpt"]},
+            "explanation": {claim: direct_claims[claim]["line"] for claim in ("location", "service")},
+            "ranking_reason": view["why"],
+            "verification": [direct_claims[claim]["missing_check"] for claim in ("location", "service")],
             "integrated_provenance": {
-                "location": direct_claims["location"]["strength"],
-                "requested_service": direct_claims["service"]["state"],
-                "related_service": related["strength"],
+                "location": mapped["findings"][0]["location"]["strength"],
+                "requested_service": mapped["findings"][0]["service"]["decision"],
+                "related_service": mapped_lead["service"]["strength"],
                 "withheld_summary": restricted_claim["state"],
             },
             "provenance_mapper": {
@@ -235,6 +246,7 @@ def main():
         "storm": {"requested": 8, "nearest_assigned": nearest["metrics"]["assigned"],
                   "scarcity_assigned": scarcity["metrics"]["assigned"],
                   "first_scarcity_detour_minutes": scarcity["events"][0]["extra_travel_minutes"]},
+        "storm_batch": batch,
         "offline_browser_data": {"bundles_verified": sorted(browser_bundles), "synthetic_travel_examples": len(routes["examples"])},
         "enrichment": {"synthetic_base_rows": enrichment["base"]["denominator"],
                        "table_counts": enrichment["table_counts"],
@@ -272,6 +284,46 @@ def main():
 
     print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
     return 0
+
+
+def batch_comparison(storm_plan):
+    from app.simulation.batch_planner import make_instance, neutral_instance, solve
+
+    instance = make_instance(seed=17)
+    plan = storm_plan.checked(solve(instance))
+    require(not storm_plan.real(plan), "The generated control must be labeled synthetic")
+    neutral = solve(neutral_instance(instance))
+    policies = plan["policies"]
+    names = ("assigned", "unmet", "by_priority", "total_travel_seconds", "unserved_reasons")
+    metrics = {name: {key: output["metrics"][key] for key in names} for name, output in policies.items()}
+    for name in policies:
+        require(all(neutral["policies"][name]["metrics"][key] == metrics[name][key] for key in names[:4]),
+                "Neutral replay changed the allocation objective")
+    first, exact = (policies[key] for key in ("nearest_first", "exact_optimum"))
+    require((len(plan["patients"]), len(first["assignments"]), len(exact["assignments"])) == (120, 115, 120),
+            "Unexpected seed-17 control outcomes")
+    nearest = {row["patient"]: row for row in first["assignments"]}
+    optimal = {row["patient"]: row for row in exact["assignments"]}
+    cohort = sorted(nearest.keys() & optimal.keys())
+    patient = "sim-013"
+    moved = "sim-007"
+    reason = next(row["reason"] for row in first["unserved"] if row["patient"] == patient)
+    slot = next(row for row in first["metrics"]["resources_used"] if row["slot_id"] == optimal[patient]["slot_id"])
+    require(reason == "compatible_slots_exhausted" and slot["used"] == slot["slots"] == 1
+            and nearest[moved]["slot_id"] == slot["slot_id"] and optimal[moved]["slot_id"] != slot["slot_id"],
+            "The example must demonstrate a shared staffed-slot constraint")
+    priorities = {row["id"]: row["priority"] for row in plan["patients"]}
+    require(priorities[patient] == "highest" and priorities[moved] == "routine", "Unexpected case priorities")
+    return {
+        "geography": plan["geography"]["name"], "scenario": plan["scenario"], "requested": len(plan["patients"]),
+        "sites": len(plan["facilities"]), "policies": metrics, "case": {
+            "rescued": optimal[patient], "reason": reason, "slot_capacity": slot["slots"],
+            "moved_nearest": nearest[moved], "moved_exact": optimal[moved],
+        },
+        "shared_travel": {"cohort": len(cohort),
+                          "nearest_first_seconds": sum(nearest[key]["travel_seconds"] for key in cohort),
+                          "exact_optimum_seconds": sum(optimal[key]["travel_seconds"] for key in cohort)},
+    }
 
 
 if __name__ == "__main__":

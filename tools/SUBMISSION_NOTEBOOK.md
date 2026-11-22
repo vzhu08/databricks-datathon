@@ -3,6 +3,11 @@
 Open the root submission.ipynb and run all cells with Python 3.10 or later. The notebook verifies
 the embedded source and synthetic fixtures, then executes them in an isolated Python process with
 the network blocked. Streamlit and the separate enrichment schema validator are optional.
+The first cell links to the executable Exploration, Modeling and Impact sections. Exploration
+uses published aggregates. Modeling and Impact use the embedded evidence mapper, a fictional
+dialysis search, and the seed-17 120-request control with invented sites. The previous eight-request
+replay also runs. For Free Edition, import the single notebook in the authorized workspace and run
+all Python cells. Record that workspace check separately from local notebook execution.
 
 From the submission branch based on a clean, integrated main:
 
