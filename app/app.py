@@ -36,10 +36,11 @@ from ranking import search_facilities  # noqa: E402
 FIXTURE = HERE / "demo_facilities.json"
 DATA = words.data_mode(os.environ)
 DEMO = DATA["mode"] == "demo"
-# What the real directory can say about where a facility is (research/location_cutoff/b3/core.py, FROZEN).
-REAL_SCOPE = ("The real directory has 10,088 Virtue Foundation records. 2,524 can be placed at a campus. "
-              "7,418 can only be placed in an area (a PIN code, town or locality), so any distance to them is "
-              "approximate. 146 could not be placed at all.")
+# How the real directory's locations are classified (research/location_cutoff/b3/core.py, FROZEN). Wording
+# from the data review on the pull request that added it.
+REAL_SCOPE = ("The real directory has 10,088 Virtue Foundation records. The directory classifies 2,524 records at "
+              "campus level, 7,418 at area level, and 146 as unresolved. Campus classifications use map listings or "
+              "matching addresses; independent building and entrance verification is still unavailable.")
 # label, care, the line typed into "Where", distance
 EXAMPLES = [
     ("Dialysis near Jaipur, Rajasthan", "dialysis", "Jaipur, Rajasthan", 50),
