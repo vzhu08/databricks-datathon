@@ -538,14 +538,6 @@ class ScreenTests(unittest.TestCase):
         self.assertNotIn("Send the patient", self._text(app))  # the earlier answer is gone, not left standing
         self.assertEqual((0, 0), (len(app.code), len(app.get("download_button"))))
 
-    def test_the_data_note_gives_the_real_location_classification_counts(self):
-        shown = self._text(self._app())
-        self.assertIn("This screen is running on six invented facilities", shown)
-        self.assertIn("2,524 records at campus level, 7,418 at area level, and 146 as unresolved", shown)
-        self.assertIn("independent building and entrance verification is still unavailable", shown)
-        self.assertNotIn("can be placed at a campus", shown)
-        self.assertIn("The real directory has 10,088 records.", shown)
-
     def test_a_real_town_the_demonstration_does_not_know_is_explained(self):
         app = self._app()
         app.text_input(key="where").set_value("Mumbai")

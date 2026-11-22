@@ -37,12 +37,6 @@ from ranking import search_facilities  # noqa: E402
 FIXTURE = HERE / "demo_facilities.json"
 DATA = words.data_mode(os.environ)
 DEMO = DATA["mode"] == "demo"
-# How the real directory's locations are classified (research/location_cutoff/b3/core.py, FROZEN). Wording
-# from the data review on the pull request that added it. It does not name the directory's owner, because the
-# demonstration answer below it must never read as a Virtue Foundation record.
-REAL_SCOPE = ("The real directory has 10,088 records. The directory classifies 2,524 records at "
-              "campus level, 7,418 at area level, and 146 as unresolved. Campus classifications use map listings or "
-              "matching addresses; independent building and entrance verification is still unavailable.")
 # label, care, the line typed into "Where", distance
 EXAMPLES = [
     ("Dialysis near Jaipur, Rajasthan", "dialysis", "Jaipur, Rajasthan", 50),
@@ -56,7 +50,6 @@ STYLE = """
 .fc-lede { margin: -0.5rem 0 1rem; max-width: 64ch; font-size: 1.125rem; color: #14283b; }
 .fc-mode { margin: 0 0 1.5rem; padding: 0.6rem 0.9rem; background: #ffffff; border: 1.5px solid #c3ced6;
   border-radius: 3px; color: #14283b; font-size: 1rem; }
-.fc-mode .fc-scope { display: block; margin-top: 0.35rem; color: #4b6274; font-size: 0.95rem; max-width: 78ch; }
 .fc-slip { background: #ffffff; border: 1.5px solid #14283b; border-radius: 3px; padding: 0 1.75rem 1.5rem;
   margin-bottom: 1.25rem; color: #14283b; }
 .fc-slip.fc-more { border-color: #c3ced6; padding-top: 0.75rem; }
@@ -286,8 +279,7 @@ if DEMO:
     st.markdown('<div class="fc-lede">Say what care a patient needs and where they are. You get the nearest '
                 "facility whose record says it offers that care, with the words it relied on.</div>"
                 '<div class="fc-mode"><strong>Data: demonstration.</strong> This screen is running on six '
-                "invented facilities, not the real records."
-                f'<span class="fc-scope">{REAL_SCOPE}</span></div>', unsafe_allow_html=True)
+                "invented facilities, not the real records.</div>", unsafe_allow_html=True)
     if not FIXTURE.exists():
         st.error("The demonstration facilities (demo_facilities.json) are missing from this deployment.")
         st.stop()
@@ -296,8 +288,7 @@ else:
                 "nearby facility records mention that care.</div>"
                 '<div class="fc-mode"><strong>Data: real records.</strong> Searching the Virtue Foundation '
                 "facility records. No facility is named or recommended here until the team has reviewed and "
-                "approved destinations."
-                f'<span class="fc-scope">{REAL_SCOPE}</span></div>', unsafe_allow_html=True)
+                "approved destinations.</div>", unsafe_allow_html=True)
 
 st.session_state.setdefault("service", "dialysis")
 st.session_state.setdefault("where", "Jaipur, Rajasthan" if DEMO else "")
