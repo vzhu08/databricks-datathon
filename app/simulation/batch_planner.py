@@ -238,6 +238,7 @@ def _output(patients, slots, blocked, assigned):
         "metrics": {
             "assigned": len(bookings), "unmet": len(unmet), "by_priority": by_priority,
             "total_travel_seconds": sum(row["travel_seconds"] for row in bookings),
+            "sites_assigned": len({row["facility"] for row in bookings}),
             "resources_used": [
                 {"slot_id": sid, "facility": fid, "service": slot["service"],
                  "used": used[sid], "slots": slot["slots"]}
@@ -430,6 +431,9 @@ def load_pinned_roster(path, geography):
         location = row.get("location", row)
         point = coordinates(location)
         precision = location.get("precision", row.get("precision"))
+        if precision == "point":
+            precision = {"mapped facility point": "mapped_point",
+                         "campus simulation anchor": "campus_anchor"}.get(row.get("location_class"))
         label = row.get("label", row.get("facility_name", row.get("name")))
         if point is None or precision not in ("mapped_point", "campus_anchor") or not isinstance(label, str):
             raise ValueError("Expected a labelled mapped point or campus simulation anchor")
@@ -438,6 +442,10 @@ def load_pinned_roster(path, geography):
         source = row.get("source")
         if isinstance(source, dict):
             facility["source"] = {k: source[k] for k in ("publisher", "license", "url", "id") if k in source}
+        elif all(isinstance(row.get(key), str) and row[key] for key in
+                 ("publisher", "license", "source_url", "source_id")):
+            facility["source"] = {"publisher": row["publisher"], "license": row["license"],
+                                  "url": row["source_url"], "id": row["source_id"]}
         facilities.append(facility)
     return {"geography": geography, "facilities": facilities}
 

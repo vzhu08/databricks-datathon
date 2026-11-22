@@ -110,8 +110,10 @@ class BatchPlannerTests(unittest.TestCase):
     def test_pinned_twelve_site_roster_keeps_precision_and_rotates_staffing(self):
         rows = [
             {"planning_id": f"C{i+1:02}", "label": f"Invented site {i+1}",
-             "location": {"precision": "mapped_point" if i < 8 else "campus_anchor",
-                          "latitude": i * 0.01, "longitude": i * 0.01}}
+              "precision": "point", "location_class": "mapped facility point" if i < 8 else "campus simulation anchor",
+             "latitude": i * 0.01, "longitude": i * 0.01,
+             "publisher": "Test publisher", "license": "Fixture",
+             "source_url": "https://example.org/test", "source_id": f"node/{i+1}"}
             for i in range(12)
         ]
         raw = json.dumps({"schema_version": "storm-roster-v1", "facilities": rows}).encode()
@@ -125,6 +127,7 @@ class BatchPlannerTests(unittest.TestCase):
             roster = load_pinned_roster(path, geo)
         instance = make_instance(roster)
         self.assertEqual(instance["geography"]["planning_point_sites"], 12)
+        self.assertEqual(instance["facilities"][0]["source"]["id"], "node/1")
         self.assertEqual(Counter(f["precision"] for f in instance["facilities"]),
                          {"mapped_point": 8, "campus_anchor": 4})
         self.assertEqual(sum(len(f["resources"]) for f in instance["facilities"]), 144)
