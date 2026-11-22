@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 import re
 
-VERSION = "esic-services-1.0.0"
+VERSION = "esic-services-1.0.1"
 
 
 def dump(path, value):
@@ -124,16 +124,20 @@ def observe(record):
             planned = bool(re.search(r"\b(?:planned|proposed|required|tender|to be set up)\b", context, re.I))
             referral_only = bool(re.search(r"\b(?:referred|referral|tie[ -]?up)\b", context, re.I))
             ppp = bool(re.search(r"\bPPP\b", context))
-            # A lexical mention is still not an absence assertion when negated.
-            negated = bool(re.search(r"\b(?:no|not|unavailable|without)\b", context, re.I))
-            status = "planned" if planned else "negation_review" if negated else "referral_review" if referral_only else "reported_available"
+            # A lexical mention cannot establish onsite provision when negated.
+            negated = bool(re.search(r"\b(?:no|not|unavailable|without|excluded)\b", context, re.I))
+            # An exception introduces the following mentions in the same item.
+            excluded = bool(re.search(r"\b(?:except(?:ing)?|excluding|other\s+than)\b",
+                                      text[left:match.start()], re.I))
+            status = "planned" if planned else "negation_review" if negated or excluded else "referral_review" if referral_only else "reported_available"
+            onsite = "source_table_reports_in_hospital" if status == "reported_available" else "not_established"
             observations.append({"observation_id": f"{record['record_id']}:{service}:{match.start()}",
                 "record_id": record["record_id"], "service": service,
                 "mention_original": match.group(), "start": match.start(), "end": match.end(),
                 "context_original": context, "context_start": left, "context_end": right,
                 "availability": status,
                 "operator": "PPP_partner_unspecified" if ppp else "not_separately_specified",
-                "onsite": "not_established" if planned or referral_only else "source_table_reports_in_hospital",
+                "onsite": onsite,
                 "quantity": None, "unit": None,
                 "quantity_reason": "No equipment count inferred from service wording or other columns",
                 "current_service_decision": "unconfirmed",

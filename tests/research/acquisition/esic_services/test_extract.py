@@ -65,6 +65,33 @@ class AnnexureTests(unittest.TestCase):
         self.assertEqual(sum(r["service"] == "orthopaedics" for r in rows), 2)
         self.assertEqual(sum(r["service"] == "dialysis" for r in rows), 2)
 
+    def test_onsite_status_follows_reported_availability(self):
+        for negative in ("MRI unavailable", "MRI not available"):
+            with self.subTest(negative=negative):
+                rows = self.obs(f"{negative}, ICU, Dialysis referred out, proposed CT Scan")
+                statuses = {r["service"]: (r["availability"], r["onsite"]) for r in rows}
+                self.assertEqual(statuses, {
+                    "mri": ("negation_review", "not_established"),
+                    "icu": ("reported_available", "source_table_reports_in_hospital"),
+                    "dialysis": ("referral_review", "not_established"),
+                    "ct": ("planned", "not_established"),
+                })
+                self.assertEqual(rows[0]["context_original"], negative)
+                self.assertTrue(all(r["current_service_decision"] == "unconfirmed" for r in rows))
+
+    def test_exclusion_covers_coordinated_services_in_the_same_item(self):
+        text = "ICU except MRI and CT Scan; Dialysis"
+        rows = self.obs(text)
+        self.assertEqual([(r["service"], r["onsite"]) for r in rows], [
+            ("icu", "source_table_reports_in_hospital"),
+            ("mri", "not_established"),
+            ("ct", "not_established"),
+            ("dialysis", "source_table_reports_in_hospital"),
+        ])
+        for row in rows[1:3]:
+            self.assertEqual(row["availability"], "negation_review")
+            self.assertEqual(row["context_original"], "ICU except MRI and CT Scan")
+
 
 if __name__ == "__main__":
     unittest.main()
