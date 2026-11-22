@@ -4,7 +4,8 @@ Git shows 39 commits on `main` with the author `Claude <noreply@anthropic.com>`.
 All 39 are Andrew Gu's work (Developer C, GitHub
 [@andrewhgu](https://github.com/andrewhgu)). He directed them through Claude
 Code cloud sessions that committed under the tool's default identity until
-07:32 UTC on 22 November 2026. From then on his commits carry his own name.
+07:32 UTC on 22 November 2026. From then on his sessions were set to commit
+under his own name.
 
 The history of `main` is shared and is left as it is. This file is the record
 that ties those commits to him.
