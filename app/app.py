@@ -91,9 +91,19 @@ def _fixture_rows():
 
 def run_search(service, location, radius_km):
     if DEMO:
-        return search_facilities(service, location, facilities=_fixture_rows(), radius_km=radius_km)
+        response = search_facilities(service, location, facilities=_fixture_rows(), radius_km=radius_km)
+        if response.get("status") == "unresolved_location":  # say why Mumbai or Delhi fails here
+            response = {**response, "message": demo_places_note()}
+        return response
     # Nothing but the withheld form of a warehouse response leaves this function.
     return words.withheld(search_warehouse(service, location, radius_km=radius_km))
+
+
+def demo_places_note():
+    """Why a real town fails on the demonstration: it only knows the places its invented facilities name."""
+    places = sorted({f"{row['city']}, {row['state']} (PIN {row['pin']})" for row in _fixture_rows()})
+    return ("The demonstration can only find the places its six invented facilities are recorded in: "
+            + " and ".join(places) + ". Type one of those, or coordinates.")
 
 
 def plain(text):

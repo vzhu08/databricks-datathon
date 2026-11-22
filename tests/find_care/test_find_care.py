@@ -484,6 +484,16 @@ class ScreenTests(unittest.TestCase):
         self.assertNotIn("Send the patient", self._text(app))  # the earlier answer is gone, not left standing
         self.assertEqual((0, 0), (len(app.code), len(app.get("download_button"))))
 
+    def test_a_real_town_the_demonstration_does_not_know_is_explained(self):
+        app = self._app()
+        app.text_input(key="where").set_value("Mumbai")
+        app = self._step(app.button(key="find").click())
+        shown = self._text(app)
+        self.assertIn("That place could not be located.", shown)
+        self.assertIn("only find the places its six invented facilities are recorded in", shown)
+        self.assertIn("Jaipur, Rajasthan (PIN 302001)", shown)
+        self.assertNotIn("No dataset coordinates", shown)
+
     def test_a_direct_statement_in_the_warehouse_never_becomes_a_referral(self):
         """The v0 search answers "ok" here only because a record states the service. The screen withholds it."""
         warehouse = FakeWarehouse(FIXTURE["facilities"])
