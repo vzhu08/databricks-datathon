@@ -1,20 +1,19 @@
-"""The Storm demo page of the hosted app: the offline storm replay, embedded whole.
-
-The replay is the accepted page in storm_ui/ (replay.html, its styles, scripts, fonts and the
-committed simulation outputs in storm_ui/data/scenarios.js). Here it is folded into one document
-and shown in a frame, so the hosted app needs no network, map key, warehouse or extra file route.
-Nothing is ranked, allocated or re-simulated here, and nothing on this page reads or writes the
-patient visit. Every campus, origin, patient, arrival, slot count and travel time is simulated.
-"""
+"""Host the offline replay and an explicit signed-in Pune road-time action."""
 import base64
+import hashlib
 import json
+import os
 import re
 from pathlib import Path
 
 try:  # as a module of the app package (tests) or beside app.py (the deployed folder)
     from . import storm_plan
+    from .simulation import traffic_plan
+    from .travel import storm as storm_routes
 except ImportError:
     import storm_plan
+    from simulation import traffic_plan
+    from travel import storm as storm_routes
 
 STORM = "Storm demo (simulated)"
 SOURCE = Path(__file__).resolve().parent / "storm_ui"
@@ -27,6 +26,8 @@ HOW = ("Press Play or Next to run one shift, or Skip to the result to reach the 
        "farther to keep the last specialist slot free for someone urgent. Select a patient in the table to see why "
        "each side chose as it did. Show as: Text only gives the same replay without the maps.")
 REPLAY = "Checked 8-request replay"
+RUN_ROADS = "Run signed-in road-time comparison"
+_TRAFFIC_RESULT = "storm_traffic_display"
 UNAVAILABLE = "The storm replay files are not in this deployment, so the replay cannot be shown."
 NAMES = {"nearest_first": "Nearest first", "scarcity_aware": "Urgency-aware"}
 # The offline page links to its sibling pages. Inside the hosted app those files are not served, so the
@@ -87,6 +88,61 @@ def document(source=SOURCE):
     return re.sub(r'<script src="([^"]+)"></script>', script, page)
 
 
+def _traffic_available(plan, environ=None):
+    environ = os.environ if environ is None else environ
+    if environ.get("TOMTOM_ENABLED") != "true" or not all(
+            str(environ.get(key) or "").strip()
+            for key in ("TOMTOM_COPYRIGHT_CAPTION", "TOMTOM_COPYRIGHT_NOTICES")):
+        return False
+    # The four-care recording and other modeled editions are separate.
+    population = sorted(patient["service"] for patient in plan["patients"])
+    first_edition = ["dialysis"] * 42 + ["mri"] * 42 + ["trauma_care"] * 36
+    return (storm_plan.real(plan) and plan["geography"].get("roster_sha256") == traffic_plan.PUNE_ROSTER_SHA256
+            and plan["scenario"].get("seed") == 17 and plan["scenario"].get("horizon_minutes") == 360
+            and len(plan["facilities"]) == 12 and population == first_edition)
+
+
+def _render_planning(st, plan):
+    if not _traffic_available(plan):
+        st.session_state.pop(_TRAFFIC_RESULT, None)
+        storm_plan.render(st, plan)
+        return
+
+    current = hashlib.sha256(json.dumps(plan, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    saved = st.session_state.get(_TRAFFIC_RESULT)
+    if saved is not None and saved[0] != current:
+        st.session_state.pop(_TRAFFIC_RESULT, None)
+        saved = None
+    st.caption("This optional run uses two shared simulated pickups and 12 approved public site points. "
+               "A press can request up to 24 road estimates and 48 attempts including retries. "
+               "Both policies use the same completed observation.")
+    if st.button(RUN_ROADS, key="storm_run_road_times"):
+        st.session_state.pop(_TRAFFIC_RESULT, None)
+        saved = None
+        try:
+            observed = traffic_plan.run_traffic_plan(
+                plan, pickups=storm_routes.storm_pickups(), observe=storm_routes.storm_car_matrix,
+            )
+            # Store only the escaped, rounded display for this signed-in session.
+            # The raw observation and its assignment records are not cached.
+            display = storm_plan.markup(storm_plan.checked(observed))
+        except Exception:
+            # A failed action must not display an earlier result or hide the baseline.
+            st.error("This road-time comparison could not be validated. The modeled baseline is still available.")
+        else:
+            saved = (current, display)
+            st.session_state[_TRAFFIC_RESULT] = saved
+
+    if saved is None:
+        st.subheader("Modeled baseline")
+        storm_plan.render(st, plan)
+    else:
+        st.warning(storm_plan.LIVE_NOTICE)
+        st.markdown(storm_plan.STYLE + saved[1], unsafe_allow_html=True)
+        with st.expander("Modeled baseline"):
+            storm_plan.render(st, plan)
+
+
 def render(st):
     """Draw the page. Called by app.py before any patient or facility code runs."""
     st.title("Storm demo")
@@ -97,8 +153,9 @@ def render(st):
     if plan is not None:
         views = [REPLAY, storm_plan.choice(plan)]
         if st.radio("Storm view", views, horizontal=True, key="storm_view", label_visibility="collapsed") != REPLAY:
-            storm_plan.render(st, plan)
+            _render_planning(st, plan)
             return
+    st.session_state.pop(_TRAFFIC_RESULT, None)
     st.warning(SIMULATED)
     try:
         summary, page = headline(bundle()), document()
