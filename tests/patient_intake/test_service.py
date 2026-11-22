@@ -63,6 +63,9 @@ class Interview:
     def prepare_question(self, question, data):
         return question
 
+    def question_view(self, question):
+        return {k: v for k, v in question.items() if k != "id"}
+
     def answer(self, data, question, question_id, answers):
         return {**data, "answer": answers}
 

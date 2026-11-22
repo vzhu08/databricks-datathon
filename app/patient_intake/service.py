@@ -51,7 +51,7 @@ def _read(handle, expected=_ANY_REVISION):
     if expected is not _ANY_REVISION and (type(expected) is not int or expected != revision):
         raise ValueError("revision_stale")
     if not data:
-        data = dict(state="draft", interview=None, calls_used=0, continuation=None, result_secret=None,
+        data = dict(state="draft", interview=None, server_question=None, calls_used=0, continuation=None, result_secret=None,
                     consent_identity=None, consent_policy=None, assessment=_empty(revision))
     return revision, data
 
@@ -85,6 +85,8 @@ class PatientIntakeService:
 
     def _commit(self, handle, revision, data, state, **display):
         a = dict(_empty(revision + 1, state, self._consented(data)), **display)
+        if state != "awaiting_clarification":
+            data["server_question"] = None
         data["state"] = state
         data["assessment"] = a
         data["result_secret"] = _result_secret() if state == "completed" else None
@@ -96,7 +98,9 @@ class PatientIntakeService:
         data.update(continuation=None, consent_identity=None, interview=None)
         try:
             data["interview"] = _snapshot(self._interview.start(description, context))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as error:
+            if getattr(error, "code", None) == "unsupported_context":
+                return self._commit(handle, rev, data, "unsupported", reason="unsupported_context")
             return self._commit(handle, rev, data, "draft", reason="invalid_input")
         try:
             return self._commit(handle, rev, data, "draft")
@@ -118,7 +122,7 @@ class PatientIntakeService:
     def answer(self, handle, expected_revision, *, question_id, answers):
         rev, data = _read(handle, expected_revision)
         a = self.view(handle)
-        q = a["question"]
+        q = data["server_question"]
         if (a["revision"] != rev or a["state"] != "awaiting_clarification" or not q
                 or type(question_id) is not str or question_id != q["issuance_id"]):
             raise ValueError("question_stale")
@@ -172,11 +176,14 @@ class PatientIntakeService:
                 question = _snapshot(self._interview.prepare_question(reply["question"], data["interview"]))
                 question["issuance_id"] = secrets.token_urlsafe(24)
                 data["continuation"] = reply.get("continuation")
-                return state, {"question": question}
+                data["server_question"] = question
+                return state, {"question": _snapshot(self._interview.question_view(question))}
             if state == "completed" and self._interview.has_unresolved_evidence(data["interview"]) is not False:
                 return "unsupported", {"reason": "unsupported_correction"}
             return state, reply
-        except Exception:
+        except Exception as error:
+            if getattr(error, "code", None) == "interview_limit":
+                return "unsupported", {"reason": "interview_limit"}
             return "provider_unavailable", {"reason": "invalid_response"}
 
     def _tag(self, rev, data):
