@@ -170,14 +170,16 @@ class InterviewTests(unittest.TestCase):
     def test_configured_limits_and_unsupported_context_are_explicit(self):
         limited = PatientInterview(max_turns=1, supported_age_range=(18, 90), supported_languages=("en-IN",))
         for context in ({}, {**self.context, "age_years": 8}, {**self.context, "language": "sv"}):
-            with self.subTest(context=context), self.assertRaises(UnsupportedInterview):
+            with self.subTest(context=context), self.assertRaises(UnsupportedInterview) as raised:
                 limited.start(self.description, context)
+            self.assertEqual(raised.exception.code, "unsupported_context")
         self.assertEqual(interview.start(self.description, {})["context"], {"age_years": None, "language": None})
         first = limited.start(self.description, self.context)
         question = self.issue(first, "single")
         current = limited.answer(first, question, question["issuance_id"], "reported")
-        with self.assertRaises(InterviewLimitReached):
+        with self.assertRaises(InterviewLimitReached) as raised:
             limited.prepare_question({}, current)
+        self.assertEqual(raised.exception.code, "interview_limit")
         with self.assertRaises(InterviewLimitReached):
             limited.answer(current, question, question["issuance_id"], "reported")
 

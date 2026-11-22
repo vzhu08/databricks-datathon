@@ -17,10 +17,13 @@ _REVIEW_LABELS = {"confirm": "Matches my statement", "uncertain": "I’m not sur
 class UnsupportedInterview(ValueError):
     """The context is outside this configuration's supported use."""
 
+    code = "unsupported_context"
+
 
 class InterviewLimitReached(ValueError):
     """The interview has used all permitted answer turns."""
 
+    code = "interview_limit"
 
 @dataclass(frozen=True)
 class QuestionBinding:
