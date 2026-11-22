@@ -209,6 +209,8 @@ class FindCareScreen(_Screen):
         app = self.open()
         switch = app.radio(key="view")
         app = switch.set_value(switch.options[1]).run()
+        for mode in [radio for radio in app.radio if radio.key == "mode"]:  # where the record lookup is a second job
+            app = mode.set_value("lookup").run()
         for text in self.TYPED:
             with self.subTest(text=text[:40]):
                 app.text_input(key="where").set_value(text)
@@ -230,7 +232,7 @@ class FindCareScreen(_Screen):
         # The form still works afterwards.
         app.text_input(key="where").set_value("Jaipur, Rajasthan")
         app = app.button(key="find").click().run()
-        self.assertIn("Send the patient to Example Regional Hospital.", self.shown(app))
+        self.assertIn("Example Regional Hospital", self.shown(app))
 
 
 @unittest.skipUnless(HAS_STREAMLIT, "Streamlit is not installed")

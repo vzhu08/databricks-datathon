@@ -540,6 +540,8 @@ class ScreenTests(unittest.TestCase):
 
     def test_a_real_town_the_demonstration_does_not_know_is_explained(self):
         app = self._app()
+        for mode in [radio for radio in app.radio if radio.key == "mode"]:  # where the record lookup is a second job
+            app = self._step(mode.set_value("lookup"))
         app.text_input(key="where").set_value("Mumbai")
         app = self._step(app.button(key="find").click())
         shown = self._text(app)
