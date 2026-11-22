@@ -81,4 +81,79 @@ broken.policies.nearest_first.metrics.assigned = 8;
 ok(S.finalCheck(broken, "nearest_first").length === 1, "a file whose totals disagree with its events is reported");
 same(S.problems({ schema_version: "other" }).length > 0, true, "foreign files are rejected");
 
+// Malformed nested data is refused with a reason, never drawn.
+const copy = () => JSON.parse(JSON.stringify(storm));
+const refuses = (change, expected, message) => {
+  const replay = copy();
+  change(replay);
+  const found = S.problems(replay);
+  ok(found.length > 0 && found.join(" ").includes(expected), `${message}: ${found.join(" ")}`);
+};
+refuses((r) => { delete r.campuses[0].resources; }, "has no resources list", "a campus without its resources list");
+refuses((r) => { r.campuses[1].resources = "two"; }, "has no resources list", "a campus whose resources are not a list");
+refuses((r) => { r.campuses[0].resources[0] = null; }, "has no id or service", "a null resource");
+refuses((r) => { r.campuses[0].resources[0].slots = "1"; }, "slot count that is not a number", "a text slot count");
+refuses((r) => { delete r.campuses[2].latitude; }, "has no position", "a campus without a position");
+refuses((r) => { r.origins[0] = 7; }, "has no id", "an origin that is not an object");
+refuses((r) => { r.requests[0].origin_id = "nowhere"; }, "names an origin that is not in the file", "a request from an unknown origin");
+refuses((r) => { delete r.requests[1].max_travel_minutes; }, "has no travel limit", "a request without a travel limit");
+refuses((r) => { r.policies.nearest_first.events[0].campus_id = "Z"; }, "names a campus that is not in the file", "an event at an unknown campus");
+refuses((r) => { r.policies.scarcity_aware.events[0].resource_id = "Z-none"; }, "names a resource that is not in the file", "an event in an unknown pool");
+refuses((r) => { delete r.policies.nearest_first.events[0].resource_after; }, "has no slot counts before and after", "an event without slot counts");
+refuses((r) => { r.policies.nearest_first.events[1] = null; }, "names a request that is not in the file", "a null event");
+refuses((r) => { r.policies.nearest_first.events[0].status = "maybe"; }, "has no recognised status", "an unknown status");
+refuses((r) => { r.policies.scarcity_aware.events[0].nearest_campus_id = null; }, "detour without its fastest campus", "a detour without its fastest campus");
+refuses((r) => { r.policies.nearest_first.capacity_events = {}; }, "capacity events that are not a list", "capacity events that are not a list");
+refuses((r) => { r.policies.nearest_first = null; }, "has no events", "a null policy");
+const lossy = JSON.parse(JSON.stringify(replays["resource_loss|10"]));
+lossy.policies.scarcity_aware.capacity_events[0].resource_id = "gone";
+ok(S.problems(lossy).join(" ").includes("names a resource that is not in the file"), "a capacity change in an unknown pool");
+const many = copy();
+many.campuses.forEach((campus) => { delete campus.resources; });
+same(S.problems(many).length, 5, "a long list of problems is cut to four and a count");
+ok(S.problems(many)[4].startsWith("And "), "the cut is stated");
+same(S.problems([]), ["The file is not a replay object."], "a list is not a replay");
+
+// Equal totals do not mean equal outcomes: the comparison is made request by request.
+const stormCompare = S.compare(storm, "nearest_first", "scarcity_aware", 20);
+same([stormCompare.differing, stormCompare.served_only_second, stormCompare.served_differently, stormCompare.identical],
+  [["r01", "r02"], ["r02"], ["r01"], false], "storm: r01 and r02 differ");
+same(S.compare(storm, "nearest_first", "scarcity_aware", 0).differing, ["r01"], "nothing later than the clock is compared");
+ok(S.compare(replays["storm|0"], "nearest_first", "scarcity_aware", 20).identical, "detour 0: every request has the same outcome");
+ok(S.summary(replays["storm|0"], "nearest_first", "scarcity_aware", "Nearest first", "Scarcity-aware")
+  .includes("Every request had the same outcome under both"), "identical outcomes are stated only after checking each request");
+
+const swapped = copy();
+{
+  // Give scarcity-aware the same totals as nearest-first, but by serving a different person:
+  // r01 is turned away and r02 takes the slot r01 held under nearest-first.
+  const nearest = swapped.policies.nearest_first.events;
+  const events = JSON.parse(JSON.stringify(nearest));
+  const first = events.find((e) => e.request_id === "r01"), second = events.find((e) => e.request_id === "r02");
+  const taken = { campus_id: first.campus_id, resource_id: first.resource_id, travel_minutes: first.travel_minutes,
+    extra_travel_minutes: 0, nearest_campus_id: first.nearest_campus_id, nearest_feasible_minutes: first.nearest_feasible_minutes,
+    resource_before: first.resource_before, resource_after: first.resource_after, eligible_campuses: first.eligible_campuses };
+  Object.assign(first, { status: "unassigned", reason: second.reason, campus_id: null, resource_id: null, travel_minutes: null,
+    extra_travel_minutes: null, resource_before: null, resource_after: null });
+  Object.assign(second, { status: "assigned", reason: "nearest_feasible" }, taken);
+  swapped.policies.scarcity_aware = { events, capacity_events: [], metrics: {}, final_free_slots: {} };
+}
+same(S.problems(swapped), [], "the swapped replay is well formed");
+const left = S.stateAt(swapped, "nearest_first", 20).metrics, right = S.stateAt(swapped, "scarcity_aware", 20).metrics;
+same([left.assigned, left.unassigned, left.extra_travel_minutes], [right.assigned, right.unassigned, right.extra_travel_minutes],
+  "the swapped replay has equal totals");
+const swap = S.compare(swapped, "nearest_first", "scarcity_aware", 20);
+same([swap.identical, swap.differing, swap.served_only_first, swap.served_only_second], [false, ["r01", "r02"], ["r01"], ["r02"]],
+  "equal totals, different people served");
+const swapText = S.summary(swapped, "nearest_first", "scarcity_aware", "Nearest first", "Scarcity-aware");
+ok(swapText.includes("2 requests had a different outcome under the two policies: r01, r02."), "the sentence names the requests that differ");
+ok(swapText.includes("Served only under Nearest first: r01.") && swapText.includes("Served only under Scarcity-aware: r02."),
+  "the sentence says who was served under which policy");
+ok(!/same outcome|no difference|anyone extra/.test(swapText), "equal totals are not described as the same result");
+for (const [key, replay] of Object.entries(replays)) {
+  const text = S.summary(replay, "nearest_first", "scarcity_aware", "Nearest first", "Scarcity-aware");
+  const each = S.compare(replay, "nearest_first", "scarcity_aware", S.lastMinute(replay));
+  same(text.includes("Every request had the same outcome"), each.identical, `${key}: the sentence follows the request-by-request comparison`);
+}
+
 console.log(`ok ${checks} checks`);

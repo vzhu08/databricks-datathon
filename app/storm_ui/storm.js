@@ -109,10 +109,12 @@
   function load(replay, customName) {
     var found = S.problems(replay);
     if (found.length) {
-      showError("This file can't be shown. " + found.join(" ") + " Choose a replay written by python -m app.simulation.");
+      showError("This file can't be shown. " + found.join(" ") + " Choose a replay written by python -m app.simulation." +
+        (view.replay ? " The replay that was open is still shown." : ""));
       return false;
     }
-    showError("");
+    var previous = { replay: view.replay, custom: view.custom, minute: view.minute, selected: view.selected,
+      policies: view.policies.slice(), max: $("scrub").max, note: $("synthetic-note").textContent };
     stop();
     view.replay = replay;
     view.custom = customName || null;
@@ -121,11 +123,27 @@
     var names = Object.keys(replay.policies);
     view.policies = [names.indexOf("nearest_first") !== -1 ? "nearest_first" : names[0],
       names.indexOf("scarcity_aware") !== -1 ? "scarcity_aware" : names[1]];
-    $("scrub").max = S.lastMinute(replay);
-    $("synthetic-note").textContent = (replay.area ? replay.area.replace(", India", "") + ". " : "") +
-      "Every campus, origin, request, slot count and travel time on this page is fictional.";
-    buildPanels();
-    render();
+    try {
+      $("scrub").max = S.lastMinute(replay);
+      $("synthetic-note").textContent = (typeof replay.area === "string" ? replay.area.replace(", India", "") + ". " : "") +
+        "Every campus, origin, request, slot count and travel time on this page is fictional.";
+      buildPanels();
+      render();
+    } catch (error) {
+      // Put back the replay that was playable, exactly where it was.
+      view.replay = previous.replay;
+      view.custom = previous.custom;
+      view.minute = previous.minute;
+      view.selected = previous.selected;
+      view.policies = previous.policies;
+      $("scrub").max = previous.max;
+      $("synthetic-note").textContent = previous.note;
+      if (view.replay) { buildPanels(); render(); }
+      showError("This file can't be shown because part of it could not be drawn. Choose a replay written by python -m app.simulation." +
+        (view.replay ? " The replay that was open is still shown." : ""));
+      return false;
+    }
+    showError("");
     return true;
   }
   function loadBundled() {
@@ -523,15 +541,7 @@
     if (!finished) return;
     var a = states[0].metrics, b = states[1].metrics;
     var nameA = label(POLICIES, view.policies[0]), nameB = label(POLICIES, view.policies[1]);
-    var text = nameA + " served " + a.assigned + " of " + a.requested + " requests and " + nameB.toLowerCase() + " served " + b.assigned + " of " + b.requested + ".";
-    var gap = b.extra_travel_minutes - a.extra_travel_minutes;
-    if (gap !== 0) {
-      text += " " + (gap > 0 ? nameB : nameA) + " added " + minutesText(Math.abs(gap)) + " of travel";
-      text += b.assigned === a.assigned ? " without serving anyone extra." : ".";
-    } else if (b.assigned === a.assigned) {
-      text += " The two policies made no difference to who was served or how far they travelled.";
-    }
-    $("summary-sentence").textContent = text;
+    $("summary-sentence").textContent = S.summary(view.replay, view.policies[0], view.policies[1], nameA, nameB);
     function reasons(metrics) {
       var keys = Object.keys(metrics.unassigned_reasons);
       return keys.length ? keys.map(function (key) { return metrics.unassigned_reasons[key] + ": " + label(UNSERVED, key); }).join("; ") : "None";
