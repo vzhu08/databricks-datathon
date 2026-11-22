@@ -3,15 +3,21 @@
 from collections import Counter
 from collections.abc import Mapping
 from copy import deepcopy
+from datetime import date
 
 # Databricks Apps runs with app/ as the project root. Repository tests also
 # import this module through the app package.
 if __package__ == "patient_intake":
+    from ranking.evidence import MATCHERS
     from ranking.location import coordinates
     from ranking.urgency import rank_campuses
 else:
+    from ..ranking.evidence import MATCHERS
     from ..ranking.location import coordinates
     from ..ranking.urgency import rank_campuses
+
+
+_SUPPORTED_SERVICES = tuple(MATCHERS)
 
 
 def _has_reference(value):
@@ -69,3 +75,70 @@ def _screen_reviewed_destinations(release, *, service, as_of, required=()):
     except ValueError:
         return {}
     return {row["facility_id"]: deepcopy(reviewed[row["facility_id"]]) for row in probe["ranked"]}
+
+
+def _is_current(handle, expected_revision, assessment):
+    revision, record = handle.read()
+    return (
+        type(expected_revision) is int
+        and isinstance(assessment, dict)
+        and assessment.get("state") == "completed"
+        and assessment.get("revision") == revision == expected_revision
+        and record.get("state") == "completed"
+        and record.get("assessment") == assessment
+    )
+
+
+class PatientHandoff:
+    """Server-side callback for a completion already confirmed by the runtime.
+
+    The optional order reader must independently verify clinician authority
+    scoped to this exact encounter and revision. The release reader must
+    authenticate a private evidence release for the given evaluation date.
+    Both ports are unset in the default composition. This callback does not
+    acquire an origin or send coordinates.
+    """
+
+    def __init__(self, *, read_verified_order=None, read_reviewed_release=None, today=date.today):
+        self._read_order = read_verified_order
+        self._read_release = read_reviewed_release
+        self._today = today
+
+    def __call__(self, handle, expected_revision, assessment):
+        if not _is_current(handle, expected_revision, assessment):
+            return {"state": "assessment_blocked"}
+        if self._read_order is None or self._read_release is None:
+            return {"state": "no_reviewed_destination"}
+
+        try:
+            order = self._read_order(handle, expected_revision)
+        except Exception:
+            return {"state": "navigation_unavailable"}
+        if order is None:
+            return {"state": "no_reviewed_destination"}
+        if not isinstance(order, Mapping) or order.get("service") not in _SUPPORTED_SERVICES:
+            return {"state": "unsupported_service"}
+
+        # A concurrent edit may have invalidated the order lookup.
+        if not _is_current(handle, expected_revision, assessment):
+            return {"state": "assessment_blocked"}
+        as_of = self._today().isoformat()
+        try:
+            candidates = _screen_reviewed_destinations(
+                self._read_release(as_of), service=order["service"], as_of=as_of,
+                required=order["required_capabilities"],
+            )
+        except Exception:
+            return {"state": "navigation_unavailable"}
+        if not _is_current(handle, expected_revision, assessment):
+            return {"state": "assessment_blocked"}
+        if not candidates:
+            return {"state": "no_reviewed_destination"}
+
+        # Return only the approved display identifier. Release evidence and
+        # coordinates stay server-side. Eligibility does not establish a slot.
+        return {
+            "state": "reviewed_destinations",
+            "destinations": [{"facility_id": campus_id, "availability": "unknown"}
+                             for campus_id in sorted(candidates)],
+        }

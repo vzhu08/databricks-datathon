@@ -26,3 +26,32 @@ With no approved release or eligible campus, the expected patient outcome is
 has its own geographic shortlist and budget gates. Patient-purpose permission,
 approved attribution, and origin consent remain prerequisites for an adapter that
 sends coordinates. Current integration and provider decisions are tracked on #223 and #227.
+
+## Runtime callback
+
+Pass `PatientHandoff()` as the optional `handoff` callable to
+`PatientIntakeService`. The service validates the encounter-bound confirmation
+before invoking the callback. The callback re-reads the server-owned handle
+and checks the completed assessment against that revision. The default result
+for a current completion is `{"state": "no_reviewed_destination"}`. Continue
+showing the original assessment guidance independently. A stale or mismatched
+completion returns `assessment_blocked`. Session exceptions from a deleted or
+expired handle follow the session boundary's content-free error path.
+
+For an integration control, inject `read_verified_order(handle, revision)`
+and `read_reviewed_release(as_of)` on the server. The order reader resolves
+authority for that exact encounter revision and returns a supported `service`
+and explicit `required_capabilities`, or no order. The release reader resolves
+the private reviewed release at the supplied date. Its display permission must
+cover the returned facility identifier. A release or order read failure yields
+`navigation_unavailable`. An unrepresented order service yields
+`unsupported_service`. The callback checks the encounter again after
+reading the release and returns `reviewed_destinations` with only eligible
+display identifiers and unknown availability. The test uses fictional records
+via the same ports. Current product composition supplies neither port.
+
+The optional ports are an engineering boundary for reviewed destination
+eligibility. The confirmation receipt and a provider's consultation suggestion
+do not enter the order reader as evidence. Availability, origin consent, travel
+provider terms, display approval, and conservative routing configuration need
+their own integration decisions before travel is offered.
