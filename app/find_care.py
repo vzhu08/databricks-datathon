@@ -372,6 +372,11 @@ def present(response, service, location, radius_km):
     return view
 
 
+def _short(km):
+    """A distance for the referral note, worded like the screen: never "0.0 km"."""
+    return "under 100 m" if km < 0.1 else f"{km:.1f} km"
+
+
 def referral_note(view, synthetic):
     """Plain text a health worker can copy or save. Recommends nothing unless the search did."""
     lines = ["Referral note" + (" (demonstration data, invented facilities)" if synthetic else ""),
@@ -384,7 +389,7 @@ def referral_note(view, synthetic):
         lines += ["Record source: " + url for url in top["sources"]]
         if view["backups"]:
             lines.append("If it cannot take the patient: " + "; then ".join(
-                f"{card['name']} ({card['distance_km']:.1f} km)" for card in view["backups"]))
+                f"{card['name']} ({_short(card['distance_km'])})" for card in view["backups"]))
         if top["location_warning"]:
             lines.append("Check the address: " + top["location_warning"])
         if view["caveat"]:
@@ -393,7 +398,7 @@ def referral_note(view, synthetic):
     elif view["status"] == "needs_confirmation":
         lines.append(view["headline"])
         lines.append("Phone first: " + "; ".join(
-            f"{card['name']} ({card['distance_km']:.1f} km), record says \"{card['excerpt']}\"" for card in view["leads"]))
+            f"{card['name']} ({_short(card['distance_km'])}), record says \"{card['excerpt']}\"" for card in view["leads"]))
         lines.append("Limits: " + view["limits"][0] + " Straight-line distance. Undated record.")
     else:
         lines += [view["headline"], view["subline"]]

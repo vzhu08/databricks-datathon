@@ -88,7 +88,8 @@ class WordingTests(unittest.TestCase):
         self.assertEqual("No facility within 2 km clearly offers dialysis.", leads["headline"])
         self.assertIn("Phone before sending anyone", leads["subline"])
         self.assertEqual("Less than 100 m away, in a straight line.", leads["leads"][0]["distance"])
-        self.assertIn("Phone first: Example Community Clinic", words.referral_note(leads, True))
+        self.assertIn("Phone first: Example Community Clinic (under 100 m)", words.referral_note(leads, True))
+        self.assertNotIn("0.0 km", words.referral_note(leads, True))
         down = words.present({"status": "unavailable", "direct_results": [], "indirect_leads": [],
                               "location_choices": [], "approximate_location": False,
                               "message": "The facility warehouse is unavailable. Try again shortly."},
