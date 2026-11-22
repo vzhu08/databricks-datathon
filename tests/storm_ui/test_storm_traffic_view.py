@@ -95,6 +95,23 @@ class TrafficViewContractTests(unittest.TestCase):
         self.assertIn("No observation time, because no route was observed.", page)
         self.assertNotIn("No road estimates", storm_plan.markup(self.baseline))
 
+    def test_usable_road_times_that_are_too_long_for_any_appointment_are_not_called_an_outage(self):
+        def too_late(pickups, destinations):
+            found = observation(pickups, destinations, True)
+            found["travel_seconds"] = {p["id"]: {f["id"]: 7201 for f in destinations} for p in pickups}
+            return found
+
+        plan = storm_plan.checked(run_traffic_plan(self.baseline, pickups=self.pickups, observe=too_late))
+        self.assertEqual(24, plan["traffic"]["usable_pairs"])
+        page = storm_plan.markup(plan)
+        self.assertEqual(page.count("0 of 120 placed"), 2)
+        self.assertIn("24 came back usable and 0 are unavailable.", page)
+        self.assertIn("Road times came back for 24 routes, but with them neither policy could place a simulated "
+                      "patient in this run. The reasons are in the table below.", page)
+        for wrong in ("No road time came back", "No road estimates available", "service being unavailable",
+                      "Nothing is wrong with the planner", "both policies placed the same number"):
+            self.assertNotIn(wrong, page)
+
     def test_usable_results_require_attribution_and_a_valid_shared_group(self):
         plan = self.with_roads()
         for change in (
