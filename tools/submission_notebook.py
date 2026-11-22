@@ -16,6 +16,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 NOTEBOOK = ROOT / "submission.ipynb"
 DRIVER = "tools/submission_demo.py"
+PUNE_FIXTURE = "tools/pune_four_care_neutral.json"
+NOTEBOOK_INPUTS = {DRIVER, PUNE_FIXTURE}
 SOURCE_ROOTS = (
     "app/", "contracts/", "databricks/enrichment/", "databricks/ingest/",
     "research/service_status/", "research/acquisition/national_facility_evidence/",
@@ -32,7 +34,7 @@ SOURCE_FILES = {
 }
 ASSET_TYPES = {".woff2"}
 BLOCKED_PARTS = {"approved_data", "private", "secrets", "__pycache__", ".env"}
-DEPLOYMENT_ONLY = {"app/facility-area-display.json", "app/storm_ui/data/plan.json"}
+DEPLOYMENT_ONLY = {"app/facility-area-display.json", "app/storm_ui/data/plan.json", "app/storm_ui/data/roads.geojson"}
 SENSITIVE = re.compile(rb"-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----|\bdapi[a-f0-9]{32}\b|\bAKIA[A-Z0-9]{16}\b")
 
 
@@ -169,7 +171,10 @@ def selected(raw_paths):
 
 
 def tracked_paths():
-    return selected(git("ls-files", "-z", "--cached"))
+    raw = git("ls-files", "-z", "--cached")
+    if PUNE_FIXTURE.encode("utf-8") not in raw.split(b"\0"):
+        raise ValueError("Stage the reviewed Pune fixture before building the notebook")
+    return selected(raw)
 
 
 def read_source(path, raw):
@@ -192,7 +197,7 @@ def read_source(path, raw):
 
 def working_sources(paths):
     sources = {}
-    for path in [*paths, DRIVER]:
+    for path in [*paths, *sorted(NOTEBOOK_INPUTS)]:
         disk = ROOT / path
         if not disk.is_file() or disk.is_symlink():
             raise ValueError(f"Expected a regular tracked source: {path}")
@@ -202,7 +207,7 @@ def working_sources(paths):
 
 def verify_commit(revision, sources):
     paths = selected(git("ls-tree", "-r", "--name-only", "-z", revision))
-    expected_paths = sorted(set(sources) - {DRIVER})
+    expected_paths = sorted(set(sources) - NOTEBOOK_INPUTS)
     if paths != expected_paths:
         raise ValueError("Selected checkout paths differ from the pinned integrated revision")
     references = "".join(f"{revision}:{path}\n" for path in paths).encode("utf-8")
@@ -306,7 +311,34 @@ print("The MRI comparison found no outside matches under this method. Onsite MRI
 '''
 
 
-MODELING = r'''finder = report["find_care"]
+MODELING = '''lookup = report["public_find_care"]
+claim = lookup["claim"]
+alternate = lookup["broader_alternative"]
+print(f"Real public-source query: {lookup['service']} in {lookup['place']}.")
+print(f"{claim['operator']} | {claim['service']} | {claim['evidence_basis']}")
+print(f"Location scope: {claim['location_scope']}.")
+print(f"Operator's nephrology page: {claim['source_url']}")
+print(f"Page checked {claim['checked_on']}. The page date and treatment observation date are unknown.")
+print("Staffing, appointment acceptance, current availability and the patient entrance are unknown.")
+print(f"{claim['vf_match']}. The national VF result uses its own evidence.")
+print(f"The collection filters by published city and service. {alternate['operator']} matches "
+      f"the broader dialysis query with a general claim. Source: {alternate['source_url']}")
+'''
+
+
+PUNE_BENCHMARK = '''benchmark = report["pune_four_care"]
+print(f"Pune four-care Storm simulation: {benchmark['requested']} requests and {benchmark['sites']} neutral sites.")
+print("Both policies receive the same modeled travel, synthetic patients and staffed slots.")
+for row in benchmark["classes"]:
+    print(f"{row['label']}: {row['nearest_first']}/{row['requested']} nearest-first, "
+          f"{row['exact_optimum']}/{row['requested']} batch planning.")
+print(f"All care classes: {benchmark['nearest_first']}/{benchmark['requested']} nearest-first, "
+      f"{benchmark['exact_optimum']}/{benchmark['requested']} batch planning.")
+print(f"Replayed neutral input SHA-256: {benchmark['input_sha256']}")
+'''
+
+
+OFFLINE_CONTROL = r'''finder = report["find_care"]
 alternative = finder["nearby_alternative"]
 print("Fictional request: find dialysis within 50 km of Jaipur, Rajasthan.")
 print(f"First result: {finder['facility']}, North Campus, {finder['straight_line_km']} km straight-line.")
@@ -335,25 +367,25 @@ shared = batch["shared_travel"]
 print(f"Across the same {shared['cohort']} assigned requests, modeled travel totals "
       f"{shared['nearest_first_seconds']:,} seconds nearest-first and "
       f"{shared['exact_optimum_seconds']:,} seconds exact.")
-'''
-
-
-IMPACT = r'''print("Health worker: call the exact campus to confirm onsite dialysis, the entrance, and current "
-      "staffed availability before advising travel.")
-for check in report["find_care"]["verification"]:
-    print("  " + check)
-
-print("\nDistrict planner: compare feasible placements and inspect the parts of the shift where stock ran out.")
-batch = report["storm_batch"]
 for key, label in (("nearest_first", "Nearest-first"), ("exact_optimum", "Exact planning")):
     metrics = batch["policies"][key]
     print(f"{label}: {metrics['assigned']}/{batch['requested']} assigned, {metrics['unmet']} unmet.")
-    for priority in ("highest", "time_sensitive", "routine"):
-        counts = metrics["by_priority"][priority]
-        print(f"  {priority.replace('_', ' ').title()}: {counts['assigned']} assigned, {counts['unmet']} unmet.")
-    for reason, count in metrics["unserved_reasons"].items():
-        print(f"  Unmet because {reason.replace('_', ' ')}: {count}.")
-print("Use the exhausted slot as a staffing sensitivity test. These are modeled appointments for invented demand.")
+small = report["storm"]
+print(f"Eight-request replay: {small['nearest_assigned']}/{small['requested']} nearest-first, "
+      f"{small['scarcity_assigned']}/{small['requested']} scarcity-aware.")
+'''
+
+
+IMPACT = '''claim = report["public_find_care"]["claim"]
+print(f"Health worker: call {claim['operator']} at {claim['contact_phone']} ({claim['contact_label'].lower()}) "
+      "to confirm maintenance haemodialysis, appointment acceptance and which entrance to use.")
+benchmark = report["pune_four_care"]
+unmet_nearest = benchmark["requested"] - benchmark["nearest_first"]
+unmet_exact = benchmark["requested"] - benchmark["exact_optimum"]
+print(f"District planner: the modeled shift has {unmet_nearest} unmet requests nearest-first "
+      f"and {unmet_exact} with the batch planner.")
+print("All six additional placements are high-acuity trauma. Test staffed trauma bays and shared slots "
+      "under other demand and staffing assumptions before making operational decisions.")
 '''
 
 
@@ -372,15 +404,18 @@ def notebook(revision, sources):
 and extracts its embedded sources, runs the app logic offline, and needs only the Python standard
 library.
 
+Start with **Pune · maintenance haemodialysis**, which returns KEM Hospital's operator-published
+claim. Confirm availability directly with the hospital.
+
 | Criterion | What to see after Run all |
 | --- | --- |
 | [Exploration](#judge-exploration) | Published Virtue Foundation area coverage and two service evidence comparisons, with their denominators. |
-| [Modeling](#judge-modeling) | A service-and-location search with its facility claims and alternative, plus exact vs. nearest-first placement on identical simulated inputs. |
+| [Modeling](#judge-modeling) | The real KEM lookup and its source limits, plus the [four-care Pune simulation](#pune-four-care). |
 | [Impact](#judge-impact) | A health worker's verification step and a planner's view of feasible appointments and unmet requests. |
 
 The [national findings](#judge-national-findings) summarize the restricted VF analysis at
-published aggregate scope. The runnable finder uses invented facilities. The Storm control
-uses simulated demand, resources and travel. [Organizer criteria](https://cmudsc.com/datathon-fall2026/) · [Challenge brief](https://docs.google.com/document/d/e/2PACX-1vQxhDNQmgZhPgjG0M6LCb_UXNV8CJryqBNQQuqWfIg_dm40ZU1AYAXzZKViC6haFoCmLNiRVfUSBMjf/pub)
+published aggregate scope. Storm demand, staffing and travel are simulated.
+[Organizer criteria](https://cmudsc.com/datathon-fall2026/) · [Challenge brief](https://docs.google.com/document/d/e/2PACX-1vQxhDNQmgZhPgjG0M6LCb_UXNV8CJryqBNQQuqWfIg_dm40ZU1AYAXzZKViC6haFoCmLNiRVfUSBMjf/pub)
 """, "markdown"),
         cell("reproducibility", f"""## Execution and source pins
 
@@ -427,11 +462,11 @@ recalculate the national result.
             source = f"include_text({path!r}, {literal(raw.decode('utf-8'))})\n"
         cells.append(cell("source-" + digest(path.encode("utf-8"))[:24], source))
     cells.extend([
-        cell("run-introduction", """## Execute the synthetic demonstration
+        cell("run-introduction", """## Execute the offline lookup and replays
 
-The first result shows the requested service, selected facility, straight-line distance and the
-specific synthetic source field. The independent evidence path, emergency interrupt, and storm
-comparisons run immediately afterward.
+The runner reads the curated operator claims and the pinned anonymous benchmark locally. The
+labeled judge outputs below explain the results. The separate engineering checks exercise the
+fictional finder, emergency interrupt, and simulation controls.
 """, "markdown"),
         cell("run", RUN),
         cell("exploration", """<a id="judge-exploration" name="judge-exploration"></a>
@@ -451,16 +486,27 @@ describe the evidence represented in the numerators.
 
 ## Modeling
 
-This cell reads outputs from the embedded finder, provenance mapper and Storm allocator. The
-offline search uses the demo candidates and straight-line distance. The Storm control compares
-arrival-order nearest-first with full-batch assignment on the same feasible appointments and
-capacity. The priority-ordered objective and travel values are conditional on that synthetic shift.
-
-The separate Pune benchmark uses public-source geography with simulated patients and staffing.
-The public method describes eight mapped facility points and four outline interior anchors.
-This notebook's runnable control uses invented sites. [Pune geography recipe](https://github.com/vzhu08/databricks-datathon/blob/d98a601/research/acquisition/pune_planning_geography/README.md)
+The real lookup uses the integrated two-operator public claims collection. It matches the city
+and requested service wording. KEM's nephrology department supports the maintenance
+haemodialysis claim at the hospital's published Rasta Peth location scope. The reviewed source
+leaves the date of service delivery, entrance, staffing and appointment status unknown.
+[KEM nephrology](https://www.kemhospitalpune.org/specialities/nephrology/) · [Jehangir nephrology](https://www.jehangirhospital.com/nephrology-sp/) · [Signed-in lookup receipt](https://github.com/vzhu08/databricks-datathon/issues/350#issuecomment-7082597651)
 """, "markdown"),
         cell("modeling-output", MODELING),
+        cell("pune-four-care", """<a id="pune-four-care" name="pune-four-care"></a>
+
+## Pune four-care Storm simulation
+
+The #354 benchmark models one six-hour shift at 12 public-source Pune locations. This notebook
+replays its approved neutral input, with anonymous sites, synthetic requests and staffed slots,
+and frozen modeled travel at 30 km/h. The exact planner minimizes unmet highest, time-sensitive
+and routine requests in that order, then travel seconds. Arrival-order nearest-first sees the
+same feasible edges and capacity. These outputs measure modeled assignments in the benchmark.
+
+The signed-in first-edition Storm comparison is a separate 112/120 versus 117/120 modeled run.
+[Four-care presenter edition](https://github.com/vzhu08/databricks-datathon/issues/354#issuecomment-7082584764) · [Independent same-input audit](https://github.com/vzhu08/databricks-datathon/issues/354#issuecomment-7082572887) · [Public geography method and attribution](https://github.com/vzhu08/databricks-datathon/blob/2d6ba9b7f7817c318ea96f9bde2242d6c1c53b29/research/acquisition/pune_planning_geography/PUNE_EVIDENCE_ENRICHED_V1.md) · [Hosted first-edition check](https://github.com/vzhu08/databricks-datathon/issues/304#issuecomment-7082157852)
+""", "markdown"),
+        cell("pune-four-care-output", PUNE_BENCHMARK),
         cell("impact", """<a id="judge-impact" name="judge-impact"></a>
 
 ## Impact
@@ -469,6 +515,12 @@ The finder shows which claim to verify before travel. The planner quantifies fea
 appointments and exposes where a staffing change could be tested.
 """, "markdown"),
         cell("impact-output", IMPACT),
+        cell("engineering-controls", """## Synthetic engineering controls
+
+The fictional Jaipur finder and invented-site Storm fixtures exercise the application logic
+and remain available for repeatable offline verification.
+""", "markdown"),
+        cell("engineering-controls-output", OFFLINE_CONTROL),
         cell("optional-ui", """## Optional local browser views
 
 The source reconstructed under `PROJECT_ROOT` remains available for the life of this kernel.
@@ -524,8 +576,8 @@ def main():
     args = parser.parse_args()
     if args.check == bool(args.source_ref):
         parser.error("Choose either --source-ref REF to regenerate or --check")
-    paths = tracked_paths()
     try:
+        paths = tracked_paths()
         sources = working_sources(paths)
         if args.check:
             existing = NOTEBOOK.read_bytes()
@@ -533,7 +585,7 @@ def main():
             if not re.fullmatch(r"[a-f0-9]{40}", revision):
                 raise ValueError("Invalid source revision in notebook manifest")
             unstaged = set(git("diff", "--name-only", "-z", "--").decode("utf-8").split("\0"))
-            if unstaged.intersection({*paths, DRIVER, "tools/submission_notebook.py"}):
+            if unstaged.intersection({*paths, *NOTEBOOK_INPUTS, "tools/submission_notebook.py"}):
                 raise ValueError("Packaged source differs between the index and working tree")
             verify_commit(revision, sources)
         else:

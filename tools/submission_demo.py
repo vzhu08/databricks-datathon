@@ -1,5 +1,6 @@
-"""Run the competition notebook's fixed, local-only synthetic demonstration."""
+"""Run the competition notebook's public lookup and offline simulation replays."""
 
+from collections import Counter
 import hashlib
 import json
 from pathlib import Path
@@ -52,6 +53,7 @@ def main():
     }
     require(len(categories) == 57 and capability["directory_rows"] == 10_088,
             "The integrated capability coverage must retain the national published frame")
+    public_care = public_lookup()
 
     require(data_mode({"FIND_CARE_DATA": "demo"})["mode"] == "demo", "Expected demo mode")
     require(data_mode({"FIND_CARE_DATA": "warehouse"})["mode"] == "setup",
@@ -148,6 +150,7 @@ def main():
             and "data:font/woff2;base64," in frame and "<script src=" not in frame,
             "The hosted Storm frame must be self-contained and use the pinned replay")
     batch = batch_comparison(storm_plan)
+    pune_benchmark = pune_four_care()
 
     browser_bundles = {
         "scenarios.js": build,
@@ -219,7 +222,8 @@ def main():
             "Synthetic adjudication must apply only to the reviewed occurrence and service")
 
     result = {
-        "synthetic": True,
+        "public_find_care": public_care,
+        "pune_four_care": pune_benchmark,
         "published_capability_coverage": {
             "originals": capability["directory_rows"], "categories": len(categories),
             "examples": examples_by_capability,
@@ -298,6 +302,29 @@ def main():
     return 0
 
 
+def public_lookup():
+    from app.public_facility_search import search_public_facilities
+
+    place, service = "Pune", "maintenance haemodialysis"
+    matches = search_public_facilities(place, service)
+    require(len(matches) == 1, "The maintenance lookup must contain only the applicable operator claim")
+    claim = matches[0]
+    require(claim["operator"] == "KEM Hospital, Pune"
+            and claim["location_scope"] == "Operator-listed hospital in Rasta Peth, Pune"
+            and claim["source_url"] == "https://www.kemhospitalpune.org/specialities/nephrology/"
+            and claim["checked_on"] == "2026-11-22"
+            and claim["contact_label"] == "Hospital main line" and claim["contact_phone"] == "+91 20 2621 7300"
+            and claim["source_date"] is None and claim["treatment_observation_date"] is None
+            and claim["vf_match"] == "No reviewed VF match asserted"
+            and all(claim[field] == "Unknown" for field in ("appointment_acceptance", "availability", "staffing", "entrance")),
+            "The public claim lost its documented source or limits")
+    broader = search_public_facilities(place, "dialysis")
+    require([row["operator"] for row in broader] == ["KEM Hospital, Pune", "Jehangir Hospital"]
+            and broader[1]["service"] == "Dialysis" and not search_public_facilities("Jaipur", service),
+            "Unexpected city and published-service filter")
+    return {"place": place, "service": service, "claim": claim, "broader_alternative": broader[1]}
+
+
 def batch_comparison(storm_plan):
     from app.simulation.batch_planner import make_instance, neutral_instance, solve
 
@@ -336,6 +363,43 @@ def batch_comparison(storm_plan):
                           "nearest_first_seconds": sum(nearest[key]["travel_seconds"] for key in cohort),
                           "exact_optimum_seconds": sum(optimal[key]["travel_seconds"] for key in cohort)},
     }
+
+
+def pune_four_care():
+    from app.simulation import batch_planner
+
+    raw = (ROOT / "tools/pune_four_care_neutral.json").read_bytes()
+    pin = "43ee208c8f5c042a90792624cf7f7d9def187ae6a90d949c78257ae97b1f0a07"
+    require(hashlib.sha256(raw).hexdigest() == pin, "Pune benchmark input pin differs")
+    instance = json.loads(raw)
+    labels = instance["scenario"]["condition_categories"]
+    require(instance["geography"]["location_basis"] == "synthetic" and len(instance["facilities"]) == 12,
+            "The Pune replay requires the anonymous twelve-site projection")
+    # Match the independently reviewed replay adapter. Only the fixture's service vocabulary extends
+    # the planner inside this call. Both policies use its unchanged eligibility and allocation rules.
+    services = tuple(dict.fromkeys((*batch_planner.SERVICES, *labels)))
+    with patch.object(batch_planner, "SERVICES", services):
+        policies = batch_planner.solve(instance)["policies"]
+
+    categories = {row["id"]: row["condition_category"] for row in instance["patients"]}
+    requested = Counter(categories.values())
+    counts = {
+        policy: Counter(categories[row["patient"]] for row in result["assignments"])
+        for policy, result in policies.items()
+    }
+    rows = [
+        {"label": label, "requested": requested[category],
+         "nearest_first": counts["nearest_first"][category], "exact_optimum": counts["exact_optimum"][category]}
+        for category, label in labels.items()
+    ]
+    require([(r["requested"], r["nearest_first"], r["exact_optimum"]) for r in rows] ==
+            [(30, 30, 30), (36, 36, 36), (30, 30, 30), (24, 18, 24)],
+            "The four-care outcome must match the independent replay")
+    totals = {policy: result["metrics"]["assigned"] for policy, result in policies.items()}
+    require(totals == {"nearest_first": 114, "exact_optimum": 120},
+            "The four-care assignment totals must match the approved benchmark")
+    return {"input_sha256": pin, "requested": len(categories), "sites": len(instance["facilities"]),
+            "nearest_first": totals["nearest_first"], "exact_optimum": totals["exact_optimum"], "classes": rows}
 
 
 if __name__ == "__main__":
