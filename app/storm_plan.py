@@ -561,10 +561,14 @@ def view(plan):
     if gain > 0:
         say = (f"On identical inputs the exact optimum placed {gain} more simulated "
                f"{'patient' if gain == 1 else 'patients'} than nearest first.")
-    elif plan.get("traffic") and not best["assigned"]:
+    elif plan.get("traffic") and not best["assigned"] and not plan["traffic"]["usable_pairs"]:
         say = ("No road time came back for any route, so neither policy could place a simulated patient in this "
                "run. That is the road-time service being unavailable, not the planner: the modeled result is "
                "unchanged.")
+    elif plan.get("traffic") and not best["assigned"]:
+        usable = plan["traffic"]["usable_pairs"]
+        say = (f"Road times came back for {usable:,} {'route' if usable == 1 else 'routes'}, but with them neither "
+               "policy could place a simulated patient in this run. The reasons are in the table below.")
     elif gain == 0:
         say = "On identical inputs both policies placed the same number of simulated patients."
     else:
