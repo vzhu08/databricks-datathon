@@ -22,7 +22,8 @@ from .base_adapter import (base_views, check_mapping, default_mapping, external_
 from .candidates import generate, settings
 from .common import (MatchingError, base_check, canonical, combine_external, counts, digest, empty,
                      field_value, file_digest, load, require, schema_check, write_json)
-from .decide import build, check_policy
+from .decide import build, check_policy, primary_reason
+from . import premises
 from .review import sample, stratum, worksheet
 
 
@@ -54,7 +55,7 @@ def cross_check(batch, base_index, external_ids):
 
 def execute(base, external_batches, mapping=None, attributes=None, policy=None, postal=None,
             postal_mapping=None, config=None, sample_size=50, source_metadata=None, identifier_base=None,
-            known_states=None):
+            known_states=None, premises_mapping=None):
     """Pure function behind the CLI: returns every output as plain data.
 
     `source_metadata` is D's metadata for this base; `mapping` adds or overrides
@@ -77,13 +78,28 @@ def execute(base, external_batches, mapping=None, attributes=None, policy=None, 
         require(postal_mapping is not None, "postal_mapping", "required with --postal; use the observed postal columns")
         postal_table, postal_profile = aggregate(postal, postal_mapping, known_states)
 
-    candidates = generate(bases, externals, policy, config)
+    trace = None
+    if premises_mapping is not None:
+        require(not policy, "premises_mapping", "address replay requires candidate-only mode")
+        premises_mapping = premises.check_mapping(premises_mapping, identifier_base if identifier_base is not None else base)
+        for view in bases:
+            view["premises"] = premises.derive(view, premises.base_fields(view, premises_mapping, mapping), postal_table)
+        for view in externals:
+            fields = premises.external_fields(view, (attributes or {}).get(view["id"], {}))
+            view["premises"] = premises.derive(view, fields, postal_table)
+        trace = {}
+    candidates = generate(bases, externals, policy, config, trace)
     matches, reviews, candidates = build(candidates, bases, externals, policy, identifier_base)
 
     address_selector = mapping.get("address")
     base_address = lambda v: field_value(v["row"], address_selector) if isinstance(address_selector, str) else None
     base_geo, base_findings = screen(bases, "base", base_address, postal_table)
     external_geo, _ = screen(externals, "external", lambda v: v["row"]["address_original"], postal_table)
+    if trace is not None:
+        for view in bases:
+            if view["premises"]["mixed_campus"]:
+                base_findings[view["id"]]["flags"].append("mixed_campus_address")
+                base_geo["flag_counts"]["mixed_campus_address"] = base_geo["flag_counts"].get("mixed_campus_address", 0) + 1
     geo_reviews = base_reviews(base_findings) + cluster_reviews(base_geo)
 
     batch = empty()
@@ -133,8 +149,37 @@ def execute(base, external_batches, mapping=None, attributes=None, policy=None, 
                                  "other_candidates_for_base", "other_serious_candidates_for_base",
                                  "other_bases_for_external", "other_serious_bases_for_external")}
               for c in sorted(candidates, key=lambda c: c["match_id"])]
-    return {"batch": batch, "candidates": ledger, "review_worksheet": worksheet(chosen, bases, externals),
-            "geography_report": geography, "report": report}
+    result = {"batch": batch, "candidates": ledger, "review_worksheet": worksheet(chosen, bases, externals),
+              "geography_report": geography, "report": report}
+    if trace is not None:
+        for row in trace.values():
+            for pair in row["pre_cut"]:
+                pair["review_reason"] = primary_reason(pair, None)
+                pair["stage"] = "retained" if "rank" in pair else "rank_cut"
+        result["candidate_stages"] = trace
+        result["stage_reference_ids"] = [view["id"] for view in externals]
+        result["premises_evidence"] = _premises_evidence(bases, externals, trace, postal_table)
+    return result
+
+
+def _premises_evidence(bases, externals, trace, postal_table):
+    selected = {pair["external_facility_id"] for row in trace.values() for pair in row["pre_cut"]}
+    external = [view for view in externals if view["id"] in selected]
+    pins = {pin for view in [*bases, *external] for pin in view["premises"]["postal_pins"]}
+    coverage = {}
+    for view in [*bases, *externals]:
+        source = view.get("source_key", "original")
+        counts = coverage.setdefault(source, Counter())
+        counts["rows"] += 1
+        counts.update(f"field:{field}" for field in {o["field"] for o in view["premises"]["observations"]})
+        counts.update(key for key in ("premises", "streets", "localities", "districts", "pins",
+                                     "mixed_campus", "postal_state_disagreement",
+                                     "geography_incomplete_or_disputed") if view["premises"][key])
+    return {"base": {view["id"]: premises.evidence(view) for view in bases},
+            "external": {view["id"]: {**premises.evidence(view), "record_locator": view["row"]["record_locator"],
+                                     "snapshot_id": view["row"]["snapshot_id"]} for view in external},
+            "postal_by_pin": {pin: postal_table[pin] for pin in sorted(pins)} if postal_table is not None else {},
+            "coverage_by_source": coverage}
 
 
 def main(argv=None):
@@ -152,6 +197,7 @@ def main(argv=None):
     parser.add_argument("--postal", help="JSON array of postal directory rows")
     parser.add_argument("--postal-mapping", help="JSON object: pin/state/district -> observed postal column")
     parser.add_argument("--config", help="JSON object overriding retrieval settings")
+    parser.add_argument("--premises-mapping", help="Enable candidate-only structured address retrieval using observed columns")
     parser.add_argument("--sample-size", type=int, default=50, help="Review sample limit (default 50)")
     args = parser.parse_args(argv)
     try:
@@ -160,17 +206,19 @@ def main(argv=None):
                   "source_metadata": args.source_metadata,
                   "external_attributes": args.external_attributes, "identity_policy": args.identity_policy,
                   "postal": args.postal, "postal_mapping": args.postal_mapping, "config": args.config}
+        if args.premises_mapping:
+            inputs["premises_mapping"] = args.premises_mapping
         out = Path(args.output_dir)
         named = [args.base] + args.external + [p for p in (args.base_mapping, args.source_metadata, args.external_attributes,
-                 args.identity_policy, args.postal, args.postal_mapping, args.config) if p]
+                 args.identity_policy, args.postal, args.postal_mapping, args.config, args.premises_mapping) if p]
         require(out.resolve() not in {Path(p).resolve().parent for p in named}, "output-dir",
                 "must not be a directory that holds an input file")
         result = execute(load(args.base), [load(p) for p in args.external], optional(args.base_mapping),
                          optional(args.external_attributes), optional(args.identity_policy),
                          optional(args.postal), optional(args.postal_mapping), optional(args.config),
-                         args.sample_size, optional(args.source_metadata))
-        hashes = {name: write_json(out / f"{name}.json", result[name])
-                  for name in ("batch", "candidates", "review_worksheet", "geography_report", "report")}
+                         args.sample_size, optional(args.source_metadata),
+                         premises_mapping=optional(args.premises_mapping))
+        hashes = {name: write_json(out / f"{name}.json", contents) for name, contents in result.items()}
         manifest = {"matcher_version": MATCHER_VERSION,
                     "inputs_sha256": {key: ([file_digest(p) for p in value] if isinstance(value, list)
                                             else file_digest(value) if value else None)

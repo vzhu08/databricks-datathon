@@ -84,7 +84,9 @@ def state_from_pin(view, postal_table):
 AMBIGUOUS_REASONS = {"ambiguous_campus", "identifier_not_unique", "identifier_campus_conflict",
                      "identifier_conflict"}
 ID_KEYS = ("original_unique_id", "original_id")
-GEOGRAPHY_FLAGS = {"state_conflict", "place_conflict", "pin_conflict", "coordinates_far_apart"}
+GEOGRAPHY_FLAGS = {"state_conflict", "place_conflict", "pin_conflict", "coordinates_far_apart",
+                   "premises_conflict", "street_conflict", "branch_qualifier_conflict",
+                   "own_postal_state_conflict", "multiple_observed_pins", "competing_coordinates"}
 BASE_GEOGRAPHY_PROBLEMS = {"state_disagrees_with_pin", "district_disagrees_with_pin", "address_pin_disagrees"}
 CONFLICTS = ("competing_campuses", "candidate_geography_conflict", "base_geography_disagreement")
 RUN_OUTPUTS = ("batch", "candidates", "review_worksheet", "geography_report", "report")
@@ -278,7 +280,7 @@ def _missed_sample(rows, limit):
 def execute_national(base, external_batches, mapping=None, attributes=None, policy=None, postal=None,
                      postal_mapping=None, config=None, sample_size=50, source_metadata=None,
                      duplicate_sidecar=None, expect_duplicate_groups=None, state=None, missed_sample_size=50,
-                     base_file_sha256=None):
+                     base_file_sha256=None, premises_mapping=None):
     """Pure function behind the CLI. `state` limits the run to base rows with
     that state label (the scoped pilot); identical copies always stay together.
     `base_file_sha256` is the hash of the base file as read; without it the
@@ -321,7 +323,7 @@ def execute_national(base, external_batches, mapping=None, attributes=None, poli
     # Identifier uniqueness is counted over every original row, copies and out-of-scope rows
     # included, so nothing confirms here that D's validator would reject on the full base.
     result = execute(unique_rows, external_batches, mapping, attributes, policy, postal, postal_mapping,
-                     config, sample_size, identifier_base=base, known_states=STATES)
+                     config, sample_size, identifier_base=base, known_states=STATES, premises_mapping=premises_mapping)
     require(digest(base) == before and len(base) == len(index), "base", "base changed during the run")
 
     source_of = _source_keys(external_batches)
@@ -421,7 +423,7 @@ def execute_national(base, external_batches, mapping=None, attributes=None, poli
         "run_report": {k: result["report"][k] for k in ("matches", "review_queue", "identity_policy_namespaces",
                                                         "base_mapping_roles", "settings", "table_counts")},
     }
-    return {**{name: result[name] for name in RUN_OUTPUTS}, "base_rows": rows,
+    return {**result, "base_rows": rows,
             "duplicate_groups": groups, "missed_sample": _missed_sample(rows, missed_sample_size),
             "national_report": national_report}
 
@@ -448,6 +450,7 @@ def main(argv=None):
     parser.add_argument("--postal", help="JSON array of postal directory rows")
     parser.add_argument("--postal-mapping", help="JSON object: pin/state/district -> observed postal column")
     parser.add_argument("--config", help="JSON object overriding retrieval settings")
+    parser.add_argument("--premises-mapping", help="Enable candidate-only structured address retrieval using observed columns")
     parser.add_argument("--duplicate-groups", help="D's duplicate-group sidecar; must agree with the groups found in the base")
     parser.add_argument("--expect-duplicate-groups", type=int, help="Fail unless exactly this many identical-payload groups exist")
     parser.add_argument("--state", help="Limit the run to base rows with this state label (scoped pilot)")
@@ -461,6 +464,8 @@ def main(argv=None):
                   "identity_policy": args.identity_policy, "postal": args.postal,
                   "postal_mapping": args.postal_mapping, "config": args.config,
                   "duplicate_groups": args.duplicate_groups}
+        if args.premises_mapping:
+            inputs["premises_mapping"] = args.premises_mapping
         out = Path(args.output_dir)
         named = [p for value in inputs.values() if value for p in (value if isinstance(value, list) else [value])]
         require(out.resolve() not in {Path(p).resolve().parent for p in named}, "output-dir",
@@ -473,9 +478,9 @@ def main(argv=None):
                                   optional(args.postal_mapping), optional(args.config), args.sample_size,
                                   optional(args.source_metadata), optional(args.duplicate_groups),
                                   args.expect_duplicate_groups, args.state, args.missed_sample_size,
-                                  file_digest(args.base))
+                                  file_digest(args.base), optional(args.premises_mapping))
         finished = time.perf_counter()
-        hashes = {name: write_json(out / f"{name}.json", result[name]) for name in RUN_OUTPUTS + NATIONAL_OUTPUTS}
+        hashes = {name: write_json(out / f"{name}.json", contents) for name, contents in result.items()}
         # Timing and memory depend on the machine, so they stay out of the hashed outputs.
         manifest = {"national_version": NATIONAL_VERSION, "matcher_version": MATCHER_VERSION,
                     "inputs_sha256": {key: ([file_digest(p) for p in value] if isinstance(value, list)

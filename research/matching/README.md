@@ -162,6 +162,49 @@ Candidates for a base row are ordered by identifier, name level, number of confl
 
 These are retrieval heuristics. They decide what a reviewer sees, not what is true, and must not be reported as confidence.
 
+## Premises and locality replay (LOC-02)
+
+Run the nationwide command with an additional `--premises-mapping` to enable this candidate-only variant. It requires an explicit mapping of inspected columns. The published frozen and corrected control commands continue to use their original fields and parameters.
+
+| Approved input | Fields used in the variant |
+| --- | --- |
+| VF facilities, Delta version 0 | `name`, `address_line1`, `address_line2`, `address_line3`, `address_city`, `address_stateOrRegion`, `address_zipOrPostcode`, `latitude`, `longitude`. The current control keeps its original address and phone mapping. `description` can contribute an explicit mixed-campus review cue. The snapshot has no separately documented alias field. |
+| Frozen NHP and HOT OSM reference | Original name and address, city, state, PIN, coordinates, snapshot, source record ID and record locator. The pinned envelope has no separate alias or district column. Use the existing external-attributes sidecar only for documented aliases or districts from an approved source. |
+| India Post directory, Delta version 0 | `pincode`, `statename`, `district`, `officename`. The optional office mapping retains each original office label and row ordinal, including competing jurisdictions. Grouping by PIN keeps the facility population unchanged. |
+
+Example VF variant mapping:
+
+```json
+{
+  "address": ["source_row.address_line1", "source_row.address_line2", "source_row.address_line3"],
+  "description": "source_row.description"
+}
+```
+
+Optional `locality`, `district` and `alias` roles take explicit observed column paths. Each derived field carries its source path and raw address or name value. Mixed-campus description screening records the source path and a boolean cue. The base row remains the authority for the original description. Postal-derived districts and original labels stay separate. PINs found in address text can contribute alternative postal context.
+
+The index retrieves exact premise and street combinations first, then premises and locality, distinctive name and district, and documented branch aliases. Civic numbers, marked plots, named buildings, streets, marked localities and district phrases are parsed with conservative rules. Exact structured address admission needs distinguishing name support. A distinctive-name fallback keeps some rows with missing or conflicting geography in review. Unicode folding preserves Indic marks and folds Latin accents. Cross-script name equivalence requires a documented alias. Branch differences, incompatible geography, co-located hospitals and mixed-campus evidence stay visible in the review signals. All new pairs remain candidates.
+
+When each side supplies one observed PIN and at least one comes from address text, a disagreement carries the `pin_conflict` flag and the same ranking penalty as a structured PIN conflict. The rationale identifies the address-text evidence, and the review queue keeps its existing reason priority. The original structured PIN signal and pre-cut candidates remain available alongside the source fields and locators. Multiple PINs on either side remain a separate uncertainty cue.
+
+Use `--sample-size 0 --missed-sample-size 0` for the Task 2 comparison replay. Both review samples for a subsequent evaluation are drawn by the audit steward after freezing this output. The steward can use the occurrence and pair frames to select a disjoint case set. The matcher uses no human review labels.
+
+Private diagnostic files supplement the existing contract envelope and occurrence frame.
+
+- `premises_evidence.json` stores the derived and original address fields per representative, the referenced external evidence and the postal offices grouped by PIN. It includes field availability and parse coverage.
+- `candidate_stages.json` records every blocked-in pair by scoring rejection or pre-cut admission. Admitted pairs carry block stages, candidate scores, serious-alternative flags and pre-cut rank. Cut pairs retain their review reason and appear without a retained position. Rejection groups reference the ordinal in `stage_reference_ids.json`.
+- `base_rows.json` remains in original input order. `matched_as` connects both members of each identical pair to one retrieval trace. The existing candidate and review workflow still consumes `batch.json`.
+
+With the verified LOC-01 receipt, pinned service lookup and a fresh private output directory, run:
+
+```text
+python -m research.matching.premises_comparison --base BASE_JSON --control-dir LOC01_DIRECTORY --control-receipt-sha256 LOC01_RECEIPT_HASH --variant-dir VARIANT_DIRECTORY --service SERVICE_LOOKUP_JSON --service-sha256 SERVICE_LOOKUP_HASH --output-dir COMPARISON_DIRECTORY
+```
+
+The comparison validates both historical outcomes and the original row sequence and payload multiset before reporting retrieval changes. It writes a private occurrence frame, a private pair ledger with ranks and stage changes, and an aggregate report with all states and UTs, both unknown-state buckets, and three-service context. Pair totals use one representative per distinct payload. Occurrence totals include both copies. Service statuses come from the pinned lookup.
+
+After freezing the variant, the audit steward chooses a disjoint sample of up to 50 campus pairs with a separate challenge set. Include candidate-only, ambiguous and unmatched occurrences, plus missing geography and chain collisions. For open searches, record which independently identified campus and exact reference record were found. With those labels, distinguish reference absence from blocking, scoring and rank loss. Report top-five and pre-cut recall over independently identified campuses and separately over campuses present in the approved reference. Two human reviewers lock their judgments before adjudication. Report denominators by stratum, wrong-campus proposals and unresolved cases separately. Campus confirmation, coordinate approval and publication use the existing reviewed workflow.
+
 ## Automatic confirmation
 
 A match is written as `confirmed` with method `shared_identifier` only when all of these hold, mirroring D's validator:

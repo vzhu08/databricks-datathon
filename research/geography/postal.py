@@ -29,7 +29,7 @@ def aggregate(rows, mapping, known_states=None):
     require(isinstance(mapping, dict) and "pin" in mapping and set(mapping) <= ROLES,
             "postal_mapping", "needs a 'pin' column and only known roles")
     table, invalid = {}, 0
-    for row in rows:
+    for index, row in enumerate(rows):
         require(isinstance(row, dict), "postal", "expected objects")
         pin = pin_key(field_value(row, mapping["pin"]))
         if pin is None:
@@ -39,6 +39,10 @@ def aggregate(rows, mapping, known_states=None):
                                         "districts": set(), "state_text": set(), "district_text": set(),
                                         "states_unrecognised": set(), "offices_without_state": 0})
         entry["office_count"] += 1
+        if "office" in mapping:
+            entry.setdefault("offices", []).append({"row_index": index, **{
+                role: field_value(row, mapping[role]) for role in ("office", "district", "state") if role in mapping
+            }})
         for role, norm in (("state", state_key), ("district", place_key)):
             if role in mapping:
                 raw = field_value(row, mapping[role])
@@ -62,6 +66,8 @@ def aggregate(rows, mapping, known_states=None):
                                           and not entry["offices_without_state"]) if "state" in mapping else None,
                        "ambiguous_state": len(entry["states"]) > 1,
                        "ambiguous_district": len(entry["districts"]) > 1}
+        if "offices" in entry:
+            result[pin]["offices"] = entry["offices"]
     profile = {"postal_rows": len(rows), "rows_without_valid_pin": invalid, "distinct_pins": len(result),
                "pins_with_multiple_offices": sum(e["office_count"] > 1 for e in result.values()),
                "pins_with_multiple_districts": sum(e["ambiguous_district"] for e in result.values()),
