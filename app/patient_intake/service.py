@@ -57,6 +57,11 @@ def _read(handle, expected=_ANY_REVISION):
     return revision, data
 
 
+def _unsupported_context(data):
+    assessment = data["assessment"]
+    return assessment["state"] == "unsupported" and assessment["reason"] == "unsupported_context"
+
+
 class PatientIntakeService:
     """Use one trusted adapter configuration and a server-owned handle per encounter."""
 
@@ -109,13 +114,14 @@ class PatientIntakeService:
 
     def edit(self, handle, expected_revision, *, description, context):
         rev, data = _read(handle, expected_revision)
+        ineligible = _unsupported_context(data)
         retire = data.get("consent_bound", False)
         data.update(continuation=None, consent_identity=None, consent_policy=None, consent_bound=False,
                     interview=None, interview_ended=False)
         try:
             data["interview"] = _snapshot(self._interview.start(description, context))
         except (TypeError, ValueError) as error:
-            if getattr(error, "code", None) == "unsupported_context":
+            if getattr(error, "code", None) == "unsupported_context" or ineligible:
                 return self._commit(handle, rev, data, "unsupported", reason="unsupported_context", retire_provider=retire)
             return self._commit(handle, rev, data, "draft", reason="invalid_input", retire_provider=retire)
         try:
@@ -124,12 +130,16 @@ class PatientIntakeService:
             if getattr(error, "code", None) != "session_invalid_payload":
                 raise
         data["interview"] = None
+        if ineligible:
+            return self._commit(handle, rev, data, "unsupported", reason="unsupported_context", retire_provider=retire)
         return self._commit(handle, rev, data, "draft", reason="invalid_input", retire_provider=retire)
 
     def consent(self, handle, expected_revision, *, granted):
         rev, data = _read(handle, expected_revision)
         if type(granted) is not bool:
             raise ValueError("invalid_consent")
+        if _unsupported_context(data):
+            return data["assessment"]
         retire = data.get("consent_bound", False)
         if granted and retire and self._consented(data):
             return data["assessment"]
@@ -155,6 +165,8 @@ class PatientIntakeService:
 
     def assess(self, handle, expected_revision):
         rev, data = _read(handle, expected_revision)
+        if _unsupported_context(data):
+            return data["assessment"]
         if (data.get("interview_ended") or data["assessment"]["state"] in
                 ("assessment_in_progress", "awaiting_clarification", "urgent", "provider_stop")):
             raise ValueError("assessment_action_unavailable")

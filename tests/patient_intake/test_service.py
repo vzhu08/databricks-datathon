@@ -352,3 +352,28 @@ class OwnedProviderTests(unittest.TestCase):
         self.adapter.cleanup_reservation.retire.assert_called_once_with()
         with self.assertRaises(ValueError):
             PatientIntakeService(interview=Interview(), provider=self.adapter, provider_bindings=self.factory)
+
+    def test_unsupported_context_remains_visible_until_a_valid_edit(self):
+        from app.patient_intake import PatientIntakeService
+        from app.patient_intake.interview import PatientInterview
+        from app.patient_intake.session import PatientSession
+        owner = PatientSession(notice_version="fixture")
+        handle = owner.open(consent=True, notice_version="fixture")
+        self.addCleanup(owner.delete, handle)
+        reducer = PatientInterview(supported_age_range=(20, 30), supported_languages=["en-IN"])
+        service = PatientIntakeService(interview=reducer, provider_bindings=self.factory,
+                                      provider_identity=("fixture", "1"))
+        revision = 0
+        for context in ({"age_years": 19, "language": "en-IN"}, {"age_years": 24, "language": "fr"}):
+            blocked = service.edit(handle, revision, description="Invented", context=context)
+            self.assertEqual((blocked["state"], blocked["reason"]), ("unsupported", "unsupported_context"))
+            for grant in (True, False):
+                self.assertEqual(service.consent(handle, blocked["revision"], granted=grant), blocked)
+                self.assertEqual(service.assess(handle, blocked["revision"]), blocked)
+            invalid = service.edit(handle, blocked["revision"], description="", context={})
+            self.assertEqual(invalid["reason"], "unsupported_context")
+            revision = invalid["revision"]
+        self.factory.assert_not_called()
+        valid = service.edit(handle, revision, description="Invented", context={"age_years": 24, "language": "en-IN"})
+        self.assertEqual((valid["state"], valid["reason"], valid["consent"]), ("draft", None, False))
+        self.assertEqual(service.assess(handle, valid["revision"])["reason"], "consent_or_input_required")
