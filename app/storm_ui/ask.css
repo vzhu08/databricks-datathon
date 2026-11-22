@@ -127,7 +127,9 @@
 
 @media print {
   body { background: #fff; padding: 0; }
-  .masthead nav, .ask-form, .actions, .how, .leftout, .next, .technical, .stale { display: none !important; }
+  .masthead nav, .ask-form, .actions, .how, .leftout, .next, .technical { display: none !important; }
+  /* An out-of-date answer never reaches paper: only the notice prints. */
+  #result[data-stale="true"] > :not(.stale) { display: none !important; }
   .desk { display: block; margin: 0; }
   .slip { border-color: #000; }
 }

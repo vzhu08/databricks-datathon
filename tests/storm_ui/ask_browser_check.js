@@ -57,6 +57,62 @@ const same = (actual, expected, message) => { checks += 1; assert.deepStrictEqua
   await p.waitForFunction(() => document.getElementById("copy-status").textContent.length > 0);
   ok((await p.textContent("#copy-status")).length > 0, "copying reports what happened");
 
+  // Exports follow the request on screen: an out-of-date answer can be neither copied nor printed.
+  const spy = () => p.evaluate(() => {
+    window.__copied = []; window.__prints = 0;
+    Object.defineProperty(navigator, "clipboard", { configurable: true,
+      value: { writeText: (text) => { window.__copied.push(text); return Promise.resolve(); } } });
+    document.execCommand = () => { window.__copied.push("fallback"); return true; };
+    window.print = () => { window.__prints += 1; };
+  });
+  const exported = () => p.evaluate(() => ({ copied: window.__copied.slice(), prints: window.__prints }));
+  const press = (id) => p.evaluate((name) => { const b = document.getElementById(name); b.click(); b.dispatchEvent(new MouseEvent("click", { bubbles: true })); }, id);
+  const onPaper = async () => { await p.emulateMedia({ media: "print" }); const seen = [await p.isVisible("#slip"), await p.isVisible("#stale")]; await p.emulateMedia({ media: "screen" }); return seen; };
+  await spy();
+  await p.click("#examples li:nth-child(1) button");
+  await p.click("#copy"); await p.click("#print");
+  let out = await exported();
+  ok(out.copied.length === 1 && out.copied[0].includes("Send to: Campus B") && out.prints === 1, "a current answer is copied and printed");
+  same(await onPaper(), [true, false], "a current answer prints its slip");
+
+  await p.check("input[name=urgency][value=highest]");
+  same([await p.isDisabled("#copy"), await p.isDisabled("#print")], [true, true], "Copy and Print are off after the request changes");
+  await press("copy"); await press("print");
+  out = await exported();
+  same([out.copied.length, out.prints], [1, 1], "an out-of-date answer is not copied or printed, even by a forced click");
+  same(await onPaper(), [false, true], "the browser's own print shows the notice, not the old slip");
+
+  await p.check("input[name=urgency][value=routine]");
+  same([await p.isDisabled("#copy"), await p.isDisabled("#print"), await p.isHidden("#stale")], [false, false, true], "switching back makes the answer current again");
+  await p.click("#copy"); await p.click("#print");
+  out = await exported();
+  ok(out.copied.length === 2 && out.copied[1].includes("Send to: Campus B") && out.prints === 2, "after switching back the same answer is exported");
+  same(await onPaper(), [true, false], "after switching back the slip prints again");
+
+  await p.selectOption("#place", "west");
+  same(await p.isDisabled("#copy"), true, "changing the starting point also turns exports off");
+  await p.click("#find");
+  await p.click("#copy"); await p.click("#print");
+  out = await exported();
+  ok(out.copied.length === 3 && out.copied[2].includes("From: West point") && out.copied[2].includes("Send to: Campus F") && out.prints === 3, "after asking again the new answer is exported");
+
+  await p.check("input[name=urgency][value=highest]");
+  await p.reload();
+  await spy();
+  same([await p.isHidden("#result"), await p.isVisible("#copy"), await p.isVisible("#print")], [true, false, false], "after a refresh no answer and no export control is shown");
+  same((await onPaper())[0], false, "after a refresh nothing is on the slip to print");
+  await press("copy"); await press("print");
+  out = await exported();
+  same([out.copied.length, out.prints], [0, 0], "after a refresh there is nothing to copy or print");
+  await p.click("#find");
+  const asked = await p.evaluate(() => ({ service: document.querySelector("input[name=service]:checked").value,
+    place: document.getElementById("place").value, urgency: document.querySelector("input[name=urgency]:checked").value }));
+  const now = await p.evaluate(() => { const v = window.AskPage.shown(); return { service: v.service, place: v.place, urgency: v.urgency }; });
+  same(now, asked, "after a refresh the next answer is for the form as it stands");
+  await p.click("#copy");
+  out = await exported();
+  ok(out.copied.length === 1 && out.copied[0] === await p.evaluate(() => window.AskPage.shown().referral), "and that answer is what gets copied");
+
   const phone = await context.newPage();
   await phone.setViewportSize({ width: 390, height: 844 });
   await phone.goto(page("index.html"));

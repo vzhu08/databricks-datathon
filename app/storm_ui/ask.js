@@ -100,7 +100,7 @@
     shown = v;
     $("empty").hidden = true;
     $("result").hidden = false;
-    $("stale").hidden = true;
+    markStale();
     $("copy-status").textContent = "";
     $("request-line").textContent = v.request_line;
     if (v.status === "ok") drawOk(v); else drawNone(v);
@@ -141,14 +141,23 @@
     draw(v, true);
   }
 
-  function markStale() {
-    if (!shown) return;
+  /* True when the form no longer asks what the shown answer answers. */
+  function stale() {
+    if (!shown) return false;
     var now = current();
-    $("stale").hidden = now.service === shown.service && now.place === shown.place && now.urgency === shown.urgency;
+    return !(now.service === shown.service && now.place === shown.place && now.urgency === shown.urgency);
+  }
+  /* An out-of-date answer can be read but not handed on: Copy and Print are off, and it does not print. */
+  function markStale() {
+    var old = stale();
+    $("stale").hidden = !old;
+    $("result").setAttribute("data-stale", old ? "true" : "false");
+    $("copy").disabled = $("print").disabled = old;
+    if (old) $("copy-status").textContent = "";
   }
 
   function copy() {
-    if (!shown) return;
+    if (!shown || stale()) return;
     var done = function (ok) {
       $("copy-status").textContent = ok ? "Copied. Paste it into a message or a note."
         : "Copying is blocked here. Use Print, or select the text on the slip.";
@@ -191,7 +200,9 @@
     $("ask").addEventListener("submit", function (event) { event.preventDefault(); find(); });
     $("ask").addEventListener("change", markStale);
     $("copy").addEventListener("click", copy);
-    $("print").addEventListener("click", function () { window.print(); });
+    $("print").addEventListener("click", function () { if (shown && !stale()) window.print(); });
+    // A page restored from the browser's history can come back with a changed form.
+    window.addEventListener("pageshow", markStale);
     window.AskPage = { shown: function () { return shown; } };
   }
 
