@@ -87,6 +87,10 @@ def main():
     with gzip.open(args.joint_dir / "candidate-delta.jsonl.gz", "rt", encoding="utf-8") as stream:
         package = adapt_hot(manifest, lines(args.packet / "ledger.jsonl"),
                             lines(args.joint_dir / "occurrence-delta.jsonl.gz"), (json.loads(s) for s in stream))
+    if args.packet_sha256 == "77039f8135e104fa22d56fa90de155678bc2c83e0e776404ac88a35d219eae1f":
+        package["lane"] = "J_HOT_20261009_v3"
+    elif args.packet_sha256 != "f8b21b0396a06417178f45ba1381b64767766a4a4eb920dbb6676b9aae8a68a4":
+        raise ValueError("unrecognized_hot_packet")
     package["editions"][0]["adapter_inputs"] = {
         "packet_manifest_sha256": args.packet_sha256, "intake_manifest_sha256": args.intake_sha256,
         "joint_archive": joint_source["file"], "adapter_code_sha256": sha(Path(__file__).read_bytes())}

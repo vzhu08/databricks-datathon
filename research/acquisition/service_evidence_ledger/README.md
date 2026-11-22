@@ -89,3 +89,19 @@ python -m research.acquisition.service_evidence_ledger.hot_adapter \
 ```
 
 Pass the output and its printed SHA-256 to the main build with `--lane`. The original statement packet is still required before measuring new leads over VF text. A replay with this lane retains the same 10,088 originals and 30,264 baseline decisions.
+
+## November 22 collector replay
+
+The same HOT adapter accepts J’s corrected v3 packet with manifest `77039f8135e104fa22d56fa90de155678bc2c83e0e776404ac88a35d219eae1f`. Use that packet alone for the current replay. The producer corrected the mapping of the publisher’s Hindi-name column. Every source observation ID, payload hash and original locator survives the correction.
+
+The main CLI accepts the downloaded v4 DMER packet with `--dmer-dir`, IndiaDigital #170 with `--blood-dir`, and NHP #181 with `--nhp-dir`. Each adapter checks the pinned source manifest and members. DMER preserves the 54 CT/MRI equipment counts at their reported institution or group. IndiaDigital preserves the original listing key, historical claim and source update date, and reproduces the producer’s national candidate screen. NHP preserves each selected field at its printed serial and original locator, retains the issuer’s lookup links and carries null text for the eight descriptions the producer withheld. Withheld fields have `raw_text_withheld=true`. Administrative dates stay attached to the source edition.
+
+Use the following commands to prepare the source register and include it with the full national build. The locations file maps each registered issue number to its immutable private Volume directory. Key `110d` refers to the equipment derivative. Each directory name ends in its manifest SHA-256. See the private edition receipt on #163 for the locations used.
+
+```sh
+python -m research.acquisition.service_evidence_ledger.source_register PRIVATE/downloads PRIVATE/locations.json PRIVATE/source-register.json
+```
+
+Add `--source-register PRIVATE/source-register.json SHA256` to the CLI. The register enumerates qualification-only editions and NHSRC’s private equipment and lexical-mention files. These large source tables retain their native rows, units, dates, exact locators and source IDs at the verified URI. The register generator reads every member, checks every equipment and mention ID for uniqueness and validates its source edition against the permitted closure. Read these rows at source grain pending Vincent’s campus linkage. The combined report’s loaded observation count describes rows in `observations.jsonl.gz`. Counts for the two source-native tables are in `source_register.jsonl.gz` under `verified_counts`.
+
+Vincent’s [scope inventory](https://github.com/vzhu08/databricks-datathon/issues/162#issuecomment-7074610589) records a narrower authorized audience for the original VF statement ledgers. Row-level span verification for the four-reader output requires a cleared edition, or a producer-side verification within that audience.

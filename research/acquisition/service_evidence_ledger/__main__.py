@@ -16,6 +16,10 @@ def main():
     cli.add_argument("--research-dir", type=Path, required=True)
     cli.add_argument("--joint-dir", type=Path, required=True)
     cli.add_argument("--lane", nargs=2, action="append", default=[], metavar=("PATH", "SHA256"))
+    cli.add_argument("--dmer-dir", type=Path)
+    cli.add_argument("--nhp-dir", type=Path)
+    cli.add_argument("--blood-dir", type=Path)
+    cli.add_argument("--source-register", nargs=2, metavar=("PATH", "SHA256"))
     cli.add_argument("--complete-original-statements", action="store_true")
     cli.add_argument("--out-dir", type=Path, required=True)
     args = cli.parse_args()
@@ -38,6 +42,17 @@ def main():
     decisions = lines(args.research_dir / "service-decisions.jsonl.gz")
     require({r["as_of"] for r in decisions} == {coverage["services"]["as_of"]}, "baseline_date_mismatch")
     packages = [json.loads(pinned(path, digest)) for path, digest in args.lane]
+    from .collector_editions import PINS, blood, dmer, nhp
+    lane_inputs = [{"sha256": digest, "lane": pkg["lane"]} for (_, digest), pkg in zip(args.lane, packages)]
+    for directory, issue in ((args.dmer_dir, "166"), (args.blood_dir, "170")):
+        if directory:
+            pkg = dmer(directory) if issue == "166" else blood(directory, base)
+            packages.append(pkg)
+            lane_inputs.append({"source_manifest_sha256": PINS[issue], "lane": pkg["lane"]})
+    if args.nhp_dir:
+        pkg = nhp(args.nhp_dir, base)
+        packages.append(pkg)
+        lane_inputs.append({"source_manifest_sha256": pkg["editions"][0]["packet_sha256"], "lane": pkg["lane"]})
     identity_coverage = json.loads((args.research_dir / "coverage.json").read_text())
     artifact = build(base, occurrences, decisions, packages,
                      statements_complete=args.complete_original_statements,
@@ -61,8 +76,12 @@ def main():
                   "joint_archive": joint_source["file"],
                   "base_source": datasets["vf-v0"]["path"],
                   "baseline_provenance": {k: source[k] for k in ("publisher", "edition", "rights", "grain", "keys")},
-                  "lanes": [{"sha256": digest, "lane": package["lane"]} for (_, digest), package in zip(args.lane, packages)],
+                  "lanes": lane_inputs,
                   "code_sha256": {p.name: sha(p.read_bytes()) for p in sorted(Path(__file__).parent.glob("*.py"))}}
+    if args.source_register:
+        register_path, expected = args.source_register
+        artifact["source_register"] = json.loads(pinned(register_path, expected))
+        provenance["source_register_sha256"] = expected
     digest = write_release(args.out_dir, artifact, provenance)
     print(json.dumps({"manifest_sha256": digest, "population": artifact["report"]["population"],
                       "original_statement_coverage": artifact["report"]["original_statement_coverage"],

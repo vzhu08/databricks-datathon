@@ -124,8 +124,12 @@ def normalize_lanes(packages, base):
             require(isinstance(oid, str) and oid and oid not in local_ids, "duplicate_or_empty_observation")
             local_ids.add(oid)
             require(raw["edition_id"] in local_editions, "unknown_edition")
-            for field in ("source_facility_id", "modality", "claim_type", "claim_scope", "raw_text"):
+            for field in ("source_facility_id", "modality", "claim_type", "claim_scope"):
                 require(isinstance(raw[field], str) and raw[field].strip(), "observation_field_required")
+            if raw.get("raw_text_withheld") is True:
+                require(raw["raw_text"] is None and raw["original_occurrence_key"] is None, "invalid_withheld_text")
+            else:
+                require(isinstance(raw["raw_text"], str) and raw["raw_text"].strip(), "raw_text_required")
             require(raw["polarity"] in {"supports", "contradicts", "inconclusive"}, "invalid_polarity")
             require(raw["independence_status"] in {"unassessed", "shared_origin", "reviewed_independent"},
                     "invalid_independence_status")
@@ -181,7 +185,8 @@ def reconcile(observations):
     groups, wording = defaultdict(list), defaultdict(list)
     for row in observations:
         raw = row["raw"]
-        wording[key([raw["modality"], raw["raw_text"]])].append(row["ledger_id"])
+        if raw["raw_text"] is not None:
+            wording[key([raw["modality"], raw["raw_text"]])].append(row["ledger_id"])
         campuses = {link["campus_id"] for link in raw["target_links"] if link["quality"] == "confirmed"}
         if raw["multi_campus"] or len(campuses) != 1:
             continue
