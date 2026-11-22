@@ -89,7 +89,8 @@ class WordingTests(unittest.TestCase):
         self.assertEqual("No facility within 2 km clearly offers dialysis.", leads["headline"])
         self.assertIn("Phone before sending anyone", leads["subline"])
         self.assertEqual("Less than 100 m away, in a straight line.", leads["leads"][0]["distance"])
-        self.assertIn("Phone first: Example Community Clinic", words.referral_note(leads, True))
+        self.assertIn("Phone first: Example Community Clinic (under 100 m)", words.referral_note(leads, True))
+        self.assertNotIn("0.0 km", words.referral_note(leads, True))
         down = words.present({"status": "unavailable", "direct_results": [], "indirect_leads": [],
                               "location_choices": [], "approximate_location": False,
                               "message": "The facility warehouse is unavailable. Try again shortly."},
@@ -729,6 +730,18 @@ class ScreenTests(unittest.TestCase):
         self.assertIn("Type a city or town, a PIN code, or coordinates.", self._text(app))
         self.assertNotIn("Nearest record", self._text(app))  # the earlier answer is gone, not left standing
         self.assertEqual((0, 0), (len(app.code), len(app.get("download_button"))))
+
+    def test_a_real_town_the_demonstration_does_not_know_is_explained(self):
+        app = self._app()
+        for mode in [radio for radio in app.radio if radio.key == "mode"]:  # where the record lookup is a second job
+            app = self._step(mode.set_value("lookup"))
+        app.text_input(key="where").set_value("Mumbai")
+        app = self._step(app.button(key="find").click())
+        shown = self._text(app)
+        self.assertIn("That place could not be located.", shown)
+        self.assertIn("only find the places its six invented facilities are recorded in", shown)
+        self.assertIn("Jaipur, Rajasthan (PIN 302001)", shown)
+        self.assertNotIn("No dataset coordinates", shown)
 
     def test_a_direct_statement_in_the_warehouse_never_becomes_a_referral(self):
         """The v0 search answers "ok" here only because a record states the service. The screen withholds it."""
