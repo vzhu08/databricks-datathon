@@ -175,3 +175,45 @@ class AssessmentFactoryRuntimeCases(FactoryScreenFixture):
         self.assertEqual(view["possible_causes"], [])
         self.assert_terminal_no_handoff(service, handle, handoff, view)
         self.assertEqual(len(exchange.requests), 2)
+
+    def test_colloquial_present_observation_and_denial_use_current_consistency_answer(self):
+        present = "Invented fixture: my throat feels scratchy today."
+        absent = "Invented fixture: I do not have a fever today."
+        extraction = {
+            "observations": [
+                {"quote": absent, "presence": "absent", "temporality": "current"},
+                {"quote": present, "presence": "present", "temporality": "current"},
+            ],
+            "topic": "change",
+        }
+        final = {**DIFFERENTIAL, "causes": [{"label": "viral respiratory infection", "row": 1}]}
+        exchange, constructor = self.connect([extraction, final, extraction, extraction])
+        for decision, state, expected_calls in (
+            ("consistent", "experimental_assessment", 2),
+            ("inconsistent", "provider_stop", 3),
+            ("unsure", "provider_stop", 4),
+        ):
+            with self.subTest(decision=decision):
+                before = len(exchange.requests)
+                service, handle, handoff, draft = self.open_service(lane="demo", source=absent + "\n" + present)
+                view = self.dispatch(service, handle, draft)
+                for answer in ("no", "confirm", "confirm"):
+                    view = self.respond(service, handle, view, answer)
+                self.assertEqual(len(exchange.requests), before + 1)
+                self.assertEqual([o["id"] for o in view["question"]["options"]],
+                                 ["consistent", "inconsistent", "unsure"])
+                for source in (absent, present):
+                    self.assertIn(source, view["question"]["prompt"])
+                result = self.respond(service, handle, view, decision)
+                self.assertEqual(result["state"], state)
+                self.assertEqual(len(exchange.requests), expected_calls)
+                self.assert_terminal_no_handoff(service, handle, handoff, result)
+                if decision == "consistent":
+                    self.assertEqual(result["possible_causes"], ["viral respiratory infection"])
+                    payload = json.loads(exchange.requests[-1][2]["messages"][1]["content"])
+                    self.assertEqual(payload["reviewed"], extraction["observations"])
+                    self.assertEqual(payload["clarification"], {"topic": "consistency", "answer": decision})
+                else:
+                    self.assertEqual(result["possible_causes"], [])
+        constructor.assert_called_once()
+        self.assertEqual(exchange.pending, deque())
