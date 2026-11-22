@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 from app import find_care as words
+from app import finding_provenance as provenance
 from app.ranking import search_facilities
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -74,7 +75,7 @@ class WordingTests(unittest.TestCase):
         self.assertIn("so they are approximate", view["approximate_note"])
         note = words.referral_note(view, synthetic=True)
         for part in ("demonstration data", "Send to: Example Regional Hospital", "The North Campus provides hemodialysis.",
-                     "Record source: https://example.invalid/north-campus", "Before travelling"):
+                     "Record reference: https://example.invalid/north-campus", "Before travelling"):
             self.assertIn(part, note)
         self.assertNotIn("demonstration", words.referral_note(view, synthetic=False))
 
@@ -162,47 +163,91 @@ class WordingTests(unittest.TestCase):
         # Real records keep no card, so they keep no warning either.
         self.assertNotIn("location_warning", json.dumps(words.withheld(flagged)))
 
-    def test_each_demonstration_card_gets_its_own_location_and_service_claim(self):
-        """#302: claim lines read only the card, name the synthetic publisher and never confirm a service."""
-        _, view = _run({"service": "dialysis", "location": {"city": "Jaipur", "state": "Rajasthan"}, "radius_km": 50})
-        found = words.claim_lines(view["top"], "dialysis", "direct_results", 0)
-        self.assertEqual(("direct_results", 0), (found["result_group"], found["index"]))
-        location, service = found["location"], found["service"]
-        self.assertIn("recorded map point", location["line"])
-        self.assertIn("entrance unverified", location["line"])
-        self.assertEqual(("Unconfirmed", "Reported"), (service["state"], service["strength"]))
-        self.assertIn("procedures field only", service["line"])
-        self.assertIn("date unknown", service["line"])
-        for claim in (location, service):
-            self.assertEqual((1, 1), (claim["source_records"], claim["independent_supporting_origins"]))
-            self.assertTrue(claim["missing_check"])
-            for source in claim["sources"]:
-                self.assertEqual(words.DEMO_PUBLISHER, source["publisher"])
-                self.assertEqual("unknown", source["date"])
-                self.assertNotIn("Virtue", source["publisher"])
-                self.assertTrue(all(link["note"] == words.RECORD_LINK_NOTE for link in source["links"]))
-        self.assertEqual(["https://example.invalid/north-campus"], [l["url"] for l in service["sources"][0]["links"]])
+    def _claims(self, query, group):
+        response, _ = _run(query)
+        mapped = provenance.project_find_care(response, query["service"], mode="demo")
+        return [words.claim_view(finding, query["service"], "Jaipur, Rajasthan, 302001")
+                for finding in mapped["findings"] if finding["result_group"] == group]
 
-        _, view = _run({"service": "dialysis", "location": {"pin": "302001"}, "radius_km": 2})
-        lead = words.claim_lines(view["leads"][0], "dialysis", "indirect_leads", 0)["service"]
-        self.assertEqual(("Unconfirmed", "No evidence", 0), (lead["state"], lead["strength"],
-                                                             lead["independent_supporting_origins"]))
-        self.assertEqual(["context"], [source["role"] for source in lead["sources"]])
+    def test_each_demonstration_card_gets_its_own_location_and_service_claim(self):
+        """#302: the lines word B's mapper, name the synthetic publisher and never confirm a service."""
+        query = {"service": "dialysis", "location": {"city": "Jaipur", "state": "Rajasthan"}, "radius_km": 50}
+        first, backup = self._claims(query, "direct_results")
+        self.assertEqual(("direct_results", 0, 1), (first["result_group"], first["index"], backup["index"]))
+        location, service = first["location"], first["service"]
+        self.assertEqual("Reported as a map point in the record's latitude / longitude field: "
+                         "Jaipur, Rajasthan, 302001. Building and entrance unverified.", location["line"])
+        self.assertEqual("Unconfirmed · Reported · Fixture statement names North Campus. Physical branch unverified. "
+                         "Service date unknown.", service["line"])
+        # Each card keeps its own branch wording and its own reference. The backup inherits neither.
+        self.assertIn("Fixture statement names South Campus. Physical branch unverified.", backup["service"]["line"])
+        self.assertEqual("capabilities field", backup["service"]["sources"][0]["field"])
+        self.assertIsNone(backup["service"]["sources"][0]["reference"])
+        self.assertNotIn("branch unknown", json.dumps(first).lower() + json.dumps(backup).lower())
+        for claim in (location, service):
+            self.assertEqual("1 record, 1 known supporting origin", claim["counts"])
+            self.assertTrue(claim["missing_check"])
+            self.assertIsNone(claim["review"])
+            for source in claim["sources"]:
+                self.assertEqual(provenance.SYNTHETIC, source["publisher"])
+                self.assertEqual("unknown", source["date"])
+                self.assertIn("invented demonstration record", source["origin"])
+                self.assertIsNone(source["citation"])
+        source = service["sources"][0]
+        self.assertEqual(("Supports dialysis", "The North Campus provides hemodialysis.", "procedures field"),
+                         (source["role"], source["fact"], source["field"]))
+        self.assertEqual("https://example.invalid/north-campus", source["reference"])  # a record reference, as text
+        self.assertIsNone(location["sources"][0]["reference"])
+
+        query = {"service": "dialysis", "location": {"pin": "302001"}, "radius_km": 2}
+        lead = self._claims(query, "indirect_leads")[0]["service"]
+        self.assertEqual("Unconfirmed · No evidence of onsite dialysis · Related specialty in the fictional record. "
+                         "Onsite scope unknown. Service date unknown.", lead["line"])
+        self.assertEqual("1 record, 0 known supporting origins", lead["counts"])
+        self.assertEqual(["Context for dialysis"], [source["role"] for source in lead["sources"]])
         # The service named is the one asked for, never another.
-        mri = words.claim_lines(view["leads"][0], "mri", "indirect_leads", 0)["service"]
+        response, _ = _run(query)
+        mapped = provenance.project_find_care(response, "mri", mode="demo")["findings"][0]
+        mri = words.claim_view(mapped, "mri")["service"]
         self.assertEqual("MRI scan", mri["label"])
         self.assertNotIn("dialysis", mri["line"] + mri["missing_check"])
 
+    def test_unknown_lineage_and_missing_counts_are_said_to_be_unknown(self):
+        claim = provenance.summarize_claim("service", "Named branch", [provenance.Observation(
+            "A publisher", "A statement", "Named branch", role="support")], service="mri")
+        finding = {"result_group": "direct_results", "index": 0, "service": claim,
+                   "location": provenance.summarize_claim("location", "Named branch", None, precision="unknown")}
+        view = words.claim_view(finding, "mri")
+        self.assertEqual("1 record, known supporting origins unknown", view["service"]["counts"])
+        self.assertEqual("unknown", view["service"]["sources"][0]["origin"])
+        self.assertEqual("records unknown, known supporting origins unknown", view["location"]["counts"])
+        self.assertIn("Evidence not measured as an unknown precision", view["location"]["line"])
+
+    def test_the_packaged_mapper_is_bs_file_unchanged(self):
+        source = ROOT / "research/acquisition/national_facility_evidence/finding_provenance.py"
+        self.assertEqual(source.read_bytes(), (APP / "finding_provenance.py").read_bytes())
+
     def test_the_withheld_summary_names_no_facility_and_lists_no_source(self):
-        for evidence, words_found in (("direct", "mention dialysis."), ("related", "something related to dialysis")):
-            summary = words.withheld_summary({"status": "withheld", "evidence": evidence}, "dialysis")
+        fixture = FIXTURE["facilities"]
+        for query, words_found in (({"service": "dialysis", "location": {"city": "Jaipur", "state": "Rajasthan"}},
+                                    "mention dialysis."),
+                                   ({"service": "dialysis", "location": {"pin": "302001"}, "radius_km": 2},
+                                    "something related to dialysis")):
+            kept = words.withheld(search_facilities(**query, facilities=fixture))
+            mapped = provenance.project_find_care(kept, "dialysis", mode="warehouse")
+            self.assertEqual([], mapped["findings"])
+            summary = words.withheld_summary(mapped["summary"], "dialysis")
             self.assertIn("Unconfirmed", summary["line"])
             self.assertIn(words_found, summary["line"])
             self.assertIn("Independent corroboration unknown", summary["detail"])
             for text in restricted():
                 self.assertNotIn(text, json.dumps(summary))
         for status in ("no_match", "unavailable", "ambiguous_location"):
-            self.assertIsNone(words.withheld_summary({"status": status}, "dialysis"))
+            mapped = provenance.project_find_care({"status": status, "withheld": True}, "dialysis", mode="warehouse")
+            self.assertIsNone(words.withheld_summary(mapped["summary"], "dialysis"))
+        # A response that was not withheld is never summarised as if it had been.
+        mapped = provenance.project_find_care({"status": "withheld", "evidence": "direct"}, "dialysis", mode="warehouse")
+        self.assertIsNone(words.withheld_summary(mapped["summary"], "dialysis"))
 
     def test_data_mode_is_explicit_and_a_half_configured_warehouse_is_a_setup_problem(self):
         self.assertEqual({"mode": "demo", "problems": []}, words.data_mode({}))
@@ -367,7 +412,7 @@ class ScreenTests(unittest.TestCase):
         # The screen imports its neighbours by bare name, as it does when app/ is the deployment root.
         # Under test discovery those names can already belong to the test packages, so give them to app/
         # for the length of one test and hand them back afterwards.
-        bare = ("find_care", "data_access", "ranking", "patient_ui", "patient_intake")
+        bare = ("find_care", "finding_provenance", "data_access", "ranking", "patient_ui", "patient_intake")
         saved = {name: module for name, module in sys.modules.items() if name.split(".")[0] in bare}
         for name in saved:
             del sys.modules[name]
@@ -467,12 +512,19 @@ class ScreenTests(unittest.TestCase):
         # #302: every card carries its own location and service lines, and the sources behind them.
         for part in ("How well this is supported", "Why this finding?", "Synthetic demo record",
                      'data-claims="direct_results-0"', 'data-claims="direct_results-1"',
-                     "Dialysis</strong> · Unconfirmed · Reported in the demo record", words.RECORD_LINK_NOTE):
+                     "Dialysis</strong> · Unconfirmed · Reported · Fixture statement names North Campus. "
+                     "Physical branch unverified.", "Fixture statement names South Campus.",
+                     "Source of this statement: the procedures field",
+                     "Record reference: https://example.invalid/north-campus", words.RECORD_LINK_NOTE):
             self.assertIn(part, text)
+        # The demonstration address is a record reference shown as text: never a link, never called the source.
+        for part in ("href=", "Source: ", "branch unknown", "Branch and service date unknown"):
+            self.assertNotIn(part, text.replace('href="https://www.openstreetmap.org', ""))
         self.assertNotIn("Virtue Foundation", text)
         app = self._step(app.button(key="example-Dialysis within 2 km of PIN 302001").click())
         self.assertIn('data-claims="indirect_leads-0"', self._text(app))
-        self.assertIn("No evidence of onsite dialysis", self._text(app))
+        self.assertIn("No evidence of onsite dialysis · Related specialty in the fictional record.", self._text(app))
+        self.assertIn("It mentions a related specialty, not the service itself.", self._text(app))
         self.assertIn("No facility within 2 km clearly offers dialysis.", self._text(app))
         self.assertIn("A kidney department or a kidney specialist is not a working dialysis unit.", self._text(app))
         self.assertEqual(("302001", 2), (app.text_input(key="where").value, app.select_slider(key="radius").value))
@@ -654,6 +706,8 @@ class DeploymentShapeTests(unittest.TestCase):
         "app = app.button(key='example-Dialysis near Jaipur, Rajasthan').click().run()\n"
         "assert not app.exception, app.exception\n"
         "assert any('Send the patient to Example Regional Hospital.' in m.value for m in app.markdown)\n"
+        "assert any('Fixture statement names North Campus. Physical branch unverified.' in m.value for m in app.markdown)\n"
+        "assert any('Record reference: https://example.invalid/north-campus' in m.value for m in app.markdown)\n"
         "print('demonstration answered')\n"
     )
 
