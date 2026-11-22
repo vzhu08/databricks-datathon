@@ -116,6 +116,21 @@ class PatientHandoffTests(unittest.TestCase):
         self.order.assert_not_called()
         self.release.assert_not_called()
 
+    def test_disposition_is_checked_before_order_or_evidence(self):
+        consultation = self.handle.assessment["next_step"]
+        for urgency, step, state in [
+            ("emergency", None, "assessment_blocked"),
+            ("unknown", None, "assessment_blocked"),
+            ("consultation", None, "assessment_blocked"),
+            ("self_care", consultation, "assessment_blocked"),
+            ("self_care", None, "no_reviewed_destination"),
+        ]:
+            with self.subTest(urgency=urgency, step=step):
+                self.handle.assessment.update(urgency=urgency, next_step=step)
+                self.assertEqual(self.handoff(self.handle, 3, self.handle.assessment), {"state": state})
+        self.order.assert_not_called()
+        self.release.assert_not_called()
+
     def test_consultation_and_unsupported_order_do_not_load_campuses(self):
         self.order.return_value = None
         self.assertEqual(self.handoff(self.handle, 3, self.handle.assessment),

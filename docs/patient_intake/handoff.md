@@ -32,7 +32,8 @@ sends coordinates. Current integration and provider decisions are tracked on #22
 Pass `PatientHandoff()` as the optional `handoff` callable to
 `PatientIntakeService`. The service validates the encounter-bound confirmation
 before invoking the callback. The callback re-reads the server-owned handle
-and checks the completed assessment against that revision. The default result
+and checks the completed assessment against that revision. Only a completed
+consultation disposition can initiate order or evidence lookup. The default result
 for a current completion is `{"state": "no_reviewed_destination"}`. Continue
 showing the original assessment guidance independently. A stale or mismatched
 completion returns `assessment_blocked`. Session exceptions from a deleted or
