@@ -26,6 +26,16 @@ Prioritize India-wide facility-level snapshots, permitted bulk downloads and doc
 
 Standalone regional collection and case studies have ended. Retain completed work as historical material with its geographic scope. Keep reserved evaluation sources independent of feature tuning. Where local evidence already exists, apply it only to eligible linked rows and keep its limited coverage explicit.
 
+## Dataset storage and handoff
+
+Use `workspace.default.datathon_vf_research_intake` for project sources and derived datasets cleared for Vincent, Oliver, Andrew and Ayush. Reuse a verified reference to an authorized, team-readable Delta table at an exact version or a pinned Volume edition when one already exists. Keep the Virtue Foundation facilities and India Post directory pinned to Delta version 0.
+
+1. **Backfill existing datasets once.** Each owner inventories the sources and derived datasets their work depends on, including eligible local-only editions. Reuse verified Databricks copies. Stage the remaining authorized editions once and skip duplicate worktree copies and reproducible caches.
+2. **Hand off new datasets when acquired or generated.** Store each new edition under a content-addressed path in the intake Volume and preserve prior editions. If your account is read-only, hand the edition to an existing Volume writer and keep ownership of the receipt. Include the publisher and edition, row grain, join fields, source URL and input lineage, sharing scope and reuse terms, file sizes and SHA-256 hashes, and record counts in the manifest.
+3. **Verify from Databricks.** Read back the manifest and check remote file sizes, hashes and counts against it. For existing references, verify team read access, the exact version or edition, and the expected counts or file digests. Record the verified location, manifest digest or version, and any access or rights blocker in the owning issue. [Primary intake receipt](https://github.com/vzhu08/databricks-datathon/issues/67#issuecomment-7073773911) · [Supplement receipt](https://github.com/vzhu08/databricks-datathon/issues/67#issuecomment-7073806108)
+
+Follow source-specific licenses and embargoes. When full rows cannot be shared, record the restriction and preserve permitted provenance and aggregates in Databricks. Keep the sealed independent audit within its existing reviewer scope. Keep source rows and credentials out of Git. Website display, public release and submission follow their own approval and source-use rules.
+
 ## Acceptance checks
 
 1. Verify both pinned input versions, processing-key uniqueness, unchanged original text and equality of the original row multiset before and after joins. Repeated source IDs do not supply independent campus confirmations.
