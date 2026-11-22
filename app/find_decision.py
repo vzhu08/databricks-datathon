@@ -13,6 +13,11 @@ Two rules every surface depends on:
 * "VF only" is said only when the candidate's `source_scope` is exactly `vf_only`, which Vincent's
   provenance classification sets. Demonstration rows say they are synthetic.
 """
+try:
+    from finding_provenance import SYNTHETIC, Observation, Review, summarize_claim
+except ImportError:  # repository tests import the package
+    from app.finding_provenance import SYNTHETIC, Observation, Review, summarize_claim
+
 STATUSES = ("assigned", "provisional", "verification_lead", "no_usable_evidence", "withheld", "emergency")
 SERVICE_PHRASE = {"dialysis": "dialysis", "mri": "an MRI scan", "trauma_care": "trauma care"}
 SCOPES = {"synthetic": "Synthetic demo record", "vf_only": "VF only"}
@@ -38,6 +43,8 @@ MISSING = {
     "service_evidence": "any statement that the service is offered",
 }
 EMERGENCY = "If this could be an emergency, call 112 now. Do not wait for this screen."
+WORKER_CHECK = ("Until then, do not send the patient on this result. Phone a facility through your usual referral "
+                "contact and ask whether it provides the service onsite today and has a free place.")
 # The selector's reason codes, as the reader is told them.
 REASONS = {
     "reviewed_service": "Its record states the service, and that statement has been reviewed.",
@@ -101,6 +108,58 @@ def card_candidates(response, findings):
     return rows
 
 
+def _availability(pools):
+    """One scoped status for the staffed places that fit this request. Unknown is never read as free."""
+    states = {("full" if pool.get("status") == "known" and not pool.get("free_slots") else
+               "available" if pool.get("status") == "known" else
+               "stale" if pool.get("status") == "stale" else "unknown") for pool in pools}
+    for state in ("available", "stale", "unknown", "full"):
+        if state in states:
+            return state
+    return "unknown"
+
+
+def campus_candidates(check):
+    """Candidate rows for the scenario campuses of one recommendation request (`find_capacity.run`).
+
+    The evidence is the scenario's own record that the capacity model read for this same request: its
+    reviewed service decision and date, its staffed-place status and the travel observation as it came
+    back. Each row gets claims built by B's `summarize_claim`, so nothing is scored here. A failed or
+    missing road time stays unknown: no straight-line or simulated value is put in its place.
+    """
+    service, phrase, rows = check["asked"]["service"], SERVICE_PHRASE.get(check["asked"]["service"]), []
+    for campus in check.get("roster") or ():
+        key, decision, pools = campus["facility_id"], campus["decision"], campus["pools"]
+        if check["asked"]["needs_tool"] and not pools:
+            continue  # it has no place with the equipment this patient needs, so it is not a lead for them
+        scope = f"Campus {key} in the synthetic Jaipur storm scenario"
+        cited = f"Synthetic Jaipur storm scenario, Campus {key} service record"
+        location = summarize_claim(
+            "location", scope, (Observation(SYNTHETIC, "The scenario places this campus at one simulated point.",
+                                            scope, role="support", origin="synthetic_storm_fixture",
+                                            field="scenario campus point"),),
+            precision="identified_campus", missing_check="It is an invented campus with no real address.")
+        observed, review = (), None
+        if decision.get("status") in ("yes", "no"):
+            runs = decision["status"] == "yes"
+            observed = (Observation(
+                SYNTHETIC, f"The scenario record marks {phrase} as {'running' if runs else 'not offered'} at this campus.",
+                scope, role="support", match="exact", origin="synthetic_storm_fixture", independent=True,
+                field="scenario service record", observed_on=decision.get("source_date"), citation=cited,
+                citation_scope="record", assertion="onsite_delivery" if runs else "explicit_absence"),)
+            if decision.get("source_date"):
+                review = Review(scope, decision["source_date"], decision["status"])
+        claim = summarize_claim("service", scope, observed, service=service, as_of=check.get("as_of"), review=review,
+                                missing_check="Phone the campus to confirm the service runs today.")
+        travel = (check.get("travel_rows") or {}).get(key) or {}
+        rows.append({"key": key, "name": f"Campus {key}", "area": "simulated Jaipur", "location": location,
+                     "service": claim, "source_scope": "synthetic", "availability": _availability(pools),
+                     "travel": {k: travel.get(k) for k in ("status", "minutes", "source", "reason", "outcome",
+                                                           "requested_at")} if travel else None,
+                     "distance_km": None})
+    return rows
+
+
 def label(candidate):
     """The label shown with a lead. Says "VF only" exactly when the provenance classification established it.
 
@@ -120,11 +179,13 @@ def _travel(candidate):
         minutes = float(travel["minutes"])
         shown = f"{minutes:.0f}" if minutes.is_integer() else f"{minutes:.1f}"
         return f"Travel time: {shown} min ({travel.get('source') or 'source not stated'})."
+    failed = travel.get("status") in ("unavailable", "stale")
+    opening = "Road time could not be fetched." if failed else "Travel time by road: unknown."
     if candidate.get("distance_km") is not None:
         km = float(candidate["distance_km"])
-        return (f"Travel time by road: unknown. About {km:.0f} km" if km >= 10 else
-                f"Travel time by road: unknown. About {km:.1f} km") + " away in a straight line."
-    return "Travel time: unknown."
+        return f"{opening} About {km:.0f} km" + " away in a straight line." if km >= 10 else \
+            f"{opening} About {km:.1f} km away in a straight line."
+    return (opening + " No simulated or straight-line time is used in its place.") if failed else "Travel time: unknown."
 
 
 def _says(claim):
@@ -142,6 +203,11 @@ def lead(candidate, service):
     """One candidate as plain lines: who, what its record says, and what is not known."""
     claim = candidate.get("service") or {}
     origins = claim.get("independent_supporting_origins")
+    support = [source for source in claim.get("sources") or () if source.get("role") == "support"]
+    # The date of the statement itself. The claim's as_of is only the day it was assessed.
+    dated = sorted(str(source["observed_on"]) for source in support if source.get("observed_on"))
+    cited = list(dict.fromkeys(str(source["citation"]) for source in claim.get("sources") or ()
+                               if source.get("citation")))
     return {
         "key": candidate.get("key"),
         "name": candidate.get("name") or "A facility that cannot be named here",
@@ -150,7 +216,9 @@ def lead(candidate, service):
         "says": _says(claim) or [f"No statement about {SERVICE_PHRASE.get(service, service)} was supplied."],
         "origins": ("Independent sources for the service: unknown." if origins is None else
                     f"Independent sources for the service: {origins}."),
-        "date": f"Service date: {claim.get('as_of') or 'unknown'}.",
+        "date": f"Service statement dated: {dated[-1] if dated else 'unknown'}.",
+        "citation": ("Citation: " + "; ".join(cited) + ". It points to the whole record, not to this statement."
+                     if cited else "Citation: none on the record."),
         "availability": AVAILABILITY.get(candidate.get("availability"), AVAILABILITY["unknown"]),
         "travel": _travel(candidate),
         "reason": _plain(candidate.get("reason")) if candidate.get("reason") else None,
@@ -207,7 +275,8 @@ def confirmation_note(decision, service, request_line, synthetic, evidence=()):
              f"Call: {found['name']}, {found['area']}",
              "Status: " + found["label"],
              "Its record says: " + " ".join(found["says"]),
-             found["origins"] + " " + found["date"]]
+             found["origins"] + " " + found["date"],
+             found["citation"]]
     lines += list(evidence)
     if found["reason"]:
         lines.append("Why this lead: " + found["reason"])

@@ -676,7 +676,31 @@ class ScreenTests(unittest.TestCase):
         self.assertNotIn("<b>supplied", text)
         for part in ("Send the patient", "Send to", "Referral note", "min (simulated)", "12 min", "8 min"):
             self.assertNotIn(part, everything)
-        self.assertEqual((0, 0), (len(failed.code), len(failed.get("download_button"))))
+        # #330: on that same result, with no second search, the best supported campus is a named provisional
+        # lead from the evidence the model read for this request. It is never worded as a destination.
+        for part in ('data-fallback="campus"', "Provisional lead: Campus A. Confirm before anyone travels.",
+                     'data-decision="provisional">Provisional · Synthetic demo record. A lead to check by phone. '
+                     "This is not a referral, and nothing is reserved.",
+                     "“The scenario record marks dialysis as running at this campus.” (scenario service record field",
+                     "Service statement dated: 2026-11-22. Independent sources for the service: 1.",
+                     "Citation: Synthetic Jaipur storm scenario, Campus A service record.",
+                     "Its record states the service, and that statement has been reviewed.",
+                     "A free staffed place was reported when checked. Road time could not be fetched. No simulated "
+                     "or straight-line time is used in its place.",
+                     "Road travel time to a permitted destination is unknown.",
+                     "Phone the facility with the confirmation call script before anyone travels.",
+                     "Other campuses with a record for this service", "Campus E · Provisional · Synthetic demo "
+                     "record.", "Free staffed places: unknown.", "Campus D · Verification lead"):
+            self.assertIn(part, text)
+        script = self._note(failed)
+        for part in ("Confirmation call script (demonstration data", "This is not a referral and nothing is reserved.",
+                     "Call: Campus A, simulated Jaipur", "Service statement dated: 2026-11-22.",
+                     "Citation: Synthetic Jaipur storm scenario, Campus A service record.",
+                     "Road time could not be fetched.", "Next step: Phone the facility"):
+            self.assertIn(part, script)
+        for part in ("Referral note", "Send to:", "Send the patient", "booked", " min"):
+            self.assertNotIn(part, script)
+        self.assertEqual([], [button.key for button in failed.button if button.key == "fallback"])
         self._step(failed)  # drawing the screen again asks the provider nothing
         self.assertEqual(["central"], calls)
 
@@ -691,17 +715,8 @@ class ScreenTests(unittest.TestCase):
         self.assertIn("No campus is recommended.", self._text(empty))
         for part in ("Send the patient", "Send to", "min (simulated)", "km"):
             self.assertNotIn(part, self._everything(empty))
-        self.assertEqual(0, len(empty.code))
-        # #330: with no campus to assign, the next step is a lead to confirm by phone, from the record lookup.
-        self.assertIn('data-decision="fallback"', self._text(empty))
-        leads = self._step(empty.button(key="fallback").click())
-        self.assertEqual(["central", "central"], calls)  # the lookup asks for no road time
-        self.assertEqual("lookup", leads.radio(key="mode").value)
-        self.assertIn("Provisional lead: Example Regional Hospital. Confirm before anyone travels.", self._text(leads))
-        self.assertIn("Travel time by road: unknown.", self._text(leads))
-        self.assertNotIn("Campus", self._everything(leads).replace("North Campus", "").replace("South Campus", ""))
-        empty = self._step(leads.radio(key="mode").set_value("recommend"))
-
+        self.assertIn("Provisional lead: Campus A. Confirm before anyone travels.", self._text(empty))
+        self.assertTrue(self._note(empty).startswith("Confirmation call script"))
         # A partial result: one campus has no road time. The slip and the note still name one and the same campus.
         known = {"status": "known", "source": "stub", "reason": None, "outcome": "ok",
                  "requested_at": "2026-11-22T15:40:00Z"}
@@ -757,6 +772,8 @@ class ScreenTests(unittest.TestCase):
                      "Confirm current staffed availability for the requested service.",
                      "Free staffed places: unknown.", "Travel time by road: unknown. About 6.7 km away in a straight line.",
                      "Next step", "Phone the facility with the confirmation call script before anyone travels.",
+                     "Service statement dated: unknown. Independent sources for the service: 1.",
+                     "Record reference: https://example.invalid/north-campus",
                      "Confirmation call script", "How this was decided",
                      "A record that states the service is a provisional lead even when nobody has confirmed it"):
             self.assertIn(part, text)
@@ -770,7 +787,8 @@ class ScreenTests(unittest.TestCase):
                      "Call: Example Regional Hospital, Jaipur, Rajasthan, 302001",
                      "Status: Provisional · Synthetic demo record",
                      "“The North Campus provides hemodialysis.” (procedures field",
-                     "Independent sources for the service: 1. Service date: unknown.",
+                     "Independent sources for the service: 1. Service statement dated: unknown.",
+                     "Citation: https://example.invalid/north-campus. It points to the whole record",
                      "Location evidence: Reported as a map point", "Building and entrance unverified.",
                      "Dialysis evidence: Unconfirmed · Reported · Fixture statement names North Campus. "
                      "Physical branch unverified. Service date unknown. (1 record, 1 known supporting origin.)",
@@ -917,7 +935,9 @@ class ScreenTests(unittest.TestCase):
         for part in ('data-decision="withheld"',
                      "A lead exists in the real records, but no facility can be named here yet.",
                      "An individual identity and service claim cleared for this audience are required.",
-                     "Ask the data owner to review and clear a named destination for this audience."):
+                     "Ask the data owner to review and clear a named destination for this audience.",
+                     "Phone a facility through your usual referral contact and ask whether it provides the "
+                     "service onsite today and has a free place."):
             self.assertIn(part, text)
         self.assertNotIn("Confirmation call script", text)
         self.assertNotIn("Provisional", text)

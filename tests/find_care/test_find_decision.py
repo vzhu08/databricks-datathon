@@ -47,7 +47,7 @@ class DecisionWordingTests(unittest.TestCase):
         lead = view["lead"]
         self.assertEqual(["“dialysis unit” (procedures field, Synthetic demo record)"], lead["says"])
         self.assertEqual("Independent sources for the service: 1.", lead["origins"])
-        self.assertEqual("Service date: unknown.", lead["date"])
+        self.assertEqual("Service statement dated: unknown.", lead["date"])
         self.assertEqual("Free staffed places: unknown.", lead["availability"])
         self.assertEqual("Travel time: unknown.", lead["travel"])
         self.assertEqual(["the date the service statement applies to", "which physical branch the statement is about",
@@ -98,7 +98,7 @@ class DecisionWordingTests(unittest.TestCase):
         timed = candidate(travel={"status": "known", "minutes": 12.5, "source": "TomTom ordinary car"})
         self.assertEqual("Travel time: 12.5 min (TomTom ordinary car).", decision_words.lead(timed, "dialysis")["travel"])
         failed = candidate(travel={"status": "unavailable", "minutes": None, "source": "TomTom"}, distance_km=6.67)
-        self.assertEqual("Travel time by road: unknown. About 6.7 km away in a straight line.",
+        self.assertEqual("Road time could not be fetched. About 6.7 km away in a straight line.",
                          decision_words.lead(failed, "dialysis")["travel"])
 
     def test_an_identity_lead_an_empty_input_a_withheld_result_and_an_emergency(self):

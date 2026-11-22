@@ -227,8 +227,14 @@ script**, which is never a referral and reserves nothing. Free places and road t
 no point from these records is sent to the road-time provider. A record that only identifies a
 facility or area is a **lead to verify**, with the missing service evidence named and no script.
 Nothing found means no lead, and the search says which input to change. These facilities are never
-joined to campuses A to F. Only an assignment from *Recommend a campus* is a referral; when that mode
-can assign nothing, it offers this lookup as the next step.
+joined to campuses A to F. Only an assignment from *Recommend a campus* is a referral.
+
+When *Recommend a campus* can assign nobody, for example after a failed road time, the same result
+shows the best supported campus as a provisional lead with its call script, with no second search.
+The lead is built from the campuses and evidence the model read for that request
+(`find_decision.campus_candidates`): the scenario's service record, its date and citation, the
+staffed-place status and the travel observation as it came back. A failed road time reads as not
+fetched. No simulated or straight-line time stands in for it.
 
 **Real records.** The v0 search answers `ok` when a record states the service and orders by
 straight-line distance. That is not enough for a referral, and the team's verified count of

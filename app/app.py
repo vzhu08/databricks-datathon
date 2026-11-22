@@ -342,8 +342,39 @@ def lead_block(found):
     if missing:
         parts.append('<div class="fc-h">Not known yet</div>' + bullets(missing))
     if found["next_action"]:
-        parts.append(f'<div class="fc-h">Next step</div><div class="fc-text">{safe(found["next_action"])}</div>')
+        worker = f' {decisions.WORKER_CHECK}' if found["status"] == "withheld" else ""
+        parts.append(f'<div class="fc-h">Next step</div><div class="fc-text">{safe(found["next_action"] + worker)}'
+                     "</div>")
     return f'<div data-decision="{safe(found["status"])}">{"".join(parts)}</div>'
+
+
+def campus_lead(found):
+    """The fallback on a recommendation that assigns nobody (#330): the best supported campus as a lead to check.
+
+    It is drawn from the same campuses and the same evidence the model read for this request. It is never
+    worded as a destination, and its free places and travel time are shown at their own status.
+    """
+    lead = found["lead"]
+    headline = (found["headline"] if found["status"] == "provisional" else
+                f"Closest lead to verify: {lead['name']}.")
+    parts = [f'<div class="fc-answer fc-lookup" role="heading" aria-level="2">{safe(headline)}</div>',
+             f'<div class="fc-quiet" data-decision="{safe(found["status"])}">{safe(found["label"])}. A lead to '
+             "check by phone. This is not a referral, and nothing is reserved.</div>",
+             f'<div class="fc-h">Why this lead comes first</div><div class="fc-text">{safe(lead["reason"] or "")} '
+             f"{safe(decisions.ORDER)}</div>",
+             '<div class="fc-h">What its record says</div><div class="fc-claims">'
+             + "".join(f'<div class="fc-claim">{safe(line)}</div>'
+                       for line in lead["says"] + [lead["date"] + " " + lead["origins"], lead["citation"]])
+             + "</div>",
+             '<div class="fc-h">Not known yet</div>' + bullets(lead["missing"])
+             + f'<div class="fc-text">{safe(lead["availability"])} {safe(lead["travel"])}</div>']
+    if found["next_action"]:
+        parts.append(f'<div class="fc-h">Next step</div><div class="fc-text">{safe(found["next_action"])}</div>')
+    if found["others"]:
+        parts.append('<div class="fc-h">Other campuses with a record for this service</div>' + bullets(
+            [f'{other["name"]} · {other["label"]}. {other["reason"] or ""} {other["availability"]}'
+             for other in found["others"]]))
+    return f'<div class="fc-slip fc-more" data-fallback="campus">{"".join(parts)}</div>'
 
 
 def listed(card, service=None, group=None, index=None):
@@ -443,6 +474,8 @@ def slip(view, stale, service=None, response=None, found=None):
         why = f'{found["lead"]["reason"]} {decisions.ORDER}' if provisional else view["why"]
         parts.append(f'<div class="fc-h">Why this lead comes first</div><div class="fc-text">{safe(why)}</div>')
         parts.append(f'<div class="fc-h">What its record says</div>{record(top)}')
+        if provisional:
+            parts.append(f'<div class="fc-text">{safe(found["lead"]["date"])} {safe(found["lead"]["origins"])}</div>')
         if shown:
             parts.append(f'<div class="fc-h">How well this is supported</div>{claims(top, shown, group, index)}')
         if provisional:
@@ -577,8 +610,11 @@ with right:
                          "over the others, and what nobody has confirmed. Press Find a facility, or start "
                          "from an example.")
         else:
-            # The same selector decides every individual result (#330). Only its "assigned" is a referral.
-            assigned = select_individual(check["asked"]["service"], [], allocation=check["result"])
+            # The same selector decides every individual result (#330). Only its "assigned" is a referral. It
+            # reads the campuses and evidence kept from this same request, so a fallback needs no second search.
+            asked_service = check["asked"]["service"]
+            assigned = select_individual(asked_service, decisions.campus_candidates(check),
+                                         allocation=check["result"])
             unsupported = check["result"]["status"] == "recommended" and assigned["status"] != "assigned"
             if unsupported:  # never show a destination the selector does not stand behind
                 st.markdown(f'<div class="fc-slip"><div class="fc-for">{safe(capacity.request_line(check))}</div>'
@@ -588,14 +624,25 @@ with right:
             else:
                 st.markdown(recommendation_slip(check), unsafe_allow_html=True)
             note = capacity.referral_note(check, CAPTION) if assigned["status"] == "assigned" else None
-            if assigned["status"] != "assigned":
+            fallback = decisions.explain(assigned, asked_service) if assigned["status"] != "assigned" else None
+            if fallback and fallback["lead"]:
+                st.markdown(campus_lead(fallback), unsafe_allow_html=True)
+                script = decisions.confirmation_note(assigned, asked_service, capacity.request_line(check), True)
+                if script:
+                    st.subheader("Confirmation call script")
+                    st.caption("For checking the lead by phone. It is not a referral. Use the copy button on it, "
+                               "or save it as a file.")
+                    st.code(script, language=None, wrap_lines=True)
+                    st.download_button("Save call script", script, file_name="confirmation-call-script.txt",
+                                       mime="text/plain")
+            elif fallback:
                 st.markdown('<div class="fc-text" data-decision="fallback"><strong>Next step.</strong> No campus '
-                            "can be assigned, so look for a lead to confirm by phone instead. The record lookup "
-                            "lists what the six invented example records say about this service. They are "
-                            "different invented places from campuses A to F.</div>", unsafe_allow_html=True)
-                st.button("Look up records that mention " + decisions.SERVICE_PHRASE[check["asked"]["service"]],
+                            "has a record to check for this request. The record lookup lists what the six "
+                            "invented example records say about this service. They are different invented "
+                            "places from campuses A to F.</div>", unsafe_allow_html=True)
+                st.button("Look up records that mention " + decisions.SERVICE_PHRASE[asked_service],
                           key="fallback", on_click=fill,
-                          args=(check["asked"]["service"], st.session_state["where"], st.session_state["radius"]))
+                          args=(asked_service, st.session_state["where"], st.session_state["radius"]))
             if note:  # no assignment, no destination to hand on
                 st.subheader("Referral note")
                 st.caption("Use the copy button on the note, or save it as a file.")
