@@ -16,6 +16,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 NOTEBOOK = ROOT / "submission.ipynb"
 DRIVER = "tools/submission_demo.py"
+PUNE_FIXTURE = "tools/pune_four_care_neutral.json"
+NOTEBOOK_INPUTS = {DRIVER, PUNE_FIXTURE}
 SOURCE_ROOTS = (
     "app/", "contracts/", "databricks/enrichment/", "databricks/ingest/",
     "research/service_status/", "research/acquisition/national_facility_evidence/",
@@ -32,7 +34,129 @@ SOURCE_FILES = {
 }
 ASSET_TYPES = {".woff2"}
 BLOCKED_PARTS = {"approved_data", "private", "secrets", "__pycache__", ".env"}
+DEPLOYMENT_ONLY = {"app/facility-area-display.json", "app/storm_ui/data/plan.json", "app/storm_ui/data/roads.geojson"}
 SENSITIVE = re.compile(rb"-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----|\bdapi[a-f0-9]{32}\b|\bAKIA[A-Z0-9]{16}\b")
+
+
+CAPABILITY_COVERAGE = """## Outside support for capabilities mentioned by VF
+
+Each denominator is the number of original VF occurrences that mention the capability in the
+screened description, specialties, procedure, equipment or capability fields. It includes
+occurrences with unresolved geography. A qualifying outside record supports that capability at
+the matched facility. Multiple matches count once per original occurrence and capability.
+A single occurrence can contribute to several capabilities.
+
+| Capability | VF mentions with outside support | Coverage |
+| --- | ---: | ---: |
+| Dental care | 1,526 / 4,481 | 34.1% |
+| Blood banking | 114 / 567 | 20.1% |
+| Eye care | 564 / 3,000 | 18.8% |
+| Cancer care / oncology | 186 / 2,370 | 7.8% |
+| Radiotherapy (licensed centre) | 38 / 269 | 14.1% |
+| Dialysis | 17 / 1,047 | 1.6% |
+| MRI | 0 / 949 | 0.0% |
+| Trauma care | 12 / 1,042 | 1.2% |
+
+Dental care, blood banking and eye care together cover 2,168 distinct originals with outside
+support. Dental includes 1,356 coded, service-field or roster matches and 170 specialist-title
+matches. The broader affirmative VF-or-outside screen is a separate measure. The operational
+dialysis, MRI and trauma ledger retains 30,264 unconfirmed decisions.
+
+[Published capability table and definitions](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7081776129)
+"""
+
+CAPABILITY_APPENDIX = """## Appendix · other measured capabilities
+
+These 49 rows and the eight rows in the main table give all 57 capability results. A zero is
+an observed lack of a qualifying match in this comparison. Each row has its own mention cohort.
+
+| Capability | VF mentions with outside support | Coverage |
+| --- | ---: | ---: |
+| Orthopedics | 207 / 3,888 | 5.3% |
+| Cardiology | 198 / 3,247 | 6.1% |
+| Maternity | 196 / 4,607 | 4.3% |
+| Pediatrics | 180 / 3,573 | 5.0% |
+| Dermatology | 160 / 2,428 | 6.6% |
+| Fertility care | 157 / 1,474 | 10.7% |
+| Ayurveda | 147 / 508 | 28.9% |
+| Outpatient care | 137 / 4,255 | 3.2% |
+| Laboratory services | 112 / 1,364 | 8.2% |
+| Homeopathy | 74 / 355 | 20.8% |
+| Kidney transplant programme | 62 / 448 | 13.8% |
+| General surgery | 61 / 3,365 | 1.8% |
+| Physiotherapy | 53 / 1,259 | 4.2% |
+| Audiology | 36 / 352 | 10.2% |
+| Emergency care | 35 / 2,772 | 1.3% |
+| Intensive care | 29 / 2,295 | 1.3% |
+| Liver transplant programme | 24 / 158 | 15.2% |
+| Speech therapy | 11 / 177 | 6.2% |
+| Prosthetics | 10 / 428 | 2.3% |
+| Addiction treatment | 9 / 132 | 6.8% |
+| Naturopathy | 9 / 57 | 15.8% |
+| Ultrasound | 9 / 2,051 | 0.44% |
+| CT | 8 / 1,482 | 0.54% |
+| Pharmacy | 8 / 1,083 | 0.74% |
+| X-ray | 8 / 2,474 | 0.32% |
+| Ambulance | 7 / 1,184 | 0.59% |
+| Heart transplant | 6 / 74 | 8.1% |
+| IVF | 6 / 855 | 0.70% |
+| Eye bank | 5 / 78 | 6.4% |
+| Inpatient care | 5 / 1,874 | 0.27% |
+| Occupational therapy | 5 / 106 | 4.7% |
+| Cornea transplant | 4 / 180 | 2.2% |
+| Acupuncture | 3 / 48 | 6.3% |
+| LASIK | 3 / 499 | 0.60% |
+| Pancreas transplant programme | 3 / 16 | 18.8% |
+| Hospice | 2 / 175 | 1.1% |
+| Blood transfusion | 1 / 93 | 1.1% |
+| Cataract surgery | 1 / 700 | 0.14% |
+| Chiropractic | 1 / 16 | 6.3% |
+| IUI | 1 / 477 | 0.21% |
+| Lung transplant | 1 / 44 | 2.3% |
+| Acupressure | 0 / 21 | 0.0% |
+| Blood apheresis | 0 / 65 | 0.0% |
+| Blood storage | 0 / 37 | 0.0% |
+| Chemotherapy | 0 / 290 | 0.0% |
+| Dental implants | 0 / 1,494 | 0.0% |
+| Haematology lab | 0 / 9 | 0.0% |
+| Hair transplant | 0 / 239 | 0.0% |
+| ICSI | 0 / 375 | 0.0% |
+
+Ayurveda includes seven coded or registry-system matches. The other matches used specialist
+facility titles. An organ-specific match measures registration at the indicated programme scope.
+
+[Published capability table and definitions](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7081776129)
+"""
+
+SOURCE_NOTES = """## What the sources establish
+
+- **Stroke awards give historical recognition a date.** We indexed World Stroke Organization /
+  Angels Initiative awards by hospital label, quarter and tier. The India table yielded 545 awards
+  under 102 hospital labels from 2019 Q2 through 2026 Q3. Exact normalized names linked seven
+  award labels to 11 VF originals. These are historical leads. Physical branch, treatment type
+  and current availability remain unresolved. [Award criteria](https://www.world-stroke.org/what-we-do/education-and-research/improving-access-to-quality-stroke-care/wso-awards) · [National join receipt](https://github.com/vzhu08/databricks-datathon/issues/239#issuecomment-7080899299)
+- **Radiotherapy licensing and recorded treatment have different dates and meanings.** The June
+  2026 AERB list contains 802 licensed centres. Institution name and postal PIN connected 38 of
+  269 VF radiotherapy mentions to licensed centres. A separate name, city and state comparison
+  connected seven VF originals to ICMR institutions that reported treatment given in 2012–14.
+  The licence establishes licensed status in its edition. The treatment records are historical;
+  present delivery and equipment uptime require further evidence. [AERB list](https://www.aerb.gov.in/images/PDF/Radiotheraphy/RSD3.pdf) · [ICMR treatment tables](https://www.ncdirindia.org/All_Reports/HBCR_REPORT_2012_2014/ALL_CONTENT/Printed_Version.htm) · [Coverage receipt](https://github.com/vzhu08/databricks-datathon/issues/58#issuecomment-7081734491)
+- **Transplant registration is organ- and role-specific.** We checked facility name, location,
+  organ and registered role in the NOTTO register. Retrieval-only sites were ineligible for
+  transplant evidence. The registered programme comparison matched 62 of 448 kidney-transplant
+  mentions and 24 of 158 liver-transplant mentions. Staffing, procedures performed and current
+  access need separate evidence. [NOTTO register](https://notto.mohfw.gov.in/hospitals) · [Coverage receipt](https://github.com/vzhu08/databricks-datathon/issues/58#issuecomment-7081734491)
+- **Blood banking needs a link to the host hospital.** A named hospital and area supported
+  joining historical blood-bank directory entries to 114 of 567 VF banking mentions. Nearby
+  collection sites, separate storage units and transfusion wording were insufficient. Repeated
+  National Health Portal records counted once per original VF occurrence. Blood-group stock
+  remains unknown. [Blood-bank coverage receipt](https://github.com/vzhu08/databricks-datathon/issues/58#issuecomment-7081734491)
+- **Directory and map evidence can support a written area.** We compared named records at
+  landmark, locality and PIN level, including entries without coordinates. Where nearby points
+  agreed within 1 km, we tracked possible shared VF/map lineage. The rule expanded written-area
+  support from 3,144 to 7,895 originals. Precise entrances and current onsite services require
+  separate observations. [National location replay](https://github.com/vzhu08/databricks-datathon/issues/57#issuecomment-7081461436)
+"""
 
 
 def git(*args, input_bytes=None):
@@ -47,12 +171,17 @@ def selected(raw_paths):
 
 
 def tracked_paths():
-    return selected(git("ls-files", "-z", "--cached"))
+    raw = git("ls-files", "-z", "--cached")
+    if PUNE_FIXTURE.encode("utf-8") not in raw.split(b"\0"):
+        raise ValueError("Stage the reviewed Pune fixture before building the notebook")
+    return selected(raw)
 
 
 def read_source(path, raw):
     name = PurePosixPath(path)
-    if name.is_absolute() or any(part.lower() in BLOCKED_PARTS or part in {".", ".."} for part in name.parts):
+    if path in DEPLOYMENT_ONLY or name.is_absolute() or any(
+        part.lower() in BLOCKED_PARTS or part in {".", ".."} for part in name.parts
+    ):
         raise ValueError(f"Unapproved source path: {path}")
     if name.suffix in ASSET_TYPES:
         if not raw.startswith(b"wOF2") or SENSITIVE.search(raw):
@@ -68,7 +197,7 @@ def read_source(path, raw):
 
 def working_sources(paths):
     sources = {}
-    for path in [*paths, DRIVER]:
+    for path in [*paths, *sorted(NOTEBOOK_INPUTS)]:
         disk = ROOT / path
         if not disk.is_file() or disk.is_symlink():
             raise ValueError(f"Expected a regular tracked source: {path}")
@@ -78,7 +207,7 @@ def working_sources(paths):
 
 def verify_commit(revision, sources):
     paths = selected(git("ls-tree", "-r", "--name-only", "-z", revision))
-    expected_paths = sorted(set(sources) - {DRIVER})
+    expected_paths = sorted(set(sources) - NOTEBOOK_INPUTS)
     if paths != expected_paths:
         raise ValueError("Selected checkout paths differ from the pinned integrated revision")
     references = "".join(f"{revision}:{path}\n" for path in paths).encode("utf-8")
@@ -149,18 +278,114 @@ def include_base64(path, text):
 '''
 
 
-RUN = '''if _materialized != set(_expected):
+RUN = '''import json
+
+if _materialized != set(_expected):
     raise RuntimeError("Run all of the embedded source cells before the demonstration.")
 # Inherit only the OS settings needed to start Python. The guarded driver blocks network use.
 _os_names = {"path", "systemroot", "windir", "systemdrive", "temp", "tmp", "comspec", "ld_library_path", "dyld_library_path"}
 _demo_env = {name: value for name, value in os.environ.items() if name.lower() in _os_names}
 result = subprocess.run(
-    [sys.executable, "-I", "-B", str(PROJECT_ROOT / "tools/submission_demo.py")],
+    [sys.executable, "-I", "-B", "-X", "utf8", str(PROJECT_ROOT / "tools/submission_demo.py")],
     cwd=PROJECT_ROOT, env=_demo_env, capture_output=True, encoding="utf-8", timeout=120,
 )
 if result.returncode:
     raise RuntimeError(result.stderr or result.stdout)
+report = json.loads(result.stdout)
 print(result.stdout, end="")
+'''
+
+
+EXPLORATION = '''capability = report["published_capability_coverage"]
+originals = capability["originals"]
+supported_at_area = 7_895
+unresolved = originals - supported_at_area
+print(f"Published VF baseline: {supported_at_area:,}/{originals:,} ({supported_at_area / originals:.1%}) "
+      f"with written-area support, {unresolved:,} unresolved.")
+for service in ("Radiotherapy license", "MRI"):
+    row = capability["examples"][service]
+    supported, mentions = row["supported"], row["mentions"]
+    print(f"{service}: {supported}/{mentions:,} VF mentions matched outside support ({supported / mentions:.1%}).")
+print("AERB licenses establish licensed status in the published edition. Staffing and live availability are unknown.")
+print("The MRI comparison found no outside matches under this method. Onsite MRI status remains unknown.")
+'''
+
+
+MODELING = '''lookup = report["public_find_care"]
+claim = lookup["claim"]
+alternate = lookup["broader_alternative"]
+print(f"Real public-source query: {lookup['service']} in {lookup['place']}.")
+print(f"{claim['operator']} | {claim['service']} | {claim['evidence_basis']}")
+print(f"Location scope: {claim['location_scope']}.")
+print(f"Operator's nephrology page: {claim['source_url']}")
+print(f"Page checked {claim['checked_on']}. The page date and treatment observation date are unknown.")
+print("Staffing, appointment acceptance, current availability and the patient entrance are unknown.")
+print(f"{claim['vf_match']}. The national VF result uses its own evidence.")
+print(f"The collection filters by published city and service. {alternate['operator']} matches "
+      f"the broader dialysis query with a general claim. Source: {alternate['source_url']}")
+'''
+
+
+PUNE_BENCHMARK = '''benchmark = report["pune_four_care"]
+print(f"Pune four-care Storm simulation: {benchmark['requested']} requests and {benchmark['sites']} neutral sites.")
+print("Both policies receive the same modeled travel, synthetic patients and staffed slots.")
+for row in benchmark["classes"]:
+    print(f"{row['label']}: {row['nearest_first']}/{row['requested']} nearest-first, "
+          f"{row['exact_optimum']}/{row['requested']} batch planning.")
+print(f"All care classes: {benchmark['nearest_first']}/{benchmark['requested']} nearest-first, "
+      f"{benchmark['exact_optimum']}/{benchmark['requested']} batch planning.")
+print(f"Replayed neutral input SHA-256: {benchmark['input_sha256']}")
+'''
+
+
+OFFLINE_CONTROL = r'''finder = report["find_care"]
+alternative = finder["nearby_alternative"]
+print("Fictional request: find dialysis within 50 km of Jaipur, Rajasthan.")
+print(f"First result: {finder['facility']}, North Campus, {finder['straight_line_km']} km straight-line.")
+print(f"Reported service ({finder['evidence']['field']}): {finder['evidence']['statement']}")
+print(finder["explanation"]["location"])
+print(finder["explanation"]["service"])
+print(f"Alternative: {alternative['facility']}, {alternative['campus']}, "
+      f"{alternative['straight_line_km']} km straight-line. Its {alternative['field']} field says "
+      f"\"{alternative['statement']}\"")
+print(finder["ranking_reason"])
+
+batch = report["storm_batch"]
+print(f"\nStorm control: seed {batch['scenario']['seed']}, {batch['requested']} simulated requests, "
+      f"{batch['sites']} invented sites, {batch['scenario']['horizon_minutes']} minutes.")
+print(batch["scenario"]["objective"] + ".")
+print(batch["scenario"]["travel_basis"] + ".")
+case = batch["case"]
+rescued = case["rescued"]
+earlier = case["moved_nearest"]
+later = case["moved_exact"]
+print(f"Nearest-first ran out of compatible slots for highest-priority {rescued['patient']}. "
+      f"Routine {earlier['patient']} had used the sole place in {earlier['slot_id']}.")
+print(f"The exact plan gives that dialysis place to {rescued['patient']} "
+      f"and moves {earlier['patient']} to {later['slot_id']}, a feasible alternative.")
+shared = batch["shared_travel"]
+print(f"Across the same {shared['cohort']} assigned requests, modeled travel totals "
+      f"{shared['nearest_first_seconds']:,} seconds nearest-first and "
+      f"{shared['exact_optimum_seconds']:,} seconds exact.")
+for key, label in (("nearest_first", "Nearest-first"), ("exact_optimum", "Exact planning")):
+    metrics = batch["policies"][key]
+    print(f"{label}: {metrics['assigned']}/{batch['requested']} assigned, {metrics['unmet']} unmet.")
+small = report["storm"]
+print(f"Eight-request replay: {small['nearest_assigned']}/{small['requested']} nearest-first, "
+      f"{small['scarcity_assigned']}/{small['requested']} scarcity-aware.")
+'''
+
+
+IMPACT = '''claim = report["public_find_care"]["claim"]
+print(f"Health worker: call {claim['operator']} at {claim['contact_phone']} ({claim['contact_label'].lower()}) "
+      "to confirm maintenance haemodialysis, appointment acceptance and which entrance to use.")
+benchmark = report["pune_four_care"]
+unmet_nearest = benchmark["requested"] - benchmark["nearest_first"]
+unmet_exact = benchmark["requested"] - benchmark["exact_optimum"]
+print(f"District planner: the modeled shift has {unmet_nearest} unmet requests nearest-first "
+      f"and {unmet_exact} with the batch planner.")
+print("All six additional placements are high-acuity trauma. Test staffed trauma bays and shared slots "
+      "under other demand and staffing assumptions before making operational decisions.")
 '''
 
 
@@ -173,29 +398,44 @@ def notebook(revision, sources):
     fingerprint = digest(json_bytes({"files": files, "generator_sha256": generator_pin}))
     manifest = {"source_revision": revision, "input_sha256": fingerprint, "generator_sha256": generator_pin, "files": files}
     cells = [
-        cell("overview", f"""# Datathon facility finder and storm demo
+        cell("overview", """# Find care and plan a constrained shift
 
-Run all cells with Python 3.10 or later. This single notebook contains the implementation and the
-synthetic inputs. It verifies the embedded files, reconstructs the source in a temporary directory,
-and runs the same project functions used by the app. The default run requires only Python's standard
-library. It makes no provider, routing or Databricks requests.
+**Run all** with Python 3.10 or later, then jump to the three judge outputs below. This file checks
+and extracts its embedded sources, runs the app logic offline, and needs only the Python standard
+library.
 
-The replay covers the facility request, ranking and evidence, warehouse withholding, fictional intake
-journeys, the aggregate evidence walkthrough, and the hosted Storm page and allocation comparison. It also checks
-the offline browser bundles, original-occurrence mapping, and synthetic service decisions. The Databricks and Streamlit
-implementation is included for review. The live provider adapters are inactive in this notebook.
+Start with **Pune · maintenance haemodialysis**, which returns KEM Hospital's operator-published
+claim. Confirm availability directly with the hospital.
 
-The project’s national research frame has 10,088 original Virtue Foundation occurrences, including
-both members of 11 duplicate pairs, and three service decisions per original. The notebook runs
-invented records and a scenario with invented capacity. Its results describe those fixtures.
+| Criterion | What to see after Run all |
+| --- | --- |
+| [Exploration](#judge-exploration) | Published Virtue Foundation area coverage and two service evidence comparisons, with their denominators. |
+| [Modeling](#judge-modeling) | The real KEM lookup and its source limits, plus the [four-care Pune simulation](#pune-four-care). |
+| [Impact](#judge-impact) | A health worker's verification step and a planner's view of feasible appointments and unmet requests. |
 
-Integrated source commit: `{revision}`
-
-Canonical input SHA-256: `{fingerprint}`
-
-Every included file has a source digest in the setup cell. Input hashes use LF for text files.
+The [national findings](#judge-national-findings) summarize the restricted VF analysis at
+published aggregate scope. Storm demand, staffing and travel are simulated.
+[Organizer criteria](https://cmudsc.com/datathon-fall2026/) · [Challenge brief](https://docs.google.com/document/d/e/2PACX-1vQxhDNQmgZhPgjG0M6LCb_UXNV8CJryqBNQQuqWfIg_dm40ZU1AYAXzZKViC6haFoCmLNiRVfUSBMjf/pub)
 """, "markdown"),
-        cell("national-area-finding", """## National directory finding
+        cell("reproducibility", f"""## Execution and source pins
+
+The Databricks and Streamlit implementations are included for review. Run all in a Python notebook
+or in an authorized Databricks Free Edition workspace. This offline replay is separate from signed-in
+app and workspace verification. It sends no provider, routing, or Databricks requests.
+
+The VF research frame preserves 10,088 original occurrences, including both members of 11 duplicate
+pairs, and keeps three service decisions per original. The replay verifies the duplicate-preserving
+contract on synthetic records.
+
+Integrated source commit `{revision}`
+
+Canonical input SHA-256 `{fingerprint}`
+
+The setup cell pins each included file. Text inputs use LF for hashing.
+""", "markdown"),
+        cell("national-area-finding", """<a id="judge-national-findings" name="judge-national-findings"></a>
+
+## National directory finding
 
 The national comparison found written-area support for the named facility on **7,895/10,088 (78.3%)**
 original Virtue Foundation occurrences. **2,193 occurrences remained unresolved** under
@@ -208,6 +448,8 @@ recalculate the national result.
 
 [National result and method](https://github.com/vzhu08/databricks-datathon/issues/57#issuecomment-7081461436)
 """, "markdown"),
+        cell("capability-coverage", CAPABILITY_COVERAGE, "markdown"),
+        cell("source-stories", SOURCE_NOTES, "markdown"),
         cell("setup", "SOURCE_MANIFEST = " + repr(manifest) + "\n\n" + START),
     ]
     for path, raw in sorted(sources.items()):
@@ -220,13 +462,65 @@ recalculate the national result.
             source = f"include_text({path!r}, {literal(raw.decode('utf-8'))})\n"
         cells.append(cell("source-" + digest(path.encode("utf-8"))[:24], source))
     cells.extend([
-        cell("run-introduction", """## Execute the synthetic demonstration
+        cell("run-introduction", """## Execute the offline lookup and replays
 
-The first result shows the requested service, selected facility, straight-line distance and the
-specific synthetic source field. The independent evidence path, emergency interrupt, and storm
-comparisons run immediately afterward.
+The runner reads the curated operator claims and the pinned anonymous benchmark locally. The
+labeled judge outputs below explain the results. The separate engineering checks exercise the
+fictional finder, emergency interrupt, and simulation controls.
 """, "markdown"),
         cell("run", RUN),
+        cell("exploration", """<a id="judge-exploration" name="judge-exploration"></a>
+
+## Exploration
+
+This cell reproduces published **aggregate arithmetic** on the full VF analysis and matched
+capability subsets. Radiotherapy uses the Atomic Energy Regulatory Board licensing list.
+The published comparison joins institution name and postal PIN using the June 2026 list.
+[AERB license list](https://www.aerb.gov.in/images/PDF/Radiotheraphy/RSD3.pdf)
+The [coverage table and measured scopes](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7081776129)
+and [AERB and other publisher narratives](https://github.com/vzhu08/databricks-datathon/issues/319#issuecomment-7081794326)
+describe the evidence represented in the numerators.
+""", "markdown"),
+        cell("exploration-output", EXPLORATION),
+        cell("modeling", """<a id="judge-modeling" name="judge-modeling"></a>
+
+## Modeling
+
+The real lookup uses the integrated two-operator public claims collection. It matches the city
+and requested service wording. KEM's nephrology department supports the maintenance
+haemodialysis claim at the hospital's published Rasta Peth location scope. The reviewed source
+leaves the date of service delivery, entrance, staffing and appointment status unknown.
+[KEM nephrology](https://www.kemhospitalpune.org/specialities/nephrology/) · [Jehangir nephrology](https://www.jehangirhospital.com/nephrology-sp/) · [Signed-in lookup receipt](https://github.com/vzhu08/databricks-datathon/issues/350#issuecomment-7082597651)
+""", "markdown"),
+        cell("modeling-output", MODELING),
+        cell("pune-four-care", """<a id="pune-four-care" name="pune-four-care"></a>
+
+## Pune four-care Storm simulation
+
+The #354 benchmark models one six-hour shift at 12 public-source Pune locations. This notebook
+replays its approved neutral input, with anonymous sites, synthetic requests and staffed slots,
+and frozen modeled travel at 30 km/h. The exact planner minimizes unmet highest, time-sensitive
+and routine requests in that order, then travel seconds. Arrival-order nearest-first sees the
+same feasible edges and capacity. These outputs measure modeled assignments in the benchmark.
+
+The signed-in first-edition Storm comparison is a separate 112/120 versus 117/120 modeled run.
+[Four-care presenter edition](https://github.com/vzhu08/databricks-datathon/issues/354#issuecomment-7082584764) · [Independent same-input audit](https://github.com/vzhu08/databricks-datathon/issues/354#issuecomment-7082572887) · [Public geography method and attribution](https://github.com/vzhu08/databricks-datathon/blob/2d6ba9b7f7817c318ea96f9bde2242d6c1c53b29/research/acquisition/pune_planning_geography/PUNE_EVIDENCE_ENRICHED_V1.md) · [Hosted first-edition check](https://github.com/vzhu08/databricks-datathon/issues/304#issuecomment-7082157852)
+""", "markdown"),
+        cell("pune-four-care-output", PUNE_BENCHMARK),
+        cell("impact", """<a id="judge-impact" name="judge-impact"></a>
+
+## Impact
+
+The finder shows which claim to verify before travel. The planner quantifies feasible modeled
+appointments and exposes where a staffing change could be tested.
+""", "markdown"),
+        cell("impact-output", IMPACT),
+        cell("engineering-controls", """## Synthetic engineering controls
+
+The fictional Jaipur finder and invented-site Storm fixtures exercise the application logic
+and remain available for repeatable offline verification.
+""", "markdown"),
+        cell("engineering-controls-output", OFFLINE_CONTROL),
         cell("optional-ui", """## Optional local browser views
 
 The source reconstructed under `PROJECT_ROOT` remains available for the life of this kernel.
@@ -240,6 +534,7 @@ browser and Streamlit are optional. The cells above install no packages and star
 The full enrichment schema validator uses the separate optional dependency in
 databricks/enrichment/requirements.txt. The default run executes only the local coverage code.
 """, "markdown"),
+        cell("capability-appendix", CAPABILITY_APPENDIX, "markdown"),
     ])
     return {
         "cells": cells,
@@ -281,8 +576,8 @@ def main():
     args = parser.parse_args()
     if args.check == bool(args.source_ref):
         parser.error("Choose either --source-ref REF to regenerate or --check")
-    paths = tracked_paths()
     try:
+        paths = tracked_paths()
         sources = working_sources(paths)
         if args.check:
             existing = NOTEBOOK.read_bytes()
@@ -290,7 +585,7 @@ def main():
             if not re.fullmatch(r"[a-f0-9]{40}", revision):
                 raise ValueError("Invalid source revision in notebook manifest")
             unstaged = set(git("diff", "--name-only", "-z", "--").decode("utf-8").split("\0"))
-            if unstaged.intersection({*paths, DRIVER, "tools/submission_notebook.py"}):
+            if unstaged.intersection({*paths, *NOTEBOOK_INPUTS, "tools/submission_notebook.py"}):
                 raise ValueError("Packaged source differs between the index and working tree")
             verify_commit(revision, sources)
         else:

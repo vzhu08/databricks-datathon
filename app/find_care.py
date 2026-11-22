@@ -436,6 +436,8 @@ def referral_note(view, synthetic):
 RECORD_REFERENCE = "Record reference"
 RECORD_LINK_NOTE = ("It points at the whole record, not at this statement, does not resolve in the demonstration, "
                     "and adds no independent source.")
+CITATION_SCOPE = {"record": "It points to the whole record, not to this statement.",
+                  "claim": "It points to this statement."}
 STRENGTHS = {"reported": "Reported", "corroborated": "Corroborated", "no_evidence": "No evidence",
              "conflicting_evidence": "Conflicting evidence", None: "Evidence not measured"}
 DECISIONS = {"yes": "Yes", "no": "No", "unconfirmed": "Unconfirmed"}
@@ -458,6 +460,16 @@ def _sentence(text):
     return text if text.endswith((".", "?", "!")) else text + "."
 
 
+def service_observation_date(claim):
+    """The latest dated supporting observation. The assessment date belongs to the review."""
+    return max((source["observed_on"] for source in claim.get("sources") or ()
+                if source.get("role") == "support" and source.get("observed_on")), default="unknown")
+
+
+def citation_scope_note(scope):
+    return CITATION_SCOPE.get(scope, "The citation scope is unknown.")
+
+
 def _source(source, label):
     """One source behind a claim, as plain parts. A citation is text, never a link."""
     origin = ORIGINS.get(source.get("origin"), source.get("origin")) if source.get("lineage") == "known" else None
@@ -470,7 +482,8 @@ def _source(source, label):
         "scope": _sentence(source.get("scope") or "Scope unknown"),
         "date": source.get("observed_on") or "unknown",
         "reference": source.get("citation") if source.get("citation_scope") == "record" else None,
-        "citation": source.get("citation") if source.get("citation_scope") == "claim" else None,
+        "citation": source.get("citation") if source.get("citation_scope") != "record" else None,
+        "citation_scope": source.get("citation_scope"),
     }
 
 
@@ -495,7 +508,7 @@ def claim_view(finding, service, place=""):
         strength = f"No evidence of onsite {phrase}"
     views.append({"label": SERVICES.get(service, service), "claim": claim,
                   "line": (f"{DECISIONS.get(claim['decision'], 'Unconfirmed')} · {strength} · "
-                           f"{_sentence(claim['scope'])} Service date {claim['as_of'] or 'unknown'}.")})
+                           f"{_sentence(claim['scope'])} Service date {service_observation_date(claim)}.")})
     for view in views:
         claim = view.pop("claim")
         view["sources"] = [_source(source, view["label"]) for source in claim["sources"]]
