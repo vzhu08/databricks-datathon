@@ -3,14 +3,70 @@
 Three pages that open from a file, in the order a judge meets them. [DESIGN_NOTES.md](DESIGN_NOTES.md)
 records the judge's path they were built for and the before and after review scores.
 
-1. `index.html`, **Find care**. Choose the care needed, a starting point and the urgency, and get
-   one campus, the record text behind it, what is not confirmed, two backups, and how the points
-   were worked out. Every ranking is `app.ranking.urgency.rank_campuses` output, computed ahead of
+1. `index.html`, **Find care**. It opens on the intake described below (**From the problem**).
+   **Care already decided** is the finder on its own: choose the care needed, a starting point and
+   the urgency, and get one campus, the record text behind it, what is not confirmed, two backups,
+   and how the points were worked out. Every ranking is `app.ranking.urgency.rank_campuses` output, computed ahead of
    time by `python -m app.storm_ui.build_ask` over invented records. The page looks answers up and
    words them. It never ranks.
 2. `replay.html`, **Storm stress test**. The storm replay described below.
 3. `finder.html`, **Driving-time response check**. A technical page, linked from the technical
    details of an answer.
+
+## Intake before Find care
+
+The steps before a campus is chosen: pick one of seven fictional stories, read what the story
+already states, answer the one question a story may leave open, and read the outcome.
+
+| Outcome | What the page shows | Campus search |
+| --- | --- | --- |
+| The story or an answer reports a warning sign | The emergency message, at once, even when a clinician's referral is already in the story | None |
+| An answer is "Not sure" | Which answer is not known. Not sure is never counted as no | None |
+| No clinician in the story has asked for a service | The concern (a category, not a diagnosis), the reasons, and that a clinician must assess first | None |
+| Care outside dialysis, MRI scans and trauma care | That the demonstration does not cover it. It is not mapped to another service | None |
+| A simulated clinician plan, referral or assessment asks for one of the three services | A care summary to confirm, then the starting point and **Find a campus** | Only after the summary is confirmed |
+
+Changing the story, an answer, the starting point or the mode removes the confirmation and any
+campus answer on screen, also when the same answer is given again. A confirmation belongs to one
+exact input.
+
+**Where every part comes from.** Nothing on this page is written by the page.
+
+| What is shown | Owner |
+| --- | --- |
+| State, concerns, intake reasons, care summary, request | `app.intake.assess_intake` and `assessment_catalogue()` (contract `intake.v1`, `contracts/intake/`) |
+| Warning rules, warning messages, references | `app.intake.danger_signs` |
+| Referral reasons and authority labels | `app.intake.referral_gate` |
+| Questions and answer choices | `app.intake.questions` |
+| The seven stories | `tests/intake/scenarios/journeys.json`, pinned by `digest.json`. The engine admits only the reviewed editions in `contracts/intake/reviewed_scenarios.json` |
+| Campus answer after a confirmation | `app.intake.finder_bridge.find_care_for_intake` |
+| Picker name of each story, three notes about the demonstration | This folder (`STORY_NAMES` in `build_intake.py`, `NOTES` in `intake_state.js`) |
+
+**What the build step does.** `python -m app.storm_ui.build_intake` asks the engine about every
+state a visitor can reach (26 states, at most one question on any path, with these stories) and
+stores the unedited answers. Where a summary can be confirmed it takes a real confirmation from
+`confirm_intake`, stores the ready answer that follows (8 of them), and stores the bridge's campus
+answer for that same input, story and confirmation from each of the four starting points (32). The
+build stops, and writes nothing, when a stored answer names an ID with no display entry, when the
+stories do not match their pinned digest, when the engine refuses a story, when the bridge's answer
+differs from the Find care page's answer for the same request, or when the walk passes 5,000
+states. The bundle records which rule set, stories and campus fixture it pairs (`pairing`).
+
+**What the page does and does not do.** As with Find care, the page decides nothing. It looks one
+stored answer up and words it from the bundle's catalogue. It asks for a campus only when
+`IntakeState.finderRequest` returns a request, which needs two stored answers that agree. The
+summary the visitor confirmed must be synthetic, for this edition of this story, waiting for a
+confirmation it does not have, with a clinician's plan present, no open or unknown question and no
+request of its own. The answer after it must be ready with a current confirmation, carry the same
+input fingerprint, contract and rule set versions, story edition, revision and care summary as that
+summary and as the story, and ask for exactly the summary's care. The campus answer shown is the
+one the bridge stored for that confirmed input and starting point, and only when it is exactly the
+answer the Find care page holds for the same request, which is what the page's explanation is
+written from. A stored answer that merely says "ready", or one that follows a blocked, unsupported,
+unfinished or mismatched summary, is refused. No receipt or other authority is stored in the page.
+
+The rules are a demonstration with fictional stories. No clinician has validated them, and the
+page says so on every outcome.
 
 ## Storm stress test page
 
@@ -110,6 +166,10 @@ timers and stores nothing.
 | `ask_state.js` | Pure functions that turn one precomputed answer into the sentences, points and referral note the page shows. Runs in the browser and in Node. |
 | `build_ask.py` | Writes `data/answers.js`: the ranker's response for every service, starting point and urgency, over invented records. |
 | `data/answers.js` | Generated. Do not edit. `python -m app.storm_ui.build_ask` rewrites it and `--check` verifies it. |
+| `intake.js` | The intake's controls on the Find care page. Holds no rule and no clinical wording. |
+| `intake_state.js` | Pure functions that look up one stored intake state, word it, and decide whether the finder may be asked. Runs in the browser and in Node. |
+| `build_intake.py` | Writes `data/intake.js` by walking the intake engine (`app.intake`) over the seven fictional stories and storing its answers and the finder bridge's campus answers. |
+| `data/intake.js` | Generated. Do not edit. `python -m app.storm_ui.build_intake` rewrites it and `--check` verifies it. |
 | `replay.html`, `storm.css`, `storm.js` | The storm stress test page. Plain HTML, CSS and JavaScript with no dependencies. |
 | `replay_state.js` | Pure functions that turn a replay and a clock minute into what a panel shows. Runs in the browser and in Node. |
 | `build.py` | Writes `data/scenarios.js` from `app.simulation`: six scenarios at four detour caps, seed 17. |

@@ -43,6 +43,31 @@ class AskUiTests(unittest.TestCase):
                 self.assertNotIn(marker, text, f"{name} must not contain {marker}")
         self.assertNotIn(".sort(", (PAGE / "ask.js").read_text(encoding="utf-8"))
 
+    def test_fractions_are_rounded_so_every_python_writes_the_same_file(self):
+        # Python 3.12 changed how `sum` adds fractions, which moved some scores by about 1e-14.
+        # Only fractions may change, and only past the ninth decimal place.
+        raw, written = build_ask.bundle(), build_ask.stable(build_ask.bundle())
+
+        def compare(a, b, where):
+            self.assertIs(type(a), type(b), where)
+            if isinstance(a, dict):
+                self.assertEqual(list(a), list(b), where)
+                for name in a:
+                    compare(a[name], b[name], f"{where}.{name}")
+            elif isinstance(a, list):
+                self.assertEqual(len(a), len(b), where)
+                for index, (x, y) in enumerate(zip(a, b)):
+                    compare(x, y, f"{where}[{index}]")
+            elif isinstance(a, float):
+                self.assertLess(abs(a - b), 1e-9, where)
+                self.assertEqual(round(b, build_ask.DECIMALS), b, where)
+            else:
+                self.assertEqual(a, b, where)
+
+        compare(raw, written, "bundle")
+        self.assertEqual(0.1, build_ask.stable(0.1 + 1e-14))
+        self.assertEqual({"a": [1, "x", True, None, 2.5]}, build_ask.stable({"a": (1, "x", True, None, 2.5)}))
+
     @unittest.skipUnless(shutil.which("node"), "Node.js is needed for the page-state checks")
     def test_wording_against_every_answer(self):
         result = subprocess.run(["node", str(ROOT / "tests/storm_ui/ask_check.js")], cwd=ROOT,

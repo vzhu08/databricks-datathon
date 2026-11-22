@@ -125,6 +125,26 @@
       parts.join(", ").replace(/, ([^,]*)$/, " and $1") + ".";
   }
 
+  /* One spelling of a value whatever order its fields were written in. */
+  function canonical(value) {
+    if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
+    if (value && typeof value === "object") {
+      return "{" + Object.keys(value).sort().map(function (name) {
+        return JSON.stringify(name) + ":" + canonical(value[name]);
+      }).join(",") + "}";
+    }
+    return JSON.stringify(value === undefined ? null : value);
+  }
+
+  /*
+   * Whether a ranker response produced elsewhere (the intake's finder bridge) is exactly the
+   * response this page holds for the same request. The page explains only answers it holds.
+   */
+  function matches(data, service, place, urgency, produced) {
+    var answer = data.answers[key(service, place, urgency)];
+    return Boolean(answer && produced) && canonical(answer.response) === canonical(produced);
+  }
+
   /* Everything the page shows for one request. Null when the bundle has no such answer. */
   function view(data, service, place, urgency) {
     var answer = data.answers[key(service, place, urgency)];
@@ -211,6 +231,6 @@
     return found.slice(0, 4);
   }
 
-  return { key: key, day: day, minutes: minutes, sources: sources, points: points, view: view,
+  return { key: key, day: day, minutes: minutes, sources: sources, points: points, view: view, matches: matches,
     referral: referral, problems: problems, FACTOR_NAME: FACTOR_NAME };
 });

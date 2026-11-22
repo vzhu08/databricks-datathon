@@ -16,6 +16,10 @@ const same = (actual, expected, message) => { checks += 1; assert.deepStrictEqua
   const p = await context.newPage();
   p.on("pageerror", (error) => errors.push(error.message));
   await p.goto(page("index.html"));
+  // The page opens on the intake. The finder this file checks is one press away.
+  const direct = (tab) => tab.click("label:has(#mode-direct)");
+  ok(await p.isHidden("#ask") && await p.isVisible("#intake"), "the page opens on the intake, with the finder form put away");
+  await direct(p);
 
   ok(await p.isVisible("#empty") && await p.isHidden("#result"), "nothing is recommended before a question is asked");
   same(await p.getAttribute("#step-ask", "aria-current"), "step", "the first step is marked current");
@@ -99,6 +103,7 @@ const same = (actual, expected, message) => { checks += 1; assert.deepStrictEqua
   await p.check("input[name=urgency][value=highest]");
   await p.reload();
   await spy();
+  await direct(p);
   same([await p.isHidden("#result"), await p.isVisible("#copy"), await p.isVisible("#print")], [true, false, false], "after a refresh no answer and no export control is shown");
   same((await onPaper())[0], false, "after a refresh nothing is on the slip to print");
   await press("copy"); await press("print");
@@ -116,6 +121,7 @@ const same = (actual, expected, message) => { checks += 1; assert.deepStrictEqua
   const phone = await context.newPage();
   await phone.setViewportSize({ width: 390, height: 844 });
   await phone.goto(page("index.html"));
+  await direct(phone);
   await phone.click("#find");
   ok(!(await phone.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)), "the page fits a phone without sideways scrolling");
 
@@ -127,6 +133,7 @@ const same = (actual, expected, message) => { checks += 1; assert.deepStrictEqua
   ok(!/\br0\d\b/.test(await p.textContent("main")), "no raw request id is shown");
   same(await p.getAttribute('.steps a[aria-current]', "href"), "replay.html", "the third step is marked current");
   await p.click('.steps a[href="index.html#ask"]');
+  await direct(p);
   ok(await p.isVisible("#find"), "the steps lead back to the question");
 
   same(errors, [], "no script errors on either page");
