@@ -7,6 +7,8 @@ Use GitHub repository issues and this board for all team communication. Record a
 
 ## Find Care input testing
 
+Release `5bf5588` passed 13 signed-in Chrome submissions after the team fixed full-phrase dialysis searches, over-limit pastes, empty and unsupported public searches, and ambiguous postal-code inputs. Oliver verified a valid retry after each failure in the hosted app. Local checks covered 866 public queries, 112 symptom entries, 6,129 record-lookup combinations, all 48 individual-routing choices and all 24 Storm settings. The assessment provider remains off on the signed-in app. The team used offline simulations for the routing checks. [Test and deployment receipt](https://github.com/vzhu08/databricks-datathon/issues/363#issuecomment-7083674531)
+
 Oliver owns the signed-in acceptance checks and release for [the input stress test](https://github.com/vzhu08/databricks-datathon/issues/363). F owns public service matching and long search fields, M owns symptom drafts and recovery, P owns individual routing and Storm, and R owns the public retry guidance. Andrew volunteered the typed example-record location tests. Test synthetic inputs locally at scale. Check ordinary searches in the hosted app. The assessment provider stays off on that app. [Live baseline and scope](https://github.com/vzhu08/databricks-datathon/issues/363#issuecomment-7083500135)
 
 ## Final judges’ video and voiceover
