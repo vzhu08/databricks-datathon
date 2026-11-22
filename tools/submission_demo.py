@@ -218,9 +218,30 @@ def main():
 
     if (ROOT / "app/capacity_recommendation.py").is_file():
         from app.capacity_recommendation import demo_capacity_inputs, recommend_capacity
-        recommendation = recommend_capacity(*demo_capacity_inputs())
+
+        capacity_request, snapshot = demo_capacity_inputs()
+        recommendation = recommend_capacity(capacity_request, snapshot)
         require(recommendation.get("chosen") and recommendation.get("fastest"), "Capacity preview failed")
         result["capacity_preview"] = {"chosen": recommendation["chosen"], "fastest": recommendation["fastest"]}
+
+        if (ROOT / "app/travel/hosted.py").is_file():
+            from app.travel.hosted import demo_car_travel
+            from app.travel.tomtom import from_environment
+
+            provider = from_environment({})
+            try:
+                options = {"origin_id": snapshot["origin_id"], "provider": provider}
+                travel = demo_car_travel(capacity_request, snapshot, **options)
+                expected_ids = {row["facility_id"] for row in snapshot["candidates"]}
+                require(set(travel) == expected_ids and all(
+                    row["status"] == "unavailable" and row["minutes"] is None for row in travel.values()
+                ), "Disabled hosted routing must return no times for any candidate")
+                require(demo_car_travel({**capacity_request, "emergency": True}, snapshot, **options) == {},
+                        "Emergency must skip hosted routing")
+            finally:
+                provider.close()
+            result["hosted_travel"] = {"candidate_count": len(travel), "estimates_available": 0,
+                                       "provider": "disabled", "emergency_skipped": True}
 
     print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
     return 0
