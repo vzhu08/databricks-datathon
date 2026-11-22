@@ -12,7 +12,7 @@
   - PIN wrong 6% (2–15%)
   - type disagrees 13% (3–43%)
   - name contradicted 0% (upper bound 13%)
-  - about 3 in 10 dialysis (30%) and MRI (27%) claims backed by outside or own-site evidence, none contradicted
+  - about 3 in 10 dialysis (30%) and MRI (27%) claims backed by outside or own-site evidence, none contradicted (mostly own sites that VF also cites, so not independent)
 - Speaker line: "The hand-read samples check our methods. They are not approvals, and no record has been approved for referral."
 
 ## Slide 2. "Eight problems, sized"

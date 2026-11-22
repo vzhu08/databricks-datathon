@@ -89,6 +89,7 @@ A hand-read of 10 web verdicts found 8 right; the rules were then fixed for the 
 - 30% of dialysis claims (9 of 30, CI 17–48%) were backed by outside or own-site evidence.
 - 27% of MRI claims (8 of 30, CI 14–44%) were backed the same way.
 - **None was contradicted.**
+- **Caveat on independence:** Most of that backing is the facility's own website, and 12 of the 15 own-site matches are sites VF itself cites as a source, so it checks consistency with VF's input rather than giving independent support.
 
 The rest are self-reported only. A claim with no evidence counts as unbacked, not as wrong.
 
