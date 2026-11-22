@@ -1,40 +1,78 @@
 {
-  "schema_version": "judge-display-v1",
-  "synthetic": true,
-  "edition": {"label": "Synthetic test edition", "as_of": "2000-01-02", "audience": "Tests only"},
-  "national_result": {
-    "as_of": "2000-01-01",
-    "originals": 1000,
-    "upstream_ids": 999,
-    "frozen_unconfirmed_decisions": 3000,
-    "pilot": {"as_of": "2000-01-02", "listings_screened": 2000, "programme_mentions": 9, "premises_keys": 8,
-              "exact_vf_links": 0, "dated_onsite_claims": 0},
-    "source_url": "https://example.org/synthetic/national"
+  "schema": "synthetic-judge-display-test",
+  "audience": "Synthetic test file: every value is invented",
+  "national": {
+    "dataset": "Synthetic dataset",
+    "baseline_decisions_as_of": "2000-01-01",
+    "occurrences": 1000,
+    "distinct_upstream_ids": 999,
+    "occurrence_service_decisions": 3000,
+    "unconfirmed_occurrence_service_decisions": 3000,
+    "unknown_national_accuracy": true,
+    "issuer_pilot": {
+      "scope": "Synthetic issuer pilot, 2 January 2000",
+      "issuer_listings_screened": 2000,
+      "programme_mentions": 9,
+      "distinct_printed_premises_keys": 8,
+      "listings_with_unresolved_postal_context": 1,
+      "exact_vf_links": 0,
+      "dated_onsite_claims": 0,
+      "source": "https://example.org/synthetic/national"
+    }
   },
-  "vf_trace": {
-    "lead_keys": 30, "campus_located_keys": 10, "originals": 9, "same_object_keys": 3,
-    "same_object_by_service": {"dialysis": 1, "trauma care": 2},
-    "exact_object_associations": 4, "cohort_associations": 20, "dated_service_associations": 0,
-    "map_origins": 1, "other_group_keys": 1, "competing_branch_bindings": 0, "missing_branch_crosswalk": 5,
-    "source_url": "https://example.org/synthetic/trace",
-    "credit": {"text": "Synthetic map contributors", "url": "https://example.org/synthetic/credit"}
+  "vf_trace_case": {
+    "grain": "Synthetic aggregate grain",
+    "national_external_lead_keys": 30,
+    "campus_located_lead_keys": 10,
+    "exact_shared_osm_object_keys": 3,
+    "same_osm_by_service": {"dialysis": 1, "mri": 0, "trauma_care": 2},
+    "exact_object_associations_by_field": {"name": 3, "healthcare:speciality": 1},
+    "cohort_candidate_associations": 20,
+    "cohort_associations_with_service_observation_date": 0,
+    "map_snapshots": ["Synthetic map edition A", "Synthetic map edition B"],
+    "same_origin_family": "Synthetic map lineage",
+    "independent_same_premises_bindings": 0,
+    "reviewed_onsite_pairs": 0,
+    "keys_with_another_retained_site_group": 1,
+    "explicit_competing_branch_bindings": 0,
+    "missing_branch_crosswalk_keys": 5,
+    "point_precision": "Synthetic precision statement",
+    "source": "https://github.com/example/synthetic/issues/1"
   },
   "public_case": {
-    "title": "Synthetic campus (test only)",
-    "vf_link": "none_documented",
-    "facts": [
-      {"statement": "A synthetic release reports a pooled service at the campus.", "as_of": "January 2000",
-       "scope": "Whole campus", "source_label": "Synthetic release A", "source_url": "https://example.org/synthetic/a"},
-      {"statement": "An older synthetic release dates a service at one building.", "as_of": "1 January 1999",
-       "scope": "One building", "source_label": "Synthetic release B", "source_url": "https://example.org/synthetic/b"}
+    "name": "Synthetic campus (test only)",
+    "publisher": "Synthetic publisher",
+    "release_date": "2000-01-03",
+    "source": "https://example.org/synthetic/release",
+    "buildings_named_in_pib": ["Synthetic hospital A", "Synthetic hospital B"],
+    "known_at_shared_campus": [
+      {"value": 12, "unit": "synthetic beds", "locator": "Whole synthetic campus", "period": null},
+      {"value": 3456, "unit": "synthetic patients served", "locator": "Whole synthetic campus", "period": "1999-2000"}
     ],
-    "reference_links": [{"label": "Synthetic address report", "url": "https://example.org/synthetic/c",
-                         "note": "link only"}],
-    "unknown": ["Which building runs the service today", "Entrance", "Staffed capacity", "Travel time"]
+    "added_historical_branch_evidence": {
+      "building": "Synthetic hospital A",
+      "event": "Synthetic in-house service opened",
+      "event_date": "1999-01-01",
+      "publication_date": "1999-01-02",
+      "same_operator_lineage": "Synthetic operator lineage",
+      "source": "https://example.org/synthetic/older"
+    },
+    "shared_address_display": null,
+    "shared_address_source_reference": "https://example.org/synthetic/address-report",
+    "has_documented_vf_occurrence_link_in_this_case": false,
+    "has_documented_nabh_pilot_link_in_this_case": false,
+    "current_building_level_onsite_status": null,
+    "current_staffed_capacity": null,
+    "entrance": null,
+    "travel_minutes": null
   },
-  "result": {
-    "eligible_destinations": 0,
-    "next_check": "Ask the synthetic operator to name the building that runs the service today.",
-    "policies": [{"policy": "Synthetic baseline rule", "result": "Zero eligible destinations."}]
+  "decision": {
+    "point_rank": {"status": "Synthetic: zero eligible destinations", "eligible_destinations_in_cases": 0, "scores": null},
+    "quality_penalty": {"status": "Synthetic: research only", "provenance": "Synthetic provenance note",
+                        "recency": "Synthetic recency note", "conflict": "Synthetic conflict note"},
+    "range_rank": {"status": "Synthetic: no range", "reason": "Synthetic reason", "score_range": null},
+    "verify": {"status": "Synthetic: default", "highest_value_fact": "Ask the synthetic operator which building runs the service today."},
+    "evaluation": {"scored_requests": 0, "wrong_branch_rate": null, "unsupported_service_rate": null,
+                   "unstable_winner_rate": null, "measured_deferral_cost": null}
   }
 }

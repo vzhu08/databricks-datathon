@@ -1,109 +1,454 @@
 {
-  "$comment": "Field schema for the judge display edition (#239, #252). Key names and types only: no values. Every object is closed, so a key that is not listed here puts the screen in its data-unavailable state. Provisional until Vincent confirms it against the frozen display.json.",
+  "$comment": "Field schema of the frozen judge display edition (#239, #252), posted by Vincent on #252 (comment 7076517433) from the owner readback of SHA-256 13c7b873...bfad99. Structure only, no values. Every object is closed: any other key puts the page in its data-unavailable state.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
-  "required": ["schema_version", "edition", "national_result", "vf_trace", "public_case", "result"],
+  "additionalProperties": false,
+  "required": [
+    "audience",
+    "decision",
+    "national",
+    "public_case",
+    "schema",
+    "vf_trace_case"
+  ],
   "properties": {
-    "schema_version": {"type": "string"},
-    "synthetic": {"type": "boolean"},
-    "edition": {
-      "type": "object",
-      "required": ["label", "as_of"],
-      "properties": {"label": {"type": "string"}, "as_of": {"type": "date"}, "audience": {"type": "string"}}
+    "audience": {
+      "type": "string"
     },
-    "national_result": {
+    "decision": {
       "type": "object",
-      "required": ["as_of", "originals", "upstream_ids", "frozen_unconfirmed_decisions", "pilot", "source_url"],
+      "additionalProperties": false,
+      "required": [
+        "evaluation",
+        "point_rank",
+        "quality_penalty",
+        "range_rank",
+        "verify"
+      ],
       "properties": {
-        "as_of": {"type": "date"},
-        "originals": {"type": "count"},
-        "upstream_ids": {"type": "count"},
-        "frozen_unconfirmed_decisions": {"type": "count"},
-        "pilot": {
+        "evaluation": {
           "type": "object",
-          "required": ["as_of", "listings_screened", "programme_mentions", "premises_keys", "exact_vf_links",
-                       "dated_onsite_claims"],
+          "additionalProperties": false,
+          "required": [
+            "measured_deferral_cost",
+            "scored_requests",
+            "unstable_winner_rate",
+            "unsupported_service_rate",
+            "wrong_branch_rate"
+          ],
           "properties": {
-            "as_of": {"type": "date"},
-            "listings_screened": {"type": "count"},
-            "programme_mentions": {"type": "count"},
-            "premises_keys": {"type": "count"},
-            "exact_vf_links": {"type": "count"},
-            "dated_onsite_claims": {"type": "count"}
+            "measured_deferral_cost": {
+              "type": "null"
+            },
+            "scored_requests": {
+              "type": "integer"
+            },
+            "unstable_winner_rate": {
+              "type": "null"
+            },
+            "unsupported_service_rate": {
+              "type": "null"
+            },
+            "wrong_branch_rate": {
+              "type": "null"
+            }
           }
         },
-        "source_url": {"type": "url"}
+        "point_rank": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "eligible_destinations_in_cases",
+            "scores",
+            "status"
+          ],
+          "properties": {
+            "eligible_destinations_in_cases": {
+              "type": "integer"
+            },
+            "scores": {
+              "type": "null"
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        },
+        "quality_penalty": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "conflict",
+            "provenance",
+            "recency",
+            "status"
+          ],
+          "properties": {
+            "conflict": {
+              "type": "string"
+            },
+            "provenance": {
+              "type": "string"
+            },
+            "recency": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        },
+        "range_rank": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason",
+            "score_range",
+            "status"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "score_range": {
+              "type": "null"
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        },
+        "verify": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "highest_value_fact",
+            "status"
+          ],
+          "properties": {
+            "highest_value_fact": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        }
       }
     },
-    "vf_trace": {
+    "national": {
       "type": "object",
-      "required": ["lead_keys", "campus_located_keys", "originals", "same_object_keys", "same_object_by_service",
-                   "cohort_associations", "dated_service_associations", "map_origins", "missing_branch_crosswalk",
-                   "source_url", "credit"],
+      "additionalProperties": false,
+      "required": [
+        "baseline_decisions_as_of",
+        "dataset",
+        "distinct_upstream_ids",
+        "issuer_pilot",
+        "occurrence_service_decisions",
+        "occurrences",
+        "unconfirmed_occurrence_service_decisions",
+        "unknown_national_accuracy"
+      ],
       "properties": {
-        "lead_keys": {"type": "count"},
-        "campus_located_keys": {"type": "count"},
-        "originals": {"type": "count"},
-        "same_object_keys": {"type": "count"},
-        "same_object_by_service": {"type": "count_map"},
-        "exact_object_associations": {"type": "count"},
-        "cohort_associations": {"type": "count"},
-        "dated_service_associations": {"type": "count"},
-        "map_origins": {"type": "count"},
-        "other_group_keys": {"type": "count"},
-        "competing_branch_bindings": {"type": "count"},
-        "missing_branch_crosswalk": {"type": "count"},
-        "source_url": {"type": "url"},
-        "credit": {
+        "baseline_decisions_as_of": {
+          "type": "string"
+        },
+        "dataset": {
+          "type": "string"
+        },
+        "distinct_upstream_ids": {
+          "type": "integer"
+        },
+        "issuer_pilot": {
           "type": "object",
-          "required": ["text", "url"],
-          "properties": {"text": {"type": "string"}, "url": {"type": "url"}}
+          "additionalProperties": false,
+          "required": [
+            "dated_onsite_claims",
+            "distinct_printed_premises_keys",
+            "exact_vf_links",
+            "issuer_listings_screened",
+            "listings_with_unresolved_postal_context",
+            "programme_mentions",
+            "scope",
+            "source"
+          ],
+          "properties": {
+            "dated_onsite_claims": {
+              "type": "integer"
+            },
+            "distinct_printed_premises_keys": {
+              "type": "integer"
+            },
+            "exact_vf_links": {
+              "type": "integer"
+            },
+            "issuer_listings_screened": {
+              "type": "integer"
+            },
+            "listings_with_unresolved_postal_context": {
+              "type": "integer"
+            },
+            "programme_mentions": {
+              "type": "integer"
+            },
+            "scope": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            }
+          }
+        },
+        "occurrence_service_decisions": {
+          "type": "integer"
+        },
+        "occurrences": {
+          "type": "integer"
+        },
+        "unconfirmed_occurrence_service_decisions": {
+          "type": "integer"
+        },
+        "unknown_national_accuracy": {
+          "type": "boolean"
         }
       }
     },
     "public_case": {
       "type": "object",
-      "required": ["title", "vf_link", "facts", "unknown"],
+      "additionalProperties": false,
+      "required": [
+        "added_historical_branch_evidence",
+        "buildings_named_in_pib",
+        "current_building_level_onsite_status",
+        "current_staffed_capacity",
+        "entrance",
+        "has_documented_nabh_pilot_link_in_this_case",
+        "has_documented_vf_occurrence_link_in_this_case",
+        "known_at_shared_campus",
+        "name",
+        "publisher",
+        "release_date",
+        "shared_address_display",
+        "shared_address_source_reference",
+        "source",
+        "travel_minutes"
+      ],
       "properties": {
-        "title": {"type": "string"},
-        "vf_link": {"type": "string"},
-        "facts": {
-          "type": "list",
-          "items": {
-            "type": "object",
-            "required": ["statement", "as_of", "scope", "source_label", "source_url"],
-            "properties": {
-              "statement": {"type": "string"},
-              "as_of": {"type": "string"},
-              "scope": {"type": "string"},
-              "source_label": {"type": "string"},
-              "source_url": {"type": "url"}
+        "added_historical_branch_evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "building",
+            "event",
+            "event_date",
+            "publication_date",
+            "same_operator_lineage",
+            "source"
+          ],
+          "properties": {
+            "building": {
+              "type": "string"
+            },
+            "event": {
+              "type": "string"
+            },
+            "event_date": {
+              "type": "string"
+            },
+            "publication_date": {
+              "type": "string"
+            },
+            "same_operator_lineage": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
             }
           }
         },
-        "reference_links": {
-          "type": "list",
+        "buildings_named_in_pib": {
+          "type": "array",
           "items": {
-            "type": "object",
-            "required": ["label", "url"],
-            "properties": {"label": {"type": "string"}, "url": {"type": "url"}, "note": {"type": "string"}}
+            "type": "string"
           }
         },
-        "unknown": {"type": "list", "items": {"type": "string"}}
-      }
-    },
-    "result": {
-      "type": "object",
-      "required": ["eligible_destinations", "next_check"],
-      "properties": {
-        "eligible_destinations": {"type": "count"},
-        "next_check": {"type": "string"},
-        "policies": {
-          "type": "list",
+        "current_building_level_onsite_status": {
+          "type": "null"
+        },
+        "current_staffed_capacity": {
+          "type": "null"
+        },
+        "entrance": {
+          "type": "null"
+        },
+        "has_documented_nabh_pilot_link_in_this_case": {
+          "type": "boolean"
+        },
+        "has_documented_vf_occurrence_link_in_this_case": {
+          "type": "boolean"
+        },
+        "known_at_shared_campus": {
+          "type": "array",
           "items": {
             "type": "object",
-            "required": ["policy", "result"],
-            "properties": {"policy": {"type": "string"}, "result": {"type": "string"}}
+            "additionalProperties": false,
+            "required": [
+              "locator",
+              "period",
+              "unit",
+              "value"
+            ],
+            "properties": {
+              "locator": {
+                "type": "string"
+              },
+              "period": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "unit": {
+                "type": "string"
+              },
+              "value": {
+                "type": "integer"
+              }
+            }
           }
+        },
+        "name": {
+          "type": "string"
+        },
+        "publisher": {
+          "type": "string"
+        },
+        "release_date": {
+          "type": "string"
+        },
+        "shared_address_display": {
+          "type": "null"
+        },
+        "shared_address_source_reference": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "travel_minutes": {
+          "type": "null"
+        }
+      }
+    },
+    "schema": {
+      "type": "string"
+    },
+    "vf_trace_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "campus_located_lead_keys",
+        "cohort_associations_with_service_observation_date",
+        "cohort_candidate_associations",
+        "exact_object_associations_by_field",
+        "exact_shared_osm_object_keys",
+        "explicit_competing_branch_bindings",
+        "grain",
+        "independent_same_premises_bindings",
+        "keys_with_another_retained_site_group",
+        "map_snapshots",
+        "missing_branch_crosswalk_keys",
+        "national_external_lead_keys",
+        "point_precision",
+        "reviewed_onsite_pairs",
+        "same_origin_family",
+        "same_osm_by_service",
+        "source"
+      ],
+      "properties": {
+        "campus_located_lead_keys": {
+          "type": "integer"
+        },
+        "cohort_associations_with_service_observation_date": {
+          "type": "integer"
+        },
+        "cohort_candidate_associations": {
+          "type": "integer"
+        },
+        "exact_object_associations_by_field": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "healthcare:speciality",
+            "name"
+          ],
+          "properties": {
+            "healthcare:speciality": {
+              "type": "integer"
+            },
+            "name": {
+              "type": "integer"
+            }
+          }
+        },
+        "exact_shared_osm_object_keys": {
+          "type": "integer"
+        },
+        "explicit_competing_branch_bindings": {
+          "type": "integer"
+        },
+        "grain": {
+          "type": "string"
+        },
+        "independent_same_premises_bindings": {
+          "type": "integer"
+        },
+        "keys_with_another_retained_site_group": {
+          "type": "integer"
+        },
+        "map_snapshots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "missing_branch_crosswalk_keys": {
+          "type": "integer"
+        },
+        "national_external_lead_keys": {
+          "type": "integer"
+        },
+        "point_precision": {
+          "type": "string"
+        },
+        "reviewed_onsite_pairs": {
+          "type": "integer"
+        },
+        "same_origin_family": {
+          "type": "string"
+        },
+        "same_osm_by_service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "dialysis",
+            "mri",
+            "trauma_care"
+          ],
+          "properties": {
+            "dialysis": {
+              "type": "integer"
+            },
+            "mri": {
+              "type": "integer"
+            },
+            "trauma_care": {
+              "type": "integer"
+            }
+          }
+        },
+        "source": {
+          "type": "string"
         }
       }
     }

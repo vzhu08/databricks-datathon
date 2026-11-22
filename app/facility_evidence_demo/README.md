@@ -42,8 +42,12 @@ To be filled before release, on #252:
 
 | Check | Owner | Status |
 | --- | --- | --- |
-| Field schema matches the frozen `display.json` | Vincent | pending |
+| Field schema matches the frozen `display.json` | Vincent | done: `display_schema.json` is his schema from #252 (comment 7076517433) |
 | Display scope and audience for each field | Vincent | cleared on #252 (comments 7076403964, 7076491893) |
-| Every displayed figure against its source | D | pending |
+| Every displayed figure against its source | D | payload verified on #252 (comment 7076496750); rendered page pending |
 | Page renders the pinned edition, links open, dates read correctly | Andrew | pending real-file run |
 | Publication and deployment | Oliver | not requested by this change |
+
+D noted that the GitHub evidence links need repository access, so the page labels them "team record, needs
+repository access" and carries the method, dates and denominators inline. An audience-accessible provenance
+summary is Oliver's call.

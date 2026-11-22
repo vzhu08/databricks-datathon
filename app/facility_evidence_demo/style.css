@@ -54,10 +54,11 @@
 .fe-policies th { width: 38%; font-weight: 600; }
 
 .fe-facts { list-style: none; padding: 0; margin: 0.25rem 0 0; }
-.fe-facts li { display: grid; grid-template-columns: 9rem 1fr; column-gap: 1rem; padding: 0.7rem 0;
+.fe-facts li { display: grid; grid-template-columns: 11rem 1fr; column-gap: 1rem; padding: 0.7rem 0;
   border-bottom: 1px solid var(--rule); }
 .fe-when { font-weight: 700; font-variant-numeric: tabular-nums; grid-row: span 2; }
 .fe-scope { display: block; margin-top: 0.2rem; }
+.fe-host { color: var(--quiet); }
 
 .fe-down { border: 1.5px solid var(--ink); border-radius: 3px; padding: 1.25rem 1.5rem; background: var(--paper); }
 .fe-down h2 { font-size: 1.6rem; margin: 0 0 0.5rem; padding: 0; }

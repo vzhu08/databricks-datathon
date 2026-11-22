@@ -37,6 +37,16 @@ def edited(change):
 
 
 class LoaderTests(unittest.TestCase):
+    def test_schema_is_closed_everywhere(self):
+        def walk(spec, where):
+            if spec.get("type") == "object":
+                self.assertFalse(spec.get("additionalProperties", True), where)
+                for key, item in spec["properties"].items():
+                    walk(item, f"{where}.{key}")
+            if spec.get("type") == "array":
+                walk(spec["items"], where + "[]")
+        walk(loader.SCHEMA, "display")
+
     def test_synthetic_file_loads_and_says_it_is_synthetic(self):
         loaded = load_bytes(RAW, SHA)
         self.assertEqual("ok", loaded["status"])
@@ -44,6 +54,7 @@ class LoaderTests(unittest.TestCase):
 
     def test_pinned_hash_is_the_handed_off_edition_and_never_the_fixture(self):
         self.assertEqual("13c7b8736237f43e3461b96e99f58be2233be9db1f7d0154888663a917bfad99", loader.PINNED_SHA256)
+        self.assertEqual(loader.REAL_EDITION_SHA256, loader.PINNED_SHA256)
         self.assertNotEqual(SHA, loader.PINNED_SHA256)
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "display.json"
@@ -59,18 +70,20 @@ class LoaderTests(unittest.TestCase):
 
     def test_refusals(self):
         cases = {
-            "unknown field": lambda d: d["result"].update(score=0.9),
-            "nested unknown field": lambda d: d["public_case"]["facts"][0].update(latitude=17.4),
-            "travel time": lambda d: d["result"].update(travel_minutes=12),
-            "missing field": lambda d: d["vf_trace"].pop("credit"),
-            "bad count": lambda d: d["vf_trace"].update(same_object_keys=-1),
-            "bool as count": lambda d: d["vf_trace"].update(map_origins=True),
-            "bad date": lambda d: d["edition"].update(as_of="yesterday"),
-            "plain http link": lambda d: d["national_result"].update(source_url="http://example.org/x"),
-            "script link": lambda d: d["vf_trace"]["credit"].update(url="javascript:alert(1)"),
-            "service split does not add up": lambda d: d["vf_trace"].update(same_object_keys=4),
-            "destinations listed": lambda d: d["result"].update(eligible_destinations=2),
-            "empty text": lambda d: d["result"].update(next_check="  "),
+            "unknown field": lambda d: d["decision"].update(score=0.9),
+            "nested unknown field": lambda d: d["public_case"]["known_at_shared_campus"][0].update(latitude=17.4),
+            "travel time filled in": lambda d: d["public_case"].update(travel_minutes=12),
+            "address filled in": lambda d: d["public_case"].update(shared_address_display="1 Example Road"),
+            "scores filled in": lambda d: d["decision"]["point_rank"].update(scores=[0.9]),
+            "rate filled in": lambda d: d["decision"]["evaluation"].update(wrong_branch_rate=0.1),
+            "missing field": lambda d: d["vf_trace_case"].pop("same_origin_family"),
+            "negative count": lambda d: d["vf_trace_case"].update(reviewed_onsite_pairs=-1),
+            "bool as count": lambda d: d["vf_trace_case"].update(reviewed_onsite_pairs=True),
+            "float as count": lambda d: d["national"].update(occurrences=10.5),
+            "service split does not add up": lambda d: d["vf_trace_case"].update(exact_shared_osm_object_keys=4),
+            "destinations listed": lambda d: d["decision"]["point_rank"].update(eligible_destinations_in_cases=2),
+            "empty text": lambda d: d["decision"]["verify"].update(highest_value_fact="  "),
+            "not an object": lambda d: d.update(national=[]),
         }
         for name, change in cases.items():
             with self.subTest(name):
@@ -89,11 +102,11 @@ class WordingTests(unittest.TestCase):
     def text(self):
         return json.dumps(self.view, ensure_ascii=False)
 
-    def test_answer_is_zero_destinations_with_no_numbers_invented(self):
+    def test_answer_is_zero_destinations_and_the_file_s_next_check(self):
         result = self.view["result"]
         self.assertEqual("No facility can be recommended yet", result["headline"])
         self.assertIn("0 eligible destinations", result["line"])
-        self.assertEqual(self.data["result"]["next_check"], result["next_check"])
+        self.assertEqual(self.data["decision"]["verify"]["highest_value_fact"], result["next_check"])
 
     def test_every_number_shown_comes_from_the_file(self):
         allowed = set()
@@ -112,7 +125,6 @@ class WordingTests(unittest.TestCase):
             elif isinstance(value, str):
                 allowed.update(int(n) for n in re.findall(r"\d+", value))
         collect(self.data)
-        allowed |= {n for n in range(1, len(walkthrough.RUNGS) + 1)}  # step numbers
         view = dict(self.view, rungs=None)
         for number in re.findall(r"\d[\d,]*", json.dumps(view, ensure_ascii=False)):
             self.assertIn(int(number.replace(",", "")), allowed, number)
@@ -123,21 +135,36 @@ class WordingTests(unittest.TestCase):
         for word in ("km away", "minutes away", "score:", "rank #"):
             self.assertNotIn(word, text)
 
-    def test_trace_and_public_case_keep_their_limits(self):
+    def test_trace_keeps_its_limits(self):
         trace = self.view["trace"]
-        self.assertIn("same OpenStreetMap lineage", trace["limits"][0])
+        self.assertIn("share one origin", trace["limits"][0])
         self.assertEqual("partial", trace["rungs"]["independent"])
         self.assertEqual("missing", trace["rungs"]["dated"])
-        self.assertIn("1 dialysis and 2 trauma care", trace["line"])
-        public = self.view["public"]
-        self.assertIn("not linked", public["link_line"])
-        self.assertEqual("missing", public["rungs"]["branch"])
-        self.assertEqual([f["as_of"] for f in self.data["public_case"]["facts"]],
-                         [f["as_of"] for f in public["facts"]])
+        self.assertIn("(1 dialysis and 2 trauma care)", trace["line"])
+        self.assertNotIn("MRI", trace["line"])  # zero counts are left out
+        self.assertEqual("team record, needs repository access", trace["source"]["note"])
 
-    def test_no_case_clears_the_last_step(self):
-        for case in (self.view["trace"], self.view["public"]):
-            self.assertEqual("missing", case["rungs"]["branch"])
+    def test_public_case_keeps_dates_scope_and_unknowns_apart(self):
+        public = self.view["public"]
+        self.assertIn("Not linked to a Virtue Foundation record or the accreditation pilot", public["link_line"])
+        whens = [f["when"] for f in public["facts"]]
+        self.assertEqual(["Reported 2000-01-03, period not stated", "1999-2000", "1999-01-01"], whens)
+        self.assertEqual("Synthetic hospital A", public["facts"][-1]["scope"])
+        self.assertEqual(5, len(public["unknown"]))
+        self.assertTrue(public["reference"]["url"])
+        self.assertEqual("missing", public["rungs"]["branch"])
+
+    def test_plain_text_sources_are_not_links(self):
+        data = json.loads(RAW)
+        data["public_case"]["source"] = "javascript:alert(1)"
+        view = walkthrough.build(data)
+        self.assertIsNone(view["public"]["facts"][0]["source"]["url"])
+
+    def test_policies_and_unknown_rates_come_from_the_file(self):
+        d = self.view["decision"]
+        self.assertEqual(4, len(d["policies"]))
+        self.assertIn("0 requests could be scored", d["evaluation"])
+        self.assertIn("wrong-branch rate", d["evaluation"])
 
 
 @unittest.skipUnless(HAS_STREAMLIT, "streamlit is not installed")
@@ -159,7 +186,8 @@ class ScreenTests(unittest.TestCase):
         self.assertFalse(app.exception)
         self.assertIn("Synthetic test file", text)
         self.assertIn("No facility can be recommended yet", text)
-        self.assertIn("Synthetic map contributors", text)
+        self.assertIn("OpenStreetMap contributors", text)
+        self.assertIn("Test edition", text)
         self.assertNotIn("Data unavailable", text)
 
     def test_missing_file_shows_unavailable_and_nothing_else(self):

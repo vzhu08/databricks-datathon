@@ -26,13 +26,13 @@ def esc(text):
     return html.escape(str(text), quote=False)
 
 
-def link(url, label):
-    return (f'<a href="{html.escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">'
-            f"{esc(label)}</a>")
-
-
-def host(url):
-    return url.split("/")[2].removeprefix("www.")
+def cite(src):
+    """A source from walkthrough.source: a link with its host or access note, or plain text."""
+    if not src["url"]:
+        return esc(src["label"])
+    note = f' <span class="fe-host">({esc(src["note"])})</span>' if src["note"] else ""
+    return (f'<a href="{html.escape(src["url"], quote=True)}" target="_blank" rel="noopener noreferrer">'
+            f"{esc(src['label'])}</a>{note}")
 
 
 def show(markup):
@@ -78,48 +78,50 @@ def why(view):
          f"{ladder(view)}</section>")
 
 
+def items(lines):
+    return "".join(f"<li>{esc(line)}</li>" for line in lines)
+
+
 def national(view):
     n = view["national"]
+    quiet = n["denominator"] + (" " + n["accuracy"] if n["accuracy"] else "")
     show(f'<section class="fe-sec fe-case"><p class="fe-num">{esc(n["headline"])}</p>'
          '<h2>Across the national records</h2>'
-         f'<p>{esc(n["line"])}</p><p class="fe-quiet">{esc(n["denominator"])}</p>'
-         f'<p class="fe-src">Source: {link(n["source_url"], "replay of this count on GitHub")}</p></section>')
+         f'<p>{esc(n["line"])}</p><p class="fe-quiet">{esc(quiet)}</p>'
+         f'<p class="fe-src">Source: {cite(n["source"])}</p></section>')
 
 
 def trace(view):
     t = view["trace"]
-    limits = "".join(f"<li>{esc(line)}</li>" for line in t["limits"])
     show(f'<section class="fe-sec fe-case"><p class="fe-num">{esc(t["headline"])}</p>'
          '<h2>Virtue Foundation records checked against the map</h2>'
-         f'<p>{esc(t["line"])}</p><h3>What that does not show</h3><ul>{limits}</ul>'
-         f'<p class="fe-quiet">Counts only. Individual facility records stay private to the team.</p>'
-         f'<p class="fe-src">Source: {link(t["source_url"], "frozen source trace on GitHub")} · Map data © '
-         f'{link(t["credit"]["url"], t["credit"]["text"])}</p></section>')
+         f'<p>{esc(t["line"])}</p><h3>What that does not show</h3><ul>{items(t["limits"])}</ul>'
+         f'<p class="fe-quiet">{esc(t["grain"])}. Map editions: {esc(", ".join(t["snapshots"]))}. '
+         "Individual facility records stay private to the team.</p>"
+         f'<p class="fe-src">Source: {cite(t["source"])} · Map data © '
+         '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">'
+         "OpenStreetMap contributors</a></p></section>")
 
 
 def public(view):
     p = view["public"]
     facts = "".join(
-        f'<li><span class="fe-when">{esc(f["as_of"])}</span><span class="fe-fact">{esc(f["statement"])}</span>'
-        f'<span class="fe-scope">Scope: {esc(f["scope"])} · {link(f["source_url"], f["source_label"])} '
-        f'({esc(host(f["source_url"]))})</span></li>' for f in p["facts"])
-    refs = "".join(f'<li>{link(r["url"], r["label"])}' + (f' · {esc(r["note"])}' if r.get("note") else "")
-                   + "</li>" for r in p["references"])
-    unknown = "".join(f"<li>{esc(u)}</li>" for u in p["unknown"])
+        f'<li><span class="fe-when">{esc(f["when"])}</span><span class="fe-fact">{esc(f["what"])}</span>'
+        f'<span class="fe-scope">{esc(f["scope"])} · {cite(f["source"])}</span></li>' for f in p["facts"])
     show(f'<section class="fe-sec fe-case"><h2>{esc(p["title"])}</h2>'
          f'<p class="fe-flag">{esc(p["link_line"])}</p>'
+         f'<p>Buildings named: {esc(", ".join(p["buildings"]))}. Operator lineage: {esc(p["lineage"])}.</p>'
          f'<h3>What the sources say, and when</h3><ol class="fe-facts">{facts}</ol>'
-         + (f"<h3>Reference only</h3><ul>{refs}</ul>" if refs else "")
-         + f"<h3>Still unknown</h3><ul>{unknown}</ul></section>")
+         f'<p class="fe-src">Reference only: {cite(p["reference"])}</p>'
+         f'<h3>Still unknown</h3><ul>{items(p["unknown"])}</ul></section>')
 
 
 def policies(view):
-    rows = view["result"]["policies"]
-    if not rows:
-        return
-    body = "".join(f'<tr><th scope="row">{esc(r["policy"])}</th><td>{esc(r["result"])}</td></tr>' for r in rows)
+    d = view["decision"]
+    body = "".join(f'<tr><th scope="row">{esc(name)}</th><td>{esc(result)}</td></tr>' for name, result in d["policies"])
     show('<section class="fe-sec"><h2>How each ranking rule handles this evidence</h2>'
-         f'<table class="fe-policies"><tbody>{body}</tbody></table></section>')
+         f'<table class="fe-policies"><tbody>{body}</tbody></table>'
+         f'<p class="fe-quiet">{esc(d["evaluation"])}</p></section>')
 
 
 st.set_page_config(page_title="Facility evidence", layout="centered")
@@ -135,10 +137,10 @@ if loaded["status"] != "ok":
     st.stop()
 
 view = walkthrough.build(loaded["data"])
-if view["synthetic"]:
+if loaded["synthetic"]:
     show('<p class="fe-synthetic" role="note"><strong>Synthetic test file.</strong> Every figure below is '
          "invented for testing the screen. It is not the real edition.</p>")
-show(f'<p class="fe-edition">{"Test edition" if view["synthetic"] else "Real data"}: {esc(view["edition"])}. '
+show(f'<p class="fe-edition">{"Test edition" if loaded["synthetic"] else "Real data"}: {esc(view["edition"])}. '
      "Fingerprint checked before anything is shown.</p>")
 answer(view)
 why(view)
@@ -146,5 +148,5 @@ national(view)
 trace(view)
 public(view)
 policies(view)
-show('<footer class="fe-foot">No scores, ranks, travel times, free slots or percentages appear here, because '
+show(f'<footer class="fe-foot">Cleared audience: {esc(view["audience"])}. No scores, ranks, travel times, free slots or percentages appear here, because '
      "none can be computed from this evidence. Release of this page is the team lead's decision.</footer>")
