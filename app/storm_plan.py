@@ -43,6 +43,10 @@ APPROVED_ROSTERS = {
     "b62f377a61f9dee796ff0a4c56afcad96195a3ad196c1e4806dcc8c119e63f35",
 }
 CLEARED_PRECISION = ("mapped_point", "campus_anchor", "area")
+REPRODUCE = ("The planner is app/simulation/batch_planner.py in the project repository. It needs the approved "
+             "location roster whose SHA-256 is shown above; the roster itself is not kept in the repository.")
+REPRODUCE_SYNTHETIC = ("The planner is app/simulation/batch_planner.py in the project repository. Running it with "
+                       "this seed and no roster produces this file.")
 SITES_NOTE = "The sites are generated for the test geography. No real place is shown."
 LABEL = "Real facility locations · simulated patients, services, staffed places and travel"
 LABEL_SYNTHETIC = "Simulated sites, patients, services, staffed places and travel · no real place is shown"
@@ -267,6 +271,87 @@ def breakdown(plan, key, results):
                       for group, reason in pairs]}
 
 
+def difference(plan, order):
+    """One patient the two policies treated differently, picked by a fixed rule: first a patient only the
+    optimum placed, else one sent to a different facility; highest priority first, then patient id."""
+    patients = {patient["id"]: patient for patient in plan["patients"]}
+    sites = {facility["id"]: facility for facility in plan["facilities"]}
+    first, best = (plan["policies"][key] for key, _ in POLICIES)
+    near = {row["patient"]: row for row in first["assignments"]}
+    left = {row["patient"]: _plain(row["reason"]) for row in first["unserved"]}
+    rank = lambda row: (order.index(urgency(patients[row["patient"]])), row["patient"])  # noqa: E731
+    gained = sorted((row for row in best["assignments"] if row["patient"] in left), key=rank)
+    moved = sorted((row for row in best["assignments"]
+                    if row["patient"] in near and near[row["patient"]]["facility"] != row["facility"]), key=rank)
+    if not gained and not moved:
+        return None
+    chosen = (gained or moved)[0]
+    patient = patients[chosen["patient"]]
+
+    def place(row):
+        site = sites[row["facility"]]
+        bucket = next((resource for resource in site["resources"] if resource.get("slot_id") is not None
+                       and resource.get("slot_id") == row.get("slot_id")), {})
+        return {"label": site["label"], "precision": PRECISION[site["precision"]].lower(),
+                "minutes": _minutes(travel(row)), "start": row.get("slot_start_minute", bucket.get("start_minute")),
+                "basis": basis(bucket, site).lower()}
+
+    holder = None
+    if gained and chosen.get("slot_id") is not None:  # who had that same place under nearest first
+        others = sorted((row for row in first["assignments"] if row.get("slot_id") == chosen["slot_id"]), key=rank)
+        if others:
+            other = patients[others[-1]["patient"]]
+            holder = {"id": other["id"], "priority": _plain(urgency(other)).lower(),
+                      "arrival": other.get("arrival_minute")}
+    return {"id": patient["id"], "priority": _plain(urgency(patient)).lower(),
+            "service": _plain(patient["service"]).lower(), "arrival": patient.get("arrival_minute"),
+            "kind": _plain(patient_class(patient)).lower() if patient_class(patient) else None,
+            "reason": left.get(patient["id"]), "near": place(near[patient["id"]]) if patient["id"] in near else None,
+            "best": place(chosen), "holder": holder}
+
+
+def advice(plan, results, order, total):
+    """What a district planner could take from the run. Every number is counted here; nothing is promised."""
+    first, best = results
+    lines, gain = [], best["assigned"] - first["assigned"]
+    top = order[0]
+    if gain > 0:
+        urgent = best["by_priority"][top] - first["by_priority"][top]
+        lines.append(f"Assigning the same staffed places differently placed {gain} more of the {total:,} simulated "
+                     f"patients, {urgent} of them {_plain(top).lower()} priority, with no added capacity.")
+    patients = {patient["id"]: patient for patient in plan["patients"]}
+    short = Counter(patients[row["patient"]]["service"] for row in plan["policies"][best["key"]]["unserved"])
+    if short:
+        service, count = sorted(short.items(), key=lambda item: (-item[1], item[0]))[0]
+        places = sum(resource["slots"] for facility in plan["facilities"] for resource in facility["resources"]
+                     if resource["service"] == service)
+        used = sum(1 for row in plan["policies"][best["key"]]["assignments"] if row["service"] == service)
+        name = _plain(service).lower()
+        if places:
+            lines.append(f"Even at the optimum {best['unmet']:,} had no place, {count:,} of them needing {name}: "
+                         f"{used:,} of the {places:,} {name} places in the shift were used. That is the shortage to "
+                         "test next: more staffed places for that service, or longer hours.")
+        else:
+            lines.append(f"Even at the optimum {best['unmet']:,} had no place, {count:,} of them needing {name}, "
+                         "which no site in this file offers. That is the gap to test next: where that service "
+                         "could be staffed.")
+    elif gain > 0:
+        lines.append("At the optimum every simulated patient had a place, so in this scenario the staffed places "
+                     "were enough and the gap was in how they were assigned.")
+    else:
+        lines.append("Both policies placed every simulated patient, so in this scenario the staffed places were "
+                     "enough.")
+    return lines
+
+
+def shared(plan):
+    """Travel for the patients both policies placed, so the two totals describe the same people."""
+    first, best = ({row["patient"]: travel(row) for row in plan["policies"][key]["assignments"]} for key, _ in POLICIES)
+    both = sorted(set(first) & set(best))
+    return {"patients": len(both), "near": _minutes(sum(first[patient] for patient in both)),
+            "best": _minutes(sum(best[patient] for patient in both))}
+
+
 def real(plan):
     """Whether the file says its facility locations are real. Generated sites are never presented as real."""
     return plan["geography"]["location_basis"] == PUBLIC
@@ -337,6 +422,7 @@ def view(plan):
         "by_class": breakdown(plan, lambda patient: patient_class(patient) or "Class not given", results)
         if classed else None,
         "by_service": breakdown(plan, lambda patient: patient["service"], results),
+        "difference": difference(plan, order), "advice": advice(plan, results, order, total), "shared": shared(plan),
         "resources": resources, "places": sum(slots.values()), "facilities": len(labels),
         "precision": [(key, name, precision[key]) for key, name in PRECISION.items() if precision[key]],
         "roster": [{"label": facility["label"], "precision": PRECISION[facility["precision"]],
@@ -407,6 +493,36 @@ def markup(plan):
         + "</tr>" for level in found["order"])
     pairs = "".join(f'<th class="sp-n">{safe(result["name"])}: placed</th><th class="sp-n">not placed</th>'
                     for result in results)
+    case, same = found["difference"], found["shared"]
+    story = ""
+    if case:
+        who = f"{case['priority']} priority" + (f", {case['kind']}" if case["kind"] else "") \
+            + f", needs {case['service']}" + (f", arrives at minute {case['arrival']}" if case["arrival"] is not None else "")
+
+        def where(spot):
+            start = f", in the place starting at minute {spot['start']}" if spot["start"] is not None else ""
+            return (f"{spot['label']} ({spot['precision']}; service and capacity {spot['basis']}){start}, "
+                    f"{spot['minutes']} minutes of modelled travel")
+
+        before = (f"sent to {where(case['near'])}" if case["near"] else f"not placed ({case['reason'].lower()})")
+        held = ""
+        if case["holder"]:
+            came = (f", who arrived at minute {case['holder']['arrival']}"
+                    if case["holder"]["arrival"] is not None else "")
+            held = (f"<li>Under nearest first that same place went to {safe(case['holder']['id'])}, a "
+                    f"{safe(case['holder']['priority'])}-priority patient{came}.</li>")
+        story = (f'<h3>One simulated patient, two decisions</h3><ul class="sp-facts" data-case="{safe(case["id"])}">'
+                 f"<li><strong>{safe(case['id'])}</strong> ({safe(who)}).</li>"
+                 f"<li><strong>Nearest first:</strong> {safe(before)}.</li>"
+                 f"<li><strong>Exact optimum:</strong> placed at {safe(where(case['best']))}.</li>{held}</ul>")
+    cohort = (f" The {same['patients']:,} patients placed under both policies travelled {same['near']} minutes in "
+              f"total under nearest first and {same['best']} under the exact optimum; the totals on the cards cover "
+              "different patients." if same["patients"] else "")
+    planner = ('<h3>For a district planner</h3><ul class="sp-facts">'
+               + "".join(f"<li>{safe(line)}</li>" for line in found["advice"])
+               + "<li>These are outcomes of a simulation with invented demand and capacity. They show what to test, "
+               "not what any facility can deliver today, and they are not treatment outcomes.</li></ul>")
+
     def grouped(title, first, found_groups):
         body = "".join(
             f"<tr><td>{safe(_plain(row['group']))}</td><td class=\"sp-n\">{row['patients']:,}</td>"
@@ -455,8 +571,9 @@ def markup(plan):
         f'<div class="sp-label">{LABEL if actual else LABEL_SYNTHETIC} · seed {scenario["seed"]}</div>'
         f'<h3 class="sp-top">{safe(place["name"])}: {total:,} simulated patients, {found["facilities"]:,} facilities, '
         f'{found["places"]:,} staffed places</h3>'
-        f'<div class="sp-pair">{cards}</div><div class="sp-say">{safe(found["say"])} '
+        f'<div class="sp-pair">{cards}</div><div class="sp-say">{safe(found["say"])}{safe(cohort)} '
         f'<strong>Objective.</strong> {safe(scenario["objective"])}</div>'
+        f"{story}{planner}"
         f'<h3>By priority</h3><div class="sp-scroll"><table><thead><tr><th>Priority</th><th class="sp-n">Patients</th>'
         f"{pairs}</tr></thead><tbody>{priority}</tbody></table></div>"
         f"{groups}"
@@ -475,7 +592,9 @@ def markup(plan):
         f'<h3>About the simulated shift</h3><ul class="sp-facts">'
         f'<li><strong>What is simulated.</strong> {safe(scenario["simulated"])}</li>'
         f'<li><strong>Time covered.</strong> {safe(scenario["horizon"])}</li>'
-        f'<li><strong>Travel.</strong> {safe(scenario["travel_basis"])}</li></ul>'
+        f'<li><strong>Travel.</strong> {safe(scenario["travel_basis"])}</li>'
+        f"<li><strong>To reproduce.</strong> {safe(REPRODUCE if actual else REPRODUCE_SYNTHETIC)} "
+        f"Seed {scenario['seed']}. This page recounts every figure from the assignment rows in the file.</li></ul>"
         f"<details><summary>Staffed places used, by facility and service</summary>"
         f'<div class="sp-scroll"><table><thead><tr><th>Facility</th><th>Service</th><th>Service and capacity basis</th>'
         f'<th class="sp-n">Staffed places</th>'
