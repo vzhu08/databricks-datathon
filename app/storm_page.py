@@ -28,8 +28,8 @@ HOW = ("Press Play or Next to run one shift, or Skip to the result to reach the 
 REPLAY = "Checked 8-request replay"
 TWO_VIEWS = ("Two views of the same question: who gets a staffed place when demand outruns capacity. The replay "
              "steps through a few invented requests one at a time, so you can see why each policy chose as it did. "
-             "The planning simulation places {patients:,} simulated patients across {sites:,} {where} and compares "
-             "nearest first with the best possible assignment.")
+             "The planning simulation tests how many of {patients:,} simulated patients each policy can place "
+             "across {sites:,} {where}, nearest first against the best possible assignment.")
 RUN_ROADS = "Run signed-in road-time comparison"
 _TRAFFIC_RESULT = "storm_traffic_display"
 UNAVAILABLE = "The storm replay files are not in this deployment, so the replay cannot be shown."

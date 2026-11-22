@@ -502,7 +502,9 @@ class ScreenTests(unittest.TestCase):
         self.file.write_text(json.dumps(plan()), encoding="utf-8")
         app = self.storm()
         expected = page.views_note(plan())
-        self.assertIn("places 6 simulated patients across 3 real site locations", expected)
+        self.assertIn("tests how many of 6 simulated patients each policy can place across 3 real site locations",
+                      expected)
+        self.assertNotIn("places 6", expected)  # the count is who asked, not who was placed
         for choice in (0, 1):  # the same line on both views, counted from the file
             app = self.run_(self.views(app)[0].set_value(self.views(app)[0].options[choice]))
             self.assertEqual([expected], [note.value for note in app.caption if "Two views" in note.value])
