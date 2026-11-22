@@ -123,4 +123,3 @@ question catalogue, stories and finder bridge. What changed on screen:
 - **References are a list of titles**, each linking to the page the rule cites. Nothing is fetched.
 - **"Fill in the answers from the story" is gone.** With at most one question there is nothing to
   shortcut.
-
