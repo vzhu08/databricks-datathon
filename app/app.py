@@ -37,6 +37,7 @@ import find_care as words  # noqa: E402
 import finding_provenance as provenance  # noqa: E402
 import national_directory  # noqa: E402
 import patient_ui  # noqa: E402
+from public_facility_search import search_public_facilities  # noqa: E402
 import storm_page  # noqa: E402
 from data_access import search_warehouse  # noqa: E402
 from ranking import search_facilities  # noqa: E402
@@ -388,7 +389,7 @@ def slip(view, stale, service=None, response=None):
 
 st.set_page_config(page_title="Check symptoms and find care", layout="wide")
 # The patient screen is the product and opens first. Find care below is the separate facility search.
-VIEW = patient_ui.entry(st, "Find care (demonstration)" if DEMO else "Find care", storm_page.STORM)
+VIEW = patient_ui.entry(st, "Find care", storm_page.STORM)
 if VIEW == patient_ui.PATIENT:
     patient_ui.render()
     st.stop()
@@ -397,6 +398,36 @@ if VIEW == storm_page.STORM:  # a simulated replay on its own: no patient visit,
     st.stop()
 st.markdown(STYLE, unsafe_allow_html=True)
 st.title("Find care")
+lookup_modes = ["Public facility evidence"]
+if DEMO:
+    lookup_modes.append("Simulated scenarios")
+elif DATA["mode"] in ("warehouse", "setup"):
+    lookup_modes.append("Private warehouse lookup")
+lookup_mode = st.radio("Find care mode", lookup_modes, horizontal=True, key="lookup_source")
+if lookup_mode == "Public facility evidence":
+    st.caption("Search the reviewed public-source collection by city and service. Coverage is limited.")
+    place = st.text_input("City", value="Pune", max_chars=120)
+    service = st.text_input("Service", value="maintenance haemodialysis", max_chars=120)
+    if st.button("Search public sources", type="primary"):
+        try:
+            claims = search_public_facilities(place=place, service=service)
+        except (OSError, ValueError):
+            st.error("Public facility evidence is currently unavailable.")
+        else:
+            if not claims:
+                st.info("This collection has no reviewed public claim for that city and service.")
+            for claim in claims:
+                st.subheader(claim["operator"])
+                st.write(claim["service"])
+                st.caption(f"Operator-reported service · {claim['location_scope']}")
+                st.link_button("Read the operator’s service page", claim["source_url"])
+                st.write(f"Page checked {claim['checked_on']}. Treatment observation date unknown.")
+                st.write("Current availability, staffing, appointment acceptance and exact entrance are unknown.")
+                st.caption("Source scope: public operator evidence. No reviewed match to a Virtue Foundation record.")
+                st.write(f"Call the published {claim['contact_label'].lower()} ({claim['contact_phone']}) "
+                         "to confirm the service and current availability.")
+    national_directory.render(st, HERE, False)
+    st.stop()
 if DATA["mode"] == "setup":
     st.error("Data: not available. This app is set to read the real facility records, but its setup is incomplete.")
     for problem in DATA["problems"]:

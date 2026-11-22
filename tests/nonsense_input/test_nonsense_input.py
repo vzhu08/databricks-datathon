@@ -208,7 +208,8 @@ class FindCareScreen(_Screen):
     def test_nonsense_in_the_place_line_gets_a_plain_message_and_no_facility(self):
         app = self.open()
         switch = app.radio(key="view")
-        app = switch.set_value(switch.options[1]).run()
+        app = switch.set_value("Find care").run()
+        app = app.radio(key="lookup_source").set_value("Simulated scenarios").run()
         for mode in [radio for radio in app.radio if radio.key == "mode"]:  # where the record lookup is a second job
             app = mode.set_value("lookup").run()
         for text in self.TYPED:
