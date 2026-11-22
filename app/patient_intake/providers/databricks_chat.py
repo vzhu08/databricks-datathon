@@ -10,13 +10,16 @@ _ENDPOINT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,62}")
 class DatabricksChatProbe:
     """The server configures the endpoint, authenticated transport and shared budgets."""
 
-    def __init__(self, *, endpoint, transport, budget, enabled=False, output_limit_field="max_tokens", timeout=5):
+    def __init__(self, *, endpoint, transport, budget, enabled=False, output_limit_field="max_tokens",
+                 output_tokens=256, timeout=5):
         if type(endpoint) is not str or not _ENDPOINT.fullmatch(endpoint):
             raise ValueError("invalid endpoint name")
         if output_limit_field not in ("max_tokens", "max_completion_tokens"):
             raise ValueError("invalid token limit field")
         if endpoint in ("databricks-gpt-oss-20b", "databricks-gpt-oss-120b") and output_limit_field != "max_tokens":
             raise ValueError("unsupported GPT-OSS token limit field")
+        if type(output_tokens) is not int or not 1 <= output_tokens <= 1024:
+            raise ValueError("invalid output token cap")
         if type(timeout) not in (int, float) or not 0 < timeout <= 10:
             raise ValueError("invalid physical timeout")
         self._timeout = timeout
@@ -25,6 +28,7 @@ class DatabricksChatProbe:
         self._budget = budget
         self._enabled = enabled is True
         self._output_limit_field = output_limit_field
+        self._output_tokens = output_tokens
 
     def exchange(self, instruction, synthetic_input):
         if not self._enabled:
@@ -37,7 +41,7 @@ class DatabricksChatProbe:
                 {"role": "system", "content": instruction},
                 {"role": "user", "content": synthetic_input},
             ],
-            self._output_limit_field: 256,
+            self._output_limit_field: self._output_tokens,
         }
         reply = self._transport.request("POST", self._path, encounter=self._budget, payload=payload,
                                         timeout=self._timeout)

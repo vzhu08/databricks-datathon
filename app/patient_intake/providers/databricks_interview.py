@@ -51,7 +51,7 @@ class DatabricksInterviewProvider:
         self._enabled = enabled is True
         self._lane = lane
         self._chat = DatabricksChatProbe(endpoint=endpoint, transport=transport, enabled=enabled,
-                                         budget=_PROCESS_BUDGETS[lane], timeout=timeout)
+                                         budget=_PROCESS_BUDGETS[lane], output_tokens=1024, timeout=timeout)
 
     def _reply(self, state, **fields):
         return dict(state=state, provider_id=self.identity[0], provider_version=self.identity[1], **fields)

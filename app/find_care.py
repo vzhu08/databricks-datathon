@@ -46,6 +46,77 @@ WAREHOUSE_SETTINGS = {
 }
 _TABLE = re.compile(r"[\w-]+\.[\w-]+\.[\w-]+")
 _COORDINATES = re.compile(r"([+-]?\d+(?:\.\d+)?)\s*[,\s]\s*([+-]?\d+(?:\.\d+)?)")
+# Typed-place cleanup for parse_location. Measured on 599 messy inputs (state abbreviations, old names,
+# "near X", "X, India", "PIN 560034" and similar); see the location-input check linked from #40.
+_STATES = ("Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chandigarh",
+           "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Goa", "Gujarat", "Haryana",
+           "Himachal Pradesh", "Jammu and Kashmir", "Jharkhand", "Karnataka", "Kerala", "Ladakh", "Lakshadweep",
+           "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Puducherry",
+           "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand",
+           "West Bengal")
+_STATE_ALIASES = {
+    **{name.lower(): name for name in _STATES},
+    # vehicle-registration and common short forms
+    "an": "Andaman and Nicobar Islands", "ap": "Andhra Pradesh", "ar": "Arunachal Pradesh", "as": "Assam", "br": "Bihar",
+    "ch": "Chandigarh", "cg": "Chhattisgarh", "ct": "Chhattisgarh", "dl": "Delhi", "nct of delhi": "Delhi", "ga": "Goa",
+    "gj": "Gujarat", "hr": "Haryana", "hp": "Himachal Pradesh", "jk": "Jammu and Kashmir", "j&k": "Jammu and Kashmir",
+    "j & k": "Jammu and Kashmir", "jh": "Jharkhand", "ka": "Karnataka", "kl": "Kerala", "la": "Ladakh", "mp": "Madhya Pradesh",
+    "mh": "Maharashtra", "mn": "Manipur", "ml": "Meghalaya", "mz": "Mizoram", "nl": "Nagaland", "od": "Odisha", "or": "Odisha",
+    "py": "Puducherry", "pb": "Punjab", "rj": "Rajasthan", "sk": "Sikkim", "tn": "Tamil Nadu", "ts": "Telangana",
+    "tg": "Telangana", "tr": "Tripura", "up": "Uttar Pradesh", "uk": "Uttarakhand", "ut": "Uttarakhand", "wb": "West Bengal",
+    # former and frequent alternative spellings
+    "orissa": "Odisha", "pondicherry": "Puducherry", "uttaranchal": "Uttarakhand", "tamilnadu": "Tamil Nadu",
+    "gujrat": "Gujarat", "chattisgarh": "Chhattisgarh", "chhatisgarh": "Chhattisgarh", "jammu & kashmir": "Jammu and Kashmir",
+}
+# Only former names that the facility records rarely or never use. Names the records use widely
+# (Bangalore, Gurgaon, Allahabad, Trivandrum) are left as typed, because they resolve already.
+_CITY_ALIASES = {"bombay": "Mumbai", "calcutta": "Kolkata", "madras": "Chennai", "poona": "Pune", "cawnpore": "Kanpur",
+                 "simla": "Shimla", "benares": "Varanasi", "banaras": "Varanasi",
+                 "dilli": "Delhi", "pondy": "Puducherry", "vizag": "Visakhapatnam", "vishakhapatnam": "Visakhapatnam",
+                 "tiruchi": "Tiruchirappalli",
+                 "ootacamund": "Ooty", "udhagamandalam": "Ooty", "amdavad": "Ahmedabad"}
+_CITY_STATES = {"delhi", "chandigarh", "puducherry", "pondicherry", "goa"}
+_KEEP_CITY = re.compile(r"\b(?:steel|salt lake|lake|port|sports) city$", re.I)  # "City" belongs to these names
+_PREFIX = re.compile(r"^(?:near(?:by)?|in|at|around|close to|next to)\s+", re.I)
+_SUFFIX = re.compile(r"(?:\s*,?\s*\bindia|\s+(?:city|town|district|dist\.?))$", re.I)
+# a PIN must stand alone: no letters, digits or decimal points touching it ("AB560034", "12.560034" are not PINs)
+_PIN_IN_TEXT = re.compile(r"(?<![\w.])([1-9]\d{2})[ -]?(\d{3})(?![\w.])")
+_SIX_DIGITS = re.compile(r"\d{3}[ -]?\d{3}")
+_PIN_WORDS = re.compile(r"\b(?:pin(?:\s*code)?|pincode|postal code|zip)\b[\s:#.-]*", re.I)
+
+
+def _clean_place(text):
+    """Strip the words around a place that the records never contain."""
+    previous = None
+    while previous != text:
+        previous = text
+        # a leading minus can be the sign of a latitude ("near -12.5, 77.6"), so only the end loses dashes
+        text = text.lstrip(" ;:!?").rstrip(" .;:!?-").strip()
+        text = _PREFIX.sub("", text)
+        if not _KEEP_CITY.search(text):
+            text = _SUFFIX.sub("", text).strip(" ,")
+    return text
+
+
+def _state(text):
+    return _STATE_ALIASES.get(" ".join(text.lower().replace(".", "").split()))
+
+
+def _split_state(text):
+    """City and state from 'Pune, Maharashtra', 'Pune, MH' or 'Pune Maharashtra'; state may be empty."""
+    if "," in text:
+        city, _, state = (part.strip() for part in text.partition(","))
+        return city, (_state(state) or state)
+    words = text.split()
+    for size in (6, 5, 4, 3, 2, 1):
+        if len(words) > size:
+            tail = " ".join(words[-size:])
+            state = _state(tail)
+            # without a comma, a short code counts only in capitals ("Pune MH"), and a state that is also a
+            # city name ("New Delhi", "Old Goa") is never split off
+            if state and (len(tail) > 3 or tail.isupper()) and tail.lower() not in _CITY_STATES:
+                return " ".join(words[:-size]), state
+    return text, ""
 
 
 def data_mode(environ):
@@ -126,11 +197,29 @@ def parse_location(text):
         return {"latitude": float(pair[1]), "longitude": float(pair[2])}
     if digits.isdigit():
         raise ValueError("A PIN code has six digits.")
+    if text.startswith(","):
+        raise ValueError("Type the city or town before the comma.")
+    cleaned = _clean_place(text)
+    pair = _COORDINATES.fullmatch(cleaned)
+    if pair:
+        return {"latitude": float(pair[1]), "longitude": float(pair[2])}
+    pins = _PIN_IN_TEXT.findall(cleaned)
+    if len(pins) > 1:
+        raise ValueError("Type one PIN code.")
+    if pins:
+        # a PIN is the most precise thing typed, so "PIN 560 034", "560-034" and "Jaipur 302001" search by PIN
+        return {"pin": "".join(pins[0])}
+    if _SIX_DIGITS.search(cleaned):
+        raise ValueError("Type the six-digit PIN code on its own, for example 560034.")
     if not any(character.isalpha() for character in text):
         raise ValueError("Type coordinates as latitude, then longitude, for example 26.92, 75.82.")
-    city, _, state = (part.strip() for part in text.partition(","))
+    city, state = _split_state(cleaned)
+    city = _clean_place(city)
     if not city:
+        if state:
+            raise ValueError("Type the city or town as well as the state.")
         raise ValueError("Type the city or town before the comma.")
+    city = _CITY_ALIASES.get(" ".join(city.lower().split()), city)
     return {"city": city, "state": state} if state else {"city": city}
 
 

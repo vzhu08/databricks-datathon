@@ -41,3 +41,10 @@ class DatabricksProbeTests(unittest.TestCase):
             self.raw.return_value = 200, "application/json", json.dumps({"choices": [{
                 "finish_reason": reason, "message": {"role": "assistant", "content": "partial"}}]}).encode(), {}
             self.assertEqual(probe.exchange("instruction", "invented").status, "invalid_response")
+
+
+    def test_output_token_cap_must_be_a_bounded_integer(self):
+        for cap in (0, 1025, True, 256.0):
+            with self.subTest(cap=cap), self.assertRaisesRegex(ValueError, "invalid output token cap"):
+                self.probe(enabled=True, output_tokens=cap)
+        self.raw.assert_not_called()

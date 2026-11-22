@@ -82,7 +82,7 @@ class InterviewTests(unittest.TestCase):
         self.assertEqual(timeout, 7)
         body = json.loads(raw)
         self.assertEqual(set(body), {"max_tokens", "messages"})
-        self.assertEqual(body["max_tokens"], 256)
+        self.assertEqual(body["max_tokens"], 1024)
         instructions, user_data = body["messages"]
         self.assertEqual(instructions["role"], "system")
         self.assertIn("bare JSON object", instructions["content"])
