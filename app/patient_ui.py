@@ -97,6 +97,8 @@ NO_PROVIDER = "No assessment provider is set up on this server, so your descript
 OUT_OF_DATE = "That step was out of date, so it was not used. This is the current state of your visit."
 BAD_ANSWER = "Answer the question shown, within any limits it gives, then send it."
 UNINTERPRETED = "Your description has not been interpreted."
+AGE_KEPT = "Age kept with it: {age} (whole years)."
+NO_AGE = "Age kept with it: none given."
 STOPPED = ("The assessment provider ended this assessment with the message above. It gave no result, no possible "
            "causes and no place to go. You can change your description or start over.")
 QUESTION_WITHHELD = "The assessment provider asked a question this screen cannot show, so it was withheld."
@@ -485,8 +487,12 @@ def _describe(st, box, said):
         st.text_area("Describe it in your own words", value=said[0] if said else "",
                      key=box.get("description_key", f"pt-description-{key}"), height=180,
                      help="For example what you feel, where, since when, and what makes it better or worse.")
-        st.number_input("Age in years (optional)", min_value=0, max_value=120, step=1,
-                        value=said[1] if said else None, key=f"pt-age-{key}")
+        # The field is created empty and filled from the visit, because a browser will not let a field that
+        # was created with a number be emptied: it put the earlier age back, so an age could never be removed.
+        if said and said[1] is not None and f"pt-age-{key}" not in st.session_state:
+            st.session_state[f"pt-age-{key}"] = said[1]
+        st.number_input("Age in years (optional)", min_value=0, max_value=120, step=1, value=None, key=f"pt-age-{key}",
+                        help="Whole years from 0 to 120. A decimal is cut to whole years. Empty the field to give no age.")
         st.caption(ENGLISH_ONLY + f" Use up to {MAX_DESCRIPTION:,} characters. Saving does not send your words "
                    "anywhere. Changing your description later clears any result and asks for your agreement again.")
         st.form_submit_button("Save and continue", type="primary", on_click=_save, args=(st,))
@@ -498,6 +504,8 @@ def _said(st, said):
     if said:
         st.caption("You wrote")
         st.text(said[0])
+        # The age is sent with the description, and the browser field cuts a decimal to whole years.
+        st.caption(AGE_KEPT.format(age=said[1]) if said[1] is not None else NO_AGE)
         st.caption(UNINTERPRETED)
 
 

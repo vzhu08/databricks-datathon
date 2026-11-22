@@ -636,6 +636,50 @@ class ScreenTests(unittest.TestCase):
         app = self.press(app, "Save and continue")
         self.assertIn("Send your description for assessment?", self.shown(app))
 
+    def test_the_age_that_is_kept_is_shown_before_anything_is_sent(self):
+        """The review says the age is sent. A browser cuts a typed 1.5 to 1, so the kept age has to be on screen."""
+        for typed, kept in ((None, "Age kept with it: none given."), (34, "Age kept with it: 34 (whole years)."),
+                            (1.5, "Age kept with it: 1 (whole years)."), (0, "Age kept with it: 0 (whole years).")):
+            with self.subTest(typed=typed):
+                provider = self.provider(DONE)
+                app = self.begin(self.open(), age=typed)
+                text = self.shown(app)
+                self.assertIn("Send your description for assessment?", text)
+                self.assertIn(kept, text)
+                self.assertEqual(provider.calls, [])  # shown before the provider has been given anything
+                app = self.press(app, "I agree. Send it for assessment")
+                self.assertEqual(provider.calls[0]["interview"]["context"]["age_years"],
+                                 None if typed is None else int(typed))
+                self.assertIn(kept, self.shown(app))
+        # Starting over clears the age line with everything else.
+        app = self.press(app, "Start over")
+        self.assertNotIn("Age kept with it", self.shown(app))
+
+    def test_an_age_given_earlier_can_be_removed(self):
+        """A browser puts back the number a field was created with, so the field is created empty and then filled."""
+        provider = self.provider(DONE)
+        app = self.press(self.begin(self.open(), age=35), "Change my description")
+        field = app.number_input(key="pt-age-0")
+        self.assertEqual(field.value, 35)  # the earlier age is still offered for editing
+        self.assertFalse(field.proto.HasField("default"), "a field created with a number cannot be emptied in a browser")
+        self.assertEqual(app.text_area(key="pt-description-0").value, STATEMENT)
+        field.set_value(None)
+        app = self.press(app, "Save and continue")
+        self.assertIn("Age kept with it: none given.", self.shown(app))
+        app = self.press(app, "I agree. Send it for assessment")
+        self.assertIsNone(provider.calls[0]["interview"]["context"]["age_years"])
+        # Keeping the earlier text also keeps the earlier age, and an edit can still change it.
+        provider = self.provider(DONE)
+        app = self.press(self.begin(self.open(), age=35), "Change my description")
+        app.number_input(key="pt-age-0").set_value(61)
+        app = self.press(app, "Keep what I wrote before")
+        self.assertIn("Age kept with it: 35 (whole years).", self.shown(app))
+        app = self.press(app, "Change my description")
+        self.assertEqual(app.number_input(key="pt-age-0").value, 35)
+        app.number_input(key="pt-age-0").set_value(61)
+        app = self.press(app, "Save and continue")
+        self.assertIn("Age kept with it: 61 (whole years).", self.shown(app))
+
     def test_start_over_and_withdrawal_clear_what_they_say_they_clear(self):
         provider = self.provider(DONE)
         app = self.press(self.begin(self.open()), "I agree. Send it for assessment")

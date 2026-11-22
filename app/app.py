@@ -531,14 +531,22 @@ if DEMO:
 elif DATA["mode"] in ("warehouse", "setup"):
     lookup_modes.append("Private warehouse lookup")
 lookup_mode = st.radio("Find care mode", lookup_modes, horizontal=True, key="lookup_source")
+PUBLIC_START = ("Pune", "maintenance haemodialysis")  # what the public lookup's two fields open with
 if lookup_mode == "Public facility evidence":
     st.caption("Search the reviewed public-source collection by city and service. Coverage is limited.")
     # The widget's max_chars silently rejects an over-limit paste, leaving the previous query in place.
     limit = 120
     hint = f"Enter up to {limit} characters."
-    place = st.text_input("City", value="Pune", help=hint)
-    service = st.text_input("Service", value="maintenance haemodialysis", help=hint)
+    place = st.text_input("City", value=PUBLIC_START[0], help=hint)
+    service = st.text_input("Service", value=PUBLIC_START[1], help=hint)
     submitted = st.button("Search public sources", type="primary")
+    if submitted:
+        st.session_state["public_searched"] = True
+    elif st.session_state.get("public_searched") or (place, service) != PUBLIC_START:
+        # Enter, Tab or a click away only keeps the text, and results are drawn only for the press itself.
+        # Without this line the screen went blank after an edit, or showed no change on a first Enter.
+        st.info("No results are shown for the city and service above. Select **Search public sources** to "
+                "search. Pressing Enter or leaving a field does not search.")
     over_limit = [label for label, value in (("City", place), ("Service", service)) if len(value) > limit]
     if submitted and over_limit:
         st.warning(f"Shorten {' and '.join(over_limit)} to {limit} characters or fewer and search again.")
@@ -568,6 +576,7 @@ if lookup_mode == "Public facility evidence":
                          "to confirm the service and current availability.")
     national_directory.render(st, HERE, False)
     st.stop()
+st.session_state.pop("public_searched", None)  # the public form opens clean again after another mode
 if DATA["mode"] == "setup":
     st.error("Data: not available. This app is set to read the real facility records, but its setup is incomplete.")
     for problem in DATA["problems"]:
