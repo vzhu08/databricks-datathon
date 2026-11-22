@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, replace
+from decimal import Decimal
 
 SERVICES = ("dialysis", "mri", "trauma_care")
 URGENCY_ORDER = {"highest": 0, "time_sensitive": 1, "routine": 2}
@@ -34,7 +35,7 @@ class Origin:
     id: str
     latitude: float
     longitude: float
-    travel_minutes: dict[str, int]
+    travel_minutes: dict[str, int | Decimal]
 
 
 @dataclass(frozen=True)
@@ -45,7 +46,7 @@ class Request:
     service: str
     urgency: str
     required_tools: tuple[str, ...]
-    max_travel_minutes: int
+    max_travel_minutes: int | Decimal
 
 
 @dataclass(frozen=True)
