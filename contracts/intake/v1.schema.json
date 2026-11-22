@@ -162,7 +162,7 @@
       "additionalProperties": false,
       "properties": {
         "schema_version": {"const": "intake.v1"},
-        "policy_version": {"const": "intake-policy.v1"},
+        "policy_version": {"const": "intake-policy.v1.1"},
         "mode": {"const": "synthetic"},
         "scenario_id": {
           "anyOf": [
