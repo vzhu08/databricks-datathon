@@ -206,10 +206,15 @@ picks one of the invented campuses A to F by free staffed places and travel time
 alone is the destination: the headline, the time, the reason, the fallback list and the referral note
 are all read from the same result (`find_capacity.py`). When the model recommends nothing, there is no
 destination and no note. A changed request removes the earlier recommendation until the next press.
-Travel minutes are the scenario's simulated minutes. Road time with traffic is offered only when the
-operator has set both `TOMTOM_ENABLED=true` and `FIND_CARE_TRAFFIC_ATTRIBUTION` (the verified caption
-shown with every road-time result). It is requested once per press, shows the provider's own request
-time, and a failed road time is never replaced by simulated minutes.
+Travel minutes are the scenario's simulated minutes unless road time is set up. Road time with traffic
+needs three operator settings: `TOMTOM_ENABLED=true`, `TOMTOM_COPYRIGHT_CAPTION` (the verified caption,
+shown beside every road-time result) and `TOMTOM_COPYRIGHT_NOTICES` (the complete supplier notices, one
+press away on the same result). With all three, road time is the default source: one ordinary press of
+Find a facility sends one bounded batch, with no second opt-in. Nothing is sent when the page opens or
+redraws, from the record lookup, or from an example. Examples always use simulated minutes and say so.
+Each result shows the provider's own request time and the car mode, for failed and partial results too.
+A failed road time, a used-up allowance included, is never replaced by simulated or straight-line
+minutes. If any of the three settings is missing, no road-time source is offered.
 
 *Look up the example records* is the six-facility record search: the words from each invented record,
 the field they came from, the location and service evidence lines, and what is not confirmed. It

@@ -44,12 +44,16 @@ from ranking import search_facilities  # noqa: E402
 # Kept inside app/ so a deployment of this folder alone still has its demonstration facilities.
 # tests/find_care checks it is the same file as contracts/fixtures/search.json.
 FIXTURE = HERE / "demo_facilities.json"
-# Road time with traffic is offered only when the operator switched the provider on and supplied the
-# verified attribution caption to show with every result. Without both, times are simulated and nothing
-# can call out.
-ATTRIBUTION_SETTING = "FIND_CARE_TRAFFIC_ATTRIBUTION"
-ATTRIBUTION = str(os.environ.get(ATTRIBUTION_SETTING) or "").strip()
-TRAFFIC_ON = os.environ.get("TOMTOM_ENABLED") == "true" and bool(ATTRIBUTION)
+# Road time with traffic needs three operator settings: the provider switched on, the verified copyright
+# caption (shown beside every road-time result) and the complete supplier notices (one press away on the
+# same result). With all three it is the default travel-time source. Without any one, times are simulated
+# and nothing can call out. The values are shown as escaped plain text and no key is ever read here.
+CAPTION_SETTING, NOTICES_SETTING = "TOMTOM_COPYRIGHT_CAPTION", "TOMTOM_COPYRIGHT_NOTICES"
+CAPTION = str(os.environ.get(CAPTION_SETTING) or "").strip()
+NOTICES = str(os.environ.get(NOTICES_SETTING) or "").strip()
+TRAFFIC_ON = os.environ.get("TOMTOM_ENABLED") == "true" and bool(CAPTION) and bool(NOTICES)
+TRAVEL_SOURCES = {True: f"Road time with traffic ({capacity.TRAFFIC_SOURCE}, ordinary car)",
+                  False: "Simulated minutes"}
 RECOMMEND, LOOKUP = "recommend", "lookup"
 MODES = {RECOMMEND: "Recommend a campus", LOOKUP: "Look up the example records"}
 DATA = words.data_mode(os.environ)
@@ -200,7 +204,11 @@ def fill(service, where, radius_km):
 
 
 def fill_recommendation(service, urgency, origin, needs_tool):
-    """Put a recommendation request into the form, then ask for it. Examples never use road time."""
+    """Put a recommendation request into the form, then ask for it.
+
+    Examples always use simulated minutes, and say so, so they send no road-time request and give the
+    same answer on any deployment.
+    """
     st.session_state.update(service=service, urgency=urgency, origin=origin, needs_tool=needs_tool,
                             traffic=False, mode=RECOMMEND)
     submit()
@@ -288,10 +296,14 @@ def bullets(lines):
 def recommendation_slip(check):
     """The recommendation: the one campus the capacity model chose, or plainly none. Nothing else is a destination."""
     lines = capacity.explain(check)
+    traffic = check["travel_kind"] == capacity.TRAFFIC
     parts = [f'<div class="fc-for">{safe(capacity.request_line(check))}</div>',
              f'<div class="fc-answer" role="heading" aria-level="2">{safe(lines["headline"])}</div>']
     if lines["trip"]:
         parts.append(f'<div class="fc-trip">{safe(lines["trip"])}</div>')
+    if traffic:
+        # The operator-verified caption sits beside every road-time result, a failed or partial one included.
+        parts.append(f'<div class="fc-quiet" data-attribution="traffic">{safe(CAPTION)}</div>')
     if lines["why"]:
         title = "Why this campus" if lines["destination"] else "Why"
         parts.append(f'<div class="fc-h">{title}</div><div class="fc-text">{safe(lines["why"])}</div>')
@@ -311,9 +323,9 @@ def recommendation_slip(check):
     if lines["limits"]:
         parts.append('<div class="fc-h">What this does not tell you</div>' + bullets(lines["limits"]))
     parts.append(f'<div class="fc-quiet">Travel time: {safe(lines["time_label"])}</div>')
-    if check["travel_kind"] == capacity.TRAFFIC:
-        # The operator-verified caption stays visible with every road-time result, a failed one included.
-        parts.append(f'<div class="fc-quiet" data-attribution="traffic">{safe(ATTRIBUTION)}</div>')
+    if traffic:
+        parts.append('<details data-notices="traffic"><summary>Map data copyright notices</summary>'
+                     f'<div class="fc-quiet" style="white-space:pre-wrap">{safe(NOTICES)}</div></details>')
     return f'<div class="fc-slip">{"".join(parts)}</div>'
 
 
@@ -402,7 +414,7 @@ st.session_state.setdefault("radius", 50)
 # Kept in step with the form even while a field is off screen, so an answer is always checked against
 # the whole request and never against a default the reader did not choose.
 for key, start in (("mode", RECOMMEND), ("urgency", "routine"), ("origin", "central"), ("needs_tool", False),
-                   ("traffic", False)):
+                   ("traffic", bool(TRAFFIC_ON))):
     st.session_state.setdefault(key, start)
 # Counts for the whole real directory, the same whatever is asked below. No search or patient state is read.
 national_directory.render(st, HERE, DEMO)
@@ -426,14 +438,16 @@ with left:
         if service in capacity.TOOLS:
             st.checkbox(f"Needs {capacity.TOOLS[service][1]}", key="needs_tool")
         if TRAFFIC_ON:
-            st.checkbox("Use road time with traffic (ordinary car)", key="traffic")
-            st.caption("Sends only the simulated starting point and the simulated campus points to "
-                       f"{capacity.TRAFFIC_SOURCE}. No patient details are sent. One request per press. "
-                       "If a road time fails, no simulated time is used in its place.")
+            st.radio("4. Travel time", (True, False), format_func=TRAVEL_SOURCES.get, key="traffic")
+            st.caption("Road time sends only the simulated starting point and the simulated campus points to "
+                       f"{capacity.TRAFFIC_SOURCE}. No patient details are sent. One batch of requests per press "
+                       "of Find a facility, and none when the page opens or redraws. If a road time fails, no "
+                       "simulated or straight-line time is used in its place.")
         else:
             st.caption("Road time with traffic is switched off here. Drive minutes are simulated.")
         st.button("Find a facility", type="primary", use_container_width=True, on_click=submit, key="find")
-        st.caption("Or start from an example")
+        st.caption("Or start from an example. Examples always use simulated minutes and send no road-time "
+                   "request." if TRAFFIC_ON else "Or start from an example")
         for label, ex_service, ex_urgency, ex_origin, ex_tool in CAPACITY_EXAMPLES:
             st.button(label, key="capacity-" + label, on_click=fill_recommendation,
                       args=(ex_service, ex_urgency, ex_origin, ex_tool))
@@ -471,7 +485,7 @@ with right:
                          "from an example.")
         else:
             st.markdown(recommendation_slip(check), unsafe_allow_html=True)
-            note = capacity.referral_note(check)
+            note = capacity.referral_note(check, CAPTION)
             if note:  # no recommendation, no destination to hand on
                 st.subheader("Referral note")
                 st.caption("Use the copy button on the note, or save it as a file.")
