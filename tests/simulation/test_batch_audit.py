@@ -1,7 +1,10 @@
 """Independent assignment oracles for the offline shift-slot planner (#323)."""
 
 from collections import Counter
+from copy import deepcopy
+from importlib.util import find_spec
 from itertools import product
+import math
 import random
 import unittest
 
@@ -132,21 +135,32 @@ def audit_policy(case, patients, facilities, travel_seconds, policy, *, exact):
     limits = {slot: resource["slots"] for slot, (_, resource) in buckets.items()}
 
     edges = {}
+    reasons = {}
     for pid, p in requests.items():
         edges[pid] = {}
+        reasons[pid] = "no_matching_service_or_tools"
+        fitting = timed = False
         for slot, (facility, resource) in buckets.items():
             if facility["precision"] == "area" or p["service"] != resource["service"]:
                 continue
             if not set(p["required_tools"]).issubset(resource["tools"]):
                 continue
+            fitting = True
             seconds = travel_seconds.get(pid, {}).get(facility["id"])
             if seconds is None:
                 continue
+            timed = True
             case.assertIs(type(seconds), int)
             case.assertGreaterEqual(seconds, 0)
             if (p["arrival_minute"] * 60 + seconds <= resource["start_minute"] * 60
                     and resource["start_minute"] <= p["deadline_minute"]):
                 edges[pid][slot] = seconds
+        if edges[pid]:
+            reasons[pid] = "compatible_slots_exhausted"
+        elif timed:
+            reasons[pid] = "outside_appointment_window"
+        elif fitting:
+            reasons[pid] = "modelled_travel_unknown"
 
     choices = {}
     for a in policy["assignments"]:
@@ -162,12 +176,37 @@ def audit_policy(case, patients, facilities, travel_seconds, policy, *, exact):
         pid = row["patient"]
         case.assertIn(pid, requests)
         case.assertNotIn(pid, choices)
-        case.assertTrue(row["reason"])
+        case.assertEqual(row["reason"], reasons[pid])
         choices[pid] = None
     check_plan(priorities, edges, limits, choices)
     if exact:
         case.assertFalse(improving_exchange(priorities, edges, limits, choices),
                          "Feasible reassignment improves priority or total travel")
+    else:
+        remaining = limits.copy()
+        for pid in sorted(requests, key=lambda p: (requests[p]["arrival_minute"], p)):
+            available = [s for s in edges[pid] if remaining[s]]
+            expected = min(available, default=None, key=lambda s: (
+                edges[pid][s], buckets[s][1]["start_minute"], buckets[s][0]["id"], s))
+            case.assertEqual(choices[pid], expected, f"Nearest free appointment for {pid}")
+            if expected is not None:
+                remaining[expected] -= 1
+
+    if "metrics" in policy:
+        metrics = policy["metrics"]
+        by_priority = {level: {"assigned": 0, "unmet": 0} for level in PRIORITIES}
+        for pid, slot in choices.items():
+            by_priority[priorities[pid]]["unmet" if slot is None else "assigned"] += 1
+        case.assertEqual(metrics["by_priority"], by_priority)
+        case.assertEqual((metrics["assigned"], metrics["unmet"]),
+                         (len(policy["assignments"]), len(policy["unserved"])))
+        case.assertEqual(metrics["total_travel_seconds"], sum(a["travel_seconds"] for a in policy["assignments"]))
+        case.assertEqual(metrics["unserved_reasons"], Counter(r["reason"] for r in policy["unserved"]))
+        used = Counter(choices.values())
+        case.assertCountEqual([(row["slot_id"], row["facility"], row["service"], row["slots"], row["used"])
+                               for row in metrics["resources_used"]],
+                              [(s, f["id"], resource["service"], limits[s], used[s])
+                               for s, (f, resource) in buckets.items()])
     return objective(priorities, edges, choices)
 
 def tiny_instance():
@@ -197,8 +236,9 @@ class PolicyAuditTests(unittest.TestCase):
         highest = {"patient": "h", "facility": "a", "service": "dialysis", "slot_id": "a-10",
                    "slot_start_minute": 10, "travel_seconds": 540}
         routine = {**highest, "patient": "r", "facility": "b", "slot_id": "b-10", "travel_seconds": 600}
-        late = {"patient": "l", "reason": "outside window"}
+        late = {"patient": "l", "reason": "outside_appointment_window"}
         result = {"assignments": [routine, highest], "unserved": [late]}
+
         def audit(assignments, unserved):
             return audit_policy(self, patients, facilities, travel,
                                 {"assignments": assignments, "unserved": unserved}, exact=True)
@@ -220,3 +260,73 @@ class PolicyAuditTests(unittest.TestCase):
         ):
             with self.subTest(name=name), self.assertRaises(AssertionError):
                 audit(**{**result, **changes})
+
+
+def geodesic_seconds(patient, facility, speed):
+    """Central angle from unit-vector dot and cross products on a mean-radius sphere."""
+    vectors = []
+    for point in (patient, facility):
+        lat, lon = map(math.radians, (point["latitude"], point["longitude"]))
+        vectors.append((math.cos(lat) * math.cos(lon), math.cos(lat) * math.sin(lon), math.sin(lat)))
+    a, b = vectors
+    cross = [a[i] * b[(i + 1) % 3] - a[(i + 1) % 3] * b[i] for i in range(3)]
+    angle = math.atan2(math.hypot(*cross), sum(x * y for x, y in zip(a, b)))
+    return math.ceil(angle * 6371.0088 * 3600 / speed)
+
+
+@unittest.skipUnless(find_spec("app.simulation.batch_planner"), "requires #323 batch planner")
+class PlannerIntegrationTests(unittest.TestCase):
+    def test_solver_small_instances_against_enumeration(self):
+        from app.simulation.batch_planner import solve
+
+        patients, facilities, travel = tiny_instance()
+        facilities = facilities[:2]
+        travel["h"].pop("area")
+        instance = {"patients": patients, "facilities": facilities, "travel_seconds": travel,
+                    "geography": {"location_basis": "synthetic"}, "scenario": {"horizon_minutes": 10}}
+        for seconds in (599, 600, 601):
+            travel["r"]["b"] = seconds
+            routes = {"r": {"a-10": 120}, "h": {"a-10": 540}, "l": {}}
+            if seconds <= 600:
+                routes["r"]["b-10"] = seconds
+            priorities = {p["id"]: p["priority"] for p in patients}
+            best = min(objective(priorities, routes, allocation)
+                       for allocation in feasible_choices(routes, {"a-10": 1, "b-10": 1}))
+            result = solve(instance)
+            for name, policy in result["policies"].items():
+                exact = name == "exact_optimum"
+                score = audit_policy(self, patients, facilities, travel, policy, exact=exact)
+                if exact:
+                    self.assertEqual(score, best)
+
+    def test_generated_shift_reproducibility_scope_metrics_and_optimality(self):
+        from app.simulation.batch_planner import make_instance, solve
+
+        instance = make_instance(seed=17)
+        original = deepcopy(instance)
+        result = solve(instance)
+        self.assertEqual(instance, original)
+        self.assertEqual(result, solve(make_instance(seed=17)))
+        shuffled = deepcopy(instance)
+        rng = random.Random(323)
+        for name in ("patients", "facilities"):
+            rng.shuffle(shuffled[name])
+        for facility in shuffled["facilities"]:
+            rng.shuffle(facility["resources"])
+        self.assertEqual(result, solve(shuffled))
+
+        self.assertEqual(result["schema_version"], "storm-plan-v1")
+        self.assertEqual(result["geography"]["location_basis"], "synthetic")
+        self.assertIn("synthetic", result["scenario"]["simulated"].lower())
+        self.assertIn("synthetic", result["scenario"]["travel_basis"].lower())
+        self.assertEqual(result["scenario"]["horizon_minutes"], 360)
+        self.assertEqual(len(result["patients"]), 120)
+        patients, facilities = instance["patients"], instance["facilities"]
+        travel = {p["id"]: {f["id"]: geodesic_seconds(p, f, instance["scenario"]["speed_kmh"])
+                            for f in facilities if f["precision"] == "point"} for p in patients}
+        scores = {}
+        self.assertEqual(set(result["policies"]), {"exact_optimum", "nearest_first"})
+        for name, policy in result["policies"].items():
+            self.assertIn("metrics", policy)
+            scores[name] = audit_policy(self, patients, facilities, travel, policy, exact=name == "exact_optimum")
+        self.assertLessEqual(scores["exact_optimum"], scores["nearest_first"])
