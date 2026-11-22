@@ -198,6 +198,11 @@ def _disjoint(a, b, key):
     return bool(a[key] and b[key] and a[key].isdisjoint(b[key]))
 
 
+def _has_address_pin(evidence):
+    return any(component.get("pins") for field in evidence["observations"] if field["role"] == "address"
+               for component in field["components"])
+
+
 def pair_features(b, e, blocks, signals):
     """Check name and place support independent of a shared building or a postal lookup."""
     a, z = b["premises"], e["premises"]
@@ -227,7 +232,7 @@ def pair_features(b, e, blocks, signals):
              and (qualifier or named_place or not conflict)
              and not (mixed or premise_conflict or street_conflict or qualifier_conflict))
     admissions = [key for key, supported in zip(BLOCKS, valid) if key in blocks and supported]
-    return {"admission": admissions[0] if admissions else None,
+    features = {"admission": admissions[0] if admissions else None,
             "campus_rank": 3 if BLOCKS[0] in admissions else 2 if BLOCKS[1] in admissions else
                            1 if BLOCKS[3] in admissions else 0,
             "documented_alias": alias, "shared_branch_qualifier": qualifier,
@@ -235,3 +240,10 @@ def pair_features(b, e, blocks, signals):
             "branch_qualifier_conflict": qualifier_conflict, "mixed_campus_description": mixed,
             "own_postal_state_conflict": postcode_conflict, "multiple_observed_pins": multiple_pins,
             "competing_coordinates": competing_coordinates}
+    # Keep the structured PIN signal and all admissions as they were. Use the
+    # address evidence for review and ranking only when both PINs are unambiguous.
+    if (signals["pin"] == "unknown" and len(a["pins"]) == len(z["pins"]) == 1 and _disjoint(a, z, "pins")
+            and (b["pin"] is not None or _has_address_pin(a))
+            and (e["pin"] is not None or _has_address_pin(z))):
+        features["observed_pin_conflict"] = True
+    return features

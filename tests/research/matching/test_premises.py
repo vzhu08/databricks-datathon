@@ -55,6 +55,61 @@ class PremisesReplayTests(unittest.TestCase):
         self.assertEqual(stage["scored"], 1)
         self.assertEqual(stage["pre_cut"][0]["retrieval_reason"], "premises_locality")
 
+    def test_single_disagreeing_address_and_structured_pins_open_geography_review(self):
+        address = "Plot 4, Rainwood Road"
+        for left, right in (("address", "address_original"), ("address", "pin"), ("pin", "address_original")):
+            with self.subTest(base_field=left, external_field=right):
+                base_fields = {"address": address}
+                base_fields[left] = f"{address}, 123456" if left == "address" else "123456"
+                ref_fields = {"address_original": address}
+                ref_fields[right] = f"{address}, 654321" if right == "address_original" else "654321"
+                row = self.original(1, **base_fields)
+                reference = self.reference(1, "Tamarind Crest Hospital", **ref_fields)
+                result = self.replay([row], [reference])
+                pair = self.stages(result, row)["pre_cut"][0]
+                self.assertEqual(pair["signals"]["pin"], "unknown")
+                self.assertTrue(pair["signals"]["premises"]["observed_pin_conflict"])
+                self.assertIn("pin_conflict", pair["flags"])
+                self.assertNotIn("geography_unknown", pair["flags"])
+                self.assertEqual(pair["retrieval_reason"], "exact_structured_address")
+                self.assertEqual(pair["review_reason"], "geography_conflict")
+                self.assertEqual(result["base_rows"][0]["conflicts"], ["candidate_geography_conflict"])
+                match = result["batch"]["facility_matches"][0]
+                self.assertEqual(match["status"], "candidate")
+                self.assertIn("Observed postal PINs disagree", match["rationale"])
+                evidence = result["premises_evidence"]
+                for side, record_id, field, raw in (
+                    ("base", row["facility_id"], f"source_row.{left}", base_fields[left]),
+                    ("external", reference["external_facility_id"], right, ref_fields[right]),
+                ):
+                    self.assertIn((field, raw), [(o["field"], o["raw"])
+                                               for o in evidence[side][record_id]["observations"]])
+                self.assertEqual(pair["record_locator"], "synthetic row 1")
+
+    def test_observed_pin_conflict_penalizes_rank_and_preserves_a_rival_below_cutoff(self):
+        address = "Plot 4, Rainwood Road"
+        row = self.original(1, address=address, address2="123456")
+        refs = [self.reference(i, "Tamarind Crest Hospital", address_original=address,
+                               pin="654321" if i == 1 else "123456") for i in range(1, 7)]
+        result = self.replay([row], refs)
+        pairs = self.stages(result, row)["pre_cut"]
+        self.assertEqual([p["source_record_id"] for p in pairs], ["EX-002", "EX-003", "EX-004", "EX-005", "EX-006", "EX-001"])
+        rival = pairs[-1]
+        self.assertEqual(rival["stage"], "rank_cut")
+        self.assertTrue({"pin_conflict", "ambiguous_campus"} <= set(rival["flags"]))
+        self.assertEqual(rival["review_reason"], "ambiguous_campus")
+        self.assertEqual(rival["retrieval_reason"], "exact_structured_address")
+        self.assertEqual(result["base_rows"][0]["outcome"], "ambiguous")
+
+    def test_multiple_pins_on_one_side_do_not_establish_a_pair_disagreement(self):
+        row = self.original(1, address="Plot 4, Rainwood Road, 123456", address2="234567")
+        reference = self.reference(1, "Tamarind Crest Hospital", address_original="Plot 4, Rainwood Road, 654321")
+        result = self.replay([row], [reference])
+        pair = self.stages(result, row)["pre_cut"][0]
+        self.assertIn("multiple_observed_pins", pair["flags"])
+        self.assertNotIn("pin_conflict", pair["flags"])
+        self.assertEqual(pair["review_reason"], "geography_conflict")
+
     def test_different_hospitals_sharing_a_building_and_point_keep_proximity_reason(self):
         row = self.original(1, address="Plot 4, Rainwood Road", lat=22.12345, lon=77.12345)
         other = self.reference(1, "Foxglove Infirmary", address_original="Plot 4, Rainwood Road",

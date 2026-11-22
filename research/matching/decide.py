@@ -113,10 +113,12 @@ def primary_reason(candidate, blocked):
 
 def _phrase(signals):
     distance = "unavailable" if signals["distance_m"] is None else f"{signals['distance_m']} m ({signals['distance_band']})"
+    observed_pin = (" Observed postal PINs disagree, including a PIN from address text."
+                    if signals.get("premises", {}).get("observed_pin_conflict") else "")
     return (f"Name evidence: {signals['name_level']} ({signals['name_detail']}"
             f"{', via alias' if signals['name_via_alias'] else ''}). "
             f"State {signals['state']}; place {signals['place']}; PIN {signals['pin']}; "
-            f"address {signals['address']}; distance {distance}.")
+            f"address {signals['address']}; distance {distance}.{observed_pin}")
 
 
 def rationale(candidate, proof):

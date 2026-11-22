@@ -185,6 +185,8 @@ Optional `locality`, `district` and `alias` roles take explicit observed column 
 
 The index retrieves exact premise and street combinations first, then premises and locality, distinctive name and district, and documented branch aliases. Civic numbers, marked plots, named buildings, streets, marked localities and district phrases are parsed with conservative rules. Exact structured address admission needs distinguishing name support. A distinctive-name fallback keeps some rows with missing or conflicting geography in review. Unicode folding preserves Indic marks and folds Latin accents. Cross-script name equivalence requires a documented alias. Branch differences, incompatible geography, co-located hospitals and mixed-campus evidence stay visible in the review signals. All new pairs remain candidates.
 
+When each side supplies one observed PIN and at least one comes from address text, a disagreement carries the `pin_conflict` flag and the same ranking penalty as a structured PIN conflict. The rationale identifies the address-text evidence, and the review queue keeps its existing reason priority. The original structured PIN signal and pre-cut candidates remain available alongside the source fields and locators. Multiple PINs on either side remain a separate uncertainty cue.
+
 Use `--sample-size 0 --missed-sample-size 0` for the Task 2 comparison replay. Both review samples for a subsequent evaluation are drawn by the audit steward after freezing this output. The steward can use the occurrence and pair frames to select a disjoint case set. The matcher uses no human review labels.
 
 Private diagnostic files supplement the existing contract envelope and occurrence frame.

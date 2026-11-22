@@ -223,6 +223,10 @@ def retained(signals, config):
     return None
 
 
+def _pin_conflict(signals):
+    return signals["pin"] == "conflict" or signals.get("premises", {}).get("observed_pin_conflict", False)
+
+
 def flags_for(signals, reason):
     s, flags = signals, []
     if reason == "proximity_only":
@@ -234,7 +238,8 @@ def flags_for(signals, reason):
     if s["name_via_alias"]:
         flags.append("matched_via_alias")
     geo_known = [s[k] for k in ("state", "place", "pin", "address")]
-    if all(v == "unknown" for v in geo_known) and s["distance_m"] is None:
+    pin_conflict = _pin_conflict(s)
+    if all(v == "unknown" for v in geo_known) and s["distance_m"] is None and not pin_conflict:
         flags.append("geography_unknown")
     if s["distance_m"] is None:
         flags.append("distance_unavailable")
@@ -242,7 +247,7 @@ def flags_for(signals, reason):
         flags.append("state_conflict")
     if s["place"] == "conflict":
         flags.append("place_conflict")
-    if s["pin"] == "conflict":
+    if pin_conflict:
         flags.append("pin_conflict")
     if s["distance_band"] == "far":
         flags.append("coordinates_far_apart")
@@ -259,7 +264,7 @@ def flags_for(signals, reason):
 
 def rank_key(candidate):
     s = candidate["signals"]
-    conflicts = sum(s[k] == "conflict" for k in ("state", "place", "pin")) + (s["distance_band"] == "far")
+    conflicts = sum(s[k] == "conflict" for k in ("state", "place")) + _pin_conflict(s) + (s["distance_band"] == "far")
     agreements = sum(s[k] == "agree" for k in ("state", "place", "pin", "address"))
     return (-len(s["identifiers"]), -LEVEL[s["name_level"]], conflicts, -agreements,
             s["distance_m"] if s["distance_m"] is not None else float("inf"),
