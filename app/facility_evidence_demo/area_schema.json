@@ -1,0 +1,48 @@
+{
+  "$comment": "Proposed field schema for the audience-cleared area-view aggregate (#270, #252). Counts and labels only: no row, key, name, address, coordinate, boundary or point. Every object is closed, so any other key puts the area view in its data-unavailable state.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "audience", "edition", "as_of", "source", "originals", "distinct_upstream_ids",
+               "precision", "campus_basis", "unresolved_reasons"],
+  "properties": {
+    "schema": {"type": "string"},
+    "audience": {"type": "string"},
+    "edition": {"type": "string"},
+    "as_of": {"type": "string"},
+    "source": {"type": "string"},
+    "originals": {"type": "integer"},
+    "distinct_upstream_ids": {"type": "integer"},
+    "precision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["campus_classified", "locality", "city", "postal_area", "district", "unresolved"],
+      "properties": {
+        "campus_classified": {"type": "integer"},
+        "locality": {"type": "integer"},
+        "city": {"type": "integer"},
+        "postal_area": {"type": "integer"},
+        "district": {"type": "integer"},
+        "unresolved": {"type": "integer"}
+      }
+    },
+    "campus_basis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["named_map_listing", "matching_address"],
+      "properties": {
+        "named_map_listing": {"type": "integer"},
+        "matching_address": {"type": "integer"}
+      }
+    },
+    "unresolved_reasons": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["missing_state", "unrecognized_label", "other"],
+      "properties": {
+        "missing_state": {"type": "integer"},
+        "unrecognized_label": {"type": "integer"},
+        "other": {"type": "integer"}
+      }
+    }
+  }
+}
