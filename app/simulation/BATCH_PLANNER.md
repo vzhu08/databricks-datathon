@@ -12,8 +12,10 @@ keep their existing entry points.
 
 The optional real geography input is an operator-cleared source-only roster.
 Maintain its source and clearance receipt separately. Never put real facility
-rows into Git. The pinned CSV must be Vincent's four-column
-`facility_id,facility_name,latitude,longitude` format. The accompanying JSON
+rows into Git. Use Vincent's venue-cleared `storm-roster-v1` JSON with
+`planning_id` for the canonical run, or a four-column
+`facility_id,facility_name,latitude,longitude` CSV for another approved roster.
+The accompanying JSON
 supplies `geography` directly, with `location_basis: "public_source"`,
 `name`, `selection`, `source`, `verification`, the approved `roster_sha256`
 and `attribution` entries with `text` and `url`. The planner checks the bytes
@@ -21,12 +23,12 @@ against that supplied pin. This is an integrity check under the operator's
 separate source approval.
 
 ```sh
-python3 -m app.simulation.batch_planner --roster /path/to/facility-locations.csv \
+python3 -m app.simulation.batch_planner --roster /path/to/approved.storm-roster-v1.json \
   --geography /path/to/approved-geography.json --seed 17 > /tmp/storm-plan.json
 ```
 
-The generator picks up to eight usable sites by stable source ID. This is a
-planning sample. Real point coordinates retain the publisher's supported
+The generator picks up to twelve usable sites by stable source ID. This is a
+planning sample, with staffing assigned to up to eight sites per appointment wave. Real point coordinates retain the publisher's supported
 precision. An area marker supplies no travel endpoint or resource pool.
 Demand locations, arrivals, priorities, tools, appointment deadlines and
 staffed slots are simulated. Modelled travel is geodesic displacement divided
@@ -55,3 +57,10 @@ multiply that by N+1 and (N+1)² respectively. This makes every higher objective
 component dominate every possible lower cost. Integer min-cost flow yields an
 exact feasible optimum for this declared objective and these inputs. Equal
 costs are resolved deterministically by the ordered graph.
+
+Use `--write-neutral-instance /tmp/storm-neutral.json` to export the feasible
+synthetic travel edges and shared slots for independent offline replay. The
+export omits facility names, source row IDs and coordinates, and retains the
+geography attribution. `--instance /tmp/storm-neutral.json` reproduces the
+allocation objective. A blocked request's diagnostic reason may be less
+specific because the export retains only feasible travel edges.

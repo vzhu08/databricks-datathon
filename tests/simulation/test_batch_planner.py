@@ -1,13 +1,14 @@
 from collections import Counter
 from copy import deepcopy
 from hashlib import sha256
+import json
 from math import ceil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
 from app.ranking.location import coordinates, haversine_km
-from app.simulation.batch_planner import load_roster_csv, make_instance, solve
+from app.simulation.batch_planner import load_pinned_roster, load_roster_csv, make_instance, neutral_instance, solve
 
 
 def _site(site, tools=(), start=10):
@@ -105,6 +106,40 @@ class BatchPlannerTests(unittest.TestCase):
             path.write_bytes(raw + b"tampered\n")
             with self.assertRaisesRegex(ValueError, "SHA-256"):
                 load_roster_csv(path, geo)
+
+    def test_pinned_twelve_site_roster_keeps_precision_and_rotates_staffing(self):
+        rows = [
+            {"planning_id": f"C{i+1:02}", "label": f"Invented site {i+1}",
+             "location": {"precision": "mapped_point" if i < 8 else "campus_anchor",
+                          "latitude": i * 0.01, "longitude": i * 0.01}}
+            for i in range(12)
+        ]
+        raw = json.dumps({"schema_version": "storm-roster-v1", "facilities": rows}).encode()
+        geo = {"location_basis": "public_source", "name": "Fixture for point parsing",
+               "selection": "Test control", "source": "Test source", "verification": "Fixture only",
+               "attribution": [{"text": "Test", "url": "https://example.org/test"}],
+               "roster_sha256": sha256(raw).hexdigest()}
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pinned.json"
+            path.write_bytes(raw)
+            roster = load_pinned_roster(path, geo)
+        instance = make_instance(roster)
+        self.assertEqual(instance["geography"]["planning_point_sites"], 12)
+        self.assertEqual(Counter(f["precision"] for f in instance["facilities"]),
+                         {"mapped_point": 8, "campus_anchor": 4})
+        self.assertEqual(sum(len(f["resources"]) for f in instance["facilities"]), 144)
+        self.assertTrue(all(f["resources"] for f in instance["facilities"]))
+
+    def test_neutral_export_replays_objective_without_source_points_or_labels(self):
+        instance = make_instance()
+        neutral = neutral_instance(instance)
+        self.assertTrue(all("latitude" not in row and "longitude" not in row
+                            for row in neutral["facilities"] + neutral["patients"]))
+        self.assertTrue(all(row["label"].startswith("Neutral site ") for row in neutral["facilities"]))
+        original, exported = (solve(d)["policies"] for d in (instance, neutral))
+        for policy in original:
+            for key in ("assigned", "unmet", "by_priority", "total_travel_seconds"):
+                self.assertEqual(original[policy]["metrics"][key], exported[policy]["metrics"][key])
 
     def test_120_shift_deterministic_conserves_stock_and_time(self):
         instance = make_instance()

@@ -25,6 +25,7 @@ from .scenario import SERVICES, URGENCY_ORDER
 
 
 SCHEMA_VERSION = "storm-plan-v1"
+_POINT_PRECISIONS = ("point", "mapped_point", "campus_anchor")
 REQUEST_COUNT = 120
 HORIZON_MINUTES = 360
 SPEED_KMH = 30
@@ -80,14 +81,14 @@ def _instance_edges(data):
     points = {}
     for fid, facility in facilities.items():
         precision = facility.get("precision")
-        if precision not in ("point", "area"):
+        if precision not in (*_POINT_PRECISIONS, "area"):
             raise ValueError("Expected point or area location precision")
-        points[fid] = coordinates(facility) if precision == "point" else None
+        points[fid] = coordinates(facility) if precision in _POINT_PRECISIONS else None
         resources = _keyed(facility.get("resources", []), "slot_id")
         for sid, slot in resources.items():
             start = slot.get("start_minute")
             pool = slot.get("resource_id")
-            if (precision != "point" or sid in slots or not isinstance(pool, str) or not pool.strip()
+            if (precision not in _POINT_PRECISIONS or sid in slots or not isinstance(pool, str) or not pool.strip()
                     or not _integer(start, upper=horizon) or not _integer(slot.get("slots"))
                     or slot.get("service") not in SERVICES or (fid, pool, start) in bucket_keys):
                 raise ValueError("Invalid or duplicate staffed appointment bucket")
@@ -299,9 +300,10 @@ def make_instance(roster=None, *, seed=17):
     geography = roster["geography"]
     _validate_geography(geography)
     facilities = list(_keyed(roster["facilities"], "id").values())
-    points = [f for f in facilities if f.get("precision") == "point" and coordinates(f) is not None]
-    # Pick eight deterministic point/anchor endpoints. Area records are context only.
-    points = points[:8]
+    points = [f for f in facilities if f.get("precision") in _POINT_PRECISIONS and coordinates(f) is not None]
+    # Admit the twelve-site Pune roster, or the eight-site synthetic control.
+    # The generator rotates the same total staffing budget over larger rosters.
+    points = points[:12]
     if not points:
         raise ValueError("The roster needs at least one usable point or campus simulation anchor")
     areas = [f for f in facilities if f.get("precision") == "area"]
@@ -312,7 +314,8 @@ def make_instance(roster=None, *, seed=17):
             {"slot_id": f"{fid}:{service}:{start}", "resource_id": f"{fid}:{service}", "service": service,
              "start_minute": start, "slots": 1,
              "tools": ["monitored"] if service == "dialysis" and i % 3 == 0 else []}
-            for start in (45, 90, 135, 180, 225, 270)
+            for wave, start in enumerate((45, 90, 135, 180, 225, 270))
+            if (i - 2 * wave) % len(points) < 8
             for service in SERVICES
         ]
     for facility in areas:
@@ -337,16 +340,52 @@ def make_instance(roster=None, *, seed=17):
         })
     return {
         "geography": {**geography, "planning_point_sites": len(points),
-                      "input_point_sites": sum(f.get("precision") == "point" for f in facilities)},
+                      "input_point_sites": sum(f.get("precision") in _POINT_PRECISIONS for f in facilities)},
         "scenario": {
             "seed": seed, "horizon_minutes": HORIZON_MINUTES, "horizon": "One six-hour simulated shift",
             "objective": "Minimize unmet highest, time-sensitive and routine requests, in order, then travel seconds",
             "travel_basis": "Geodesic distance at a constant synthetic 30 km/h, rounded up to whole seconds",
             "simulated": "Synthetic demand, urgency, capabilities, staffing and travel. The planner sees the full shift.",
-            "speed_kmh": SPEED_KMH, "point_selection": "First eight usable points by stable source ID",
+            "speed_kmh": SPEED_KMH, "point_selection": "Up to twelve usable points by stable source ID",
+            "staffing": "Up to eight sites per appointment wave, rotated by stable ID",
         },
         "facilities": selected,
         "patients": patients,
+    }
+
+
+def neutral_instance(instance):
+    """Project the feasible edges without facility names, coordinates or source row IDs."""
+    facilities, patients, _, options, _ = _instance_edges(deepcopy(instance))
+    public_ids = {fid: f"C{index:02}" for index, fid in enumerate(
+        (fid for fid, f in facilities.items() if f["precision"] in _POINT_PRECISIONS), 1
+    )}
+    neutral_sites = []
+    for fid, label in public_ids.items():
+        f = facilities[fid]
+        unique_pools = sorted({r["resource_id"] for r in f["resources"]})
+        pools = {pool: f"{label}-pool-{i:02}" for i, pool in enumerate(unique_pools, 1)}
+        resources = []
+        for i, slot in enumerate(f["resources"], 1):
+            resources.append({
+                **{k: slot[k] for k in ("service", "tools", "start_minute", "slots")},
+                "slot_id": f"{label}-slot-{i:03}", "resource_id": pools[slot["resource_id"]],
+            })
+        neutral_sites.append({"id": label, "label": f"Neutral site {label}",
+                              "precision": "point", "resources": resources})
+    return {
+        "geography": deepcopy(instance["geography"]),
+        "scenario": {**instance["scenario"], "travel_basis": "Frozen synthetic feasible edges in whole seconds"},
+        "facilities": neutral_sites,
+        "patients": [
+            {key: patient[key] for key in ("id", "priority", "service", "required_tools",
+                                          "arrival_minute", "deadline_minute")}
+            for patient in patients.values()
+        ],
+        "travel_seconds": {
+            pid: {public_ids[o.facility]: o.seconds for o in edges}
+            for pid, edges in options.items()
+        },
     }
 
 
@@ -375,28 +414,64 @@ def load_roster_csv(path, geography):
     return {"geography": geography, "facilities": facilities}
 
 
+def load_pinned_roster(path, geography):
+    """Read the venue-cleared source-only storm roster at its operator-supplied pin."""
+    _validate_geography(geography)
+    if geography["location_basis"] != "public_source":
+        raise ValueError("Pinned roster must carry public-source geography metadata")
+    raw = path.read_bytes()
+    if sha256(raw).hexdigest() != geography["roster_sha256"]:
+        raise ValueError("The roster bytes do not match the approved SHA-256")
+    data = json.loads(raw)
+    if data.get("schema_version") != "storm-roster-v1":
+        raise ValueError("Expected the cleared storm-roster-v1 file")
+    facilities = []
+    for row in _keyed(data["facilities"], "planning_id").values():
+        location = row.get("location", row)
+        point = coordinates(location)
+        precision = location.get("precision", row.get("precision"))
+        label = row.get("label", row.get("facility_name", row.get("name")))
+        if point is None or precision not in ("mapped_point", "campus_anchor") or not isinstance(label, str):
+            raise ValueError("Expected a labelled mapped point or campus simulation anchor")
+        facility = {"id": row["planning_id"], "label": label, "precision": precision,
+                    "latitude": point[0], "longitude": point[1]}
+        source = row.get("source")
+        if isinstance(source, dict):
+            facility["source"] = {k: source[k] for k in ("publisher", "license", "url", "id") if k in source}
+        facilities.append(facility)
+    return {"geography": geography, "facilities": facilities}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--roster", type=Path, help="Operator-cleared roster JSON or pinned four-column CSV.")
-    parser.add_argument("--geography", type=Path, help="Cleared geography metadata JSON for a CSV roster.")
+    parser.add_argument("--geography", type=Path, help="Cleared geography metadata JSON for a pinned CSV or storm-roster-v1.")
     parser.add_argument("--instance", type=Path, help="Replay a complete synthetic planning instance.")
     parser.add_argument("--seed", type=int, default=17)
+    parser.add_argument("--write-neutral-instance", type=Path,
+                        help="Also write a replayable planning instance without source facility rows or points.")
     args = parser.parse_args(argv)
     if args.roster and args.instance:
         parser.error("Select --roster or --instance")
     csv_input = args.roster is not None and args.roster.suffix.lower() == ".csv"
-    if csv_input != (args.geography is not None):
-        parser.error("Supply --geography with a CSV roster")
+    if (csv_input and args.geography is None) or (args.geography and not args.roster):
+        parser.error("Pinned source roster requires --roster and --geography")
     if args.instance:
         instance = json.loads(args.instance.read_text(encoding="utf-8"))
     else:
         roster = None
-        if csv_input:
+        if args.geography:
             geography = json.loads(args.geography.read_text(encoding="utf-8"))
-            roster = load_roster_csv(args.roster, geography)
+            read_roster = load_roster_csv if csv_input else load_pinned_roster
+            roster = read_roster(args.roster, geography)
         elif args.roster:
             roster = json.loads(args.roster.read_text(encoding="utf-8"))
         instance = make_instance(roster, seed=args.seed)
+    if args.write_neutral_instance:
+        args.write_neutral_instance.write_text(
+            json.dumps(neutral_instance(instance), ensure_ascii=False, allow_nan=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
     json.dump(solve(instance), sys.stdout, ensure_ascii=False, allow_nan=False, indent=2)
     sys.stdout.write("\n")
     return 0
