@@ -19,13 +19,14 @@ SERVICES = {"dialysis": "Dialysis", "mri": "MRI scan", "trauma_care": "Trauma ca
 SERVICE_PHRASE = {"dialysis": "dialysis", "mri": "an MRI scan", "trauma_care": "trauma care"}
 FIELDS = {"description": "description", "capabilities": "capabilities", "procedures": "procedures",
           "equipment": "equipment"}
-RADII = (10, 25, 50, 100, 200)
+RADII = (2, 5, 10, 25, 50, 100, 200)
+# The search's own rules, one per line, in the order they apply.
 HOW = (
-    "Facilities whose records state the service directly come first, nearest first. "
-    "Records that only mention something related, such as a kidney clinic for dialysis, are shown "
-    "only when nothing states it directly, and are marked as needing confirmation. "
-    "Mentions that say a service is planned, unavailable or referred elsewhere are left out. "
-    "Distance is a straight line, not road time. Up to three facilities are shown."
+    "A facility qualifies when its record states the service directly. The nearest one comes first.",
+    "A record that only mentions something related, such as a kidney clinic for dialysis, is shown only "
+    "when nothing states the service directly, and is marked as needing confirmation.",
+    "A mention that says the service is planned, unavailable or referred elsewhere does not count.",
+    "Distance is a straight line, not road time. Up to three facilities are shown.",
 )
 
 
@@ -44,6 +45,7 @@ WAREHOUSE_SETTINGS = {
     "DATABRICKS_CLIENT_SECRET": "Databricks Apps supplies it when the app runs there.",
 }
 _TABLE = re.compile(r"[\w-]+\.[\w-]+\.[\w-]+")
+_COORDINATES = re.compile(r"([+-]?\d+(?:\.\d+)?)\s*[,\s]\s*([+-]?\d+(?:\.\d+)?)")
 
 
 def data_mode(environ):
@@ -107,6 +109,40 @@ def build_location(mode, *, city="", state="", pin="", latitude="", longitude=""
     raise ValueError("Choose how to give the location.")
 
 
+def parse_location(text):
+    """The location object the search expects, from one typed line. Raises ValueError with a plain message.
+
+    Six digits are a PIN code, two numbers are coordinates, and anything else is a city or town with an
+    optional state after a comma.
+    """
+    text = " ".join(str(text or "").split())
+    if not text:
+        raise ValueError("Type a city or town, a PIN code, or coordinates.")
+    digits = text.replace(" ", "")
+    if digits.isdigit() and len(digits) == 6:
+        return {"pin": digits}
+    pair = _COORDINATES.fullmatch(text)
+    if pair:
+        return {"latitude": float(pair[1]), "longitude": float(pair[2])}
+    if digits.isdigit():
+        raise ValueError("A PIN code has six digits.")
+    if not any(character.isalpha() for character in text):
+        raise ValueError("Type coordinates as latitude, then longitude, for example 26.92, 75.82.")
+    city, _, state = (part.strip() for part in text.partition(","))
+    if not city:
+        raise ValueError("Type the city or town before the comma.")
+    return {"city": city, "state": state} if state else {"city": city}
+
+
+def location_text(location):
+    """The typed line that parse_location reads back as this location."""
+    if "pin" in location:
+        return str(location["pin"])
+    if "city" in location:
+        return ", ".join(part for part in (location["city"], location.get("state")) if part)
+    return f"{location['latitude']}, {location['longitude']}"
+
+
 def place_words(location):
     if "pin" in location:
         return f"PIN {location['pin']}"
@@ -116,9 +152,10 @@ def place_words(location):
 
 
 def _distance(km, approximate):
-    text = f"About {km:.0f} km" if km >= 10 else f"About {km:.1f} km"
-    return text + (" in a straight line from the middle of that place." if approximate
-                   else " in a straight line.")
+    # When the starting point is approximate the screen says so once, in approximate_note.
+    if km < 0.1:
+        return "Less than 100 m away, in a straight line."
+    return (f"About {km:.0f} km" if km >= 10 else f"About {km:.1f} km") + " away, in a straight line."
 
 
 def _card(card, approximate):
@@ -152,8 +189,8 @@ def present(response, service, location, radius_km):
         "leads": leads,
         "choices": list(response.get("location_choices", [])),
         "why": None, "caveat": None, "next_step": None,
-        "approximate_note": ("The place you entered was located from the facilities recorded there, so "
-                             "distances are approximate.") if approximate and (direct or leads) else None,
+        "approximate_note": ("Distances are measured from the middle of the facilities recorded in that "
+                             "place, so they are approximate.") if approximate and (direct or leads) else None,
     }
     if status == "withheld":
         found = phrase if response.get("evidence") == "direct" else f"something related to {phrase}"

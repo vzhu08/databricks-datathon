@@ -70,7 +70,8 @@ class WordingTests(unittest.TestCase):
         self.assertEqual("The North Campus provides hemodialysis.", view["top"]["excerpt"])
         self.assertEqual("procedures", view["top"]["field"])
         self.assertIn("Phone to confirm", view["caveat"])
-        self.assertIsNotNone(view["approximate_note"])
+        self.assertEqual("About 6.7 km away, in a straight line.", view["top"]["distance"])
+        self.assertIn("so they are approximate", view["approximate_note"])
         note = words.referral_note(view, synthetic=True)
         for part in ("demonstration data", "Send to: Example Regional Hospital", "The North Campus provides hemodialysis.",
                      "Record source: https://example.invalid/north-campus", "Before travelling"):
@@ -86,6 +87,7 @@ class WordingTests(unittest.TestCase):
         _, leads = _run({"service": "dialysis", "location": {"pin": "302001"}, "radius_km": 2})
         self.assertEqual("No facility within 2 km clearly offers dialysis.", leads["headline"])
         self.assertIn("Phone before sending anyone", leads["subline"])
+        self.assertEqual("Less than 100 m away, in a straight line.", leads["leads"][0]["distance"])
         self.assertIn("Phone first: Example Community Clinic", words.referral_note(leads, True))
         down = words.present({"status": "unavailable", "direct_results": [], "indirect_leads": [],
                               "location_choices": [], "approximate_location": False,
@@ -152,6 +154,25 @@ class WordingTests(unittest.TestCase):
 
     def test_the_demonstration_facilities_inside_the_app_folder_are_the_shared_fixture(self):
         self.assertEqual((ROOT / "contracts/fixtures/search.json").read_bytes(), (APP / "demo_facilities.json").read_bytes())
+
+    def test_one_typed_line_is_read_as_a_city_a_pin_or_coordinates(self):
+        for typed, expected in (("Jaipur, Rajasthan", {"city": "Jaipur", "state": "Rajasthan"}),
+                                ("  jaipur ", {"city": "jaipur"}), ("St. John's, Kerala", {"city": "St. John's", "state": "Kerala"}),
+                                ("302001", {"pin": "302001"}), ("302 001", {"pin": "302001"}),
+                                ("26.92, 75.82", {"latitude": 26.92, "longitude": 75.82}),
+                                ("26.92 75.82", {"latitude": 26.92, "longitude": 75.82}),
+                                ("-12, 77", {"latitude": -12.0, "longitude": 77.0})):
+            self.assertEqual(expected, words.parse_location(typed), typed)
+            self.assertEqual(expected, words.parse_location(words.location_text(expected)), typed)
+        for typed, message in (("", "Type a city or town, a PIN code, or coordinates."), ("   ", "Type a city or town"),
+                               ("12345", "A PIN code has six digits."), ("26.92", "latitude, then longitude"),
+                               (", Rajasthan", "before the comma")):
+            with self.assertRaises(ValueError) as refused:
+                words.parse_location(typed)
+            self.assertIn(message, str(refused.exception), typed)
+        # Every example distance on the screen is one the distance control offers.
+        self.assertIn(2, words.RADII)
+        self.assertEqual(sorted(words.RADII), list(words.RADII))
 
     def test_typed_locations(self):
         self.assertEqual({"city": "Jaipur"}, words.build_location("city", city=" Jaipur ", state=" "))
@@ -266,7 +287,8 @@ class ScreenTests(unittest.TestCase):
             self.assertNotIn(text, shown)
             self.assertNotIn(json.dumps(text)[1:-1], shown)
         for surface in ("Send the patient", "Send to", "Referral note", "cannot take the patient", "Record sources",
-                        "Phone first", "example.invalid", "evidence_excerpt", "facility_id", "km in a straight line"):
+                        "Phone first", "example.invalid", "evidence_excerpt", "facility_id", "km away", "m away", 'fc-record\\">',
+                        'fc-quote\\">', "Why this facility", "What its record says"):
             self.assertNotIn(surface, shown)
         if "response" in app.session_state:
             kept = app.session_state["response"]
@@ -287,10 +309,50 @@ class ScreenTests(unittest.TestCase):
                      "procedures field", "Phone to confirm", "How this was decided", "example.invalid",
                      "cannot take the patient"):
             self.assertIn(part, text)
+        for part in ("Why this facility", "What its record says", "About 6.7 km away, in a straight line."):
+            self.assertIn(part, text)
         self.assertIn("Send to: Example Regional Hospital", app.code[0].value)
         self.assertEqual(1, len(app.get("download_button")))
+        # An example fills the form, so the form always shows what the answer is for.
+        self.assertEqual(("dialysis", "Jaipur, Rajasthan", 50),
+                         (app.radio(key="service").value, app.text_input(key="where").value,
+                          app.select_slider(key="radius").value))
+        self.assertNotIn("You changed the request", text)
         app = self._step(app.button(key="example-Dialysis within 2 km of PIN 302001").click())
         self.assertIn("No facility within 2 km clearly offers dialysis.", self._text(app))
+        self.assertEqual(("302001", 2), (app.text_input(key="where").value, app.select_slider(key="radius").value))
+
+    def test_the_first_press_answers_because_the_demonstration_form_starts_filled(self):
+        app = self._app()
+        self.assertEqual("Jaipur, Rajasthan", app.text_input(key="where").value)
+        app = self._step(app.button(key="find").click())
+        self.assertIn("Send the patient to Example Regional Hospital.", self._text(app))
+        self.assertEqual(0, len(app.error))
+
+    def test_a_changed_request_marks_the_answer_out_of_date_and_takes_the_note_away(self):
+        app = self._app()
+        app = self._step(app.button(key="find").click())
+        self.assertEqual((1, 1), (len(app.code), len(app.get("download_button"))))
+        for change in (lambda a: a.radio(key="service").set_value("mri"),
+                       lambda a: a.text_input(key="where").set_value("302001"),
+                       lambda a: a.select_slider(key="radius").set_value(10)):
+            changed = self._step(change(app))
+            text = self._text(changed)
+            self.assertIn("You changed the request. The answer below is for the earlier one.", text)
+            self.assertIn("fc-old", text)
+            self.assertEqual((0, 0), (len(changed.code), len(changed.get("download_button"))))
+            self.assertNotIn("cannot take the patient", text)
+            self.assertIn("Dialysis near Jaipur, Rajasthan, within 50 km.", text)  # still says what it answers
+            # Putting the request back, or asking again, makes the answer current.
+            back = self._step(changed.button(key="example-Dialysis near Jaipur, Rajasthan").click())
+            self.assertNotIn("You changed the request", self._text(back))
+            self.assertEqual((1, 1), (len(back.code), len(back.get("download_button"))))
+            app = back
+        app.radio(key="service").set_value("mri")
+        app = self._step(app.button(key="find").click())
+        text = self._text(app)
+        self.assertNotIn("You changed the request", text)
+        self.assertIn("MRI scan near Jaipur, Rajasthan, within 50 km.", text)
 
     def test_demonstration_can_be_chosen_outright_beside_warehouse_settings(self):
         app = self._app(**WAREHOUSE, FIND_CARE_DATA="demo")
@@ -300,17 +362,22 @@ class ScreenTests(unittest.TestCase):
 
     def test_typed_city_asks_which_place_then_answers(self):
         app = self._app()
-        app.text_input(key="city").set_value("Jaipur")
-        app = self._step(app.button(key="FormSubmitter:ask-Find a facility").click())
+        app.text_input(key="where").set_value("Jaipur")
+        app = self._step(app.button(key="find").click())
         self.assertIn("More than one place has that name.", self._text(app))
         app = self._step(app.button(key="choice-Jaipur, Rajasthan").click())
         self.assertIn("Send the patient to Example Regional Hospital.", self._text(app))
+        self.assertEqual("Jaipur, Rajasthan", app.text_input(key="where").value)
+        self.assertNotIn("You changed the request", self._text(app))
 
     def test_an_empty_location_is_refused_in_plain_words(self):
         app = self._app()
-        app = self._step(app.button(key="FormSubmitter:ask-Find a facility").click())
-        self.assertIn("Type the city or town.", self._text(app))
-        self.assertNotIn("Send the patient", self._text(app))
+        app = self._step(app.button(key="find").click())
+        app.text_input(key="where").set_value("")
+        app = self._step(app.button(key="find").click())
+        self.assertIn("Type a city or town, a PIN code, or coordinates.", self._text(app))
+        self.assertNotIn("Send the patient", self._text(app))  # the earlier answer is gone, not left standing
+        self.assertEqual((0, 0), (len(app.code), len(app.get("download_button"))))
 
     def test_a_direct_statement_in_the_warehouse_never_becomes_a_referral(self):
         """The v0 search answers "ok" here only because a record states the service. The screen withholds it."""
@@ -343,15 +410,19 @@ class ScreenTests(unittest.TestCase):
         app = self._step(app.button(key="example-Dialysis within 2 km of PIN 302001").click())
         self.assertIn("mention something related to dialysis, but none has been reviewed", self._text(app))
         self._assert_nothing_restricted(app)
-        app.text_input(key="city").set_value("Jaipur")
-        app = self._step(app.button(key="FormSubmitter:ask-Find a facility").click())
+        app.text_input(key="where").set_value("Jaipur")
+        app = self._step(app.button(key="find").click())
         self.assertIn("More than one place has that name.", self._text(app))
         self.assertIn("Type the state as well and search again", self._text(app))
         self._assert_nothing_restricted(app)
         app.radio(key="service").set_value("trauma_care")
-        app.text_input(key="state").set_value("Rajasthan")
+        app.text_input(key="where").set_value("Jaipur, Rajasthan")
         app.select_slider(key="radius").set_value(10)
-        app = self._step(app.button(key="FormSubmitter:ask-Find a facility").click())
+        app = self._step(app.button(key="find").click())
+        self._assert_nothing_restricted(app)
+        # A changed request is marked on real records too, and still shows nothing restricted.
+        app = self._step(app.radio(key="service").set_value("mri"))
+        self.assertIn("You changed the request", self._text(app))
         self._assert_nothing_restricted(app)
 
     def test_a_half_configured_warehouse_reports_the_setup_problem_and_shows_no_invented_data(self):
@@ -400,7 +471,7 @@ class ScreenTests(unittest.TestCase):
         app = self._step(app.button(key="example-Dialysis near Jaipur, Rajasthan").click())
         text = self._text(app)
         self.assertIn("The facility records cannot be reached right now.", text)
-        self.assertIn("The facility warehouse is unavailable\\. Try again shortly\\.", text)
+        self.assertIn("The facility warehouse is unavailable. Try again shortly.", text)
         self._assert_nothing_restricted(app)
 
 
@@ -412,10 +483,10 @@ class DeploymentShapeTests(unittest.TestCase):
         "from streamlit.testing.v1 import AppTest\n"
         "app = AppTest.from_file('app.py', default_timeout=30).run()\n"
         "assert not app.exception, app.exception\n"
-        "assert any('Data: demonstration.' in c.value for c in app.caption), [c.value for c in app.caption]\n"
+        "assert any('Data: demonstration.' in m.value for m in app.markdown), [m.value for m in app.markdown]\n"
         "app = app.button(key='example-Dialysis near Jaipur, Rajasthan').click().run()\n"
         "assert not app.exception, app.exception\n"
-        "assert app.header[0].value == 'Send the patient to Example Regional Hospital.', app.header[0].value\n"
+        "assert any('Send the patient to Example Regional Hospital.' in m.value for m in app.markdown)\n"
         "print('demonstration answered')\n"
     )
 

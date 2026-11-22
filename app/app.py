@@ -14,6 +14,7 @@ The data mode is explicit (find_care.data_mode) and named at the top of the scre
 
 The screen never ranks: it words what the search returns (app/find_care.py).
 """
+import html
 import json
 import os
 import sys
@@ -34,12 +35,48 @@ from ranking import search_facilities  # noqa: E402
 FIXTURE = HERE / "demo_facilities.json"
 DATA = words.data_mode(os.environ)
 DEMO = DATA["mode"] == "demo"
-MODES = {"city": "City or town", "pin": "PIN code", "coordinates": "Coordinates"}
+# label, care, the line typed into "Where", distance
 EXAMPLES = [
-    ("Dialysis near Jaipur, Rajasthan", "dialysis", "city", {"city": "Jaipur", "state": "Rajasthan"}, 50),
-    ("MRI scan near PIN 302001", "mri", "pin", {"pin": "302001"}, 50),
-    ("Dialysis within 2 km of PIN 302001", "dialysis", "pin", {"pin": "302001"}, 2),
+    ("Dialysis near Jaipur, Rajasthan", "dialysis", "Jaipur, Rajasthan", 50),
+    ("MRI scan near PIN 302001", "mri", "302001", 50),
+    ("Dialysis within 2 km of PIN 302001", "dialysis", "302001", 2),
 ]
+# Same paper, ink and caution colours as the offline Find care page, and the same referral slip.
+STYLE = """
+<style>
+[data-testid="stMainBlockContainer"], .block-container { padding-top: 2.75rem; max-width: 78rem; }
+.fc-lede { margin: -0.5rem 0 1rem; max-width: 64ch; font-size: 1.125rem; color: #14283b; }
+.fc-mode { margin: 0 0 1.5rem; padding: 0.6rem 0.9rem; background: #ffffff; border: 1.5px solid #c3ced6;
+  border-radius: 3px; color: #14283b; font-size: 1rem; }
+.fc-slip { background: #ffffff; border: 1.5px solid #14283b; border-radius: 3px; padding: 0 1.75rem 1.5rem;
+  margin-bottom: 1.25rem; color: #14283b; }
+.fc-slip.fc-more { border-color: #c3ced6; padding-top: 0.75rem; }
+.fc-slip div, .fc-slip li { font-size: 1.0625rem; line-height: 1.5; }
+.fc-slip .fc-for { margin: 0 -1.75rem; padding: 0.7rem 1.75rem; border-bottom: 1.5px dashed #4b6274;
+  color: #4b6274; font-size: 0.95rem; }
+.fc-slip .fc-answer { margin-top: 1.25rem; font-size: 2.25rem; line-height: 1.1; font-weight: 700;
+  letter-spacing: -0.015em; }
+.fc-slip .fc-trip { margin-top: 0.6rem; font-size: 1.25rem; line-height: 1.3; font-weight: 600; }
+.fc-slip .fc-h { margin-top: 1.4rem; font-weight: 700; }
+.fc-slip .fc-text { max-width: 62ch; }
+.fc-record { margin-top: 0.5rem; padding: 0.85rem 1.1rem; background: #edf1f3; border-radius: 3px; }
+.fc-record .fc-quote { font-size: 1.125rem; line-height: 1.4; max-width: 56ch; }
+.fc-record .fc-from, .fc-slip .fc-quiet { margin-top: 0.45rem; color: #4b6274; font-size: 0.95rem; }
+.fc-record a { color: #14283b; }
+.fc-slip .fc-caveat { margin-top: 1.25rem; padding: 0.75rem 1rem; background: #f6ebcd; color: #6b4a00;
+  border: 1.5px solid #b97a06; border-radius: 3px; font-weight: 600; }
+.fc-slip ol, .fc-slip ul { margin: 0.5rem 0 0; padding-left: 1.4rem; }
+.fc-slip li { margin-bottom: 0.9rem; }
+.fc-stale { margin: 0 0 0.75rem; padding: 0.6rem 0.9rem; border: 1.5px solid #14283b; border-radius: 3px;
+  background: #ffffff; color: #14283b; font-weight: 600; }
+.fc-old { opacity: 0.55; }
+@media (max-width: 640px) {
+  .fc-slip { padding: 0 1rem 1.25rem; }
+  .fc-slip .fc-for { margin: 0 -1rem; padding: 0.7rem 1rem; }
+  .fc-slip .fc-answer { font-size: 1.75rem; }
+}
+</style>
+"""
 
 
 @st.cache_data
@@ -62,6 +99,11 @@ def plain(text):
     return out
 
 
+def safe(text):
+    """Text placed inside the slip's HTML. Record text can never add markup."""
+    return html.escape(str(text), quote=False)
+
+
 def ask(service, location, radius_km):
     try:
         response = run_search(service, location, radius_km)
@@ -72,19 +114,66 @@ def ask(service, location, radius_km):
     st.session_state["response"] = response
 
 
-def facility(card, heading=None):
-    if heading:
-        st.markdown(f"**{plain(heading)}**")
-    st.markdown("\n".join("> " + plain(line) for line in card["excerpt"].splitlines() or [""]))
-    st.caption(f"From the {card['field']} field of this facility's record."
-               + ("" if card["strength"] == "direct" else " It mentions something related, not the service itself."))
-    if card["sources"]:
-        st.markdown("Record sources: " + ", ".join(f"[{plain(url.split('/')[2])}]({url})" for url in card["sources"]))
+def submit():
+    """Search for what the form shows now. Runs before the screen is drawn again."""
+    try:
+        location = words.parse_location(st.session_state.get("where", ""))
+    except ValueError as error:
+        st.session_state["problem"] = str(error)
+        st.session_state.pop("asked", None)
+        st.session_state.pop("response", None)
+        return
+    st.session_state.pop("problem", None)
+    ask(st.session_state["service"], location, st.session_state["radius"])
+
+
+def fill(service, where, radius_km):
+    """Put a request into the form, so the form always shows what the answer is for, then search."""
+    st.session_state.update(service=service, where=where, radius=radius_km)
+    submit()
+
+
+def record(card):
+    """A facility's cited record: its words, the field they came from, and its sources."""
+    links = ", ".join(f'<a href="{html.escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">'
+                      f"{safe(url.split('/')[2])}</a>" for url in card["sources"])
+    related = "" if card["strength"] == "direct" else " It mentions something related, not the service itself."
+    source = f"Source: {links}." if links else "This record lists no source link."
+    return (f'<div class="fc-record"><div class="fc-quote">“{safe(card["excerpt"])}”</div>'
+            f'<div class="fc-from">From the {safe(card["field"])} field of this facility\'s record.{related} '
+            f"{source}</div></div>")
+
+
+def listed(card):
+    place = f"{safe(card['place'])}. " if card["place"] else ""
+    return f"<li><strong>{safe(card['name'])}</strong><br>{place}{safe(card['distance'])}{record(card)}</li>"
+
+
+def slip(view, stale):
+    """The answer, drawn as the slip a health worker hands over. Real records never reach the facility parts."""
+    parts = [f'<div class="fc-for">{safe(view["request_line"])}</div>',
+             f'<div class="fc-answer" role="heading" aria-level="2">{safe(view["headline"])}</div>']
+    top = view["top"] if DEMO and view["status"] == "ok" else None
+    if top:
+        place = f"{top['place']}. " if top["place"] else ""
+        parts.append(f'<div class="fc-trip">{safe(place + top["distance"])}</div>')
+        parts.append(f'<div class="fc-h">Why this facility</div><div class="fc-text">{safe(view["why"])}</div>')
+        parts.append(f'<div class="fc-h">What its record says</div>{record(top)}')
+        if view["caveat"]:
+            parts.append(f'<div class="fc-caveat">{safe(view["caveat"])}</div>')
     else:
-        st.caption("This record lists no source link.")
+        parts.append(f'<div class="fc-trip">{safe(view["subline"])}</div>')
+        if DEMO and view["leads"]:
+            parts.append("<ul>" + "".join(listed(lead) for lead in view["leads"]) + "</ul>")
+        if view["next_step"]:
+            parts.append(f'<div class="fc-text" style="margin-top:1rem">{safe(view["next_step"])}</div>')
+    if view["approximate_note"]:
+        parts.append(f'<div class="fc-quiet">{safe(view["approximate_note"])}</div>')
+    return f'<div class="fc-slip{" fc-old" if stale else ""}">{"".join(parts)}</div>'
 
 
 st.set_page_config(page_title="Find care", layout="wide")
+st.markdown(STYLE, unsafe_allow_html=True)
 st.title("Find care")
 if DATA["mode"] == "setup":
     st.error("Data: not available. This app is set to read the real facility records, but its setup is incomplete.")
@@ -93,42 +182,39 @@ if DATA["mode"] == "setup":
     st.caption(f"To run on the invented demonstration facilities instead, set {words.DATA_SETTING} to demo.")
     st.stop()
 if DEMO:
-    st.caption("Data: demonstration. This screen is running on six invented facilities, not the real records.")
+    st.markdown('<div class="fc-lede">Say what care a patient needs and where they are. You get the nearest '
+                "facility whose record says it offers that care, with the words it relied on.</div>"
+                '<div class="fc-mode"><strong>Data: demonstration.</strong> This screen is running on six '
+                "invented facilities, not the real records.</div>", unsafe_allow_html=True)
     if not FIXTURE.exists():
         st.error("The demonstration facilities (demo_facilities.json) are missing from this deployment.")
         st.stop()
 else:
-    st.caption("Data: real records. Searching the Virtue Foundation facility records. No facility is named or "
-               "recommended here until the team has reviewed and approved destinations.")
+    st.markdown('<div class="fc-lede">Say what care a patient needs and where they are. You are told whether '
+                "nearby facility records mention that care.</div>"
+                '<div class="fc-mode"><strong>Data: real records.</strong> Searching the Virtue Foundation '
+                "facility records. No facility is named or recommended here until the team has reviewed and "
+                "approved destinations.</div>", unsafe_allow_html=True)
 
+st.session_state.setdefault("service", "dialysis")
+st.session_state.setdefault("where", "Jaipur, Rajasthan" if DEMO else "")
+st.session_state.setdefault("radius", 50)
 left, right = st.columns([5, 9], gap="large")
 
 with left:
-    st.subheader("Where should this patient go?")
-    mode = st.radio("Give the location as", list(MODES), format_func=MODES.get, horizontal=True, key="mode")
-    with st.form("ask"):
-        service = st.radio("Care needed", list(words.SERVICES), format_func=words.SERVICES.get, key="service")
-        if mode == "city":
-            city = st.text_input("City or town", key="city", placeholder="Jaipur")
-            state = st.text_input("State (optional)", key="state", placeholder="Rajasthan")
-            typed = {"city": city, "state": state}
-        elif mode == "pin":
-            typed = {"pin": st.text_input("PIN code", key="pin", placeholder="302001", max_chars=7)}
-        else:
-            typed = {"latitude": st.text_input("Latitude", key="latitude", placeholder="26.92"),
-                     "longitude": st.text_input("Longitude", key="longitude", placeholder="75.82")}
-        radius = st.select_slider("Search within", options=list(words.RADII), value=50, key="radius",
-                                  format_func=lambda km: f"{km} km")
-        if st.form_submit_button("Find a facility", type="primary", use_container_width=True):
-            try:
-                ask(service, words.build_location(mode, **typed), radius)
-            except ValueError as error:
-                st.session_state.pop("response", None)
-                st.error(str(error))
-    st.caption("Or try an example")
-    for label, ex_service, _ex_mode, ex_location, ex_radius in EXAMPLES:
-        if st.button(label, key="example-" + label):
-            ask(ex_service, ex_location, ex_radius)
+    st.subheader("Your request")
+    service = st.radio("1. Care needed", list(words.SERVICES), format_func=words.SERVICES.get, key="service",
+                       horizontal=True)
+    where = st.text_input("2. Where the patient is", key="where", placeholder="For example: Jaipur, Rajasthan")
+    st.caption("A city or town (add the state after a comma), a six-digit PIN code, or coordinates.")
+    radius = st.select_slider("Search within", options=list(words.RADII), key="radius",
+                              format_func=lambda km: f"{km} km")
+    st.button("Find a facility", type="primary", use_container_width=True, on_click=submit, key="find")
+    if st.session_state.get("problem"):
+        st.error(st.session_state["problem"])
+    st.caption("Or start from an example")
+    for label, ex_service, ex_where, ex_radius in EXAMPLES:
+        st.button(label, key="example-" + label, on_click=fill, args=(ex_service, ex_where, ex_radius))
 
 with right:
     response, asked = st.session_state.get("response"), st.session_state.get("asked")
@@ -136,46 +222,42 @@ with right:
         with st.container(border=True):
             st.markdown("**The recommendation appears here.**")
             st.write("You get one facility to send the patient to, the words from its record that back it, "
-                     "and what nobody has confirmed yet." if DEMO else
+                     "and what nobody has confirmed yet. Press Find a facility, or start from an example."
+                     if DEMO else
                      "You are told whether nearby records mention the service. No facility is named until "
                      "the team has reviewed and approved destinations.")
     else:
+        try:
+            shown_now = {"service": service, "location": words.parse_location(where), "radius_km": radius}
+        except ValueError:
+            shown_now = None
+        stale = shown_now != asked
         view = words.present(response, asked["service"], asked["location"], asked["radius_km"])
-        with st.container(border=True):
-            st.caption(view["request_line"])
-            st.header(view["headline"])
-            st.markdown(f"**{plain(view['subline'])}**")
-            if DEMO and view["status"] == "ok":
-                top = view["top"]
-                if top["place"]:
-                    st.write(top["place"])
-                st.write(view["why"])
-                facility(top)
-                if view["caveat"]:
-                    st.warning(view["caveat"])
-            for lead in view["leads"] if DEMO else []:
-                facility(lead, f"{lead['name']}. {lead['distance']}")
-            for choice in view["choices"] if DEMO else []:
-                label = ", ".join(part for part in (choice.get("city"), choice.get("state")) if part)
-                if st.button(label, key="choice-" + label):
-                    ask(asked["service"], choice, asked["radius_km"])
-                    st.rerun()
-            if view["next_step"]:
-                st.write(view["next_step"])
-            if view["approximate_note"]:
-                st.caption(view["approximate_note"])
-        if DEMO and view["backups"]:
+        if stale:
+            st.markdown('<div class="fc-stale">You changed the request. The answer below is for the earlier one. '
+                        "Press Find a facility to update it.</div>", unsafe_allow_html=True)
+        st.markdown(slip(view, stale), unsafe_allow_html=True)
+        for choice in view["choices"] if DEMO and not stale else []:
+            label = ", ".join(part for part in (choice.get("city"), choice.get("state")) if part)
+            st.button(label, key="choice-" + label, on_click=fill,
+                      args=(asked["service"], label, asked["radius_km"]))
+        if DEMO and not stale and view["backups"]:
             st.subheader(f"If {view['top']['name']} cannot take the patient")
-            for number, backup in enumerate(view["backups"], start=2):
-                facility(backup, f"{number}. {backup['name']}. {backup['distance']}")
-        if DEMO and view["status"] in ("ok", "needs_confirmation"):
+            st.markdown('<div class="fc-slip fc-more"><ol start="2">'
+                        + "".join(listed(backup) for backup in view["backups"]) + "</ol></div>",
+                        unsafe_allow_html=True)
+        # An out-of-date answer can be read but not handed on: no backups, no note to copy, nothing to save.
+        if DEMO and not stale and view["status"] in ("ok", "needs_confirmation"):
             st.subheader("Referral note")
             st.caption("Use the copy button on the note, or save it as a file.")
             note = words.referral_note(view, synthetic=True)
-            st.code(note, language=None)
+            st.code(note, language=None, wrap_lines=True)
             st.download_button("Save referral note", note, file_name="referral-note.txt", mime="text/plain")
         st.subheader("How this was decided")
-        st.write(words.HOW if DEMO else words.HOW_WITHHELD)
+        if DEMO:
+            st.markdown("\n".join(f"{number}. {plain(rule)}" for number, rule in enumerate(words.HOW, start=1)))
+        else:
+            st.write(words.HOW_WITHHELD)
         with st.expander("Technical details"):
             if DEMO:
                 st.caption("The request and the unedited response from the search.")
