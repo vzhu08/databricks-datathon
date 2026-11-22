@@ -11,7 +11,8 @@
   var F = window.FinderState;
   var bundle = window.FINDER_EXAMPLES || null;
   var transport = typeof window.FINDER_TRANSPORT === "function" ? window.FINDER_TRANSPORT : null;
-  var current = { request: null, names: {}, inFlight: false, example: false };
+  var session = F.session();
+  var current = { names: {}, fileName: null, envelope: null };
 
   var SERVICES = { dialysis: "Dialysis", mri: "MRI", trauma_care: "Trauma care" };
   var URGENCY = { highest: "highest urgency", time_sensitive: "time-sensitive urgency", routine: "routine urgency" };
@@ -43,7 +44,13 @@
     local_rate_limited: "This app's request rate limit was reached",
     local_inflight_limit: "Too many requests were already in progress",
     shared_provider_cooldown: "Requests are paused after repeated rate-limit answers",
-    validation_reservation_required: "This run needs a reserved request budget",
+    validation_reservation_required: "This run needs a reserved request budget and has none",
+    reserved_budget_exhausted: "The request budget reserved for this run is used up",
+    reservation_month_mismatch: "The reserved request budget belongs to a different month",
+    protected_allowance_exhausted: "The protected monthly allowance is used up",
+    validation_allocation_exhausted: "The allowance set aside for validation runs is used up",
+    unknown_reservation: "This run's reservation is not recognised",
+    local_clock_regressed: "The server clock moved backwards, so requests are paused",
     routing_disabled: "Live routing is switched off on the server",
   };
   var GROUP_TITLES = {
@@ -133,6 +140,11 @@
     if (view.local_limit.length) {
       return ["none", "This app's request limit was reached",
         "No driving time was requested beyond the limit, so nothing is ranked. This limit is set in this application. " +
+        "It is not a provider outage, and it does not switch the ranking to straight-line distance."];
+    }
+    if (view.local_reserve.length) {
+      return ["none", "The reserved request budget cannot cover this search",
+        "No driving time was requested, so nothing is ranked. The reservation is set in this application. " +
         "It is not a provider outage, and it does not switch the ranking to straight-line distance."];
     }
     if (view.local_setup.length) {
@@ -239,20 +251,27 @@
       item("Travel mode", sentence(words(routing.mode || "not stated"))),
       item("Route preference", sentence(words(routing.routing_preference || "not stated"))));
     var nodes = [el("dl", {}, facts)];
-    if (current.example) {
+    var source = session.source();
+    if (source === "example") {
       nodes.push(el("p", { text: "This example was made by the finder code with a stand-in for the routing provider. Its times and " +
         "distances are invented and are not results from " + (a.text || "the provider") + "." }));
       if (a.required && a.text) nodes.push(el("p", { text: "A live response of this kind must credit " + a.text + "." }));
+    } else if (source === "file") {
+      nodes.push(el("p", { text: "This response was opened from a file. The page cannot check where the file came from, so the " +
+        "provenance of its figures is unknown: they may be invented or may be provider results." }));
+      if (a.required && a.text) nodes.push(el("p", { text: "The response says its estimates must credit " + a.text + "." }));
     } else if (a.required && a.text) {
       nodes.push(el("p", { text: "Driving estimates in this response are supplied by " + a.text + "." }));
     } else {
       nodes.push(el("p", { text: "This response contains no provider result, so no provider credit applies to it." }));
     }
     if (a.display_status === "operator_terms_review_required") {
-      nodes.push(el("p", { text: "The provider's display terms are still under operator review. Treat this page as an internal " +
-        "evaluation with invented points, not as a public display of provider results." }));
+      nodes.push(el("p", { text: "Public display of provider results is not cleared. The provider's display terms are still under " +
+        "operator review, so keep this page to internal evaluation." }));
     } else if (a.display_status) {
-      nodes.push(el("p", { text: "Display status: " + words(a.display_status) + "." }));
+      nodes.push(el("p", { text: "Display status reported in the response: " + words(a.display_status) + ". This page does not clear public display." }));
+    } else {
+      nodes.push(el("p", { text: "The response gives no display status, so public display of provider results is not cleared." }));
     }
     if (a.storage === "do_not_persist_provider_content") {
       nodes.push(el("p", { text: "Provider results must not be stored. This page keeps nothing after it is closed." }));
@@ -268,22 +287,70 @@
     $("file-error").hidden = !message;
   }
 
-  function show(envelope, note) {
-    var found = F.problems(envelope);
-    if (found.length) {
-      showError("This response can't be shown. " + found.join(" ") + " Choose the output of python -m app.ranking for a request with routing.");
-      return false;
-    }
-    showError("");
+  function draw(envelope, note) {
     var view = F.view(envelope);
-    $("request-note").textContent = note || requestWords(envelope, null);
+    $("request-note").textContent = note;
     renderState(view, envelope);
     renderRanked(view);
     renderGroups(view);
     renderCounts(view);
     renderSource(view, envelope);
     $("result").hidden = false;
+  }
+
+  /* Says, in the page header, where the response on screen came from. */
+  function headerNote() {
+    var source = session.source();
+    $("synthetic-note").textContent = source === "example"
+      ? "Example response. Every campus, the origin and every time and distance shown are invented."
+      : source === "file" ? "Opened file: " + current.fileName + ". This page cannot check where it came from, so its provenance is unknown."
+        : source === "search" ? "Response to the search made from this page."
+          : "No response is open.";
+  }
+
+  /*
+   * Shows a response after checking every part the page reads. A response that fails the check, or
+   * that still cannot be drawn, leaves the previous view on screen with the reason above it.
+   * `adopt` records the new source and runs only once the response is accepted.
+   */
+  function show(envelope, note, adopt) {
+    var found = F.problems(envelope);
+    if (found.length) {
+      showError("This response can't be shown. " + found.join(" ") + " Choose the output of python -m app.ranking for a request with routing." +
+        (current.envelope ? " The response that was open is still shown." : ""));
+      return false;
+    }
+    var previous = { envelope: current.envelope, note: current.note, names: current.names, fileName: current.fileName,
+      source: session.source(), request: session.request() };
+    try {
+      adopt();
+      draw(envelope, note);
+    } catch (error) {
+      current.names = previous.names;
+      current.fileName = previous.fileName;
+      session.adopt(previous.source, previous.request);
+      if (previous.envelope) draw(previous.envelope, previous.note);
+      headerNote();
+      syncSearch();
+      showError("This response can't be shown because part of it could not be drawn." +
+        (previous.envelope ? " The response that was open is still shown." : ""));
+      return false;
+    }
+    current.envelope = envelope;
+    current.note = note;
+    headerNote();
+    syncSearch();
+    showError("");
     return true;
+  }
+
+  /* Search is offered only when a backend supplied a transport, and only for a view that has a request. */
+  function syncSearch() {
+    if (!transport) return;
+    $("search").disabled = !session.canSearch();
+    $("search").textContent = session.searching() ? "Searching" : "Search driving times";
+    $("search-hint").textContent = session.searching() || session.request() ? ""
+      : "Search needs the request behind a response. An opened file carries none, so choose an example to search from.";
   }
 
   function requestWords(envelope, request) {
@@ -302,36 +369,76 @@
   function showExample() {
     var example = bundle.examples.filter(function (item) { return item.key === $("example").value; })[0];
     if (!example) return;
-    current.request = example.request;
-    current.names = bundle.names || {};
-    current.example = true;
-    show(example.response, requestWords(example.response, example.request));
+    session.intend();
     $("search-status").textContent = "";
+    show(example.response, requestWords(example.response, example.request), function () {
+      current.names = bundle.names || {};
+      current.fileName = null;
+      session.adopt("example", example.request);
+    });
   }
 
-  /* The only path to a live request: one press, one call, and no second call until it settles. */
-  function search() {
-    if (!transport || current.inFlight || !current.request) return;
-    current.inFlight = true;
-    $("search").disabled = true;
-    $("search").textContent = "Searching";
-    $("search-status").textContent = "Requesting driving times. Results appear here when the search finishes.";
-    var settle = function (message) {
-      current.inFlight = false;
-      $("search").disabled = false;
-      $("search").textContent = "Search driving times";
-      $("search-status").textContent = message;
+  function openFile(file) {
+    var token = session.intend();
+    var reader = new FileReader();
+    reader.onload = function () {
+      if (!session.isCurrent(token)) return; // Something else was chosen while the file was being read.
+      var envelope;
+      try { envelope = JSON.parse(reader.result); } catch (error) {
+        showError("This file can't be shown because it is not JSON. Choose the output of python -m app.ranking for a request with routing.");
+        return;
+      }
+      var shown = show(envelope, "Showing " + file.name + ". " + requestWords(envelope, null), function () {
+        current.names = {};
+        current.fileName = file.name;
+        session.adopt("file", null); // A response file carries no request, so it cannot be searched again.
+      });
+      if (shown) {
+        $("example").value = "";
+        $("search-status").textContent = "";
+      }
     };
-    Promise.resolve().then(function () { return transport(current.request); }).then(function (envelope) {
-      var wasExample = current.example;
-      current.example = false;
-      var shown = show(envelope, requestWords(envelope, current.request));
-      if (shown) $("example").value = "";
-      else current.example = wasExample;
-      settle(shown ? "Showing the response to your search." : "");
+    reader.onerror = function () {
+      if (session.isCurrent(token)) showError("This file could not be read. Choose it again, or choose another response file.");
+    };
+    reader.readAsText(file);
+  }
+
+  /*
+   * The only path to a live request: one press, one call, and no second call until it settles.
+   * The result is tied to the request that was submitted and is shown only if nothing else was
+   * chosen while it was in progress. The control is released however the call ends.
+   */
+  function search() {
+    if (!transport) return;
+    var ticket = session.begin();
+    if (!ticket) return;
+    syncSearch();
+    showError("");
+    $("search-status").textContent = "Requesting driving times. Results appear here when the search finishes.";
+    function finish(apply) {
+      var currentView = session.settle(ticket);
+      try {
+        if (currentView) apply();
+        else $("search-status").textContent = "A search finished after you chose something else, so its result is not shown.";
+      } finally {
+        syncSearch();
+      }
+    }
+    Promise.resolve().then(function () { return transport(ticket.request); }).then(function (envelope) {
+      finish(function () {
+        var shown = show(envelope, requestWords(envelope, ticket.request), function () {
+          current.fileName = null;
+          session.adopt("search", ticket.request);
+        });
+        if (shown) $("example").value = "";
+        $("search-status").textContent = shown ? "Showing the response to your search." : "";
+      });
     }, function () {
-      settle("");
-      showError("The search could not be completed, and the response shown below is unchanged. Press Search driving times to try again.");
+      finish(function () {
+        $("search-status").textContent = "";
+        showError("The search could not be completed, and the response shown below is unchanged. Press Search driving times to try again.");
+      });
     });
   }
 
@@ -339,32 +446,15 @@
     $("open-file").addEventListener("click", function () { $("file").click(); });
     $("file").addEventListener("change", function () {
       var file = $("file").files[0];
-      if (!file) return;
-      var reader = new FileReader();
-      reader.onload = function () {
-        var envelope;
-        try { envelope = JSON.parse(reader.result); } catch (error) {
-          showError("This file can't be shown because it is not JSON. Choose the output of python -m app.ranking for a request with routing.");
-          return;
-        }
-        var names = current.names, wasExample = current.example;
-        current.names = {};
-        current.example = false;
-        if (show(envelope, null)) {
-          $("example").value = "";
-          $("request-note").textContent = "Showing " + file.name + ". " + requestWords(envelope, null);
-        } else {
-          current.names = names;
-          current.example = wasExample;
-        }
-      };
-      reader.readAsText(file);
+      if (file) openFile(file);
       $("file").value = "";
     });
     if (transport) {
       $("search-field").hidden = false;
       $("search").addEventListener("click", search);
+      syncSearch();
     }
+    headerNote();
     if (!bundle) {
       $("example").disabled = true;
       showError("The example responses did not load. Check that data/finder_examples.js sits beside this page, then reload. You can also open a response file.");
@@ -373,7 +463,7 @@
     bundle.examples.forEach(function (example) {
       $("example").append(el("option", { value: example.key, text: example.title }));
     });
-    $("example").append(el("option", { value: "", text: "Opened file", hidden: true }));
+    $("example").append(el("option", { value: "", text: "Not an example", hidden: true }));
     $("example").addEventListener("change", showExample);
     showExample();
   }

@@ -34,11 +34,14 @@ DRIVE = {"SYNTHETIC-CAMPUS-A": (1500, 6200), "SYNTHETIC-CAMPUS-B": (840, 7900),
 class _Budget:
     """Counts attempts and refuses once the invented daily limit is reached."""
 
-    def __init__(self, used=0):
+    def __init__(self, used=0, refusal=None):
         self.used = used
+        self.refusal = refusal
 
     def acquire(self, account, product, now, *, profile, daily_limit, monthly_limit, run_id):
         from app.travel.budget import Admission
+        if self.refusal:
+            return Admission(reason=self.refusal)
         if self.used >= daily_limit:
             return Admission(reason="daily_call_budget_exceeded")
         self.used += 1
@@ -72,7 +75,7 @@ def _request(coordinate_status=None, fallback=None):
             "travel_metric": "travel_minutes", "travel_budget": 30, "candidates": candidates, "routing": routing}
 
 
-def _provider(behaviour, daily_calls=100, already_used=0):
+def _provider(behaviour, daily_calls=100, already_used=0, refusal=None):
     """A TomTom client whose transport answers from ``behaviour`` keyed by campus."""
     from app.travel.tomtom import PRODUCT, RoutesConfig, TomTomRoutes, TransportFailure
     by_point = {(round(lat, 4), round(lon, 4)): fid for fid, _, lat, lon, _ in CAMPUSES}
@@ -90,7 +93,7 @@ def _provider(behaviour, daily_calls=100, already_used=0):
     config = RoutesConfig(enabled=True, api_key="SYNTHETIC-KEY", account_scope="synthetic-account", product=PRODUCT,
                           deployment_mode="single_host", daily_calls=daily_calls, monthly_calls=500,
                           verified_monthly_allowance=20000, query_calls=50, concurrency=1, max_retries=0)
-    return TomTomRoutes(config, budget=_Budget(already_used), clock=lambda: NOW, sleep=lambda _: None, transport=transport)
+    return TomTomRoutes(config, budget=_Budget(already_used, refusal), clock=lambda: NOW, sleep=lambda _: None, transport=transport)
 
 
 EXAMPLES = [
@@ -101,6 +104,7 @@ EXAMPLES = [
      {"behaviour": {fid: "provider_timeout" for fid in DRIVE}}, {"fallback": 40}),
     ("local_limit", "Request limit reached part way", {"daily_calls": 2}, {"fallback": 40}),
     ("local_limit_all", "Request limit already reached", {"daily_calls": 2, "already_used": 2}, {"fallback": 40}),
+    ("reserved_run", "Reserved request budget used up", {"refusal": "reserved_budget_exhausted"}, {"fallback": 40}),
     ("no_route", "No drivable route to any campus", {"behaviour": {fid: "no_route" for fid in DRIVE}}, {"fallback": 40}),
     ("unavailable", "Provider unreachable, no fallback requested",
      {"behaviour": {fid: "provider_connection_error" for fid in DRIVE}}, {}),
@@ -115,7 +119,8 @@ def bundle():
         request = _request(**request_options)
         response = find_campuses(request, provider=_provider(provider_options.get("behaviour", {}),
                                                               provider_options.get("daily_calls", 100),
-                                                              provider_options.get("already_used", 0)))
+                                                              provider_options.get("already_used", 0),
+                                                              provider_options.get("refusal")))
         examples.append({"key": key, "title": title, "request": {k: v for k, v in request.items() if k != "candidates"},
                          "response": response})
     return {"synthetic": True, "names": {fid: name for fid, name, *_ in CAMPUSES}, "examples": examples}

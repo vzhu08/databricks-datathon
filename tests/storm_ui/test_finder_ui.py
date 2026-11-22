@@ -46,9 +46,11 @@ class FinderUiTests(unittest.TestCase):
                 self.assertNotIn(marker, text, f"{name} must not contain {marker}")
         script = (PAGE / "finder.js").read_text(encoding="utf-8")
         # The hosting backend's transport is called in exactly one place: the Search button's handler.
-        self.assertEqual(1, script.count("transport(current.request)"))
+        self.assertEqual(1, script.count("transport("))
+        self.assertEqual(1, script.count("transport(ticket.request)"))
         self.assertEqual(1, script.count('addEventListener("click", search)'))
-        self.assertIn("if (!transport || current.inFlight || !current.request) return;", script)
+        self.assertEqual(1, script.count("session.begin()"))
+        self.assertIn("var ticket = session.begin();\n    if (!ticket) return;", script)
 
     @unittest.skipUnless(shutil.which("node"), "Node.js is needed for the page-state checks")
     def test_display_logic_against_every_example(self):

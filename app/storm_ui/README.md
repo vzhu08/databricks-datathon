@@ -54,28 +54,38 @@ the problem and keeps the replay that was open, at the same minute.
 draws what the response says and nothing more: the ranked order, every figure and every reason come
 from the response. It shows no map, because provider results are not plotted on another basemap.
 
-- **Example response** switches between eight invented responses, one per state the page must
+- **Example response** switches between nine invented responses, one per state the page must
   handle: every campus timed, some timed and some unresolved, straight-line fallback, the app's own
-  request limit reached part way and reached already, no route by car, provider unreachable with no
-  fallback, and no reviewed coordinates. They are produced by the real finder code with an
+  request limit reached part way and reached already, a reserved request budget that is used up,
+  no route by car, provider unreachable with no fallback, and no reviewed coordinates. They are produced by the real finder code with an
   in-process stand-in for the provider (`build_finder.py`), so no network call or credential is
   involved and the page says the figures are not provider results.
-- **Open response file** shows any saved finder response.
+- **Open response file** shows a saved finder response. Every part the page reads is checked first:
+  the state, the counts, each result row and each ranked entry. A response that fails the check
+  leaves the open one on screen with the reason. The page cannot tell where a file came from, so
+  the header and the source section say its provenance is unknown.
+- The header and the source section follow the source of what is on screen: an invented example, an
+  opened file of unknown provenance, or the answer to a search made from the page. In every case
+  the page says that public display of provider results is not cleared unless the response says so.
 - The page states the search result in a sentence, then the ranked campuses (driving minutes, or
   straight-line kilometres in a fallback, never both), then every other campus in one of five
   groups: over the travel limit, within the limit but below those shown, no time available, no route
   by car, and not sent for routing. Counts, the request time, the approximate-origin flag, the
   provider named in the response and its credit and display status follow.
-- The app's own request limits are reported separately from a provider outage and never switch the
-  ranking to distance.
+- The app's own request limits and its reserved or protected budget (`reserved_budget_exhausted`,
+  `reservation_month_mismatch`, `protected_allowance_exhausted` and the like) are each reported
+  separately from a provider outage and never switch the ranking to distance.
 
 **Live searches.** The page itself never contacts a routing provider and holds no key. A backend
 that hosts the page may define `window.FINDER_TRANSPORT`, a function that takes the search
 parameters (`service`, `urgency`, `as_of`, `travel_metric`, `travel_budget`, `routing`; the server
 supplies the candidates) and returns a promise of the finder response. Only then does a
 **Search driving times** button appear. One press makes one call, the button is disabled until that
-call settles, and nothing else on the page (loading, switching examples, opening a file) calls it.
-The page uses no timers and stores nothing.
+call settles however it ends, and nothing else on the page (loading, switching examples, opening a
+file) calls it. Each answer is tied to the request that was submitted. If another example or file
+is chosen while a search is running, the late answer or failure is dropped and the newer view
+stays. An opened response file carries no request, so Search is disabled for it. The page uses no
+timers and stores nothing.
 
 ## Files
 
@@ -107,8 +117,10 @@ people served is reported as different.
 For the finder page the tests confirm that the examples are invented and hold no candidate records
 or key, that the page files contain no network call, timer or storage, that the transport is called
 only from the Search button, and (with Node.js) that every campus in a response appears exactly once,
-that the ranked order and figures are the backend's own, and that minutes and kilometres are never
-mixed. The check that the committed examples are current runs when `app.travel` is importable.
+that the ranked order and figures are the backend's own, that minutes and kilometres are never
+mixed, that malformed nested entries are refused, that reserve reasons are kept apart from provider
+errors, and that the search session drops a late success or failure after a view change, leaves a
+response-only file unsearchable, and recovers from an invalid row with a successful retry. The check that the committed examples are current runs when `app.travel` is importable.
 
 ## Design notes
 

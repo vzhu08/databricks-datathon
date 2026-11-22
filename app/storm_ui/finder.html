@@ -10,7 +10,7 @@
 <body class="finder">
 <header class="masthead">
   <h1>Campus finder</h1>
-  <p class="synthetic-note" id="synthetic-note">Example responses. Every campus, the origin and every time and distance on this page are invented.</p>
+  <p class="synthetic-note" id="synthetic-note" aria-live="polite"></p>
   <nav class="pages" aria-label="Demo pages">
     <a href="index.html">Storm replay</a>
     <span aria-current="page">Campus finder</span>
@@ -26,8 +26,9 @@
     <input type="file" id="file" accept="application/json,.json" hidden>
   </div>
   <div class="field" id="search-field" hidden>
-    <button type="button" id="search" class="primary">Search driving times</button>
+    <button type="button" id="search" class="primary" aria-describedby="search-hint">Search driving times</button>
   </div>
+  <p class="hint" id="search-hint"></p>
   <p class="scenario-note" id="request-note"></p>
   <p class="hint" id="search-status" role="status"></p>
   <p class="error" id="file-error" role="alert" hidden></p>

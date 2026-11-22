@@ -3,7 +3,8 @@
 .finder main { max-width: 68rem; }
 .finder main section { margin-top: calc(var(--step) * 5); padding-top: calc(var(--step) * 3); border-top: 2px solid var(--ink); }
 .finder main section > h2 + * { margin-top: var(--step); }
-.finder #search-status:empty { display: none; }
+.finder #search-status:empty, .finder #search-hint:empty { display: none; }
+.finder #search-hint { flex-basis: 100%; margin-top: 0; }
 
 /* The state of the search is the first thing read, so it is set large and plain. */
 .state h2 { font-size: 1.75rem; line-height: 1.15; max-width: 30ch; }
