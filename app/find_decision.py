@@ -22,7 +22,7 @@ AVAILABILITY = {"unknown": "Free staffed places: unknown.", "full": "Reported fu
                 "available": "A free staffed place was reported when checked."}
 NEXT_ACTIONS = {
     "referral_note": "Hand over the referral note.",
-    "confirmation_note": "Phone the facility with the call script below before anyone travels.",
+    "confirmation_note": "Phone the facility with the confirmation call script before anyone travels.",
     "verify_identity": "Confirm which facility and branch this record is before relying on it.",
     "clarify_input": "Change the request and search again.",
     "request_clearance": "Ask the data owner to review and clear a named destination for this audience.",
@@ -38,6 +38,34 @@ MISSING = {
     "service_evidence": "any statement that the service is offered",
 }
 EMERGENCY = "If this could be an emergency, call 112 now. Do not wait for this screen."
+# The selector's reason codes, as the reader is told them.
+REASONS = {
+    "reviewed_service": "Its record states the service, and that statement has been reviewed.",
+    "reported_service": "Its record states the service. Nobody has confirmed the statement.",
+    "identity_or_area_only": "Only who or where it is can be told from its record. Nothing there states the service.",
+    "conflicting_service_evidence": "Its sources disagree about whether the service is offered.",
+    "service_reported_absent": "A source says the service is not offered there, or that patients are sent elsewhere.",
+    "availability_full": "It was reported full.",
+    "availability_unavailable": "Whether it has a free place could not be read.",
+    "conflicting_location_evidence": "Its sources disagree about which branch or place it is.",
+    "missing_individual_evidence": "No record for this request states the service or identifies a facility or area.",
+    "no_cleared_individual_projection": "No individual facility has been cleared to be named to this audience.",
+    "unsupported_individual_assignment": "The capacity result could not be supported as an individual assignment.",
+}
+ORDER = ("Leads are put in order by what their records say about the service, then by how well that is "
+         "supported, then by the most recent dated statement, then by straight-line distance. The order says "
+         "nothing about quality.")
+HOW = (
+    "Each record found by the search is read as two separate claims: where the facility is, and whether it "
+    "offers the service. Each claim keeps the words it rests on, the field they came from, how many "
+    "independent origins support it and its date, or says unknown.",
+    "A record that states the service is a provisional lead even when nobody has confirmed it. A record that "
+    "only identifies a facility or area is a lead to verify, and says the service evidence is missing.",
+    ORDER,
+    "Nothing here is a referral. A referral needs a reviewed, dated service, a known free staffed place and a "
+    "known travel time, which is what Recommend a campus checks. A provisional lead gets a confirmation call "
+    "script, and its free places and road time stay unknown.",
+)
 
 
 def _plain(code):
@@ -45,6 +73,8 @@ def _plain(code):
     text = str(code or "").strip()
     if text in MISSING:
         return MISSING[text]
+    if text in REASONS:
+        return REASONS[text]
     return text.replace("_", " ") if "_" in text or text.islower() else text
 
 
@@ -72,11 +102,16 @@ def card_candidates(response, findings):
 
 
 def label(candidate):
-    """The provisional label. Says "VF only" exactly when the provenance classification established it."""
-    if candidate.get("label"):
-        return str(candidate["label"])
-    scope = SCOPES.get(candidate.get("source_scope"))
-    return "Provisional · " + scope if scope else "Provisional · source scope unknown"
+    """The label shown with a lead. Says "VF only" exactly when the provenance classification established it.
+
+    The selector's own label is kept. A demonstration row also says it is synthetic.
+    """
+    scope = candidate.get("source_scope")
+    given = str(candidate.get("label") or "").strip()
+    if given:
+        # The selector writes "VF only" only for a row whose scope is exactly vf_only.
+        return given + " · " + SCOPES["synthetic"] if scope == "synthetic" else given
+    return "Provisional · " + SCOPES[scope] if scope in SCOPES else "Provisional · source scope unknown"
 
 
 def _travel(candidate):
@@ -156,10 +191,11 @@ def explain(decision, service):
     return view
 
 
-def confirmation_note(decision, service, request_line, synthetic):
+def confirmation_note(decision, service, request_line, synthetic, evidence=()):
     """A call script for a provisional lead. None unless the decision asks for a confirmation note.
 
     It is a script for checking a claim. It never says referral, reservation or booked as a fact.
+    `evidence` is the lead's own location and service lines and record references, as the screen shows them.
     """
     view = explain(decision, service)
     if view["note_kind"] != "confirmation":
@@ -171,13 +207,19 @@ def confirmation_note(decision, service, request_line, synthetic):
              f"Call: {found['name']}, {found['area']}",
              "Status: " + found["label"],
              "Its record says: " + " ".join(found["says"]),
-             found["origins"] + " " + found["date"],
-             found["availability"] + " " + found["travel"],
-             "Ask:",
-             f"1. Do you provide {phrase} at this site today, yourselves, not by sending patients elsewhere?",
-             "2. Which building and entrance should the patient come to?",
-             "3. Is there a free staffed place for this patient, and until when?"]
+             found["origins"] + " " + found["date"]]
+    lines += list(evidence)
+    if found["reason"]:
+        lines.append("Why this lead: " + found["reason"])
+    lines += [found["availability"] + " " + found["travel"],
+              "Ask:",
+              f"1. Do you provide {phrase} at this site today, yourselves, not by sending patients elsewhere?",
+              "2. Which building and entrance should the patient come to?",
+              "3. Is there a free staffed place for this patient, and until when?"]
     if found["missing"]:
-        lines.append("Not known yet: " + "; ".join(found["missing"]) + ".")
-    lines.append("Send the patient only after the facility confirms. " + EMERGENCY)
+        lines.append("Not known yet:")
+        lines += ["- " + item for item in found["missing"]]
+    if found["next_action"]:
+        lines.append("Next step: " + found["next_action"])
+    lines.append("Nobody should travel until the facility confirms. " + EMERGENCY)
     return "\n".join(lines)

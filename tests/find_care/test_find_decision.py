@@ -61,7 +61,7 @@ class DecisionWordingTests(unittest.TestCase):
         for part in ("This is not a referral and nothing is reserved.", "Call: Campus A, Invented locality",
                      "Status: Provisional · Synthetic demo record", "“dialysis unit” (procedures field",
                      "Free staffed places: unknown. Travel time: unknown.", "Do you provide dialysis at this site today",
-                     "Not known yet: the date the service statement applies to", "call 112"):
+                     "Not known yet:\n- the date the service statement applies to", "call 112"):
             self.assertIn(part, note)
         for part in ("Referral note", "Send to:", "booked", "confirmed slot"):
             self.assertNotIn(part, note)

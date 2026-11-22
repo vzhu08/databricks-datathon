@@ -34,12 +34,14 @@ if str(HERE) not in sys.path:  # so the same imports work from the repository ro
 
 import find_capacity as capacity  # noqa: E402
 import find_care as words  # noqa: E402
+import find_decision as decisions  # noqa: E402
 import finding_provenance as provenance  # noqa: E402
 import national_directory  # noqa: E402
 import patient_ui  # noqa: E402
 import storm_page  # noqa: E402
 from data_access import search_warehouse  # noqa: E402
 from ranking import search_facilities  # noqa: E402
+from ranking.individual import select_individual  # noqa: E402
 
 # Kept inside app/ so a deployment of this folder alone still has its demonstration facilities.
 # tests/find_care checks it is the same file as contracts/fixtures/search.json.
@@ -284,6 +286,66 @@ def claims(card, service, group, index):
             + "".join(sources) + "</ul></details></div>")
 
 
+def decide(response, service):
+    """The individual decision for one stored response and the service it was asked for (#330).
+
+    Demonstration cards go to the selector with their own two claims, joined on (result_group, index)
+    inside this one response. Real records pass only the mapper's cleared summary: no row, name or key.
+    """
+    if not response:
+        return None
+    if DEMO:
+        if not (response.get("direct_results") or response.get("indirect_leads")):
+            return None  # nothing was found: the search's own words say which input to change
+        mapped = provenance.project_find_care(response, service, mode="demo")
+        return select_individual(service, decisions.card_candidates(response, mapped["findings"]))
+    mapped = provenance.project_find_care(response, service, mode="warehouse")
+    return select_individual(service, [], withheld_summary=mapped["summary"])
+
+
+def positions(view):
+    """Where each demonstration card sits in its response: facility key to (result_group, index, card)."""
+    direct = ([view["top"]] if view["top"] else []) + list(view["backups"])
+    found = {card["facility_id"]: ("direct_results", index, card) for index, card in enumerate(direct)}
+    found.update({card["facility_id"]: ("indirect_leads", index, card) for index, card in enumerate(view["leads"])
+                  if card["facility_id"] not in found})
+    return found
+
+
+def note_evidence(card, service, group, index):
+    """The lead's own evidence lines for the call script: the same claims the screen shows, as plain text."""
+    mapped = finding(st.session_state.get("response"), service, group, index)
+    if not mapped:
+        return []
+    found, lines, references = words.claim_view(mapped, service, card["place"]), [], []
+    for claim in (found["location"], found["service"]):
+        lines.append(f"{claim['label']} evidence: {claim['line']} ({claim['counts']}.)")
+        references += [source["reference"] for source in claim["sources"] if source["reference"]]
+    for reference in dict.fromkeys(references):
+        lines.append(f"{words.RECORD_REFERENCE}: {reference} ({words.RECORD_LINK_NOTE})")
+    return lines
+
+
+def lead_block(found):
+    """A lead to verify, or the real-records next step: what is missing and the one allowed next action."""
+    parts = []
+    if found["lead"]:
+        parts.append(f'<div class="fc-h">Closest lead to verify</div><div class="fc-text"><strong>'
+                     f'{safe(found["lead"]["name"])}</strong> · {safe(found["label"])}. '
+                     f'{safe(found["lead"]["reason"] or "")}</div>')
+        missing = found["lead"]["missing"]
+    else:
+        if found["status"] == "withheld":
+            parts.append(f'<div class="fc-text" style="margin-top:1rem"><strong>{safe(found["headline"])}'
+                         "</strong></div>")
+        missing = found["missing"]
+    if missing:
+        parts.append('<div class="fc-h">Not known yet</div>' + bullets(missing))
+    if found["next_action"]:
+        parts.append(f'<div class="fc-h">Next step</div><div class="fc-text">{safe(found["next_action"])}</div>')
+    return f'<div data-decision="{safe(found["status"])}">{"".join(parts)}</div>'
+
+
 def listed(card, service=None, group=None, index=None):
     place = f"{safe(card['place'])}. " if card["place"] else ""
     evidence = claims(card, service, group, index) if service else ""
@@ -350,25 +412,44 @@ def withheld_line(response, service):
             f'<div class="fc-next">Next check: {safe(summary["missing_check"])}</div></div>')
 
 
-def slip(view, stale, service=None, response=None):
+def slip(view, stale, service=None, response=None, found=None):
     """The answer, drawn as the slip a health worker hands over. Real records never reach the facility parts.
 
-    The evidence lines are drawn only for a current answer, for the service of the request it answers.
+    `found` is the worded individual decision for this same response (#330). The evidence lines are drawn
+    only for a current answer, for the service of the request it answers.
     """
     shown = None if stale else service
-    top = view["top"] if DEMO and view["status"] == "ok" else None
-    # On demonstration data this is a record lookup. It lists what a record says and sends nobody anywhere.
-    headline = f"Nearest record that states the service: {top['name']}." if top else view["headline"]
-    lookup = '<div class="fc-quiet">Record lookup. This is not a recommendation.</div>' if DEMO else ""
+    group, index, top = "direct_results", 0, view["top"] if DEMO and view["status"] == "ok" else None
+    provisional = bool(top and found and found["status"] == "provisional" and found["lead"])
+    if provisional:  # the selector's lead, which is the nearest record only when the evidence ties
+        group, index, top = positions(view).get(found["lead"]["key"], (group, index, top))
+    # On demonstration data this is a lead to check. It lists what a record says and sends nobody anywhere.
+    headline = view["headline"]
+    if provisional:
+        headline = found["headline"]
+    elif top:
+        headline = f"Nearest record that states the service: {top['name']}."
+    tag = ""
+    if DEMO:
+        tag = ('<div class="fc-quiet" data-decision="provisional">'
+               f'{safe(found["label"])}. A lead to check by phone. This is not a referral or a recommendation, '
+               "and nothing is reserved.</div>" if provisional else
+               '<div class="fc-quiet">Record lookup. This is not a recommendation.</div>')
     parts = [f'<div class="fc-for">{safe(view["request_line"])}</div>',
-             f'<div class="fc-answer fc-lookup" role="heading" aria-level="2">{safe(headline)}</div>{lookup}']
+             f'<div class="fc-answer fc-lookup" role="heading" aria-level="2">{safe(headline)}</div>{tag}']
     if top:
         place = f"{top['place']}. " if top["place"] else ""
         parts.append(f'<div class="fc-trip">{safe(place + top["distance"])}</div>{warning(top)}')
-        parts.append(f'<div class="fc-h">Why it is listed first</div><div class="fc-text">{safe(view["why"])}</div>')
+        why = f'{found["lead"]["reason"]} {decisions.ORDER}' if provisional else view["why"]
+        parts.append(f'<div class="fc-h">Why this lead comes first</div><div class="fc-text">{safe(why)}</div>')
         parts.append(f'<div class="fc-h">What its record says</div>{record(top)}')
         if shown:
-            parts.append(f'<div class="fc-h">How well this is supported</div>{claims(top, shown, "direct_results", 0)}')
+            parts.append(f'<div class="fc-h">How well this is supported</div>{claims(top, shown, group, index)}')
+        if provisional:
+            parts.append('<div class="fc-h">Not known yet</div>' + bullets(found["lead"]["missing"])
+                         + f'<div class="fc-text">{safe(found["lead"]["availability"])} '
+                         f'{safe(found["lead"]["travel"])}</div>')
+            parts.append(f'<div class="fc-h">Next step</div><div class="fc-text">{safe(found["next_action"])}</div>')
         if view["caveat"]:
             parts.append(f'<div class="fc-caveat">{safe(view["caveat"])}</div>')
     else:
@@ -380,6 +461,8 @@ def slip(view, stale, service=None, response=None):
             parts.append(withheld_line(response, shown))
         if view["next_step"]:
             parts.append(f'<div class="fc-text" style="margin-top:1rem">{safe(view["next_step"])}</div>')
+        if found and not stale:
+            parts.append(lead_block(found))
     parts.append(not_told(view))
     if view["approximate_note"]:
         parts.append(f'<div class="fc-quiet">{safe(view["approximate_note"])}</div>')
@@ -494,9 +577,26 @@ with right:
                          "over the others, and what nobody has confirmed. Press Find a facility, or start "
                          "from an example.")
         else:
-            st.markdown(recommendation_slip(check), unsafe_allow_html=True)
-            note = capacity.referral_note(check, CAPTION)
-            if note:  # no recommendation, no destination to hand on
+            # The same selector decides every individual result (#330). Only its "assigned" is a referral.
+            assigned = select_individual(check["asked"]["service"], [], allocation=check["result"])
+            unsupported = check["result"]["status"] == "recommended" and assigned["status"] != "assigned"
+            if unsupported:  # never show a destination the selector does not stand behind
+                st.markdown(f'<div class="fc-slip"><div class="fc-for">{safe(capacity.request_line(check))}</div>'
+                            '<div class="fc-answer" role="heading" aria-level="2">No campus is recommended.</div>'
+                            f'<div class="fc-text">{safe(decisions.REASONS["unsupported_individual_assignment"])}'
+                            "</div></div>", unsafe_allow_html=True)
+            else:
+                st.markdown(recommendation_slip(check), unsafe_allow_html=True)
+            note = capacity.referral_note(check, CAPTION) if assigned["status"] == "assigned" else None
+            if assigned["status"] != "assigned":
+                st.markdown('<div class="fc-text" data-decision="fallback"><strong>Next step.</strong> No campus '
+                            "can be assigned, so look for a lead to confirm by phone instead. The record lookup "
+                            "lists what the six invented example records say about this service. They are "
+                            "different invented places from campuses A to F.</div>", unsafe_allow_html=True)
+                st.button("Look up records that mention " + decisions.SERVICE_PHRASE[check["asked"]["service"]],
+                          key="fallback", on_click=fill,
+                          args=(check["asked"]["service"], st.session_state["where"], st.session_state["radius"]))
+            if note:  # no assignment, no destination to hand on
                 st.subheader("Referral note")
                 st.caption("Use the copy button on the note, or save it as a file.")
                 st.code(note, language=None, wrap_lines=True)
@@ -510,9 +610,10 @@ with right:
     elif not response:
         with st.container(border=True):
             if DEMO:
-                st.markdown("**The matching records appear here.**")
+                st.markdown("**The best supported lead appears here.**")
                 st.write("You see which of six invented facility records mention the service, the words each "
-                         "relied on and how well they are supported. Nothing here is a recommendation.")
+                         "relied on, how well they are supported and what is still unknown, with a call script "
+                         "for checking the first one. Nothing here is a referral or a recommendation.")
             else:
                 st.markdown("**The recommendation appears here.**")
                 st.write("You are told whether nearby records mention the service. No facility is named until "
@@ -524,25 +625,43 @@ with right:
             shown_now = None
         stale = shown_now != asked
         view = words.present(response, asked["service"], asked["location"], asked["radius_km"])
+        # The decision is read from the stored response and the service it was asked for, never the form.
+        decision = decide(response, asked["service"])
+        found = decisions.explain(decision, asked["service"]) if decision else None
         if stale:
             st.markdown('<div class="fc-stale">You changed the request. The answer below is for the earlier one. '
                         "Press the button to update it.</div>", unsafe_allow_html=True)
-        st.markdown(slip(view, stale, asked["service"], response), unsafe_allow_html=True)
+        st.markdown(slip(view, stale, asked["service"], response, found), unsafe_allow_html=True)
         for choice in view["choices"] if DEMO and not stale else []:
             label = ", ".join(part for part in (choice.get("city"), choice.get("state")) if part)
             st.button(label, key="choice-" + label, on_click=fill,
                       args=(asked["service"], label, asked["radius_km"]))
-        if DEMO and not stale and view["backups"]:
+        where_is = positions(view) if DEMO else {}
+        chosen = where_is.get(found["lead"]["key"]) if DEMO and found and found["lead"] else None
+        if chosen and not stale and found["note_kind"] == "confirmation":
+            # A provisional lead is checked by phone. The script is never a referral and reserves nothing.
+            script = decisions.confirmation_note(decision, asked["service"], view["request_line"], True,
+                                                 note_evidence(chosen[2], asked["service"], chosen[0], chosen[1]))
+            st.subheader("Confirmation call script")
+            st.caption("For checking the lead by phone. It is not a referral. Use the copy button on it, or "
+                       "save it as a file.")
+            st.code(script, language=None, wrap_lines=True)
+            st.download_button("Save call script", script, file_name="confirmation-call-script.txt",
+                               mime="text/plain")
+        others = [where_is[row["key"]] for row in (found["others"] if DEMO and found else [])
+                  if row["key"] in where_is and where_is[row["key"]][0] == "direct_results"]
+        if DEMO and not stale and view["status"] == "ok" and others:
             st.subheader("Other records that state the service")
-            st.caption("Listed nearest first. The order says nothing about quality.")
+            st.caption("Each is a provisional lead to confirm, in the same order as above. The order says "
+                       "nothing about quality.")
             st.markdown('<div class="fc-slip fc-more"><ol start="2">'
-                        + "".join(listed(backup, asked["service"], "direct_results", index)
-                                  for index, backup in enumerate(view["backups"], start=1)) + "</ol></div>",
-                        unsafe_allow_html=True)
-        # A record lookup hands nothing on: the only referral note is the recommendation's.
-        st.subheader("How the lookup works" if DEMO else "How this was decided")
+                        + "".join(listed(card, asked["service"], group, index) for group, index, card in others)
+                        + "</ol></div>", unsafe_allow_html=True)
+        # Only an assignment from Recommend a campus is a referral. A lead here gets a call script at most.
+        st.subheader("How this was decided")
         if DEMO:
-            st.markdown("\n".join(f"{number}. {plain(rule)}" for number, rule in enumerate(words.HOW, start=1)))
+            st.markdown("\n".join(f"{number}. {plain(rule)}"
+                                  for number, rule in enumerate(words.HOW[1:3] + decisions.HOW, start=1)))
         else:
             st.write(words.HOW_WITHHELD)
         with st.expander("Technical details"):

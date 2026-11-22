@@ -216,9 +216,19 @@ Each result shows the provider's own request time and the car mode, for failed a
 A failed road time, a used-up allowance included, is never replaced by simulated or straight-line
 minutes. If any of the three settings is missing, no road-time source is offered.
 
-*Look up the example records* is the six-facility record search: the words from each invented record,
-the field they came from, the location and service evidence lines, and what is not confirmed. It
-directs nobody anywhere and offers no referral note. Its facilities are never joined to campuses A to F.
+*Look up the example records* is the ordinary search over six invented facility records, and it gives
+the best supported lead (#330). Each record found is read as two claims, location and service, by
+`finding_provenance.project_find_care`, and `ranking.individual.select_individual` picks the lead. A
+record that states the service is a **provisional lead** even when nobody has confirmed it: the screen
+shows its label ("Provisional · Synthetic demo record"; "VF only" is said only for an established
+VF-only scope), the words it rests on and their field, the origin count and date or "unknown", the
+location precision, what is not known yet and the next step. Its export is a **confirmation call
+script**, which is never a referral and reserves nothing. Free places and road time stay unknown, and
+no point from these records is sent to the road-time provider. A record that only identifies a
+facility or area is a **lead to verify**, with the missing service evidence named and no script.
+Nothing found means no lead, and the search says which input to change. These facilities are never
+joined to campuses A to F. Only an assignment from *Recommend a campus* is a referral; when that mode
+can assign nothing, it offers this lookup as the next step.
 
 **Real records.** The v0 search answers `ok` when a record states the service and orders by
 straight-line distance. That is not enough for a referral, and the team's verified count of
@@ -227,7 +237,9 @@ eligible real destinations is zero. So every warehouse response passes through
 the service and that none is reviewed and approved. It shows no facility name, place, distance,
 record text, source link or identifier, no backup, no referral note, no download, no place-name
 choices, and no response payload: Technical details holds the request and the status only. The
-withheld form is also all that is kept in session state. Lifting this needs an adjudicated
+withheld form is also all that is kept in session state. The selector is given only the mapper's
+cleared summary, so the screen adds what is missing and the one allowed next step (ask the data owner
+to clear a named destination, or change the request) and still names nothing. Lifting this needs an adjudicated
 service, a reviewed campus, an approved destination and display-permitted fields through a
 verified interface, and is Oliver's decision.
 
@@ -290,7 +302,7 @@ a form already set to Recommend a campus, Dialysis, Routine and Central.
 | Press **Find a facility** | "Send the patient to Campus B.", 12 simulated minutes, 4 minutes further than Campus A to keep its last monitored dialysis station free. The referral note says "Send to: Campus B" |
 | Press the example **Highest urgency dialysis** | "Send the patient to Campus A.", in the result and the note |
 | Change the urgency or the starting area | The recommendation and its note are removed until the next press |
-| Choose **Look up the example records**, then **Dialysis near Jaipur, Rajasthan** | "Nearest record that states the service: Example Regional Hospital.", marked as not a recommendation, with no referral note |
+| Choose **Look up the example records**, then **Dialysis near Jaipur, Rajasthan** | "Provisional lead: Example Regional Hospital. Confirm before anyone travels.", its evidence lines, what is not known yet, and a confirmation call script (not a referral) |
 | Press the example **Dialysis within 2 km of PIN 302001** | "No facility within 2 km clearly offers dialysis." This is the weak-evidence result |
 
 ### Recognising incomplete configuration
@@ -362,7 +374,7 @@ is there because a reader in a hurry will read more into an answer than the sear
 
 | Risk of misreading | What the screen says |
 | --- | --- |
-| First in the list means best | "This is the nearest match, not a judgement that it is the best place. The search does not compare quality, cost or whether a place is free." The backups carry "Listed nearest first. The order says nothing about quality." |
+| First in the list means best | "This is the nearest match, not a judgement that it is the best place. The search does not compare quality, cost or whether a place is free." The other leads carry "The order says nothing about quality." |
 | Distance means access | "The distance is a straight line. The journey by road can be much longer." |
 | The record is current | "The record carries no date here. The service may have changed since it was written." |
 | A department or a specialist is the service | When only related mentions exist: "A kidney department or a kidney specialist is not a working dialysis unit." (MRI and trauma care have their own line.) |

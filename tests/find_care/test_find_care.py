@@ -496,24 +496,28 @@ class ScreenTests(unittest.TestCase):
         self.assertIn("six invented facilities", text)
         self.assertIn("The recommendation appears here.", text)
         app = self._lookup(app)
-        self.assertIn("Nothing here is a recommendation.", self._text(app))
+        self.assertIn("Nothing here is a referral or a recommendation.", self._text(app))
         app = self._step(app.button(key="example-Dialysis near Jaipur, Rajasthan").click())
         text = self._text(app)
-        for part in ("Nearest record that states the service: Example Regional Hospital.",
-                     "Record lookup. This is not a recommendation.", "North Campus provides hemodialysis",
-                     "procedures field", "Phone to confirm", "How the lookup works", "example.invalid",
-                     "Other records that state the service", "Why it is listed first", "What its record says",
+        for part in ("Provisional lead: Example Regional Hospital. Confirm before anyone travels.",
+                     "Provisional · Synthetic demo record. A lead to check by phone. This is not a referral or a "
+                     "recommendation, and nothing is reserved.", "North Campus provides hemodialysis",
+                     "procedures field", "Phone to confirm", "How this was decided", "example.invalid",
+                     "Other records that state the service", "Why this lead comes first", "What its record says",
                      "About 6.7 km away, in a straight line."):
             self.assertIn(part, text)
         for part in ("What this does not tell you", "not a judgement that it is the best place",
                      "The journey by road can be much longer", "The record carries no date here",
-                     "Listed nearest first. The order says nothing about quality."):
+                     "Each is a provisional lead to confirm, in the same order as above. The order says nothing "
+                     "about quality."):
             self.assertIn(part, text)
-        # #304: the lookup is not a destination. No directive, no note, nothing to save, no campus from the model.
+        # #304: the lookup is not a destination. No directive, no referral note, no campus from the model.
         for part in ("Send the patient", "Send to", "Referral note", "cannot take the patient", "Campus B",
                      "Check the address"):
             self.assertNotIn(part, self._everything(app))
-        self.assertEqual((0, 0), (len(app.code), len(app.get("download_button"))))
+        # #330: the one thing to save is a confirmation call script, never a referral.
+        self.assertEqual((1, 1), (len(app.code), len(app.get("download_button"))))
+        self.assertTrue(app.code[0].value.startswith("Confirmation call script (demonstration data"))
         # An example fills the form, so the form always shows what the answer is for.
         self.assertEqual(("dialysis", "Jaipur, Rajasthan", 50),
                          (app.radio(key="service").value, app.text_input(key="where").value,
@@ -688,6 +692,15 @@ class ScreenTests(unittest.TestCase):
         for part in ("Send the patient", "Send to", "min (simulated)", "km"):
             self.assertNotIn(part, self._everything(empty))
         self.assertEqual(0, len(empty.code))
+        # #330: with no campus to assign, the next step is a lead to confirm by phone, from the record lookup.
+        self.assertIn('data-decision="fallback"', self._text(empty))
+        leads = self._step(empty.button(key="fallback").click())
+        self.assertEqual(["central", "central"], calls)  # the lookup asks for no road time
+        self.assertEqual("lookup", leads.radio(key="mode").value)
+        self.assertIn("Provisional lead: Example Regional Hospital. Confirm before anyone travels.", self._text(leads))
+        self.assertIn("Travel time by road: unknown.", self._text(leads))
+        self.assertNotIn("Campus", self._everything(leads).replace("North Campus", "").replace("South Campus", ""))
+        empty = self._step(leads.radio(key="mode").set_value("recommend"))
 
         # A partial result: one campus has no road time. The slip and the note still name one and the same campus.
         known = {"status": "known", "source": "stub", "reason": None, "outcome": "ok",
@@ -726,8 +739,76 @@ class ScreenTests(unittest.TestCase):
         self.assertEqual(["central"] * 3, calls)
         # The record lookup never asks for a road time.
         lookup = self._step(self._lookup(switched).button(key="find").click())
-        self.assertIn("Nearest record that states the service", self._text(lookup))
+        self.assertIn("Provisional lead: Example Regional Hospital.", self._text(lookup))
         self.assertEqual(["central"] * 3, calls)
+
+    def test_an_ordinary_search_gives_the_best_supported_lead_with_its_claims_and_a_call_script(self):
+        """#330: an unconfirmed record that states the service is a provisional lead, never dropped, never a referral."""
+        app = self._step(self._lookup(self._app()).button(key="example-Dialysis near Jaipur, Rajasthan").click())
+        text, script = self._text(app), self._note(app)
+        # The decision, its label, the source, the unknowns and the next action are all on the screen.
+        for part in ("Provisional lead: Example Regional Hospital. Confirm before anyone travels.",
+                     'data-decision="provisional">Provisional · Synthetic demo record.',
+                     "Its record states the service. Nobody has confirmed the statement.",
+                     "Leads are put in order by what their records say about the service",
+                     "“The North Campus provides hemodialysis.”", "Source of this statement: the procedures field",
+                     'data-claims="direct_results-0"', "Why this finding?",
+                     "Not known yet", "Check a dated statement of onsite delivery at the exact branch.",
+                     "Confirm current staffed availability for the requested service.",
+                     "Free staffed places: unknown.", "Travel time by road: unknown. About 6.7 km away in a straight line.",
+                     "Next step", "Phone the facility with the confirmation call script before anyone travels.",
+                     "Confirmation call script", "How this was decided",
+                     "A record that states the service is a provisional lead even when nobody has confirmed it"):
+            self.assertIn(part, text)
+        self.assertNotIn("VF only", self._everything(app))  # said only for an established VF-only scope
+        self.assertNotIn("min", text.split("Not known yet")[1].split("Next step")[0])  # no invented travel time
+        # The export carries the same fields: source field, reference, origins, date, precision, reason,
+        # what is missing and the next action.
+        for part in ("Confirmation call script (demonstration data, invented facilities)",
+                     "This is not a referral and nothing is reserved.",
+                     "Request: Dialysis near Jaipur, Rajasthan, within 50 km.",
+                     "Call: Example Regional Hospital, Jaipur, Rajasthan, 302001",
+                     "Status: Provisional · Synthetic demo record",
+                     "“The North Campus provides hemodialysis.” (procedures field",
+                     "Independent sources for the service: 1. Service date: unknown.",
+                     "Location evidence: Reported as a map point", "Building and entrance unverified.",
+                     "Dialysis evidence: Unconfirmed · Reported · Fixture statement names North Campus. "
+                     "Physical branch unverified. Service date unknown. (1 record, 1 known supporting origin.)",
+                     "Record reference: https://example.invalid/north-campus",
+                     "Why this lead: Its record states the service. Nobody has confirmed the statement.",
+                     "Free staffed places: unknown. Travel time by road: unknown.",
+                     "1. Do you provide dialysis at this site today, yourselves",
+                     "Not known yet:\n- Check the exact physical branch or patient entrance.",
+                     "- Road travel time to a permitted destination is unknown.",
+                     "Next step: Phone the facility with the confirmation call script before anyone travels.",
+                     "Nobody should travel until the facility confirms.", "call 112"):
+            self.assertIn(part, script)
+        for part in ("Referral note", "Send to:", "Send the patient", "booked", "reserved for", "Campus B"):
+            self.assertNotIn(part, script)
+        # The other record with the same name is a separate lead with its own claims, not merged into the first.
+        self.assertIn('data-claims="direct_results-1"', text)
+        self.assertIn("Fixture statement names South Campus.", text)
+
+        # Only an identity or area: a lead to verify, with the missing service evidence named and no script.
+        near = self._step(app.button(key="example-Dialysis within 2 km of PIN 302001").click())
+        text = self._text(near)
+        for part in ("No facility within 2 km clearly offers dialysis.", 'data-decision="verification_lead"',
+                     "Closest lead to verify", "Example Community Clinic</strong> · Verification lead · Synthetic "
+                     "demo record.", "Nothing there states the service.",
+                     "Verify whether the requested service is delivered onsite at this branch.",
+                     "Confirm which facility and branch this record is before relying on it."):
+            self.assertIn(part, text)
+        self.assertEqual((0, 0), (len(near.code), len(near.get("download_button"))))
+        self.assertNotIn("Provisional", text)
+
+        # Nothing found: no lead, no script, and the search's own words say which input to change.
+        near.radio(key="service").set_value("trauma_care")
+        near.text_input(key="where").set_value("Jaipur, Rajasthan")
+        none = self._step(near.button(key="find").click())
+        self.assertEqual("no_match", none.session_state["response"]["status"])
+        self.assertEqual((0, 0), (len(none.code), len(none.get("download_button"))))
+        for part in ("Provisional", "data-decision", "Closest lead to verify"):
+            self.assertNotIn(part, self._text(none))
 
     def test_the_first_press_answers_because_the_demonstration_form_starts_filled(self):
         app = self._app()
@@ -736,7 +817,7 @@ class ScreenTests(unittest.TestCase):
         app = self._lookup(app)
         self.assertEqual("Jaipur, Rajasthan", app.text_input(key="where").value)
         app = self._step(app.button(key="find").click())
-        self.assertIn("Nearest record that states the service: Example Regional Hospital.", self._text(app))
+        self.assertIn("Provisional lead: Example Regional Hospital. Confirm before anyone travels.", self._text(app))
         self.assertEqual(0, len(app.error))
 
     def test_a_changed_lookup_marks_the_answer_out_of_date_and_hides_its_sources(self):
@@ -771,7 +852,7 @@ class ScreenTests(unittest.TestCase):
         app = self._lookup(self._app(**WAREHOUSE, FIND_CARE_DATA="demo"))
         app = self._step(app.button(key="example-Dialysis near Jaipur, Rajasthan").click())
         self.assertIn("Data: demonstration.", self._text(app))
-        self.assertIn("Nearest record that states the service: Example Regional Hospital.", self._text(app))
+        self.assertIn("Provisional lead: Example Regional Hospital. Confirm before anyone travels.", self._text(app))
 
     def test_typed_city_asks_which_place_then_answers(self):
         app = self._lookup(self._app())
@@ -779,7 +860,7 @@ class ScreenTests(unittest.TestCase):
         app = self._step(app.button(key="find").click())
         self.assertIn("More than one place has that name.", self._text(app))
         app = self._step(app.button(key="choice-Jaipur, Rajasthan").click())
-        self.assertIn("Nearest record that states the service: Example Regional Hospital.", self._text(app))
+        self.assertIn("Provisional lead: Example Regional Hospital. Confirm before anyone travels.", self._text(app))
         self.assertEqual("Jaipur, Rajasthan", app.text_input(key="where").value)
         self.assertNotIn("You changed the request", self._text(app))
 
@@ -789,7 +870,7 @@ class ScreenTests(unittest.TestCase):
         app.text_input(key="where").set_value("")
         app = self._step(app.button(key="find").click())
         self.assertIn("Type a city or town, a PIN code, or coordinates.", self._text(app))
-        self.assertNotIn("Nearest record", self._text(app))  # the earlier answer is gone, not left standing
+        self.assertNotIn("Provisional lead", self._text(app))  # the earlier answer is gone, not left standing
         self.assertEqual((0, 0), (len(app.code), len(app.get("download_button"))))
 
     def test_a_real_town_the_demonstration_does_not_know_is_explained(self):
@@ -832,6 +913,14 @@ class ScreenTests(unittest.TestCase):
         self.assertIn("Dialysis · Unconfirmed · Records nearby mention dialysis.", text)
         self.assertIn("Independent corroboration unknown", text)
         self.assertNotIn("data-claims", text)
+        # #330: a withheld lead still says what was found, what is missing and the one allowed next action.
+        for part in ('data-decision="withheld"',
+                     "A lead exists in the real records, but no facility can be named here yet.",
+                     "An individual identity and service claim cleared for this audience are required.",
+                     "Ask the data owner to review and clear a named destination for this audience."):
+            self.assertIn(part, text)
+        self.assertNotIn("Confirmation call script", text)
+        self.assertNotIn("Provisional", text)
         self._assert_nothing_restricted(app, raw)
         self.assertEqual({"request": {"service": "dialysis", "location": location, "radius_km": 50},
                           "data": "warehouse", "status": "withheld"}, json.loads(app.json[0].value))
@@ -845,6 +934,10 @@ class ScreenTests(unittest.TestCase):
         app = self._step(app.button(key="find").click())
         self.assertIn("More than one place has that name.", self._text(app))
         self.assertIn("Type the state as well and search again", self._text(app))
+        self.assertIn('data-decision="no_usable_evidence"', self._text(app))
+        self.assertIn("Clarify which search location is intended.", self._text(app))
+        self.assertIn("Change the request and search again.", self._text(app))
+        self.assertNotIn("A lead exists in the real records", self._text(app))
         self._assert_nothing_restricted(app)
         app.radio(key="service").set_value("trauma_care")
         app.text_input(key="where").set_value("Jaipur, Rajasthan")
@@ -925,8 +1018,9 @@ class DeploymentShapeTests(unittest.TestCase):
         "app = app.radio(key='mode').set_value('lookup').run()\n"
         "app = app.button(key='example-Dialysis near Jaipur, Rajasthan').click().run()\n"
         "assert not app.exception, app.exception\n"
-        "assert any('Nearest record that states the service: Example Regional Hospital.' in m.value for m in app.markdown)\n"
-        "assert len(app.code) == 0\n"
+        "assert any('Provisional lead: Example Regional Hospital. Confirm before anyone travels.' in m.value for m in app.markdown)\n"
+        "assert app.code[0].value.startswith('Confirmation call script'), app.code[0].value[:80]\n"
+        "assert 'Referral note' not in app.code[0].value and 'Send to:' not in app.code[0].value\n"
         "assert any('Fixture statement names North Campus. Physical branch unverified.' in m.value for m in app.markdown)\n"
         "assert any('Record reference: https://example.invalid/north-campus' in m.value for m in app.markdown)\n"
         "print('demonstration answered')\n"
