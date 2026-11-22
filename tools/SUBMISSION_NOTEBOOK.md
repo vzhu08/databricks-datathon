@@ -21,3 +21,9 @@ The packaged scope is the app, contracts, enrichment and ingestion implementatio
 status implementation and its shared helpers, and the explicit synthetic fixture set in the
 generator. Existing live adapters appear as human-readable implementation source and have no
 configured credentials or calls in the replay. The packaged Overpass assets retain their SIL Open Font License. The notebook stores no executed cell outputs.
+
+The published national written-area counts are part of the notebook narrative. They have their own
+source receipt and do not supply simulation inputs. Refresh when an integrated scenario changes
+its allocator, roster or attribution manifest, seeded workload, or verified expected outputs.
+Tracked files under app/ and contracts/ already trigger the check. For scenario inputs outside
+those roots, add the exact reviewed paths to the generator after integration and clearance.

@@ -195,6 +195,19 @@ Canonical input SHA-256: `{fingerprint}`
 
 Every included file has a source digest in the setup cell. Input hashes use LF for text files.
 """, "markdown"),
+        cell("national-area-finding", """## National directory finding
+
+The national comparison found written-area support for the named facility on **7,895/10,088 (78.3%)**
+original Virtue Foundation occurrences. **2,193 occurrences remained unresolved** under
+that comparison. The denominator counts original occurrences rather than distinct sites.
+
+The finding describes support at the written PIN, locality or landmark area. Precise building and
+entrance locations, current onsite services and national match accuracy remain unverified. These
+are published national counts. The offline replay uses its own separate scenario and does not
+recalculate the national result.
+
+[National result and method](https://github.com/vzhu08/databricks-datathon/issues/57#issuecomment-7081461436)
+""", "markdown"),
         cell("setup", "SOURCE_MANIFEST = " + repr(manifest) + "\n\n" + START),
     ]
     for path, raw in sorted(sources.items()):
