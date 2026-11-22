@@ -9,7 +9,8 @@ from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
 
 import patient_ui
-from patient_intake.providers import databricks_config
+from patient_intake.providers import databricks_config, databricks_interview
+from patient_intake.providers.transport import Budget
 
 
 ENDPOINT = "databricks-gpt-oss-20b"
@@ -48,6 +49,9 @@ class FactoryScreenFixture(unittest.TestCase):
         # would reach the real exchange fails in the app-only subprocess guard.
         self.track(patch.object(databricks_config, "_configuration", None))
         self.track(patch.object(databricks_config, "_providers", {}))
+        self.track(patch.object(
+            databricks_interview, "_PROCESS_BUDGETS", {"test": Budget(2), "demo": Budget(6)},
+        ))
 
     def track(self, patcher):
         value = patcher.start()
