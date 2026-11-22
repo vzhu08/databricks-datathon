@@ -263,6 +263,26 @@ class StatementExecutionTests(unittest.TestCase):
         self.addCleanup(patcher.stop)
         self.response = self.connection.getresponse.return_value
         self.response.status = 200
+        self.elapsed = 0
+        for name, callback in (("monotonic", lambda: self.elapsed), ("sleep", self.advance)):
+            clock_patch = patch(f"app.travel.delta_budget.{name}", side_effect=callback)
+            clock_patch.start()
+            self.addCleanup(clock_patch.stop)
+
+    def advance(self, seconds):
+        self.elapsed += seconds
+
+    def reply_after(self, *responses):
+        sequence = iter(responses)
+
+        def read(_limit):
+            seconds, payload = next(sequence)
+            self.advance(seconds)
+            if isinstance(payload, Exception):
+                raise payload
+            return json.dumps(payload).encode()
+
+        self.response.read.side_effect = read
 
     def submit(self, payload):
         self.response.read.return_value = json.dumps(payload).encode()
@@ -275,26 +295,129 @@ class StatementExecutionTests(unittest.TestCase):
         self.assertEqual((method, path), ("POST", "/api/2.0/sql/statements"))
         self.assertIn("Authorization", headers)
         self.assertEqual(json.loads(body)["parameters"], [{"name": "value", "value": "test"}])
-        self.assertEqual(json.loads(body)["on_wait_timeout"], "CANCEL")
+        self.assertEqual(json.loads(body)["on_wait_timeout"], "CONTINUE")
         self.assertEqual(json.loads(body)["wait_timeout"], "5s")
 
     def test_timeout_never_resubmits_sql_post(self):
         self.connection.getresponse.side_effect = TimeoutError("PRIVATE")
-        with self.assertRaises(BudgetStoreUnavailable) as failure:
+        with self.assertLogs("app.travel.delta_budget", "WARNING") as logs, self.assertRaises(BudgetStoreUnavailable) as failure:
             self.submit({})
         self.assertNotIn("PRIVATE", str(failure.exception))
+        self.assertIn("outcome=sql_submit_unconfirmed submissions=1 polls=0", logs.output[0])
+        self.assertNotIn("PRIVATE", logs.output[0])
         self.connection.request.assert_called_once()
 
+    def test_delayed_statement_polls_same_id_to_success(self):
+        statement_id = "private-statement-id"
+        self.reply_after(
+            (5, {"status": {"state": "PENDING"}, "statement_id": statement_id}),
+            (1, {"status": {"state": "RUNNING"}, "statement_id": statement_id}),
+            (1, {"status": {"state": "SUCCEEDED"}, "statement_id": statement_id,
+                 "manifest": {}, "result": {"data_array": [["1"]]}}),
+        )
+        with self.assertLogs("app.travel.delta_budget", "INFO") as logs:
+            self.assertEqual(self.submit({}), [["1"]])
+        expected = f"/api/2.0/sql/statements/{statement_id}"
+        requests = self.connection.request.call_args_list
+        self.assertEqual([request.args[:2] for request in requests],
+                         [("POST", "/api/2.0/sql/statements"), ("GET", expected), ("GET", expected)])
+        self.assertIn("operation=update outcome=confirmed submissions=1 polls=2 elapsed_ms=9000", logs.output[0])
+        self.assertNotIn(statement_id, logs.output[0])
+        self.assertNotIn("synthetic-token", logs.output[0])
+
+    def test_lost_polled_write_ack_never_resubmits(self):
+        fixture = StatementFixture()
+        read = {"status": {"state": "SUCCEEDED"}, "manifest": {},
+                "result": {"data_array": fixture(WAREHOUSE, "SELECT", {})}}
+        tick = int(EXPLORER.timestamp() * 1000000)
+        # Simulate a charge committed by Databricks before the poll reply was lost.
+        fixture.state["daily"][EXPLORER_DAY]["routine"] += 1
+        fixture.state["last_clock"] = tick
+        fixture.state["active"]["a" * 32] = tick
+        fixture.revision = "b" * 32
+        read_after = {"status": {"state": "SUCCEEDED"}, "manifest": {},
+                      "result": {"data_array": fixture(WAREHOUSE, "SELECT", {})}}
+        self.reply_after(
+            (0, read),
+            (5, {"status": {"state": "RUNNING"}, "statement_id": "original-write"}),
+            (1, TimeoutError("private SQL and terminal result unavailable")),
+            (0, read_after),
+        )
+        send = Mock(return_value=route())
+        adapter = client(send, rate_wait_seconds=0, max_retries=0)
+        self.addCleanup(adapter.close)
+        adapter.budget = DeltaBudget(WAREHOUSE, TABLE, account_scope=ACCOUNT, verified_allowance=ALLOWANCE,
+                                     execute=self.statements)
+        adapter.clock = lambda: EXPLORER
+        with self.assertLogs("app.travel.delta_budget", "WARNING") as logs:
+            result = adapter.routes((0, 0), [("campus", (1, 1))])
+        requests = self.connection.request.call_args_list
+        self.assertEqual([request.args[0] for request in requests], ["POST", "POST", "GET", "POST"])
+        self.assertEqual([json.loads(request.args[2])["statement"].split()[0] for request in requests
+                          if request.args[0] == "POST"], ["SELECT", "UPDATE", "SELECT"])
+        send.assert_not_called()
+        self.assertEqual((result.calls_attempted, result.errors), (0, ["budget_store_unavailable"]))
+        self.assertEqual((result.usage["used"], result.usage["active"]), (6, 1))
+        self.assertIn("outcome=sql_poll_unconfirmed submissions=1 polls=1 elapsed_ms=7000", logs.output[0])
+        self.assertNotIn("original-write", logs.output[0])
+
+    def test_pending_status_stops_at_deadline(self):
+        pending = {"status": {"state": "PENDING"}, "statement_id": "queued-write"}
+        self.reply_after((5, pending), *((0, pending),) * 9)
+        with self.assertLogs("app.travel.delta_budget", "WARNING") as logs:
+            with self.assertRaisesRegex(BudgetStoreUnavailable, "sql_poll_deadline"):
+                self.submit({})
+        self.assertEqual([request.args[0] for request in self.connection.request.call_args_list],
+                         ["POST", *(["GET"] * 9)])
+        self.assertLessEqual(self.elapsed, 15)
+        self.assertIn("submissions=1 polls=9 elapsed_ms=14000", logs.output[0])
+
+    def test_late_success_cannot_authorize_a_write(self):
+        self.reply_after(
+            (5, {"status": {"state": "RUNNING"}, "statement_id": "queued-write"}),
+            (9, {"status": {"state": "SUCCEEDED"}, "statement_id": "queued-write", "manifest": {},
+                 "result": {"data_array": [["1"]]}}),
+        )
+        with self.assertLogs("app.travel.delta_budget", "WARNING"):
+            with self.assertRaisesRegex(BudgetStoreUnavailable, "sql_poll_deadline"):
+                self.submit({})
+        self.assertEqual(self.connection.request.call_count, 2)
+
+    def test_does_not_poll_an_unsafe_id_or_use_another_statements_result(self):
+        with self.assertLogs("app.travel.delta_budget", "WARNING"):
+            with self.assertRaisesRegex(BudgetStoreUnavailable, "sql_result_invalid"):
+                self.submit({"status": {"state": "RUNNING"}, "statement_id": "../../unsafe"})
+        self.connection.request.assert_called_once()
+        self.connection.request.reset_mock()
+        self.reply_after(
+            (5, {"status": {"state": "RUNNING"}, "statement_id": "queued-write"}),
+            (1, {"status": {"state": "SUCCEEDED"}, "statement_id": "other-write", "manifest": {},
+                 "result": {"data_array": [["1"]]}}),
+        )
+        with self.assertLogs("app.travel.delta_budget", "WARNING"):
+            with self.assertRaisesRegex(BudgetStoreUnavailable, "sql_result_invalid"):
+                self.submit({})
+        self.assertEqual(self.connection.request.call_count, 2)
+
     def test_only_explicit_terminal_delta_conflict_is_retryable(self):
-        with self.assertRaises(_WriteConflict):
-            self.submit({"status": {"state": "FAILED",
-                                    "error": {"message": "[DELTA_CONCURRENT_WRITE] writer lost"}}})
-        for state in ("PENDING", "RUNNING", "CANCELED", "FAILED", "CLOSED"):
-            with self.subTest(state=state), self.assertRaises(BudgetStoreUnavailable):
-                self.submit({"status": {"state": state, "error": {"message": "unknown"}}})
-        with self.assertRaises(BudgetStoreUnavailable):
-            self.submit({"status": {"state": "SUCCEEDED"}, "manifest": {"truncated": True},
-                         "result": {"data_array": [["1"]]}})
+        self.reply_after(
+            (5, {"status": {"state": "RUNNING"}, "statement_id": "contended-write"}),
+            (1, {"status": {"state": "FAILED", "error": {"message": "[DELTA_CONCURRENT_WRITE] writer lost"}},
+                 "statement_id": "contended-write"}),
+        )
+        with self.assertLogs("app.travel.delta_budget", "INFO") as logs, self.assertRaises(_WriteConflict):
+            self.submit({})
+        self.assertIn("outcome=write_conflict submissions=1 polls=1 elapsed_ms=7000", logs.output[0])
+        self.response.read.side_effect = None
+        for state, reason in (("CANCELED", "sql_canceled"), ("FAILED", "sql_failed"),
+                              ("CLOSED", "sql_result_closed")):
+            with self.subTest(state=state), self.assertLogs("app.travel.delta_budget", "WARNING"):
+                with self.assertRaisesRegex(BudgetStoreUnavailable, reason):
+                    self.submit({"status": {"state": state, "error": {"message": "unknown"}}})
+        with self.assertLogs("app.travel.delta_budget", "WARNING"):
+            with self.assertRaisesRegex(BudgetStoreUnavailable, "sql_result_invalid"):
+                self.submit({"status": {"state": "SUCCEEDED"}, "manifest": {"truncated": True},
+                             "result": {"data_array": [["1"]]}})
 
 
 if __name__ == "__main__":

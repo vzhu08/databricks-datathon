@@ -1,21 +1,31 @@
 """Shared TomTom admission backed by one operator-provisioned UC Delta row."""
 
 import json
+import logging
 import re
 import uuid
 from contextlib import closing
 from datetime import date, datetime, timezone
 from functools import cached_property
 from http.client import HTTPSConnection
+from time import monotonic, sleep
 from urllib.parse import urlsplit
 
 from .budget import ALLOCATIONS, ALLOWANCE, EXPLORER_DAY, EXPLORER_RECEIPT, PRODUCT, SAFETY_MARGIN, Admission
 
 _API = "/api/2.0/sql/statements"
 _LIMIT = 1024 * 1024
+_SQL_WAIT_SECONDS = 15
+_HTTP_TIMEOUT_SECONDS = 8
+_POLL_INTERVAL_SECONDS = 1
+_POLL_LIMIT = 14
+_PENDING_STATES = {"PENDING", "RUNNING"}
+_TERMINAL_FAILURES = {"FAILED": "sql_failed", "CANCELED": "sql_canceled", "CLOSED": "sql_result_closed"}
+_STATEMENT_ID = re.compile(r"[A-Za-z0-9_-]{1,128}")
 _ID = re.compile(r"[a-f0-9]{32}")
 _TABLE_PART = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
 _CONFLICT = re.compile(r"\[DELTA_CONCURRENT_(?:APPEND|DELETE_READ|DELETE_DELETE|WRITE)\b")
+_LOG = logging.getLogger(__name__)
 
 
 class BudgetStoreUnavailable(OSError):
@@ -31,15 +41,38 @@ class _Statements:
     def config(self):
         from databricks.sdk.config import Config
 
-        return Config(auth_type="oauth-m2m", http_timeout_seconds=8, retry_timeout_seconds=1)
+        return Config(auth_type="oauth-m2m", http_timeout_seconds=_HTTP_TIMEOUT_SECONDS, retry_timeout_seconds=1)
+
+    @staticmethod
+    def _request(host, headers, method, path, deadline, body=None):
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            raise TimeoutError
+        with closing(HTTPSConnection(host.hostname, host.port,
+                                     timeout=min(remaining, _HTTP_TIMEOUT_SECONDS))) as connection:
+            connection.request(method, path, body, headers)
+            response = connection.getresponse()
+            if response.status != 200:
+                raise ValueError("SQL request did not return a result")
+            raw = response.read(_LIMIT + 1)
+        if len(raw) > _LIMIT:
+            raise ValueError("Oversized SQL result")
+        if monotonic() >= deadline:
+            raise TimeoutError
+        return json.loads(raw)
 
     def __call__(self, warehouse, statement, parameters):
         body = json.dumps({
             "warehouse_id": warehouse, "statement": statement,
             "format": "JSON_ARRAY", "disposition": "INLINE", "row_limit": 2,
-            "wait_timeout": "5s", "on_wait_timeout": "CANCEL",
+            "wait_timeout": "5s", "on_wait_timeout": "CONTINUE",
             "parameters": [{"name": k, "value": v} for k, v in parameters.items()],
         })
+        started = monotonic()
+        deadline = started + _SQL_WAIT_SECONDS
+        operation = "update" if statement.lstrip().upper().startswith("UPDATE ") else "select"
+        submissions = polls = 0
+        reason = "sql_auth_unavailable"
         try:
             config = self.config
             host = urlsplit(config.host)
@@ -49,30 +82,58 @@ class _Statements:
             headers = {**config.authenticate(), "Content-Type": "application/json"}
             # A SQL POST may commit before its acknowledgment is lost. This
             # transport submits once; it follows no redirects and retries no POSTs.
-            with closing(HTTPSConnection(host.hostname, host.port, timeout=8)) as connection:
-                connection.request("POST", _API, body, headers)
-                response = connection.getresponse()
-                if response.status != 200:
-                    raise ValueError("SQL POST did not return a result")
-                raw = response.read(_LIMIT + 1)
-                if len(raw) > _LIMIT:
-                    raise ValueError("Oversized SQL result")
-                payload = json.loads(raw)
-            status = payload["status"]
-            if status["state"] == "FAILED" and _CONFLICT.search(status["error"]["message"]):
+            if monotonic() >= deadline:
+                raise TimeoutError
+            reason = "sql_submit_unconfirmed"
+            submissions = 1
+            payload = self._request(host, headers, "POST", _API, deadline, body)
+            reason = "sql_result_invalid"
+            state = payload["status"]["state"]
+            statement_id = payload.get("statement_id")
+            if state in _PENDING_STATES:
+                if not isinstance(statement_id, str) or not _STATEMENT_ID.fullmatch(statement_id):
+                    raise ValueError("Missing or invalid statement ID")
+                path = f"{_API}/{statement_id}"
+                while state in _PENDING_STATES:
+                    reason = "sql_poll_deadline"
+                    if polls >= _POLL_LIMIT or monotonic() + _POLL_INTERVAL_SECONDS >= deadline:
+                        raise TimeoutError
+                    sleep(_POLL_INTERVAL_SECONDS)
+                    if monotonic() >= deadline:
+                        raise TimeoutError
+                    reason = "sql_poll_unconfirmed"
+                    polls += 1
+                    payload = self._request(host, headers, "GET", path, deadline)
+                    reason = "sql_result_invalid"
+                    if payload.get("statement_id") != statement_id:
+                        raise ValueError("SQL status returned a different statement ID")
+                    state = payload["status"]["state"]
+            if state in _TERMINAL_FAILURES:
+                reason = _TERMINAL_FAILURES[state]
+            if state == "FAILED" and _CONFLICT.search(payload["status"].get("error", {}).get("message", "")):
                 raise _WriteConflict
-            if status["state"] != "SUCCEEDED" or payload["manifest"].get("truncated"):
+            if state != "SUCCEEDED" or payload["manifest"].get("truncated"):
                 raise ValueError("SQL result is not confirmed")
             result = payload["result"]
             if (result.get("next_chunk_index") is not None or result.get("next_chunk_internal_link")
                     or result.get("row_offset", 0) != 0):
                 raise ValueError("Incomplete SQL result")
-            return result["data_array"]
+            rows = result["data_array"]
+            level = logging.INFO if polls else logging.DEBUG
+            _LOG.log(level, "Routing budget SQL operation=%s outcome=confirmed submissions=%d polls=%d elapsed_ms=%d",
+                     operation, submissions, polls, round((monotonic() - started) * 1000))
+            return rows
         except _WriteConflict:
+            _LOG.info("Routing budget SQL operation=%s outcome=write_conflict submissions=%d polls=%d elapsed_ms=%d",
+                      operation, submissions, polls, round((monotonic() - started) * 1000))
             raise
         except Exception:
             # SDK, HTTP and SQL messages can contain workspace details.
-            raise BudgetStoreUnavailable("Routing budget SQL unavailable") from None
+            if reason == "sql_poll_unconfirmed" and monotonic() >= deadline:
+                reason = "sql_poll_deadline"
+            _LOG.warning("Routing budget SQL operation=%s outcome=%s submissions=%d polls=%d elapsed_ms=%d",
+                         operation, reason, submissions, polls, round((monotonic() - started) * 1000))
+            raise BudgetStoreUnavailable(f"Routing budget SQL unavailable ({reason})") from None
 
 
 def _nonnegative(value):
