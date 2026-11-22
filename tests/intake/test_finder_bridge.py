@@ -1,8 +1,8 @@
-import copy
 import unittest
 from unittest.mock import patch
 
 from app.intake import finder_bridge as bridge
+from app.intake.__main__ import load_journeys
 from app.storm_ui import build_ask
 
 
@@ -35,24 +35,11 @@ class ConfirmedIntake(unittest.TestCase):
     def setUp(self):
         from app.intake.assessment import confirm_intake
         self.confirm = confirm_intake
-        self.scenario = {
-            "schema_version": "intake.scenario.v1", "scenario_id": "scheduled_mri",
-            "scenario_version": "1", "synthetic": True, "presenting_problem": "A fictional MRI referral.",
-            "concern_category": "mri_referral", "service": "mri",
-            "known_answers": {
-                **{"warning." + sign: "no" for sign in ("chest_pain", "stroke_like",
-                   "severe_breathing_difficulty", "unresponsive", "heavy_bleeding")},
-                "context.age_group": "adult", "context.pregnancy": "not_pregnant",
-                "context.onset": "scheduled", "context.severity": "mild",
-            },
-            "clinician_plan": {
-                "scenario_id": "scheduled_mri", "scenario_version": "1", "synthetic": True,
-                "authority": "simulated_clinician_referral", "service": "mri", "urgency": "routine",
-                "required_capabilities": [], "preferred_capabilities": [],
-            },
-        }
+        fixture, _ = load_journeys()
+        self.scenarios = fixture["scenarios"]
+        self.scenario = self.scenarios["scheduled_mri"]
         self.payload = dict(schema_version="intake.v1", mode="synthetic", scenario_id="scheduled_mri",
-                            input_revision=0, answers={})
+                            input_revision=1, answers={"context.severity": "mild"})
         network = patch("socket.socket.connect", side_effect=AssertionError("live call"))
         self.addCleanup(network.stop)
         self.addCleanup(network.start().assert_not_called)
@@ -68,7 +55,7 @@ class ConfirmedIntake(unittest.TestCase):
         with patch.object(bridge, "_rank_request") as lookup:
             for forged in (None, True, {"state": "ready", "confirmation_status": "current"}):
                 self.assertIsNone(self.search(forged)["finder"])
-            self.payload["answers"]["context.severity"] = "mild"
+            self.payload["answers"]["context.severity"] = "moderate"
             self.assertIsNone(self.search(receipt)["finder"])
             self.payload = allowed["assessment"]
             self.assertIsNone(self.search(receipt)["finder"])
@@ -77,7 +64,7 @@ class ConfirmedIntake(unittest.TestCase):
     def test_warning_supersedes_previous_success(self):
         receipt = self.confirm(self.payload, scenario=self.scenario)
         self.assertTrue(self.search(receipt)["finder"]["ranked"])
-        self.scenario["known_answers"]["warning.chest_pain"] = "yes"
+        self.payload["answers"]["warning.chest_pain"] = "yes"
         with patch.object(bridge, "_rank_request") as lookup:
             result = self.search(receipt)
             self.assertEqual(result["assessment"]["state"], "emergency_escalation")
@@ -85,16 +72,15 @@ class ConfirmedIntake(unittest.TestCase):
             lookup.assert_not_called()
 
     def test_non_ready_states_stop_before_any_fixture_lookup(self):
-        incomplete = copy.deepcopy(self.scenario)
-        del incomplete["known_answers"]["warning.unresponsive"]
-        unassessed = dict(self.scenario, clinician_plan=None)
-        unsupported = dict(unassessed, concern_category="general_medical", service=None)
-        malformed = dict(self.payload, mode="warehouse")
+        unassessed = self.scenarios["injury_unassessed"]
+        unsupported = self.scenarios["unsupported_concern"]
         for state, payload, scenario in [
-            ("invalid_input", malformed, self.scenario),
-            ("more_information_needed", self.payload, incomplete),
-            ("clinician_assessment_needed", self.payload, unassessed),
-            ("unsupported_care_need", self.payload, unsupported),
+            ("invalid_input", dict(self.payload, mode="warehouse"), self.scenario),
+            ("more_information_needed", dict(self.payload, input_revision=0, answers={}), self.scenario),
+            ("clinician_assessment_needed", dict(self.payload, scenario_id=unassessed["scenario_id"],
+                                                answers={"warning.heavy_bleeding": "no"}), unassessed),
+            ("unsupported_care_need", dict(self.payload, scenario_id=unsupported["scenario_id"],
+                                           input_revision=0, answers={}), unsupported),
             ("confirmation_required", self.payload, self.scenario),
         ]:
             with self.subTest(state=state), patch.object(bridge, "_rank_request") as lookup:
