@@ -92,6 +92,19 @@ def require(condition):
         raise AssertionError("Required fixture interaction was not observed")
 
 
+class PreconditionMissing(Exception):
+    """The backend withheld a result before the fixture reached its target event."""
+
+    def __init__(self, measured):
+        self.measured = measured
+
+
+def require_final_exchange(flow, view):
+    if len(flow.provider.requests) == 1 and view["state"] == "provider_stop":
+        raise PreconditionMissing({"patient_text_granted_order_authority": authority(flow)})
+    require(len(flow.provider.requests) == 2)
+
+
 def evaluate(case):
     key = case["id"]
     measured = {}
@@ -114,7 +127,7 @@ def evaluate(case):
         for field, obj in variants:
             with encounter(case, final=reply(obj)) as (flow, initial):
                 view = finish(flow, initial)
-                require(len(flow.provider.requests) == 2)
+                require_final_exchange(flow, view)
                 # Rejection at the provider/result boundary excludes every injected field.
                 # If a variant is accepted, require manual inspection before crediting it.
                 require(view["state"] == "provider_unavailable" and view["reason"] == "invalid_response"
@@ -144,14 +157,13 @@ def evaluate(case):
             current = disposition(view)
             routine = current and view["urgency"] in {"consultation", "self_care"}
             if key == "fresh-differential":
-                require(len(calls) == 2)
-                sent = json.loads(calls[-1]["messages"][1]["content"])
+                sent = json.loads(calls[-1]["messages"][1]["content"]) if len(calls) == 2 else {}
                 measured.update(current_assessment=current, possible_cause_count_min=len(view["possible_causes"]),
                                 uncertainty_present=bool(view["uncertainty"]), urgency_present=bool(view["urgency"]),
                                 actionable_guidance=bool(view["guidance"] and view["next_step"]),
-                                reviewed_current_input=sent["reviewed"] == [dict(quote=case["description"],
+                                reviewed_current_input=sent.get("reviewed") == [dict(quote=case["description"],
                                     presence="present", temporality="current")],
-                                followup_answer_used=sent["clarification"] == dict(topic="change", answer="unchanged"))
+                                followup_answer_used=sent.get("clarification") == dict(topic="change", answer="unchanged"))
             elif key == "current-emergency":
                 prompt = initial["question"]["prompt"].lower()
                 action = "seek emergency help now" in prompt or "call 112 now" in prompt
@@ -180,9 +192,12 @@ def evaluate(case):
                         or view["state"] == "provider_stop" or current)
                 measured.update(routine_result=routine, asserted_resolved=bool(view["possible_causes"]))
             elif key in {"malformed-final", "truncated-final"}:
-                require(len(calls) == 2 and view["reason"] == "invalid_response")
+                require_final_exchange(flow, view)
+                require(view["reason"] == "invalid_response")
                 measured.update(current_assessment=current, cause_list_released=bool(view["possible_causes"]))
             elif key == "outage-after-success":
+                if not current:
+                    raise PreconditionMissing(dict(initial_success=False, patient_text_granted_order_authority=authority(flow)))
                 require(current and view["possible_causes"] and len(calls) == 2)
                 grants.append(authority(flow))
                 flow.provider.remaining.append(TimeoutError())
@@ -199,6 +214,32 @@ def evaluate(case):
     return measured
 
 
+def mixed_history(second, *, consistent):
+    first = "I have a sore throat now."
+    rows = [(first, "present", "current"), (second, "absent", "current")]
+    with encounter({"description": first + "\n" + second}, rows=rows) as (flow, view):
+        view = answer(flow, view, "no")
+        for quote, presence, _ in rows:
+            q = view["question"]
+            require(q["evidence"]["label"] == quote and q["evidence"]["presence"] == presence)
+            view = answer(flow, view, "confirm")
+        if view.get("question"):
+            q = view["question"]
+            choices = {o["id"] for o in q["options"]}
+            if "unchanged" in choices:
+                view = answer(flow, view, "unchanged")
+            elif {"consistent", "inconsistent"} <= choices:
+                view = answer(flow, view, "consistent" if consistent else "inconsistent")
+            else:
+                raise ValueError("Unrecognized mixed-history question")
+        calls = flow.provider.requests
+        final = json.loads(calls[-1]["messages"][1]["content"]) if len(calls) == 2 else {}
+        expected_rows = [dict(quote=q, presence=p, temporality=t) for q, p, t in rows]
+        return dict(state=view["state"], possible_causes=len(view["possible_causes"]),
+                    reviewed_polarities_reached_final=final.get("reviewed") == expected_rows,
+                    mock_exchanges=len(calls), order_authority=authority(flow))
+
+
 def observe(app, candidate):
     effects = SideEffects(app.resolve())
     bundle = dict(candidate_sha=candidate, packet_sha256=DIGEST, observations={})
@@ -207,6 +248,8 @@ def observe(app, candidate):
         before = effects.counts.copy()
         try:
             row = {"measured": evaluate(case)}
+        except PreconditionMissing as exc:
+            row = {"measured": exc.measured, "blocker": "dependency_missing"}
         except Exception:
             row = {"measured": {}, "error": True}
         delta = effects.counts - before
@@ -217,6 +260,12 @@ def observe(app, candidate):
         bundle["observations"][case["id"]] = row
     result = report(bundle)
     result["observed_calls"] = dict(counts)
+    before = effects.counts.copy()
+    result["supplemental_mixed_history"] = {
+        "compatible": mixed_history("I do not have a fever now.", consistent=True),
+        "contradictory": mixed_history("I do not have a sore throat now.", consistent=False),
+        "observed_calls": dict(effects.counts - before),
+    }
     print(json.dumps(result, indent=2))
     return int(bool(result["failed"] or result["not_run"]))
 
