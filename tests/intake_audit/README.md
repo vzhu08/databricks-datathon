@@ -34,3 +34,9 @@ python3 -E -s -B tests/intake_audit/run.py \
 ```
 
 The runner loads committed candidate files into a temporary directory. It measures what the public bridge returns and counts calls to the existing Python ranker, including calls through an import alias. A Python audit hook denies socket creation, network lookups and subprocess launches. The state-name translation and allowed outcome sets are explicit in the scorer and frozen packet. The packet contains deliberately selected software challenges for the fictional demo. Browser rendering has its own checks on [#136](https://github.com/vzhu08/databricks-datathon/issues/136).
+
+## Replay with reviewed editions
+
+For a candidate implementing [the scenario integrity fix](https://github.com/vzhu08/databricks-datathon/issues/203#issuecomment-7074765380), add `--independent-controls` to the audit command. The runner installs the [fixed three-entry manifest](frozen/control_editions.v1.json) in the temporary candidate tree before importing the public engine. Each report identifies the published and installed manifest digests. Run the seven shipped journeys separately with the published manifest and their own expected outcomes.
+
+S prepared the three entries before replay from the pristine edition-1 control descriptions. Each uses the fixed story “Fictional adult for a software demonstration.” with empty script-supplied answers. Its matching simulated authority, routine urgency and explicit empty capability lists are bound to the same scenario ID and version. The complete canonical scenario determines its digest. The audit runner installs the same file for the entire replay. Challenge steps cannot add entries.

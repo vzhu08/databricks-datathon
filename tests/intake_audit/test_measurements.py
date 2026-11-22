@@ -8,10 +8,29 @@ from tempfile import TemporaryDirectory
 from textwrap import dedent
 import unittest
 
-from .run import snapshot
+from .run import CONTROL_MANIFEST_SHA256, release_configuration, snapshot
 
 
 class TestMeasurements(unittest.TestCase):
+    def test_independent_release_replaces_only_snapshot_manifest(self):
+        with TemporaryDirectory() as directory:
+            tree = Path(directory)
+            with self.assertRaisesRegex(ValueError, 'no reviewed scenario manifest'):
+                release_configuration(tree, True)
+            manifest = tree / 'contracts/intake/reviewed_scenarios.json'
+            manifest.parent.mkdir(parents=True)
+            manifest.write_bytes(b'{"schema_version":"intake.editions.v1","editions":[]}')
+            original = manifest.read_bytes()
+            default = release_configuration(tree, False)['release_configuration']
+            self.assertEqual(manifest.read_bytes(), original)
+            selected = release_configuration(tree, True)['release_configuration']
+            self.assertEqual(selected['published_manifest_sha256'], default['active_manifest_sha256'])
+            self.assertEqual(selected['active_manifest_sha256'], CONTROL_MANIFEST_SHA256)
+            entries = json.loads(manifest.read_bytes())['editions']
+            self.assertEqual({entry['scenario_id'] for entry in entries},
+                             {'s_audit_complete_dialysis', 's_audit_complete_mri', 's_audit_complete_trauma'})
+            self.assertEqual(len(entries), 3)
+
     def test_ranker_alias_and_denied_attempts_are_counted(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)

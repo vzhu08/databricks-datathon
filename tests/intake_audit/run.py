@@ -83,12 +83,39 @@ def load_driver(path):
     return module
 
 
+CONTROL_MANIFEST_SHA256 = '3e7cb26e9a611ae7955c074d5853075d96bd5ea0ffb57abf8f40abcc6929db76'
+
+
+def release_configuration(tree, independent_controls):
+    """Install the fixed audit release only in the temporary candidate snapshot."""
+    manifest = tree / 'contracts/intake/reviewed_scenarios.json'
+    if not manifest.is_file():
+        if independent_controls:
+            raise ValueError('Candidate has no reviewed scenario manifest')
+        return {}  # Preserve the historical report for the pre-catalogue candidate.
+
+    published_digest = sha256(manifest.read_bytes()).hexdigest()
+    active_digest = published_digest
+    if independent_controls:
+        frozen = (Path(__file__).resolve().parent / 'frozen/control_editions.v1.json').read_bytes()
+        active_digest = sha256(frozen).hexdigest()
+        if active_digest != CONTROL_MANIFEST_SHA256:
+            raise ValueError('Independent control manifest differs from the #133 freeze')
+        manifest.write_bytes(frozen)
+    return {'release_configuration': {
+        'name': 'independent-controls' if independent_controls else 'published',
+        'published_manifest_sha256': published_digest,
+        'active_manifest_sha256': active_digest,
+    }}
+
+
 def run(args):
     cases = read_packet(args.packet)
     rows = []
     driver_path = args.driver.resolve()
     driver_digest = sha256(driver_path.read_bytes()).hexdigest()
     with snapshot(args.repo, args.sha) as tree:
+        configuration = release_configuration(tree, args.independent_controls)
         measures = Measurements(tree)
         sys.dont_write_bytecode = True
         sys.path.insert(0, str(tree))
@@ -131,7 +158,7 @@ def run(args):
             sys.setprofile(None)
             threading.setprofile(None)
             os.chdir(previous)
-    return {'candidate_sha': args.sha, 'packet_sha256': PACKET_SHA256,
+    return {**configuration, 'candidate_sha': args.sha, 'packet_sha256': PACKET_SHA256,
             'driver_sha256': driver_digest, 'startup_error': startup_error,
             'import_external_attempts': initial_events,
             'total_external_attempts': measures.total_external,
@@ -144,6 +171,8 @@ def main():
     parser.add_argument('--sha', required=True)
     parser.add_argument('--packet', type=Path, required=True)
     parser.add_argument('--driver', type=Path, required=True)
+    parser.add_argument('--independent-controls', action='store_true',
+                        help='Install the three pre-reviewed S control editions in the temporary release')
     parser.add_argument('--report', type=Path, required=True)
     args = parser.parse_args()
     if args.report.exists():
