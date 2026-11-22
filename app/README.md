@@ -250,8 +250,9 @@ sets `FIND_CARE_DATA=demo`. The demonstration facilities are inside `app/` so th
 enough on its own. `demo_facilities.json` is a copy of `contracts/fixtures/search.json`, and a
 test fails if the two differ.
 
-Not done here: no deployment has been made, and the screen has not read the real table. Live
-deployment and publication need a separate decision.
+The app is deployed as a Databricks App in demonstration mode. The address and the checked release
+are in the [root README](../README.md#try-the-hosted-demo). The hosted screen runs on the invented
+facilities and has not read the real table.
 
 ## Operator walkthrough
 
@@ -308,9 +309,8 @@ demonstration through its test harness and as a real server started from a copy 
 with the command in `app.yaml`; and the real-records screen against a mocked warehouse that
 returns the invented facilities.
 
-Not run: no deployment to Databricks Apps, no read of the prepared table by this screen, and no
-start with the settings Databricks supplies. Those wait for an authorised live deployment, which
-is Oliver's decision.
+Not run: no read of the prepared table by this screen. The deployment to Databricks Apps is
+Oliver's, and its checks are linked from the [root README](../README.md#try-the-hosted-demo).
 
 If that deployment is made from a workspace folder holding a copy of `app/`, no Git access is
 involved. If it is made from this repository, the repository is private, so the app's service
