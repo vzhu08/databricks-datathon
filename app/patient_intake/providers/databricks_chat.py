@@ -49,37 +49,45 @@ class DatabricksChatProbe:
                                         timeout=self._timeout)
         if reply.status != "received":
             return reply
-        if type(reply.data) is not dict:
-            return Reply("invalid_response")
-        choices = reply.data.get("choices")
-        if type(choices) is not list or len(choices) != 1 or type(choices[0]) is not dict:
-            return Reply("invalid_response")
-        choice = choices[0]
-        message = choice.get("message")
-        if (choice.get("finish_reason") != "stop" or type(message) is not dict
-                or message.get("role") != "assistant" or message.get("refusal")
-                or message.get("tool_calls") or message.get("function_call")):
-            return Reply("invalid_response")
-        content = message.get("content")
-        if type(content) is list:
-            parts = []
-            if not 1 <= len(content) <= 8:
-                return Reply("invalid_response")
-            for block in content:
-                if type(block) is not dict:
-                    return Reply("invalid_response")
-                if block.get("type") == "reasoning":
-                    # Only a top-level text block is an answer. Never retain reasoning.
-                    if set(block) - {"type", "summary", "signature", "id", "encrypted_content"}:
-                        return Reply("invalid_response")
-                    continue
-                if set(block) != {"type", "text"} or block["type"] != "text" or type(block["text"]) is not str:
-                    return Reply("invalid_response")
-                if parts:
-                    return Reply("invalid_response")
-                parts.append(block["text"])
-            content = "".join(parts)
-        if type(content) is not str or not content.strip() or len(content) > 4096:
+        content = _assistant_text(reply.data)
+        if content is None:
             return Reply("invalid_response")
         # Untrusted text. Never return a patient assessment or navigation receipt here.
         return Reply("received", {"content": content})
+
+
+def _assistant_text(data):
+    """Project one completed assistant text answer from a Databricks reply."""
+    if type(data) is not dict:
+        return None
+    choices = data.get("choices")
+    if type(choices) is not list or len(choices) != 1 or type(choices[0]) is not dict:
+        return None
+    choice = choices[0]
+    message = choice.get("message")
+    if (choice.get("finish_reason") != "stop" or type(message) is not dict
+            or message.get("role") != "assistant" or message.get("refusal")
+            or message.get("tool_calls") or message.get("function_call")):
+        return None
+    content = message.get("content")
+    if type(content) is list:
+        parts = []
+        if not 1 <= len(content) <= 8:
+            return None
+        for block in content:
+            if type(block) is not dict:
+                return None
+            if block.get("type") == "reasoning":
+                # Only a top-level text block is an answer. Never retain reasoning.
+                if set(block) - {"type", "summary", "signature", "id", "encrypted_content"}:
+                    return None
+                continue
+            if set(block) != {"type", "text"} or block["type"] != "text" or type(block["text"]) is not str:
+                return None
+            if parts:
+                return None
+            parts.append(block["text"])
+        content = "".join(parts)
+    if type(content) is not str or not content.strip() or len(content) > 4096:
+        return None
+    return content
