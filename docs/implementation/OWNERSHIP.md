@@ -40,6 +40,20 @@ The user authorized additional methods alongside [the accreditation pilot](https
 
 Record one owner, one branch and the exclusive code paths listed on each task issue. Each method reports what it adds over its own baseline. Site identity and evidence of treatment are assessed separately. Capacity, current availability, and release into the finder each require their own evidence.
 
+### Ongoing methods research and national programmes · November 22
+
+| Owner | Branch and deliverable |
+|---|---|
+| Developer F | [#237 · Methods research](https://github.com/vzhu08/databricks-datathon/issues/237) on `codex/oliver-f-location-methods-research`. Write a research memo, primary-source bibliography and comparison of proposed experiments under `docs/research/facility-verification-methods/`. Revisit the highest-impact remaining ambiguities after material evidence or test results. Keep dated decisions, failures and stopping criteria. |
+| Vincent / Developer B, existing Windows campus and service reconciliation chat | [#239 · National campus and service evidence pipeline](https://github.com/vzhu08/databricks-datathon/issues/239) on `codex/vincent-b-national-facility-evidence`. Own the data design, integration across methods, evaluation, private national release candidate and tested handoff to D. In parallel, compare judge-demo fallback policies for uncertain evidence, score ranges, stable rankings, shortlists and deferral. Publish the first alternatives before the full data run. |
+| Andrew / Developer C, existing source-research chat | [#241 · Branch-specific hospital website and service histories](https://github.com/vzhu08/databricks-datathon/issues/241) on `codex/andrew-c-branch-service-evidence`. Own the permitted source inventory, branch-level resolver, service and equipment extraction, temporal and held-apart evaluation, private edition and repeatable feed to B. Andrew’s separate UI chat owns the patient interface. |
+
+The four experiments above continue in parallel. F proposes new methods; Oliver assigns experiments to developers and records the outcome. B owns combination and comparisons, and D independently verifies the frozen release. An unresolved record stays in the national denominator. B’s score and demo options are for executive review before any effect on real destinations.
+
+### Patient product coordination
+
+The separate [#223 engineering programme](https://github.com/vzhu08/databricks-datathon/issues/223) has exclusive implementation paths and branches on the individual issues. [M](https://github.com/vzhu08/databricks-datathon/issues/224) proposes the runtime record and interfaces. [N](https://github.com/vzhu08/databricks-datathon/issues/225) evaluates assessment providers. [O](https://github.com/vzhu08/databricks-datathon/issues/226) owns isolated sessions, [P](https://github.com/vzhu08/databricks-datathon/issues/227) owns the reviewed-destination handoff, [Q](https://github.com/vzhu08/databricks-datathon/issues/228) owns interview flow, [R](https://github.com/vzhu08/databricks-datathon/issues/229) owns runtime integration tests and [S](https://github.com/vzhu08/databricks-datathon/issues/230) owns independent evaluation. [Andrew](https://github.com/vzhu08/databricks-datathon/issues/231) owns all patient UI. M circulates interface proposals to consumers and Oliver before shared-contract edits. Provider selection, clinical validation, live activation and release have separate decisions. Preserve the completed synthetic acceptance suite.
+
 ### National service and equipment assignments
 
 | Developer chat | Active research issue | Branch and acquisition directory |
