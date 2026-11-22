@@ -171,8 +171,13 @@ a scale bar and the layer's credit inside the picture and as links under it. The
 with a top-level `attribution` list of `{text, url}` with https links. Only the reviewed edition is drawn:
 the file's SHA-256 must be in `storm_plan.APPROVED_ROADS`, and a missing, changed, oversized or uncredited
 file leaves the map with no background, exactly as before. Roads are never drawn under simulated sites.
-They are orientation only: no travel time on the page is calculated from them, and the page says so. The
-road file is not kept in Git either. Tests: `python -m unittest tests.storm_ui.test_storm_plan`.
+They are orientation only: no patient route is shown and no travel time on the page is calculated from
+them, and the page says so. Credits an edition's handover requires beyond those in the file (for the Pune
+edition, Geofabrik as distributor and the ODbL) are listed per edition in `storm_plan.ROAD_EDITION_CREDITS`
+and shown with the file's own; a link to where the extract and its build method can be obtained belongs
+there too once the team has agreed it. The line drawing never exceeds `ROAD_BUDGET` characters: a denser
+layer is drawn more coarsely, then loses its smallest roads, then is not drawn. The road file is not kept in
+Git either. Tests: `python -m unittest tests.storm_ui.test_storm_plan`.
 
 Where the installed Streamlit has `st.iframe` (checked on 1.67) the frame is as tall as the
 replay. Older versions get a fixed frame that scrolls. Tests: `python -m unittest tests.storm_ui.test_storm_page`.

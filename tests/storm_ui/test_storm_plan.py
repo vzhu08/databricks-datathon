@@ -525,6 +525,47 @@ class RoadTests(unittest.TestCase):
         self.assertEqual(1, drawing.count('stroke-linecap="round"'))
         self.assertIn(f'stroke="{storm_plan.ROAD_TIERS[3][1]}"', drawing)  # the primary road stays
 
+    def test_the_size_limit_is_firm_and_counts_the_line_drawing_as_written(self):
+        import re
+        bends = [[20.0 + step * 0.0002, 10.1 + (step % 2) * 0.0001] for step in range(1500)]
+        dense = self.loaded(road_layer(features=[{"type": "Feature", "properties": {"highway": "primary"},
+                                                  "geometry": {"type": "LineString", "coordinates": bends}}]))
+
+        def written(drawing):
+            return sum(len(path) for path in re.findall(r'<path d="([^"]*)" fill="none" stroke="[^"]*" '
+                                                        r'stroke-width="[^"]*" stroke-linecap', drawing))
+
+        full = written(storm_plan.chart(plan(), dense))
+        self.assertGreater(full, 4000)
+        for limit in (full, full - 1, full * 2 // 3, full // 2):
+            with self.subTest(limit=limit), mock.patch.object(storm_plan, "ROAD_BUDGET", limit):
+                drawing = storm_plan.chart(plan(), dense)
+                self.assertLessEqual(written(drawing), limit)
+                self.assertIn('data-roads="shown"', drawing)  # drawn more coarsely, not dropped
+        with mock.patch.object(storm_plan, "ROAD_BUDGET", 20):  # not even the only road class fits: no road at all
+            drawing = storm_plan.chart(plan(), dense)
+        self.assertNotIn("data-roads", drawing)
+        self.assertIn("No roads or background are drawn.", drawing)
+
+    def test_the_published_edition_carries_its_distributor_and_licence_credits(self):
+        edition = next(iter(storm_plan.APPROVED_ROADS))
+        extra = storm_plan.ROAD_EDITION_CREDITS[edition]
+        self.assertEqual(["Road extract distributed by Geofabrik GmbH", "Open Database License (ODbL) 1.0"],
+                         [credit["text"] for credit in extra])
+        self.assertTrue(all(credit["url"].startswith("https://") for credit in extra))
+        digest = hashlib.sha256(self.raw).hexdigest()
+        self.path.write_bytes(self.raw)
+        with self.approved(), mock.patch.dict(storm_plan.ROAD_EDITION_CREDITS, {digest: extra + (
+                {"text": "Invented distributor", "url": "https://example.invalid/again"},)}):
+            roads = storm_plan.load_roads(self.path)
+            page = storm_plan.markup(plan(), roads)
+        self.assertEqual(["© Invented <map> contributors", "Invented distributor",
+                          "Road extract distributed by Geofabrik GmbH", "Open Database License (ODbL) 1.0"],
+                         [credit["text"] for credit in roads["attribution"]])  # a credit the file gives is not repeated
+        self.assertIn('<a href="https://www.geofabrik.de/" target="_blank" rel="noopener noreferrer">'
+                      "Road extract distributed by Geofabrik GmbH</a>.", page)
+        self.assertIn("No patient routes are shown", page)
+
 
 class WordingTests(unittest.TestCase):
     def test_codes_become_words_and_medical_initials_stay_in_capitals(self):

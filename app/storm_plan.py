@@ -24,6 +24,14 @@ FILE = Path(__file__).resolve().parent / "storm_ui" / "data" / "plan.json"
 ROADS_FILE = FILE.with_name("roads.geojson")
 ROADS_MAX_BYTES = 6 * 1024 * 1024
 APPROVED_ROADS = {"02e738e10c2bdd264cb8ed4e2031c94f82767a5a3dc00a233fe9d2d1f7ea181b"}
+# Credits an edition's handover requires beyond the ones written in the file itself, shown with them under the map.
+# The Pune edition is cut from the Geofabrik extract of OpenStreetMap India (1 November 2026) under the ODbL.
+ROAD_EDITION_CREDITS = {
+    "02e738e10c2bdd264cb8ed4e2031c94f82767a5a3dc00a233fe9d2d1f7ea181b": (
+        {"text": "Road extract distributed by Geofabrik GmbH", "url": "https://www.geofabrik.de/"},
+        {"text": "Open Database License (ODbL) 1.0", "url": "https://opendatacommons.org/licenses/odbl/1-0/"},
+    ),
+}
 ROAD_TIERS = (  # drawn in this order, so the main roads lie on top: (OSM highway classes, colour, width)
     ((), "#e1e6ea", 0.6),  # every other class
     (("tertiary", "tertiary_link"), "#d2d9de", 0.9),
@@ -31,9 +39,12 @@ ROAD_TIERS = (  # drawn in this order, so the main roads lie on top: (OSM highwa
     (("primary", "primary_link"), "#acb8c1", 1.8),
     (("motorway", "motorway_link", "trunk", "trunk_link"), "#98a7b2", 2.4),
 )
-ROAD_BUDGET = 600_000  # characters of line drawing; beyond it the smallest roads are left out
-ROADS_NOTE = ("The roads are drawn for orientation only. No travel time on this page is calculated from these "
-              "lines.")
+# The most characters of line drawing the map may carry. A denser layer is first drawn more coarsely, then loses
+# its smallest roads, and if even its main roads do not fit it is not drawn at all.
+ROAD_BUDGET = 600_000
+ROAD_DETAIL = (0.8, 1.2, 1.8, 2.6)  # the closest two drawn points may be, in map pixels, finest first
+ROADS_NOTE = ("The roads are drawn for orientation only. No patient routes are shown, and no travel time on this "
+              "page is calculated from these lines.")
 SCHEMA = "storm-plan-v1"
 MAX_BYTES = 4 * 1024 * 1024
 POLICIES = (("nearest_first", "Nearest first"), ("exact_optimum", "Exact optimum"))
@@ -310,13 +321,16 @@ def checked(plan):
 
 def read_roads(raw):
     """The road layer from its bytes, or ValueError/KeyError/TypeError. The pin is checked before parsing."""
-    if hashlib.sha256(raw).hexdigest() not in APPROVED_ROADS:
+    edition = hashlib.sha256(raw).hexdigest()
+    if edition not in APPROVED_ROADS:
         raise ValueError("not a reviewed road layer")
     layer = json.loads(raw)
     credits = [{"text": _text(credit["text"], "road credit"), "url": _text(credit["url"], "road credit link")}
                for credit in layer["attribution"]]
     if not credits or any(not credit["url"].startswith("https://") for credit in credits):
         raise ValueError("the road layer has no usable credit")
+    credits += [dict(credit) for credit in ROAD_EDITION_CREDITS.get(edition, ())
+                if credit["text"] not in {given["text"] for given in credits}]
     lines = []
     for feature in layer["features"]:
         geometry, about = feature["geometry"], feature.get("properties") or {}
@@ -604,7 +618,7 @@ def _road_marks(roads, project, sites, width, height):
     """The road lines and a few road names inside the frame, as two pieces of SVG: the lines go under
     everything, the names over the patient dots. Both are empty when no road is in view."""
     tier_of = {kind: index for index, (kinds, _, _) in enumerate(ROAD_TIERS) for kind in kinds}
-    drawn, named = [[] for _ in ROAD_TIERS], {}
+    runs, named = [[] for _ in ROAD_TIERS], {}
     for kind, name, points in roads["lines"]:
         tier = tier_of.get(kind, 0)
         spots = [project(x, y) for x, y in points]
@@ -614,12 +628,10 @@ def _road_marks(roads, project, sites, width, height):
             keep = spot is not None and (near[index] or (index and near[index - 1])
                                          or (index + 1 < len(near) and near[index + 1]))
             if keep:
-                # points closer together than the eye can tell are left out, except the end of a line
-                if not run or math.dist(run[-1], spot) >= 0.8 or index + 1 == len(spots):
-                    run.append(spot)
+                run.append(spot)
                 continue
             if len(run) > 1:
-                drawn[tier].append("M" + " L".join(f"{x:.1f} {y:.1f}" for x, y in run))
+                runs[tier].append(run)
                 length = sum(math.dist(first, second) for first, second in zip(run, run[1:]))
                 if name:  # a name is written once, at the middle of its longest stretch in view
                     best, total, longest, middle = named.get(name, (tier, 0, 0, None))
@@ -627,13 +639,25 @@ def _road_marks(roads, project, sites, width, height):
                         longest, middle = length, run[len(run) // 2]
                     named[name] = (max(best, tier), total + length, longest, middle)
             run = []
-    while sum(len(path) for paths in drawn for path in paths) > ROAD_BUDGET and sum(map(bool, drawn)) > 1:
-        drawn[next(index for index, paths in enumerate(drawn) if paths)] = []
+
+    def traced(run, gap):  # points closer together than the gap are left out, never the two ends of a line
+        kept = [run[0]]
+        for spot in run[1:-1]:
+            if math.dist(kept[-1], spot) >= gap:
+                kept.append(spot)
+        return "M" + " L".join(f"{x:.1f} {y:.1f}" for x, y in kept + [run[-1]])
+
+    for gap in ROAD_DETAIL:  # the finest drawing that fits, counted exactly as it is written into the page
+        drawn = [" ".join(traced(run, gap) for run in tier) for tier in runs]
+        if sum(map(len, drawn)) <= ROAD_BUDGET:
+            break
+    while sum(map(len, drawn)) > ROAD_BUDGET:  # still too much at the coarsest: the smallest roads go first
+        drawn[next(index for index, path in enumerate(drawn) if path)] = ""
     if not any(drawn):
         return "", ""
-    lines = [f'<path d="{" ".join(paths)}" fill="none" stroke="{colour}" stroke-width="{size}" '
+    lines = [f'<path d="{path}" fill="none" stroke="{colour}" stroke-width="{size}" '
              'stroke-linecap="round" stroke-linejoin="round"/>'
-             for paths, (_, colour, size) in zip(drawn, ROAD_TIERS) if paths]
+             for path, (_, colour, size) in zip(drawn, ROAD_TIERS) if path]
     names = []
     # Up to eight names, main roads and longest first, none on top of a site, another name or the frame's edge.
     boxes = [(x - 10, y - 10, x + 10, y + 10) for x, y in sites]
