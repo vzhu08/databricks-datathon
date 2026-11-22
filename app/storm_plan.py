@@ -10,14 +10,41 @@ The facility locations are real, at the precision the file gives. Patients, need
 a facility offers, staffed places and travel times are simulated. Without a valid file the Storm page
 shows the checked replay alone and this section is not offered.
 """
+import hashlib
 import html
 import json
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import Counter
 from pathlib import Path
 
 FILE = Path(__file__).resolve().parent / "storm_ui" / "data" / "plan.json"
+# Roads under the map of real locations: one reviewed GeoJSON layer, packaged beside the plan at deployment and
+# not kept in Git. Only these exact bytes are drawn (SHA-256 of the edition handed over on issue #323).
+ROADS_FILE = FILE.with_name("roads.geojson")
+ROADS_MAX_BYTES = 6 * 1024 * 1024
+APPROVED_ROADS = {"02e738e10c2bdd264cb8ed4e2031c94f82767a5a3dc00a233fe9d2d1f7ea181b"}
+# Credits an edition's handover requires beyond the ones written in the file itself, shown with them under the map.
+# The Pune edition is cut from the Geofabrik extract of OpenStreetMap India (1 November 2026) under the ODbL.
+ROAD_EDITION_CREDITS = {
+    "02e738e10c2bdd264cb8ed4e2031c94f82767a5a3dc00a233fe9d2d1f7ea181b": (
+        {"text": "Road extract distributed by Geofabrik GmbH", "url": "https://www.geofabrik.de/"},
+        {"text": "Open Database License (ODbL) 1.0", "url": "https://opendatacommons.org/licenses/odbl/1-0/"},
+    ),
+}
+ROAD_TIERS = (  # drawn in this order, so the main roads lie on top: (OSM highway classes, colour, width)
+    ((), "#e1e6ea", 0.6),  # every other class
+    (("tertiary", "tertiary_link"), "#d2d9de", 0.9),
+    (("secondary", "secondary_link"), "#c0cad1", 1.3),
+    (("primary", "primary_link"), "#acb8c1", 1.8),
+    (("motorway", "motorway_link", "trunk", "trunk_link"), "#98a7b2", 2.4),
+)
+# The most characters of line drawing the map may carry. A denser layer is first drawn more coarsely, then loses
+# its smallest roads, and if even its main roads do not fit it is not drawn at all.
+ROAD_BUDGET = 600_000
+ROAD_DETAIL = (0.8, 1.2, 1.8, 2.6)  # the closest two drawn points may be, in map pixels, finest first
+ROADS_NOTE = ("The roads are drawn for orientation only. No patient routes are shown, and no travel time on this "
+              "page is calculated from these lines.")
 SCHEMA = "storm-plan-v1"
 MAX_BYTES = 4 * 1024 * 1024
 POLICIES = (("nearest_first", "Nearest first"), ("exact_optimum", "Exact optimum"))
@@ -74,7 +101,7 @@ STYLE = """
 .sp h3 { margin: 1.6rem 0 0.4rem; font-size: 1.15rem; }
 .sp h3.sp-top { margin-top: 0.2rem; font-size: 1.35rem; }
 .sp-facts { margin: 0.4rem 0 0; padding: 0; list-style: none; max-width: 100ch; }
-.sp-facts li { margin-bottom: 0.3rem; }
+.sp-facts li { margin-bottom: 0.3rem; overflow-wrap: anywhere; }
 .sp-pair { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 0.8rem; }
 .sp-card { flex: 1 1 17rem; padding: 0.9rem 1.1rem; background: #ffffff; border: 1.5px solid #c3ced6;
   border-radius: 3px; }
@@ -96,6 +123,10 @@ STYLE = """
 .sp-key { margin-top: 0.4rem; color: #4b6274; font-size: 0.95rem; max-width: 90ch; }
 .sp-key svg { vertical-align: -0.2em; }
 .sp a { color: #14283b; }
+.sp-live { margin: 0.7rem 0 1.5rem; padding: 0.9rem 1.1rem 1rem; background: #ffffff; border: 1.5px solid #c3ced6;
+  border-radius: 3px; }
+.sp .sp-live h3 { margin-top: 0; }
+.sp-live p { margin: 0.4rem 0 0; max-width: 100ch; }
 </style>
 """
 
@@ -288,6 +319,57 @@ def checked(plan):
     return plan
 
 
+def read_roads(raw):
+    """The road layer from its bytes, or ValueError/KeyError/TypeError. The pin is checked before parsing."""
+    edition = hashlib.sha256(raw).hexdigest()
+    if edition not in APPROVED_ROADS:
+        raise ValueError("not a reviewed road layer")
+    layer = json.loads(raw)
+    credits = [{"text": _text(credit["text"], "road credit"), "url": _text(credit["url"], "road credit link")}
+               for credit in layer["attribution"]]
+    if not credits or any(not credit["url"].startswith("https://") for credit in credits):
+        raise ValueError("the road layer has no usable credit")
+    credits += [dict(credit) for credit in ROAD_EDITION_CREDITS.get(edition, ())
+                if credit["text"] not in {given["text"] for given in credits}]
+    lines = []
+    for feature in layer["features"]:
+        geometry, about = feature["geometry"], feature.get("properties") or {}
+        parts = {"LineString": [geometry["coordinates"]], "MultiLineString": geometry["coordinates"]}.get(
+            geometry["type"], [])
+        kind, name = about.get("highway"), about.get("name")
+        for part in parts:
+            points = [(float(point[0]), float(point[1])) for point in part]
+            if len(points) > 1 and all(math.isfinite(x) and math.isfinite(y) and abs(x) <= 180 and abs(y) <= 90
+                                       for x, y in points):
+                lines.append((kind if isinstance(kind, str) else "", name.strip() if isinstance(name, str) else "",
+                              points))
+    if not lines:
+        raise ValueError("the road layer has no line")
+    return {"attribution": credits, "lines": lines}
+
+
+_ROADS = {}  # the one parsed layer, kept while the file is unchanged
+
+
+def load_roads(path=None):
+    """The reviewed road layer, or None. Roads are context under the map, so any problem draws no road."""
+    path = Path(path or ROADS_FILE)
+    try:
+        if not path.is_file():
+            return None
+        state = path.stat()
+        if state.st_size > ROADS_MAX_BYTES:
+            return None
+        key = (str(path), state.st_mtime_ns, state.st_size, tuple(sorted(APPROVED_ROADS)))
+        if key not in _ROADS:
+            layer = read_roads(path.read_bytes())
+            _ROADS.clear()
+            _ROADS[key] = layer
+        return _ROADS[key]
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError):
+        return None
+
+
 def load(path=None):
     """Read and check the results file. Any failure is the same state: not available."""
     path = Path(path or FILE)
@@ -360,11 +442,11 @@ def difference(plan, order):
         others = sorted((row for row in first["assignments"] if row.get("slot_id") == chosen["slot_id"]), key=rank)
         if others:
             other = patients[others[-1]["patient"]]
-            holder = {"id": other["id"], "priority": _plain(urgency(other)).lower(),
+            holder = {"id": other["id"], "priority": _inline(urgency(other)),
                       "arrival": other.get("arrival_minute")}
-    return {"id": patient["id"], "priority": _plain(urgency(patient)).lower(),
-            "service": _plain(patient["service"]).lower(), "arrival": patient.get("arrival_minute"),
-            "kind": _plain(patient_class(patient)).lower() if patient_class(patient) else None,
+    return {"id": patient["id"], "priority": _inline(urgency(patient)),
+            "service": _inline(patient["service"]), "arrival": patient.get("arrival_minute"),
+            "kind": _inline(patient_class(patient)) if patient_class(patient) else None,
             "reason": left.get(patient["id"]), "near": place(near[patient["id"]]) if patient["id"] in near else None,
             "best": place(chosen), "holder": holder}
 
@@ -380,7 +462,7 @@ def advice(plan, results, order, total):
     if gain > 0:
         urgent = best["by_priority"][top] - first["by_priority"][top]
         lines.append(f"Assigning the same staffed places differently placed {gain} more of the {total:,} simulated "
-                     f"patients, {urgent} of them {_plain(top).lower()} priority, with no added capacity.")
+                     f"patients, {urgent} of them {_inline(top)} priority, with no added capacity.")
     patients = {patient["id"]: patient for patient in plan["patients"]}
     short = Counter(patients[row["patient"]]["service"] for row in plan["policies"][best["key"]]["unserved"])
     if short:
@@ -388,7 +470,7 @@ def advice(plan, results, order, total):
         places = sum(resource["slots"] for facility in plan["facilities"] for resource in facility["resources"]
                      if resource["service"] == service)
         used = sum(1 for row in plan["policies"][best["key"]]["assignments"] if row["service"] == service)
-        name = _plain(service).lower()
+        name = _inline(service)
         if places:
             lines.append(f"Even at the optimum {best['unmet']:,} had no place, {count:,} of them needing {name}: "
                          f"{used:,} of the {places:,} {name} places in the shift were used. That is the shortage to "
@@ -424,8 +506,39 @@ def _minutes(value):
     return f"{value:,.0f}" if value.is_integer() else f"{value:,.1f}"
 
 
+INITIALS = ("mri", "ct", "icu", "nicu", "ecg")
+
+
 def _plain(reason):
-    return reason.replace("_", " ").strip().capitalize()
+    """A code such as time_sensitive or mri as words, with medical initials kept in capitals."""
+    words = reason.replace("_", " ").strip().capitalize().split(" ")
+    return " ".join(word.upper() if word.lower() in INITIALS else word for word in words)
+
+
+def _inline(reason):
+    """The same words for the middle of a sentence: lower case, except the initials."""
+    return " ".join(word if word.lower() in INITIALS else word.lower() for word in _plain(reason).split(" "))
+
+
+def _pickup_name(code):
+    """PUNE-SIM-PICKUP-W as words. An id this page does not know is shown as written."""
+    code = str(code)
+    for ending, name in (("PICKUP-W", "West shared pickup"), ("PICKUP-E", "East shared pickup")):
+        if code.endswith(ending):
+            return name
+    return code
+
+
+def _when(stamp):
+    """2026-11-22T17:40:00Z as 22 November 2026, 17:40 UTC. Anything else is shown as written."""
+    try:
+        moment = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except ValueError:
+        return str(stamp)
+    if moment.utcoffset() is None:
+        return str(stamp)
+    moment = moment.astimezone(timezone.utc)
+    return f"{moment.day} {moment:%B %Y}, {moment:%H:%M} UTC"
 
 
 def view(plan):
@@ -462,6 +575,14 @@ def view(plan):
     if gain > 0:
         say = (f"On identical inputs the exact optimum placed {gain} more simulated "
                f"{'patient' if gain == 1 else 'patients'} than nearest first.")
+    elif plan.get("traffic") and not best["assigned"] and not plan["traffic"]["usable_pairs"]:
+        say = ("No road time came back for any route, so neither policy could place a simulated patient in this "
+               "run. That is the road-time service being unavailable, not the planner: the modeled result is "
+               "unchanged.")
+    elif plan.get("traffic") and not best["assigned"]:
+        usable = plan["traffic"]["usable_pairs"]
+        say = (f"Road times came back for {usable:,} {'route' if usable == 1 else 'routes'}, but with them neither "
+               "policy could place a simulated patient in this run. The reasons are in the table below.")
     elif gain == 0:
         say = "On identical inputs both policies placed the same number of simulated patients."
     else:
@@ -493,8 +614,81 @@ def view(plan):
     }
 
 
-def chart(plan, width=720, height=440, pad=28):
-    """A plain map with no background: facilities by precision, simulated patients as small dots."""
+def _road_marks(roads, project, sites, width, height):
+    """The road lines and a few road names inside the frame, as two pieces of SVG: the lines go under
+    everything, the names over the patient dots. Both are empty when no road is in view."""
+    tier_of = {kind: index for index, (kinds, _, _) in enumerate(ROAD_TIERS) for kind in kinds}
+    runs, named = [[] for _ in ROAD_TIERS], {}
+    for kind, name, points in roads["lines"]:
+        tier = tier_of.get(kind, 0)
+        spots = [project(x, y) for x, y in points]
+        near = [-30 <= x <= width + 30 and -30 <= y <= height + 30 for x, y in spots]
+        run = []
+        for index, spot in enumerate(spots + [None]):
+            keep = spot is not None and (near[index] or (index and near[index - 1])
+                                         or (index + 1 < len(near) and near[index + 1]))
+            if keep:
+                run.append(spot)
+                continue
+            if len(run) > 1:
+                runs[tier].append(run)
+                length = sum(math.dist(first, second) for first, second in zip(run, run[1:]))
+                if name:  # a name is written once, at the middle of its longest stretch in view
+                    best, total, longest, middle = named.get(name, (tier, 0, 0, None))
+                    if length > longest:
+                        longest, middle = length, run[len(run) // 2]
+                    named[name] = (max(best, tier), total + length, longest, middle)
+            run = []
+
+    def traced(run, gap):  # points closer together than the gap are left out, never the two ends of a line
+        kept = [run[0]]
+        for spot in run[1:-1]:
+            if math.dist(kept[-1], spot) >= gap:
+                kept.append(spot)
+        return "M" + " L".join(f"{x:.1f} {y:.1f}" for x, y in kept + [run[-1]])
+
+    for gap in ROAD_DETAIL:  # the finest drawing that fits, counted exactly as it is written into the page
+        drawn = [" ".join(traced(run, gap) for run in tier) for tier in runs]
+        if sum(map(len, drawn)) <= ROAD_BUDGET:
+            break
+    while sum(map(len, drawn)) > ROAD_BUDGET:  # still too much at the coarsest: the smallest roads go first
+        drawn[next(index for index, path in enumerate(drawn) if path)] = ""
+    if not any(drawn):
+        return "", ""
+    lines = [f'<path d="{path}" fill="none" stroke="{colour}" stroke-width="{size}" '
+             'stroke-linecap="round" stroke-linejoin="round"/>'
+             for path, (_, colour, size) in zip(drawn, ROAD_TIERS) if path]
+    names = []
+    # Up to eight names, main roads and longest first, none on top of a site, another name or the frame's edge.
+    boxes = [(x - 10, y - 10, x + 10, y + 10) for x, y in sites]
+    for name, (tier, total, _, (x, y)) in sorted(named.items(), key=lambda item: (-item[1][0], -item[1][1], item[0])):
+        if len(boxes) - len(sites) == 8:
+            break
+        half = 3 * len(name) + 4
+        box = (x - half, y - 11, x + half, y + 4)
+        if (tier < 2 or total < 60 or box[0] < 4 or box[2] > width - 4 or box[1] < 4 or box[3] > height - 24
+                or any(box[0] < other[2] and other[0] < box[2] and box[1] < other[3] and other[1] < box[3]
+                       for other in boxes)):
+            continue
+        boxes.append(box)
+        names.append(f'<text x="{x:.1f}" y="{y:.1f}" text-anchor="middle" font-size="10.5" fill="#4b6274" '
+                     'stroke="#ffffff" stroke-width="3" paint-order="stroke" stroke-linejoin="round">'
+                     f"{html.escape(name, quote=False)}</text>")
+    return "".join(lines), "".join(names)
+
+
+def _scale_bar(per_km, height):
+    """A bar of a round number of kilometres, bottom left."""
+    km = next((size for size in (50, 20, 10, 5, 2, 1, 0.5) if size * per_km <= 140), 0.5)
+    end = 14 + km * per_km
+    return (f'<g data-scale="{km} km"><path d="M14 {height - 12} v5 H{end:.1f} v-5" fill="none" stroke="#14283b" '
+            f'stroke-width="1.5"/><text x="{end + 6:.1f}" y="{height - 6}" font-size="11" fill="#14283b" '
+            f'stroke="#ffffff" stroke-width="3" paint-order="stroke">{km} km</text></g>')
+
+
+def chart(plan, roads=None, width=720, height=440, pad=28):
+    """The map: facilities by precision and simulated patients as small dots, over the reviewed roads when a
+    layer is given and the locations are real. Without one there is no background at all."""
     facilities = plan["facilities"]
     traffic = plan.get("traffic")
     starts = (traffic["pickups"] if traffic else
@@ -508,19 +702,27 @@ def chart(plan, width=720, height=440, pad=28):
     left = (width - span_x * scale) / 2
     top = (height - span_y * scale) / 2
 
-    def at(row):
-        return (round(left + (row["longitude"] - west) * squeeze * scale, 1),
-                round(top + (north - row["latitude"]) * scale, 1))
+    def project(longitude, latitude):  # at the size of a city this is the same picture as Web Mercator
+        return left + (longitude - west) * squeeze * scale, top + (north - latitude) * scale
 
+    def at(row):
+        x, y = project(row["longitude"], row["latitude"])
+        return round(x, 1), round(y, 1)
+
+    under, names = (_road_marks(roads, project, [at(row) for row in facilities + (starts if traffic else [])],
+                                width, height) if roads and real(plan) else ("", ""))
     marks = []
     for start in starts:
         x, y = at(start)
         if traffic:
-            name = html.escape(start["id"], quote=False)
+            name = html.escape(_pickup_name(start["id"]), quote=False)
             marks.append(f'<path data-pickup="shared" d="M{x} {y-7} l7 7 -7 7 -7 -7 Z" fill="#0b7067" '
-                         f'stroke="white"><title>{name}, shared simulated pickup</title></path>')
+                         f'stroke="white"><title>{name}, simulated</title></path>')
+        elif under:
+            marks.append(f'<circle cx="{x}" cy="{y}" r="2.2" fill="#8a9aa7" stroke="#ffffff" stroke-width="0.6"/>')
         else:
             marks.append(f'<circle cx="{x}" cy="{y}" r="2" fill="#8a9aa7"/>')
+    marks.append(names)
     for facility in sorted(facilities, key=lambda row: row["precision"] != "area"):
         x, y = at(facility)
         name = html.escape(f"{facility['label']} ({PRECISION[facility['precision']].lower()})", quote=False)
@@ -534,37 +736,59 @@ def chart(plan, width=720, height=440, pad=28):
             marks.append(f'<circle cx="{x}" cy="{y}" r="6" fill="#14283b" stroke="#ffffff" stroke-width="2">'
                          f"<title>{name}</title></circle>")
     origins = "shared simulated pickups" if traffic else "simulated patient starting points"
-    described = f"Map of {len(facilities)} facilities and {len(starts)} {origins}. No roads or background are drawn."
-    return (f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="{html.escape(described, quote=True)}">'
-            + "".join(marks) + "</svg>")
+    described = f"Map of {len(facilities)} facilities and {len(starts)} {origins}. "
+    extras = ""
+    if under:
+        credit = html.escape(roads["attribution"][0]["text"], quote=False)
+        described += "Roads are drawn underneath for orientation."
+        extras = (_scale_bar(scale / 111.32, height)
+                  + f'<text data-credit="roads" x="{width - 8}" y="{height - 6}" text-anchor="end" font-size="10" '
+                    f'fill="#4b6274" stroke="#ffffff" stroke-width="3" paint-order="stroke">{credit}</text>')
+    else:
+        described += "No roads or background are drawn."
+    shown = ' data-roads="shown"' if under else ""
+    return (f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="{html.escape(described, quote=True)}"{shown}>'
+            + under + "".join(marks) + extras + "</svg>")
 
 
 def _traffic_header(facts, safe):
-    def count(value):
-        return f"{value:,}" if value is not None else "unknown"
-
-    summary = (
-        f"{facts['eligible_pairs']} eligible pairs · {count(facts['attempted_pairs'])} unique pairs attempted · "
-        f"{facts['usable_pairs']} usable · {facts['unavailable_pairs']} unavailable · "
-        f"{count(facts['actual_attempts'])} actual attempts including retries"
-    )
-    groups = " · ".join(f"{safe(row['id'])}: {row['patient_count']} simulated requests" for row in facts["pickups"])
+    """What one signed-in road-time run asked for and got back, in words a first-time reader can follow."""
+    pickups, total = facts["pickups"], facts["eligible_pairs"]
+    attempted, attempts = facts["attempted_pairs"], facts["actual_attempts"]
+    asked = (f"Road times were asked for {attempted:,} of the {total:,} pickup-to-site routes"
+             if attempted is not None else
+             f"It is not known how many of the {total:,} pickup-to-site routes were asked for")
+    sent = (f"{attempts:,} {'request was' if attempts == 1 else 'requests were'} sent in all, counting retries."
+            if attempts is not None else "The number of requests sent is not known.")
+    summary = (f"{asked} ({len(pickups)} pickups × {facts['site_count']} sites). {facts['usable_pairs']:,} came "
+               f"back usable and {facts['unavailable_pairs']:,} are unavailable. {sent}")
+    groups = " · ".join(f"{safe(_pickup_name(row['id']))}: {row['patient_count']:,} simulated requests"
+                        for row in pickups)
+    stamp = facts.get("observed_at")
+    seen = (f'Observed <time datetime="{html.escape(str(stamp), quote=True)}">{safe(_when(stamp))}</time>.'
+            if stamp else "No observation time, because no route was observed.")
     credit = facts.get("attribution") or {}
     attribution = (f'<p data-attribution="storm-traffic">{safe(credit["caption"])}</p>'
                    f'<details><summary>Map data copyright notices</summary><p>{safe(credit["notices"])}</p></details>'
                    if credit.get("caption") and credit.get("notices") else "")
     state = ("" if facts["usable_pairs"] else
              '<p role="status"><strong>No road estimates available for this run.</strong> '
-             "The modeled baseline remains available below.</p>")
-    return (f'<div data-storm-traffic="observed"><h3>Signed-in road-time comparison</h3>{state}'
-            f'<p>{safe(facts["pickup_rule"])} {groups}.</p><p>{summary}.</p>'
-            f'<p>Source: {safe(facts["source"])}. Observation time: '
-            f'{safe(facts.get("observed_at") or "unavailable")}.</p>{attribution}</div>')
+             "The modeled baseline remains available below. Nothing is wrong with the planner or the modeled "
+             "result: without a road time for any route, neither policy can place a simulated patient.</p>")
+    return (f'<div class="sp-live" data-storm-traffic="observed" data-usable="{facts["usable_pairs"]}">'
+            f"<h3>Signed-in road-time comparison</h3>{state}"
+            f'<p>{safe(facts["pickup_rule"])} {groups}.</p><p>{summary}</p>'
+            f'<p>Source: {safe(facts["source"])}. {seen}</p>{attribution}</div>')
 
 
-def markup(plan):
-    """The section as HTML. Every word from the file is escaped."""
+def markup(plan, roads=None):
+    """The section as HTML. Every word from the file is escaped. The packaged road layer is drawn under real
+    locations unless roads is False; pass a layer to use that one."""
     found, actual = view(plan), real(plan)
+    if roads is None and actual:
+        roads = load_roads()
+    drawing = chart(plan, roads or None)
+    streets = 'data-roads="shown"' in drawing
     traffic = plan.get("traffic")
     safe = lambda text: html.escape(str(text), quote=False)  # noqa: E731
     place, scenario, results, total = found["geography"], found["scenario"], found["results"], found["patients"]
@@ -646,8 +870,16 @@ def markup(plan):
                   f'{" (full)" if count == row["slots"] and count else ""}</td>' for count in row["used"])
         + "</tr>" for row in found["resources"])
     key = " &nbsp; ".join(f"{KEYS[kind]} {safe(name.lower())} ({count:,})" for kind, name, count in found["precision"])
+    if streets:
+        key += (' &nbsp; <svg width="22" height="18" viewBox="0 0 22 18" aria-hidden="true">'
+                '<path d="M1 9 H21" stroke="#98a7b2" stroke-width="2.4" stroke-linecap="round"/></svg> road')
+    road_credits = " ".join(
+        f'<a href="{html.escape(item["url"], quote=True)}" target="_blank" rel="noopener noreferrer">'
+        f"{safe(item['text'])}</a>." for item in (roads["attribution"] if streets else []))
     if traffic:
-        key += " &nbsp; ◆ Shared simulated pickup (2)"
+        key += (' &nbsp; <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true">'
+                '<path d="M8 2 l7 7 -7 7 -7 -7 Z" fill="#0b7067"/></svg> '
+                f"shared simulated pickup ({len(traffic['pickups']):,})")
     else:
         key += (' &nbsp; <svg width="12" height="18" viewBox="0 0 12 18" aria-hidden="true"><circle cx="6" cy="9" r="2.5" '
             'fill="#8a9aa7"/></svg> simulated patient start')
@@ -689,10 +921,10 @@ def markup(plan):
         f"<th>Reason</th>{heads}</tr>"
         f"</thead><tbody>{reasons}</tbody></table></div>"
         f'<h3>{"Where the facilities are" if actual else "Where the simulated sites are"}</h3>'
-        f'<div class="sp-map">{chart(plan)}</div>'
+        f'<div class="sp-map">{drawing}</div>'
         f'<div class="sp-key">{key}</div><div class="sp-key">{safe(AREA_NOTE if actual else SITES_NOTE)} '
-        "No roads or background map are "
-        f"drawn. Point at a mark for the facility's label. {credits}</div>"
+        f'{safe(ROADS_NOTE) + " Roads: " + road_credits if streets else "No roads or background map are drawn."} '
+        f"Point at a mark for the facility's label. {credits}</div>"
         f'<h3>About the area</h3><ul class="sp-facts">'
         f'<li><strong>Why this area.</strong> {safe(place["selection"])}</li>'
         f'<li><strong>Location source.</strong> {safe(place["source"])} {credits}</li>'

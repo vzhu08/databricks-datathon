@@ -162,9 +162,23 @@ labelled mapped facility point, campus simulation anchor or area only, with the 
 file gives) and what is simulated (patients, need, urgency, services, staffed places, travel). Results are also broken down by patient class (when the
 file gives each patient a `patient_class`) and by service, each with its own unmet reasons, and every
 staffed resource shows the basis of its service and capacity (simulated unless the file says otherwise).
-The map has
-no background and makes no request. The file is not kept in Git: it is placed at deployment after the
+The map makes no request. The file is not kept in Git: it is placed at deployment after the
 actual run, and without it the page is the replay alone. The format is in `storm_plan.checked`.
+
+**Roads under the map (optional).** With `storm_ui/data/roads.geojson` beside the plan, the map of real
+locations is drawn over that road layer: lines weighted by OSM `highway` class, up to eight main road names,
+a scale bar and the layer's credit inside the picture and as links under it. The file is a GeoJSON
+`FeatureCollection` of `LineString` or `MultiLineString` features (`properties.name`, `properties.highway`)
+with a top-level `attribution` list of `{text, url}` with https links. Only the reviewed edition is drawn:
+the file's SHA-256 must be in `storm_plan.APPROVED_ROADS`, and a missing, changed, oversized or uncredited
+file leaves the map with no background, exactly as before. Roads are never drawn under simulated sites.
+They are orientation only: no patient route is shown and no travel time on the page is calculated from
+them, and the page says so. Credits an edition's handover requires beyond those in the file (for the Pune
+edition, Geofabrik as distributor and the ODbL) are listed per edition in `storm_plan.ROAD_EDITION_CREDITS`
+and shown with the file's own; a link to where the extract and its build method can be obtained belongs
+there too once the team has agreed it. The line drawing never exceeds `ROAD_BUDGET` characters: a denser
+layer is drawn more coarsely, then loses its smallest roads, then is not drawn. The road file is not kept in
+Git either. Tests: `python -m unittest tests.storm_ui.test_storm_plan`.
 
 Where the installed Streamlit has `st.iframe` (checked on 1.67) the frame is as tall as the
 replay. Older versions get a fixed frame that scrolls. Tests: `python -m unittest tests.storm_ui.test_storm_page`.
