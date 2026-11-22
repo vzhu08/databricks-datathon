@@ -41,6 +41,7 @@ python -m research.acquisition.osm_services \
   --snapshot-date 2026-11-01 \
   --retrieved-at 2026-11-22T05:06:50.543264Z \
   --prior-hot /private/input/hotosm_ind_health_facilities_osm_geojson.zip \
+  --pbf-cache data/local/osm-services/pbf-extraction-cache \
   --out data/local/osm-services/pbf-20261101-v2
 python -m research.acquisition.osm_services.pmndp \
   --index /private/input/pmndp-index.bin \
@@ -57,6 +58,12 @@ cannot silently replace an existing packet. Every exact repeated HOT payload
 retains all original feature locators; conflicting payloads remain separate.
 PBF records retain the source ID/version locator and raw tags. No bounding-box,
 state, geocoding-success or campus-match filter removes source observations.
+The native reader visits the whole PBF and passes every tagged object to Python.
+A second native-ID pass recovers untagged prior HOT objects. Scan counters cover
+all tagged objects plus those recovered IDs; unrelated topology-only objects
+remain in the raw PBF and are not counted as medical records. The optional
+private cache checkpoints retained records before classification and verifies
+the input/reader/record hashes on reuse.
 
 ## Interpretation and consumer contract
 

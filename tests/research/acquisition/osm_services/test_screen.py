@@ -44,6 +44,8 @@ class ClassifierTests(unittest.TestCase):
         self.assertEqual(classify({},'disused:healthcare','dialysis','dialysis'),'defunct_or_closed')
         tags={'healthcare':'dialysis','disused':'yes'}
         self.assertEqual(classify(tags,'healthcare','dialysis','dialysis'),'defunct_or_closed')
+        self.assertEqual([o['category'] for o in observations(record(tags=tags))],['defunct_or_closed'])
+        self.assertEqual(observations(record(tags={'construction':'yes','disused':'yes'})),[])
 
     def test_referral_gate(self):
         tags={'healthcare':'dialysis','description':'Dialysis patients are referred offsite.'}

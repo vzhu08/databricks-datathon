@@ -24,7 +24,9 @@ class PbfTests(unittest.TestCase):
                {'osm_id':'node/3','tags':{},'state':None}]
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'synthetic.osm';path.write_bytes(raw)
-            records,edition,count,columns,mapping=load(path,sha256(raw).hexdigest(),'https://example.invalid/synthetic.osm','2000-01-01','2000-01-02',prior)
+            args=(path,sha256(raw).hexdigest(),'https://example.invalid/synthetic.osm','2000-01-01','2000-01-02',prior,Path(directory)/'cache')
+            records,edition,count,columns,mapping=load(*args)
+            self.assertEqual(load(*args),(records,edition,count,columns,mapping))
             ledger,report=screen(records,edition,count,columns,mapping)
             self.assertEqual(edition['scan_counts']['node'],2)
             self.assertEqual(len(records),4)

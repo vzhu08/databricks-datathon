@@ -74,7 +74,8 @@ def classify(tags, key, value, service):
     text = str(value)
     low = text.strip().lower()
     parts = tokens(text)
-    suffix = key.split(':', 1)[1] if key.split(':', 1)[0] in LIFECYCLE else key
+    prefix, separator, remainder = key.partition(':')
+    suffix = remainder if separator and prefix in LIFECYCLE else key
     dedicated = suffix in DEDICATED[service]
     service_key = bool(MENTION[service].search(suffix.replace(':', ' ')))
     if not (MENTION[service].search(text) or dedicated or service_key):

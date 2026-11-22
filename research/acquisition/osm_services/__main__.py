@@ -34,6 +34,7 @@ def main():
     source.add_argument('--pbf', type=Path)
     p.add_argument('--sha256', default=FROZEN_SHA256)
     p.add_argument('--prior-hot', type=Path)
+    p.add_argument('--pbf-cache', type=Path, help='private parsed-record checkpoint, hash-gated before reuse')
     p.add_argument('--source-url')
     p.add_argument('--snapshot-date')
     p.add_argument('--retrieved-at')
@@ -47,7 +48,7 @@ def main():
             p.error('PBF requires source URL, snapshot date and retrieval time')
         from .pbf import load as load_pbf, compare_editions
         prior=load(args.prior_hot)[0] if args.prior_hot else []
-        records,edition,count,columns,mapping=load_pbf(args.pbf,args.sha256,args.source_url,args.snapshot_date,args.retrieved_at,prior)
+        records,edition,count,columns,mapping=load_pbf(args.pbf,args.sha256,args.source_url,args.snapshot_date,args.retrieved_at,prior,args.pbf_cache)
         if prior:
             extras['edition-drift.json']=canonical(compare_editions(prior,records))
     ledger,report=screen(records,edition,count,columns,mapping)
