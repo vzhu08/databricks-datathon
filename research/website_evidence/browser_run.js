@@ -155,7 +155,16 @@ CC.SPEC = {
   neurosurgery: /\bneuro[\s-]?surg/i,
   emergency_trauma: /\bemergency (medicine|physician)|\btrauma surg|\bcasualty medical officer|\b(M\.?D\.?|DNB)\s*\(?\s*emergency/i,
 };
+CC.NOT = /\b(BDS|MDS|ENT|BAMS|BHMS|BPT|MPT|B\.P\.Th|M\.P\.Th)\b|\b(dental|dentist|orthodont\w*|endodont\w*|prosthodont\w*|periodont\w*|maxillofacial|otorhinolaryng\w*|otolaryng\w*|ayurved\w*|homoeopath\w*|homeopath\w*|physiotherap\w*)/i;
+CC.DEPT = /\b(cardiolog|neurolog|nephrolog|urolog|gastroenterolog|pulmonolog|endocrinolog|oncolog|dermatolog|paediatric|pediatric|gyn(a)?ecolog|obstetric|orthop(a)?edic|radiolog|psychiatr|ophthalmolog|general medicine|general surgery|neuro ?surg|rheumatolog|intensivist|emergency|trauma|casualty|joint replacement)\w*/gi;
+CC.FORM = /\b(select (a )?(department|doctor|speciality)|book an appointment|your name|submit|send message|\d+ comments?|posted (by|on)|(january|february|march|april|may|june|july|august|september|october|november|december) \d{1,2}, 20\d\d)\b/i;
+CC.family = w => { w = w.toLowerCase(); for (const [k, re] of Object.entries(CC.SPEC)) if (re.test(w)) return k; if (w.startsWith('neurolog')) return 'neurology'; if (/^(emergency|trauma|casualty|intensivist)/.test(w)) return 'emergency_trauma'; if (w.startsWith('joint replacement')) return 'orthopaedics'; return w.slice(0, 6); };
+CC.isSpec = w => { if (CC.NOT.test(w) || CC.FORM.test(w)) return false; const s = new Set(); for (const m of w.matchAll(CC.DEPT)) s.add(CC.family(m[0])); return s.size < 3; };
+// Specialties credited to one entry: the first one named (a later "Department of X" is a heading),
+// plus neurosurgery when "Neurology" comes first.
+CC.found = w => { if (!CC.isSpec(w)) return []; CC.DEPT.lastIndex = 0; const m = w.match(new RegExp(CC.DEPT.source, 'i')); const first = m ? CC.family(m[0]) : null; const hits = Object.keys(CC.SPEC).filter(k => CC.SPEC[k].test(w)); return first === 'neurology' ? hits.filter(k => k === 'neurosurgery') : hits.filter(k => k === first); };
 CC.DR = /\bDr\.?\s+([A-Z][a-zA-Z]+(?:\s+[A-Z]\.?)*(?:\s+[A-Z][a-zA-Z]+)?)/g;
+CC.MASK = /\b(Dr|Prof|Mr|Mrs|Ms)\.?\s*(?:[A-Z]\.\s*)*[A-Z][a-zA-Z]*\.?(?:\s+(?:[A-Z]\.|[A-Z][a-zA-Z]+)){0,4}/g;
 CC.docCount = text => {
   const lines = text.split('\n'), sets = {}, ex = {}, all = new Set();
   const hasDr = l => { CC.DR.lastIndex = 0; return CC.DR.test(l); };
@@ -164,31 +173,48 @@ CC.docCount = text => {
     while ((m = CC.DR.exec(lines[i]))) names.push(m[1].toLowerCase());
     if (!names.length) continue;
     names.forEach(n => all.add(n));
-    const w = [lines[i]];
-    for (let j = i + 1; j < Math.min(lines.length, i + 4); j++) { if (hasDr(lines[j])) break; w.push(lines[j]); }
-    const win = w.join(' ').slice(0, 400);
-    for (const [k, re] of Object.entries(CC.SPEC)) if (re.test(win)) {
+    let win, shown;
+    if (lines[i].length > 200) { CC.DR.lastIndex = 0; const at = CC.DR.exec(lines[i]).index; win = shown = lines[i].slice(at, at + 150); }
+    else {
+      const w = [lines[i]];
+      for (let j = i + 1; j < Math.min(lines.length, i + 4); j++) { if (hasDr(lines[j])) break; w.push(lines[j]); }
+      win = w.join(' ').slice(0, 400); shown = w.join(' | ');
+    }
+    for (const k of CC.found(win)) {
       for (const n of names) (sets[k] = sets[k] || new Set()).add(n);
-      if (!ex[k]) ex[k] = win.replace(CC.DR, 'Dr. ▇').slice(0, 220);
+      if (!ex[k]) ex[k] = shown.replace(CC.MASK, (x, t) => t + '. ▇').slice(0, 220);
     }
   }
   return {sets, ex, all};
 };
 CC.processDocs = async d => {
-  const pages = CC.pickDocs(await CC.lookup(d)), agg = {}, ex = {}, src = {}, all = new Set();
-  let read = 0, thin = 0;
+  const rows = await CC.lookup(d), pages = CC.pickDocs(rows), agg = {}, ex = {}, src = {}, all = new Set();
+  let read = 0, thin = 0, err = 0;
   for (const p of pages) {
-    try {
-      const t = CC.text(await CC.page(p)); read++;
-      if (t.length < 300) { thin++; continue; }
-      const r = CC.docCount(t); r.all.forEach(n => all.add(n));
-      for (const [k, s] of Object.entries(r.sets)) {
-        agg[k] = agg[k] || new Set(); s.forEach(n => agg[k].add(n));
-        if (!src[k] || s.size > src[k].n) src[k] = {u: p.u, ts: p.ts, n: s.size};
-        if (!ex[k]) ex[k] = r.ex[k];
-      }
-    } catch (e) {}
+    let t;
+    try { t = CC.text(await CC.page(p)); } catch (e) { err++; if (/403/.test(e)) throw e; continue; }
+    read++;
+    if (t.length < 300) { thin++; continue; }
+    const r = CC.docCount(t); r.all.forEach(n => all.add(n));
+    for (const [k, s] of Object.entries(r.sets)) {
+      agg[k] = agg[k] || new Set(); s.forEach(n => agg[k].add(n));
+      if (!src[k] || s.size > src[k].n) src[k] = {u: p.u, ts: p.ts, n: s.size};
+      if (!ex[k]) ex[k] = r.ex[k];
+    }
   }
   const counts = {}; for (const k in agg) counts[k] = agg[k].size;
-  return {d, docPages: pages.length, read, thin, doctors: all.size, counts, src, ex};  // no names
+  const html = rows.filter(r => r.st === '200' && /html/.test(r.m || '')).length;
+  return {d, cap: rows.length, html, docPages: pages.length, read, thin, err, doctors: all.size, counts, src, ex};  // no names
 };
+CC.docRun = async (conc = 2) => {
+  CC.docRes = CC.docRes || {}; CC.docRunning = true;
+  const w = async () => { while (CC.docQ.length && CC.docRunning) {
+    const d = CC.docQ.shift();
+    try { CC.docRes[d] = await CC.processDocs(d); }
+    catch (e) { if (/403/.test(e)) { CC.docRunning = false; CC.docQ.unshift(d); CC.blocked = Date.now(); } else CC.docRes[d] = {d, fail: String(e).slice(0, 80)}; }
+    if (CC.blockCache.size > 2000) CC.blockCache.clear();
+  } };
+  await Promise.all(Array.from({length: conc}, w)); CC.docRunning = false;
+};
+// Unattended: retry after a CloudFront block, waiting 25 minutes.
+CC.docLoop = async () => { while (CC.docQ.length) { await CC.docRun(2); if (CC.docQ.length) await new Promise(r => setTimeout(r, 25 * 60 * 1000)); } CC.docDone = Date.now(); };

@@ -50,6 +50,28 @@ class SpecialistTests(unittest.TestCase):
         self.assertEqual([c["url"] for c in specialists.pick_doctor_pages(caps)],
                          ["https://x.in/our-doctors", "https://x.in/departments/nephrology"])
 
+    def test_dental_menu_and_byline_entries_do_not_count(self):
+        page = ("<html><body><div>Dr. Meera Iyer</div><div>BDS, MDS (Orthodontics)</div>"
+                "<div>Dr. Sunil Rao</div><div>Book an Appointment Department Cardiology Neurology Nephrology</div>"
+                "<div>Dr. Anil Gupta July 16, 2026 orthopaedic 0 Comments</div>"
+                "<div>Dr. Ravi Menon</div><div>Consultant Nephrologist</div>" + FILLER + "</body></html>")
+        self.assertEqual(specialists.count_page(page)["specialties"], {"nephrology": 1})
+
+    def test_first_specialty_named_wins_over_a_department_heading(self):
+        page = ("<html><body><div>Dr. Asha Verma</div><div>Consultant Nephrologist</div>"
+                "<div>Department of Orthopaedics &amp; Joint Replacement</div>"
+                "<div>Dr. Kiran Das</div><div>Department: Neurology</div><div>Speciality: Neuro Surgeon</div>"
+                "<div>Dr. Mohan Lal</div><div>B.P.Th., M.P.Th. (Ortho.)</div><div>Neuro Surgeon</div>"
+                + FILLER + "</body></html>")
+        self.assertEqual(specialists.count_page(page)["specialties"], {"nephrology": 1, "neurosurgery": 1})
+
+    def test_long_paragraph_needs_the_specialty_next_to_the_name(self):
+        para = ("Dr. Vikram Tiwari is the founder of the hospital and has served the town for thirty years with "
+                "dedication to patients from all walks of life, and today the hospital has a busy neurosurgery "
+                "department and an intensive care unit run by a large team.")
+        page = "<html><body><p>" + para + "</p>" + FILLER + "</body></html>"
+        self.assertEqual(specialists.count_page(page)["specialties"], {})
+
     def test_mask_covers_long_names_and_initials(self):
         self.assertEqual(specialists.mask("Dr. Rajesh Kumar Singh Bhalla, MS"), "Dr. ▇, MS")
         self.assertEqual(specialists.mask("Dr.S.S. Abilash (Ortho)"), "Dr. ▇ (Ortho)")

@@ -52,6 +52,55 @@ DOC_PATH = re.compile(
     re.I,
 )
 PEOPLE_PATH = re.compile(r"(doctor|our-team|/team|specialist|consultant|faculty|physician)", re.I)
+# A doctor entry is skipped for specialty counting when it is not a medical specialist's own entry:
+# dental, ENT and AYUSH doctors (their pages often sit next to a department word), menus and forms
+# (three or more department names in one entry), and blog bylines (a date or "Comments").
+NOT_THIS_DOCTOR = re.compile(
+    r"\b(BDS|MDS|ENT|BAMS|BHMS|BPT|MPT|B\.P\.Th|M\.P\.Th)\b|\b(dental|dentist|orthodont\w*|endodont\w*|prosthodont\w*"
+    r"|periodont\w*|maxillofacial|otorhinolaryng\w*|otolaryng\w*|ayurved\w*|homoeopath\w*|homeopath\w*|physiotherap\w*)",
+    re.I,
+)
+DEPARTMENT = re.compile(
+    r"\b(cardiolog|neurolog|nephrolog|urolog|gastroenterolog|pulmonolog|endocrinolog|oncolog|dermatolog"
+    r"|paediatric|pediatric|gyn(a)?ecolog|obstetric|orthop(a)?edic|radiolog|psychiatr|ophthalmolog|general medicine"
+    r"|general surgery|neuro ?surg|rheumatolog|intensivist|emergency|trauma|casualty|joint replacement)\w*",
+    re.I,
+)
+FORM_OR_BYLINE = re.compile(
+    r"\b(select (a )?(department|doctor|speciality)|book an appointment|your name|submit|send message"
+    r"|\d+ comments?|posted (by|on)|(january|february|march|april|may|june|july|august|september|october"
+    r"|november|december) \d{1,2}, 20\d\d)\b",
+    re.I,
+)
+NEAR_NAME = 150  # in a long paragraph, the specialty must follow the name within this many characters
+
+
+def _family(word: str) -> str:
+    w = word.lower()
+    for k, rx in SPECIALTIES.items():
+        if rx.search(w):
+            return k
+    if w.startswith("neurolog"):
+        return "neurology"
+    if w.startswith(("emergency", "trauma", "casualty", "intensivist")):
+        return "emergency_trauma"
+    if w.startswith("joint replacement"):
+        return "orthopaedics"
+    return w[:6]
+
+
+def first_specialty(window: str) -> str | None:
+    """The specialty family named first after the doctor's name (a later "Department of X" is a heading)."""
+    m = DEPARTMENT.search(window)
+    return _family(m.group(0)) if m else None
+
+
+def entry_is_specialist(window: str) -> bool:
+    if NOT_THIS_DOCTOR.search(window) or FORM_OR_BYLINE.search(window):
+        return False
+    return len({_family(m.group(0)) for m in DEPARTMENT.finditer(window)}) < 3
+
+
 WINDOW = 4  # the "Dr." line and up to three lines after it, stopping at the next "Dr." line
 
 
@@ -102,6 +151,17 @@ def redact_url(url: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc, "/".join(segs), query, ""))
 
 
+def _found(window: str) -> list[str]:
+    """Specialties credited to one doctor entry: the first one named, plus neurosurgery after neurology."""
+    if not entry_is_specialist(window):
+        return []
+    first = first_specialty(window)
+    hits = [k for k, rx in SPECIALTIES.items() if rx.search(window)]
+    if first == "neurology":
+        return [k for k in hits if k == "neurosurgery"]
+    return [k for k in hits if k == first]
+
+
 def _keys(text: str):
     """Yield (doctor key, specialties) per "Dr." line. Keys stay in memory only."""
     lines = text.split("\n")
@@ -109,13 +169,20 @@ def _keys(text: str):
         names = [m.group(1).lower() for m in DOCTOR.finditer(line)]
         if not names:
             continue
+        if len(line) > 200:  # a paragraph, not a doctor card: only the text right after the name counts
+            m = DOCTOR.search(line)
+            window = line[m.start():m.start() + NEAR_NAME]
+            found = _found(window)
+            for n in names:
+                yield n, found, window
+            continue
         window = [line]
         for nxt in lines[i + 1:i + WINDOW]:
             if DOCTOR.search(nxt):
                 break  # the next doctor's entry starts
             window.append(nxt)
         window = " ".join(window)[:400]
-        found = [k for k, rx in SPECIALTIES.items() if rx.search(window)]
+        found = _found(window)
         for n in names:
             yield n, found, window
 
