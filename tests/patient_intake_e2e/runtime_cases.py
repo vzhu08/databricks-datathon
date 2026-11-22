@@ -66,7 +66,7 @@ class FaultProvider:
         return reply("provider_unavailable", reason=result.status)
 
 
-class StagedRuntimeCases(TestCase):
+class RuntimeFixture(TestCase):
     def encounter(self):
         owner = PatientSession(notice_version=NOTICE)
         handle = owner.open(consent=True, notice_version=NOTICE)
@@ -99,6 +99,8 @@ class StagedRuntimeCases(TestCase):
         self.assertIsNone(result["next_step"])
         self.assertEqual(result["possible_causes"], [])
 
+
+class StagedRuntimeCases(RuntimeFixture):
     def test_fresh_input_review_follow_up_and_no_reviewed_destination(self):
         evidence = reply(
             "awaiting_clarification",
@@ -322,7 +324,3 @@ class StagedRuntimeCases(TestCase):
         self.assertEqual(len(provider.calls), 13)
         self.assertEqual(service.view(handle), result)
         handoff.assert_not_called()
-
-suite = defaultTestLoader.loadTestsFromTestCase(StagedRuntimeCases)
-if not TextTestRunner(verbosity=2).run(suite).wasSuccessful():
-    raise SystemExit(1)
