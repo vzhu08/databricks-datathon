@@ -291,14 +291,17 @@ print(result.stdout, end="")
 '''
 
 
-EXPLORATION = '''originals = 10_088
+EXPLORATION = '''capability = report["published_capability_coverage"]
+originals = capability["originals"]
 supported_at_area = 7_895
 unresolved = originals - supported_at_area
 print(f"Published VF baseline: {supported_at_area:,}/{originals:,} ({supported_at_area / originals:.1%}) "
       f"with written-area support, {unresolved:,} unresolved.")
-for service, supported, mentions in (("Radiotherapy license", 38, 269), ("MRI", 0, 949)):
+for service in ("Radiotherapy license", "MRI"):
+    row = capability["examples"][service]
+    supported, mentions = row["supported"], row["mentions"]
     print(f"{service}: {supported}/{mentions:,} VF mentions matched outside support ({supported / mentions:.1%}).")
-print("AERB licenses address a regulated activity. They do not measure staffed capacity or live availability.")
+print("AERB licenses establish licensed status in the published edition. Staffing and live availability are unknown.")
 print("The MRI comparison found no outside matches under this method. Onsite MRI status remains unknown.")
 '''
 
@@ -345,7 +348,8 @@ batch = report["storm_batch"]
 for key, label in (("nearest_first", "Nearest-first"), ("exact_optimum", "Exact planning")):
     metrics = batch["policies"][key]
     print(f"{label}: {metrics['assigned']}/{batch['requested']} assigned, {metrics['unmet']} unmet.")
-    for priority, counts in metrics["by_priority"].items():
+    for priority in ("highest", "time_sensitive", "routine"):
+        counts = metrics["by_priority"][priority]
         print(f"  {priority.replace('_', ' ').title()}: {counts['assigned']} assigned, {counts['unmet']} unmet.")
     for reason, count in metrics["unserved_reasons"].items():
         print(f"  Unmet because {reason.replace('_', ' ')}: {count}.")
@@ -376,7 +380,7 @@ library.
 
 The [national findings](#national-directory-finding) summarize the restricted VF analysis at
 published aggregate scope. The runnable finder uses invented facilities. The Storm control
-uses simulated demand, resources and travel. [Organizer rubric](https://github.com/vzhu08/databricks-datathon/issues/336)
+uses simulated demand, resources and travel. [Organizer criteria](https://cmudsc.com/datathon-fall2026/) · [Challenge brief](https://docs.google.com/document/d/e/2PACX-1vQxhDNQmgZhPgjG0M6LCb_UXNV8CJryqBNQQuqWfIg_dm40ZU1AYAXzZKViC6haFoCmLNiRVfUSBMjf/pub)
 """, "markdown"),
         cell("reproducibility", f"""## Execution and source pins
 
@@ -432,7 +436,7 @@ comparisons run immediately afterward.
 
 This cell reproduces published **aggregate arithmetic** on the full VF analysis and matched
 capability subsets. Radiotherapy uses the Atomic Energy Regulatory Board licensing list.
-The branch comparison joins institution name and postal PIN on the June 2026 list.
+The published comparison joins institution name and postal PIN using the June 2026 list.
 [AERB license list](https://www.aerb.gov.in/images/PDF/Radiotheraphy/RSD3.pdf)
 The [coverage table and measured scopes](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7081776129)
 and [AERB and other publisher narratives](https://github.com/vzhu08/databricks-datathon/issues/319#issuecomment-7081794326)
@@ -445,6 +449,10 @@ This cell reads outputs from the embedded finder, provenance mapper and Storm al
 offline search uses the demo candidates and straight-line distance. The Storm control compares
 arrival-order nearest-first with full-batch assignment on the same feasible appointments and
 capacity. The priority-ordered objective and travel values are conditional on that synthetic shift.
+
+The separate Pune benchmark uses public-source geography with simulated patients and staffing.
+The public method describes eight mapped facility points and four outline interior anchors.
+This notebook's runnable control uses invented sites. [Pune geography recipe](https://github.com/vzhu08/databricks-datathon/blob/d98a601/research/acquisition/pune_planning_geography/README.md)
 """, "markdown"),
         cell("modeling-output", MODELING),
         cell("impact", """## Impact

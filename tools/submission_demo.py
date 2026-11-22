@@ -28,7 +28,7 @@ def main():
     sys.addaudithook(block_network)
     sys.path.insert(0, str(ROOT))
 
-    from app import national_directory, storm_page, storm_plan
+    from app import capability_coverage, national_directory, storm_page, storm_plan
     from app.find_care import claim_view, data_mode, present, withheld, withheld_summary
     from app.finding_provenance import project_find_care
     from app.ranking import search_facilities
@@ -44,6 +44,14 @@ def main():
         pass
     else:
         raise RuntimeError("The offline notebook must keep the deployment-only directory input separate")
+    capability = capability_coverage.load(ROOT / "app")
+    categories = {row["capability"]: row for row in capability["headline"] + capability["other"]}
+    examples_by_capability = {
+        "Radiotherapy license": categories["Radiotherapy (licensed centre)"],
+        "MRI": categories["MRI"],
+    }
+    require(len(categories) == 57 and capability["directory_rows"] == 10_088,
+            "The integrated capability coverage must retain the national published frame")
 
     require(data_mode({"FIND_CARE_DATA": "demo"})["mode"] == "demo", "Expected demo mode")
     require(data_mode({"FIND_CARE_DATA": "warehouse"})["mode"] == "setup",
@@ -212,6 +220,10 @@ def main():
 
     result = {
         "synthetic": True,
+        "published_capability_coverage": {
+            "originals": capability["directory_rows"], "categories": len(categories),
+            "examples": examples_by_capability,
+        },
         "find_care": {
             "request": request,
             "facility": winner["name"],
