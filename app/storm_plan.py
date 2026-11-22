@@ -13,6 +13,7 @@ shows the checked replay alone and this section is not offered.
 import html
 import json
 import math
+from datetime import datetime
 from collections import Counter
 from pathlib import Path
 
@@ -29,6 +30,9 @@ NOTICE = ("Planning simulation. The facility locations are real, each at the pre
           "Everything else is simulated: the patients, where they start, what they need and how urgent they are, "
           "which services each facility offers, how many staffed places it has, and the travel times. This is not "
           "a record of a real storm and says nothing about what any facility offers today.")
+LIVE_NOTICE = ("Signed-in road-time simulation. Real public map points identify approximate sites, not entrances. "
+               "Patients, needs, urgency, capabilities and staffed places are simulated. Ordinary-car estimates "
+               "start at two shared synthetic pickups. The modeled replay is available separately.")
 NOTICE_SYNTHETIC = ("Planning simulation on a test geography. Everything on this page is simulated, including the "
                     "sites and where they are: no district and no actual hospital is represented. The patients, "
                     "their needs and urgency, the services, the staffed places and the travel times are simulated "
@@ -125,9 +129,9 @@ def urgency(patient):
 
 
 def travel(row):
-    """Travel for one assignment in minutes. The planner's whole seconds win over a rounded display value."""
+    """Travel for one assignment in minutes, using observed or modeled seconds when present."""
     if row.get("travel_seconds") is not None:
-        return _whole(row["travel_seconds"], "travel seconds") / 60
+        return _number(row["travel_seconds"], "travel seconds", 0, 6_000_000) / 60
     return _number(row["travel_minutes"], "travel minutes", 0, 100000)
 
 
@@ -136,6 +140,54 @@ def _unique(rows, what):
     if not ids or len(set(ids)) != len(ids):
         raise ValueError(f"{what} ids are missing or repeated")
     return ids
+
+
+def _checked_traffic(plan, facts):
+    if not real(plan) or facts["patient_count"] != len(plan["patients"]):
+        raise ValueError("road-time results need the approved simulated demand")
+    pickups = facts["pickups"]
+    if len(_unique(pickups, "pickup")) != 2 or facts["pickup_count"] != len(pickups):
+        raise ValueError("road-time results need two shared pickups")
+    groups = Counter(patient["pickup_id"] for patient in plan["patients"])
+    if set(groups) != {p["id"] for p in pickups}:
+        raise ValueError("a simulation request has no shared pickup")
+    points = {}
+    for pickup in pickups:
+        key = pickup["id"]
+        if _whole(pickup["patient_count"], "pickup patients") != groups[key]:
+            raise ValueError("pickup counts differ from patient groups")
+        points[key] = (_number(pickup["latitude"], "pickup latitude", -90, 90),
+                       _number(pickup["longitude"], "pickup longitude", -180, 180))
+    if len(set(points.values())) != 2:
+        raise ValueError("shared pickup locations must be distinct")
+    for patient in plan["patients"]:
+        if (patient["latitude"], patient["longitude"]) != points[patient["pickup_id"]]:
+            raise ValueError("a road-time result uses an individual origin")
+    sites = _whole(facts["site_count"], "sites")
+    total = _whole(facts["eligible_pairs"], "eligible pairs")
+    usable = _whole(facts["usable_pairs"], "usable pairs")
+    unavailable = _whole(facts["unavailable_pairs"], "unavailable pairs")
+    attempted, attempts = facts["attempted_pairs"], facts["actual_attempts"]
+    if (sites != 12 or sites != len(plan["facilities"]) or total != sites * len(pickups)
+            or usable + unavailable != total):
+        raise ValueError("road-time pair counts do not reconcile")
+    if attempted is None or attempts is None:
+        if usable or attempted is not None or attempts is not None:
+            raise ValueError("incomplete road-time attempt counts")
+    elif not (usable <= _whole(attempted, "attempted pairs") <= total
+              and attempted <= _whole(attempts, "actual attempts") <= 2 * attempted):
+        raise ValueError("road-time attempt counts do not reconcile")
+    _text(facts["pickup_rule"], "pickup rule")
+    _text(facts["source"], "road-time source")
+    if usable:
+        time = _text(facts["observed_at"], "road-time observation time")
+        if datetime.fromisoformat(time.replace("Z", "+00:00")).utcoffset() is None:
+            raise ValueError("road-time observation has no timezone")
+        credit = facts["attribution"]
+        _text(credit["caption"], "road-time copyright caption")
+        _text(credit["notices"], "road-time copyright notices")
+    elif any(result["assignments"] for result in plan["policies"].values()):
+        raise ValueError("an assignment has no observed road-time pair")
 
 
 def checked(plan):
@@ -210,6 +262,8 @@ def checked(plan):
                 raise ValueError("an assignment is to a facility without the needed service")
             if facility in areas:
                 raise ValueError("an area-only marker is used as a travel endpoint")
+            if "traffic" in plan and row.get("travel_seconds") is None:
+                raise ValueError("a road-time assignment has no observed seconds")
             travel(row)
             placed.add(patient)
             used[(facility, service)] += 1
@@ -229,6 +283,8 @@ def checked(plan):
         for name, counted in (("assigned", len(placed)), ("unmet", len(left)), ("unserved", len(left))):
             if type(stored.get(name)) is int and stored[name] != counted:
                 raise ValueError("a stored total disagrees with the assignments")
+    if "traffic" in plan:
+        _checked_traffic(plan, plan["traffic"])
     return plan
 
 
@@ -238,7 +294,10 @@ def load(path=None):
     try:
         if not path.is_file() or path.stat().st_size > MAX_BYTES:
             raise Unavailable("no results file")
-        return checked(json.loads(path.read_text(encoding="utf-8")))
+        plan = json.loads(path.read_text(encoding="utf-8"))
+        if "traffic" in plan:
+            raise Unavailable("saved planner files must use modeled travel")
+        return checked(plan)
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
         raise Unavailable(str(error)) from error
 
@@ -312,6 +371,9 @@ def difference(plan, order):
 
 def advice(plan, results, order, total):
     """What a district planner could take from the run. Every number is counted here; nothing is promised."""
+    if "traffic" in plan:
+        return ["Both policies used the same road observations and simulated slots. Missing routes received no "
+                "modeled time. An unmet request can reflect an unavailable route, appointment window or staffing."]
     first, best = results
     lines, gain = [], best["assigned"] - first["assigned"]
     top = order[0]
@@ -434,7 +496,9 @@ def view(plan):
 def chart(plan, width=720, height=440, pad=28):
     """A plain map with no background: facilities by precision, simulated patients as small dots."""
     facilities = plan["facilities"]
-    starts = [patient for patient in plan["patients"] if patient.get("latitude") is not None]
+    traffic = plan.get("traffic")
+    starts = (traffic["pickups"] if traffic else
+              [patient for patient in plan["patients"] if patient.get("latitude") is not None])
     points = [(row["longitude"], row["latitude"]) for row in facilities + starts]
     west, east = min(x for x, _ in points), max(x for x, _ in points)
     south, north = min(y for _, y in points), max(y for _, y in points)
@@ -449,9 +513,14 @@ def chart(plan, width=720, height=440, pad=28):
                 round(top + (north - row["latitude"]) * scale, 1))
 
     marks = []
-    for patient in starts:
-        x, y = at(patient)
-        marks.append(f'<circle cx="{x}" cy="{y}" r="2" fill="#8a9aa7"/>')
+    for start in starts:
+        x, y = at(start)
+        if traffic:
+            name = html.escape(start["id"], quote=False)
+            marks.append(f'<path data-pickup="shared" d="M{x} {y-7} l7 7 -7 7 -7 -7 Z" fill="#0b7067" '
+                         f'stroke="white"><title>{name}, shared simulated pickup</title></path>')
+        else:
+            marks.append(f'<circle cx="{x}" cy="{y}" r="2" fill="#8a9aa7"/>')
     for facility in sorted(facilities, key=lambda row: row["precision"] != "area"):
         x, y = at(facility)
         name = html.escape(f"{facility['label']} ({PRECISION[facility['precision']].lower()})", quote=False)
@@ -464,26 +533,55 @@ def chart(plan, width=720, height=440, pad=28):
         else:
             marks.append(f'<circle cx="{x}" cy="{y}" r="6" fill="#14283b" stroke="#ffffff" stroke-width="2">'
                          f"<title>{name}</title></circle>")
-    described = (f"Map of {len(facilities)} facilities and {len(starts)} simulated patient starting points. "
-                 "No roads or background are drawn.")
+    origins = "shared simulated pickups" if traffic else "simulated patient starting points"
+    described = f"Map of {len(facilities)} facilities and {len(starts)} {origins}. No roads or background are drawn."
     return (f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="{html.escape(described, quote=True)}">'
             + "".join(marks) + "</svg>")
+
+
+def _traffic_header(facts, safe):
+    def count(value):
+        return f"{value:,}" if value is not None else "unknown"
+
+    summary = (
+        f"{facts['eligible_pairs']} eligible pairs · {count(facts['attempted_pairs'])} unique pairs attempted · "
+        f"{facts['usable_pairs']} usable · {facts['unavailable_pairs']} unavailable · "
+        f"{count(facts['actual_attempts'])} actual attempts including retries"
+    )
+    groups = " · ".join(f"{safe(row['id'])}: {row['patient_count']} simulated requests" for row in facts["pickups"])
+    credit = facts.get("attribution") or {}
+    attribution = (f'<p data-attribution="storm-traffic">{safe(credit["caption"])}</p>'
+                   f'<details><summary>Map data copyright notices</summary><p>{safe(credit["notices"])}</p></details>'
+                   if credit.get("caption") and credit.get("notices") else "")
+    state = ("" if facts["usable_pairs"] else
+             '<p role="status"><strong>No road estimates available for this run.</strong> '
+             "The modeled baseline remains available below.</p>")
+    return (f'<div data-storm-traffic="observed"><h3>Signed-in road-time comparison</h3>{state}'
+            f'<p>{safe(facts["pickup_rule"])} {groups}.</p><p>{summary}.</p>'
+            f'<p>Source: {safe(facts["source"])}. Observation time: '
+            f'{safe(facts.get("observed_at") or "unavailable")}.</p>{attribution}</div>')
 
 
 def markup(plan):
     """The section as HTML. Every word from the file is escaped."""
     found, actual = view(plan), real(plan)
+    traffic = plan.get("traffic")
     safe = lambda text: html.escape(str(text), quote=False)  # noqa: E731
     place, scenario, results, total = found["geography"], found["scenario"], found["results"], found["patients"]
     credits = " ".join(f'<a href="{html.escape(item["url"], quote=True)}" target="_blank" rel="noopener noreferrer">'
                        f"{safe(item['text'])}</a>." for item in place.get("attribution", []))
+    def result_travel(result):
+        if traffic and not result["assigned"]:
+            return "No assigned road travel is shown."
+        return (f'Travel for those placed: {result["travel_total"]} minutes in total, '
+                f'{result["travel_mean"]} on average, {result["travel_longest"]} at the longest.')
+
     cards = "".join(
         f'<div class="sp-card{" sp-best" if result["key"] == "exact_optimum" else ""}" data-policy="{result["key"]}">'
         f'<div class="sp-name">{safe(result["name"])}</div>'
         f'<div class="sp-big">{result["assigned"]:,} of {total:,} placed</div>'
-        f'<div class="sp-small">{result["unmet"]:,} left without a place. Travel for those placed: '
-        f'{result["travel_total"]} minutes in total, {result["travel_mean"]} on average, '
-        f'{result["travel_longest"]} at the longest. {result["full"]:,} staffed resources completely used.</div></div>'
+        f'<div class="sp-small">{result["unmet"]:,} left without a place. {result_travel(result)} '
+        f'{result["full"]:,} staffed resources completely used.</div></div>'
         for result in results)
     heads = "".join(f'<th class="sp-n">{safe(result["name"])}</th>' for result in results)
     priority = "".join(
@@ -501,8 +599,9 @@ def markup(plan):
 
         def where(spot):
             start = f", in the place starting at minute {spot['start']}" if spot["start"] is not None else ""
+            kind = "observed ordinary-car travel" if traffic else "modelled travel"
             return (f"{spot['label']} ({spot['precision']}; service and capacity {spot['basis']}){start}, "
-                    f"{spot['minutes']} minutes of modelled travel")
+                    f"{spot['minutes']} minutes of {kind}")
 
         before = (f"sent to {where(case['near'])}" if case["near"] else f"not placed ({case['reason'].lower()})")
         held = ""
@@ -547,7 +646,10 @@ def markup(plan):
                   f'{" (full)" if count == row["slots"] and count else ""}</td>' for count in row["used"])
         + "</tr>" for row in found["resources"])
     key = " &nbsp; ".join(f"{KEYS[kind]} {safe(name.lower())} ({count:,})" for kind, name, count in found["precision"])
-    key += (' &nbsp; <svg width="12" height="18" viewBox="0 0 12 18" aria-hidden="true"><circle cx="6" cy="9" r="2.5" '
+    if traffic:
+        key += " &nbsp; ◆ Shared simulated pickup (2)"
+    else:
+        key += (' &nbsp; <svg width="12" height="18" viewBox="0 0 12 18" aria-hidden="true"><circle cx="6" cy="9" r="2.5" '
             'fill="#8a9aa7"/></svg> simulated patient start')
 
     def origin(row):
@@ -566,9 +668,15 @@ def markup(plan):
     extra = "".join(f"<li><strong>{title}.</strong> {safe(place[field])}</li>"
                     for field, title in (("venue", "Cleared for"), ("roster_sha256", "Roster SHA-256"))
                     if isinstance(place.get(field), str) and place[field].strip())
+    label = ("Real facility locations · simulated demand and staffed slots · observed ordinary-car travel" if traffic
+             else LABEL if actual else LABEL_SYNTHETIC)
+    replay = ("" if traffic else
+              f"<li><strong>To reproduce.</strong> {safe(REPRODUCE if actual else REPRODUCE_SYNTHETIC)} "
+              f"Seed {scenario['seed']}. This page recounts every figure from the assignment rows in the file.</li>")
     return (
         f'<div class="sp" data-plan="shown" data-locations="{"real" if actual else "simulated"}">'
-        f'<div class="sp-label">{LABEL if actual else LABEL_SYNTHETIC} · seed {scenario["seed"]}</div>'
+        f'<div class="sp-label">{label} · seed {scenario["seed"]}</div>'
+        f'{_traffic_header(traffic, safe) if traffic else ""}'
         f'<h3 class="sp-top">{safe(place["name"])}: {total:,} simulated patients, {found["facilities"]:,} facilities, '
         f'{found["places"]:,} staffed places</h3>'
         f'<div class="sp-pair">{cards}</div><div class="sp-say">{safe(found["say"])}{safe(cohort)} '
@@ -593,8 +701,7 @@ def markup(plan):
         f'<li><strong>What is simulated.</strong> {safe(scenario["simulated"])}</li>'
         f'<li><strong>Time covered.</strong> {safe(scenario["horizon"])}</li>'
         f'<li><strong>Travel.</strong> {safe(scenario["travel_basis"])}</li>'
-        f"<li><strong>To reproduce.</strong> {safe(REPRODUCE if actual else REPRODUCE_SYNTHETIC)} "
-        f"Seed {scenario['seed']}. This page recounts every figure from the assignment rows in the file.</li></ul>"
+        f"{replay}</ul>"
         f"<details><summary>Staffed places used, by facility and service</summary>"
         f'<div class="sp-scroll"><table><thead><tr><th>Facility</th><th>Service</th><th>Service and capacity basis</th>'
         f'<th class="sp-n">Staffed places</th>'
