@@ -1,0 +1,230 @@
+"""Run the competition notebook's fixed, local-only synthetic demonstration."""
+
+import hashlib
+import json
+from pathlib import Path
+import sys
+from unittest.mock import patch
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def block_network(event, _args):
+    if event.startswith("socket.") and event != "socket.__new__":
+        raise RuntimeError(f"Network disabled in the submitted demonstration: {event}")
+
+
+def load(path):
+    return json.loads((ROOT / path).read_text(encoding="utf-8"))
+
+
+def require(condition, message):
+    if not condition:
+        raise RuntimeError(message)
+
+
+def main():
+    sys.addaudithook(block_network)
+    sys.path.insert(0, str(ROOT))
+
+    from app import storm_page
+    from app.find_care import claim_lines, data_mode, present, withheld, withheld_summary
+    from app.ranking import search_facilities
+    from app.intake.__main__ import load_journeys, replay_journey
+    from app.facility_evidence_demo import area, care_decision, loader
+    from app.simulation.replay import replay
+    from app.simulation.scenario import make_scenario
+    from app.storm_ui import build, build_ask, build_finder, build_intake
+
+    require(data_mode({"FIND_CARE_DATA": "demo"})["mode"] == "demo", "Expected demo mode")
+    require(data_mode({"FIND_CARE_DATA": "warehouse"})["mode"] == "setup",
+            "A missing warehouse must not fall through to fixtures")
+    facilities = load("app/demo_facilities.json")
+    require(facilities == load("contracts/fixtures/search.json") and len(facilities["facilities"]) == 6,
+            "The shipped synthetic catalogue must match the search fixture")
+    request = {"service": "dialysis", "location": {"city": "Jaipur", "state": "Rajasthan"}, "radius_km": 50}
+    answer = search_facilities(**request, facilities=facilities["facilities"])
+    require(answer["status"] == "ok" and bool(answer["direct_results"]), "No direct synthetic result")
+    winner = answer["direct_results"][0]
+    require(winner["name"] == "Example Regional Hospital" and winner["evidence_field"] == "procedures"
+            and round(winner["distance_km"], 1) == 6.7 and winner["availability"] == "unknown",
+            "Unexpected finder result, evidence or availability")
+    require([row["facility_id"] for row in answer["direct_results"]] == ["demo-north", "demo-south"],
+            "Unexpected synthetic result order")
+    view = present(answer, **request)
+    direct_claims = claim_lines(view["top"], request["service"], "direct_results", 0)
+    require(direct_claims["location"]["strength"] == "Reported" and
+            direct_claims["service"]["state"] == "Unconfirmed" and
+            direct_claims["service"]["sources"][0]["publisher"] == "Synthetic demo record",
+            "The integrated provenance view must show distinct synthetic claims")
+
+    nearby = {"service": "dialysis", "location": {"pin": "302001"}, "radius_km": 2}
+    lead_answer = search_facilities(**nearby, facilities=facilities["facilities"])
+    require(lead_answer["status"] == "needs_confirmation" and
+            [row["facility_id"] for row in lead_answer["indirect_leads"]] == ["demo-near"],
+            "Expected the related-only synthetic control")
+    lead_view = present(lead_answer, **nearby)
+    related = claim_lines(lead_view["leads"][0], "dialysis", "indirect_leads", 0)["service"]
+    require(related["strength"] == "No evidence" and related["sources"][0]["role"] == "context",
+            "Related wording must remain contextual")
+    restricted = withheld(answer)
+    require(restricted["status"] == "withheld" and
+            not any(restricted[field] for field in ("direct_results", "indirect_leads", "location_choices")),
+            "The warehouse display gate must discard row results")
+    restricted_claim = withheld_summary(restricted, request["service"])
+    require(restricted_claim["state"] == "Unconfirmed" and winner["name"] not in str(restricted_claim),
+            "The warehouse provenance view must stay at result level")
+
+    journeys, _ = load_journeys()
+    runs = [replay_journey(journeys, name) for name in journeys["journeys"]]
+    require(len(runs) == 7, "Expected the seven fictional intake journeys")
+    finder_steps = sum(step["finder"] is not None for run in runs for step in run["transitions"])
+    warning = next(run for run in runs if run["journey_id"] == "warning_overrides_plan")
+    require(finder_steps > 0 and warning["transitions"][-1]["finder"] is None,
+            "An emergency journey must not dispatch the facility finder")
+
+    def evidence_fixture(module, name):
+        path = ROOT / "tests" / "facility_evidence_demo" / name
+        pin = hashlib.sha256(path.read_bytes()).hexdigest()
+        result = module.load({module.PATH_SETTING: str(path)}, expected_sha256=pin)
+        require(result["status"] == "ok" and result["synthetic"], "Cleared synthetic schema fixture required")
+        return result
+
+    display = evidence_fixture(loader, "synthetic_display.json")
+    national_area = evidence_fixture(area, "synthetic_area.json")
+    care_request = {"concern": "dialysis", "severity": "moderate", "urgency": "soon", "danger": "no"}
+    decision = care_decision.evaluate(care_request, display, national_area)
+    require(decision["status"] == "no_reviewed_destination" and decision["eligible_destinations"] == 0,
+            "Unreviewed evidence must produce zero eligible destinations")
+    with patch.object(care_decision, "_loaded", side_effect=AssertionError("Emergency read evidence")):
+        emergency = care_decision.evaluate({"danger": "yes"}, display, national_area)
+    require(emergency["action"] == "interrupt" and emergency["evidence"] is None,
+            "The emergency path must stop before evidence")
+
+    storm = replay(make_scenario("storm", 17), 10)
+    require(json.loads(json.dumps(storm)) == load("contracts/fixtures/storm_replay.json"), "Storm replay differs from the fixture")
+    nearest, scarcity = (storm["policies"][name] for name in ("nearest_first", "scarcity_aware"))
+    require((nearest["metrics"]["assigned"], scarcity["metrics"]["assigned"],
+             scarcity["events"][0]["extra_travel_minutes"]) == (7, 8, 4), "Unexpected storm outcomes")
+
+    page_summary = storm_page.headline(storm_page.bundle())
+    frame = storm_page.document()
+    require(page_summary["synthetic"] and [item["served"] for item in page_summary["policies"]] == [7, 8]
+            and "data:font/woff2;base64," in frame and "<script src=" not in frame,
+            "The hosted Storm frame must be self-contained and use the pinned replay")
+
+    browser_bundles = {
+        "scenarios.js": build,
+        "answers.js": build_ask,
+        "finder_examples.js": build_finder,
+        "intake.js": build_intake,
+    }
+    for name, builder in browser_bundles.items():
+        path = ROOT / "app" / "storm_ui" / "data" / name
+        require(builder.render() == path.read_text(encoding="utf-8"), f"Browser bundle drift: {name}")
+    routes = build_finder.bundle()
+    require(routes["synthetic"] and len(routes["examples"]) == 9, "Expected nine stand-in travel responses")
+
+    sys.path.insert(0, str(ROOT / "databricks" / "enrichment"))
+    try:
+        from common import canonical, digest
+        from coverage import coverage
+        from occurrence_keys import POLICY, SOURCE, map_occurrences
+
+        sample = [
+            {"unique_id": "001", "name": "Fictional sparse original"},
+            {"unique_id": "002", "name": "Fictional repeated original",
+             "description": "Example Campus offers onsite MRI. All dialysis patients are referred elsewhere."},
+            {"unique_id": "002", "name": "Fictional repeated original",
+             "description": "Example Campus offers onsite MRI. All dialysis patients are referred elsewhere."},
+        ]
+        base, groups = map_occurrences(sample, "unique_id", SOURCE, 0, POLICY)
+        require(len({row["facility_id"] for row in base}) == 3 and groups[0]["multiplicity"] == 2
+                and sorted((row["source_row"] for row in base), key=canonical) == sorted(sample, key=canonical)
+                and map_occurrences(list(reversed(sample)), "unique_id", SOURCE, 0, POLICY) == (base, groups),
+                "Occurrence mapping must preserve duplicates and be stable after reordering")
+
+        enrichment = coverage(load("contracts/fixtures/enrichment.json"),
+                              load("contracts/fixtures/enrichment_base.json"), "2026-11-21")
+        require(enrichment["base"]["denominator"] == 2, "Unexpected synthetic coverage denominator")
+    finally:
+        sys.path.pop(0)
+
+    from research.service_status.projection import lookup, project
+
+    as_of = "2026-11-21"
+    base_pin = digest(base)
+    meta = {"mapping": {"id": "unique_id"}, "row_count": 3, "original_table": SOURCE,
+            "observed_delta_version": 0, "base_file_sha256": base_pin}
+    claims = project(base, meta, [], [], as_of=as_of, base_file_sha256=base_pin, checked_sources=["synthetic"])
+    require(claims["decision_count"] == 9 and all(item["unconfirmed"] == 3 for item in claims["coverage"].values()),
+            "All nine decisions must survive on the three synthetic originals")
+    reviewed_id, unreviewed_twin_id = groups[0]["facility_ids"]
+    original = lookup(claims, reviewed_id)
+    exact_text = next(row["source_row"]["description"] for row in base if row["facility_id"] == reviewed_id)
+    require(original["services"]["mri"]["status"] == "unconfirmed", "Original wording alone cannot promote")
+    reviews = []
+    for service, kind, phrase in (
+        ("mri", "onsite_service", "Example Campus offers onsite MRI."),
+        ("dialysis", "referral_only", "All dialysis patients are referred elsewhere."),
+    ):
+        start = exact_text.index(phrase)
+        reviews.append({
+            "facility_id": reviewed_id, "service": service, "review_id": f"synthetic-{service}",
+            "finding": kind, "assessed_for": as_of, "reviewer": "fictional reviewer",
+            "reviewed_at": as_of + "T18:00:00Z",
+            "source": {"kind": "original", "field": "description", "start": start, "end": start + len(phrase),
+                       "excerpt": phrase, "source_date": "2026-11-18", "source_family": "synthetic-publisher"},
+        })
+    reviewed = project(base, meta, reviews, [], as_of=as_of, base_file_sha256=base_pin, checked_sources=["synthetic"])
+    reviewed_status = {service: item["status"] for service, item in lookup(reviewed, reviewed_id)["services"].items()}
+    require(reviewed["decision_count"] == 9 and reviewed_status == {"mri": "yes", "dialysis": "no", "trauma_care": "unconfirmed"}
+            and lookup(reviewed, unreviewed_twin_id)["services"]["mri"]["status"] == "unconfirmed",
+            "Synthetic adjudication must apply only to the reviewed occurrence and service")
+
+    result = {
+        "synthetic": True,
+        "find_care": {
+            "request": request,
+            "facility": winner["name"],
+            "straight_line_km": round(winner["distance_km"], 1),
+            "evidence": {"publisher": "Synthetic demo record", "field": winner["evidence_field"],
+                         "statement": winner["evidence_excerpt"]},
+            "availability": winner["availability"],
+            "warehouse_display": restricted["status"],
+            "integrated_provenance": {
+                "location": direct_claims["location"]["strength"],
+                "requested_service": direct_claims["service"]["state"],
+                "related_service": related["strength"],
+                "withheld_summary": restricted_claim["state"],
+            },
+        },
+        "intake": {"fictional_journeys": len(runs), "finder_steps": finder_steps, "warning_stops_finder": True},
+        "judge_walkthrough": {
+            "service": decision["service"], "eligible_destinations": decision["eligible_destinations"],
+            "ordinary_workflow_priority": decision["workflow_urgency"], "warning_action": emergency["action"],
+        },
+        "storm": {"requested": 8, "nearest_assigned": nearest["metrics"]["assigned"],
+                  "scarcity_assigned": scarcity["metrics"]["assigned"],
+                  "first_scarcity_detour_minutes": scarcity["events"][0]["extra_travel_minutes"]},
+        "offline_browser_data": {"bundles_verified": sorted(browser_bundles), "synthetic_travel_examples": len(routes["examples"])},
+        "enrichment": {"synthetic_base_rows": enrichment["base"]["denominator"],
+                       "table_counts": enrichment["table_counts"],
+                       "duplicate_preserving_originals": len(base),
+                       "reviewed_synthetic_service_status": reviewed_status,
+                       "occurrence_service_decisions": reviewed["decision_count"]},
+    }
+
+    if (ROOT / "app/capacity_recommendation.py").is_file():
+        from app.capacity_recommendation import demo_capacity_inputs, recommend_capacity
+        recommendation = recommend_capacity(*demo_capacity_inputs())
+        require(recommendation.get("chosen") and recommendation.get("fastest"), "Capacity preview failed")
+        result["capacity_preview"] = {"chosen": recommendation["chosen"], "fastest": recommendation["fastest"]}
+
+    print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
