@@ -16,6 +16,7 @@ if str(HERE) not in sys.path:
     sys.path.append(str(HERE))
 
 import area  # noqa: E402
+import care_ui  # noqa: E402
 import loader  # noqa: E402
 import walkthrough  # noqa: E402
 
@@ -165,9 +166,12 @@ def policies(view):
 
 st.set_page_config(page_title="Facility evidence", layout="centered")
 show(f"<style>{STYLE}</style>")
-loaded = loader.load()
 show('<header class="fe-top"><p class="fe-kicker">Facility evidence walkthrough</p>'
-     "<h1>Can we send a patient to these facilities yet?</h1></header>")
+     "<h1>Where can this patient get care, and what does the evidence support?</h1></header>")
+# The interactive flow comes first, so an emergency answer shows before any evidence file is read.
+care_ui.flow()
+show('<p class="fe-kicker fe-divider">The evidence behind every answer</p>')
+loaded = loader.load()
 if loaded["status"] != "ok":
     show('<section class="fe-down" role="alert"><h2>Data unavailable</h2>'
          f"<p>{esc(loaded['reason'])}</p>"
