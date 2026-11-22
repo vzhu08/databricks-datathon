@@ -385,11 +385,11 @@ the order: the screen words what the search returns.
 python -m unittest tests.find_care.test_find_care
 ```
 
-Nine wording and rule tests run on the shared fixture. Ten screen tests drive the app through
+The command runs 33 tests. Seventeen wording and rule tests run on the shared fixture. Fourteen screen tests drive the app through
 Streamlit's test harness, including a stub warehouse whose v0 answer is `ok` only because a record
 states the service, a half-configured warehouse, a read failure, and a request changed after its
 answer. Two more copy `app/` to an empty folder, answer the demonstration example there, and start
-the server with the command in `app.yaml`. The twelve tests that need Streamlit are skipped when it
+the server with the command in `app.yaml`. The sixteen tests that need Streamlit are skipped when it
 is not installed.
 
 ## Design review
