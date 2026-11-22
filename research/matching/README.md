@@ -253,6 +253,18 @@ Evidence from A or B is linked to a base row only when a reviewer confirmed the 
 
 Postal rows are collapsed to one entry per PIN, keeping every state and district seen for it, before any lookup. The join returns exactly one result per input record and fails if the count changes. Without postal data, PIN, state and district consistency is reported as unknown.
 
+## Pharmacy access at a named facility
+
+The [pharmacy access edition](https://github.com/vzhu08/databricks-datathon/issues/342) is a private table with one row for each original VF occurrence. Join `occurrence_key` to the prepared base's `facility_id`. Keep both copies of repeated upstream IDs.
+
+| Field | Meaning |
+| --- | --- |
+| `onsite_supported` | A source identifies a pharmacy at this facility. |
+| `nearby_supported` | A reviewed outlet address places a pharmacy near this named branch. |
+| `vf_mentions_pharmacy` | The original VF service text mentions pharmacy. Use this flag as the denominator for comparison with other capabilities. |
+
+Either access flag can be true independently. A facility can have both an onsite pharmacy and a separate nearby outlet. A shared PIN alone supports neither flag. A false flag means evidence is insufficient. The private edition includes the inputs and replay instructions for authorized readers. [Outlet source and permission scope](https://github.com/vzhu08/databricks-datathon/issues/239#issuecomment-7082001454)
+
 ## Building footprints
 
 Footprints come after usable matches and never block them.
