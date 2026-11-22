@@ -1,29 +1,32 @@
 # CMU × Databricks Datathon · Fall 2026
 
-A community health worker in Jaipur needs to find dialysis for a patient. Which facility should they verify first? Find care shows the evidence behind a nearby result and what still needs checking. Before a referral, confirm the correct branch, the service and a staffed appointment.
+A community health worker in Pune needs to find maintenance haemodialysis. Find care returns KEM Hospital, Pune, from the hospital’s own published service information. Use the published main line to confirm the service, an available staffed appointment and where the patient should arrive.
 
-[Open the live Databricks app](https://vf-find-care-7474658456464525.aws.databricksapps.com/) (sign-in and app access required) · [Root submission notebook](submission.ipynb) · [Download the verified offline notebook](https://github.com/vzhu08/databricks-datathon/raw/3ef5079e36ec15d47b7709e2ef359641ceb4a25e/submission.ipynb)
+[Open the live Databricks app](https://vf-find-care-7474658456464525.aws.databricksapps.com/) (sign-in and app access required) · [Root submission notebook](submission.ipynb) · [Download the verified offline notebook](https://github.com/vzhu08/databricks-datathon/raw/716559ecd1991f0da476ec750ca22648fd4b84af/submission.ipynb)
 
 **National result.** Outside evidence places a named facility in a supported area for **7,895 of 10,088 original Virtue Foundation (VF) records (78.3%)**. [Exploration](#exploration) · [Modeling](#modeling) · [Impact](#impact)
 
-## Try the hosted demo
+## Try the real Pune lookup
 
-The app opens on **Check symptoms** with the assessment provider off. An experimental Databricks assessment provider is optional and requires separate operator setup and consent.
+In the **locally verified Find care screen**, enter **Pune** under **City** and **maintenance haemodialysis** under **Service**, then select **Search public sources**. Open **Read the operator’s service page** on the KEM result. The page describes maintenance haemodialysis, and the result locates the hospital in Rasta Peth at the scope printed by the operator. The project checked the page on **November 22, 2026**. The treatment observation date, staffing, availability, appointment acceptance and patient entrance remain unknown. [KEM nephrology and dialysis page](https://www.kemhospitalpune.org/specialities/nephrology/) · [Local capture and replay](https://github.com/vzhu08/databricks-datathon/issues/350#issuecomment-7082553857)
 
-1. **Find care (demonstration)** → **Look up the example records** → **Dialysis near Jaipur, Rajasthan** → **Why this finding?**. The fictional result is about **6.7 km away in a straight line**. Its procedures field names dialysis at North Campus, with physical branch, entrance and service date still unverified. Use that record as a lead to check before travel.
-2. **Recommend a campus** → **Routine dialysis: keeps a scarce station free**. The example uses simulated minutes and recommends fictional Campus B in both the result and referral note. The separate normal form defaults to TomTom ordinary-car traffic in the signed-in presenter. It sends one bounded batch on **Find a facility**, using simulated endpoints. The result shows the request time and supplier notice. Unavailable road time stays unavailable.
-3. **Storm demo (simulated)** → **Planning simulation: 120 simulated patients, real locations** for the Pune comparison. **Checked 8-request replay** is the smaller, fully fictional comparison.
+![Locally verified Pune maintenance haemodialysis lookup showing KEM Hospital, its operator link, the unknown availability and entrance, and the instruction to call ahead.](docs/demo/screenshots/08-pune-public-search-local.jpg)
 
-Verified on **November 22, 2026**, using Databricks Free Edition, deployment `01f1e691dbe61f44b15964084cc46203`, source `94b6443`. The real VF SQL run used the same workspace. The notebook runs offline and includes a separate invented-site control. [Edition and VF SQL verification](https://github.com/vzhu08/databricks-datathon/issues/336#issuecomment-7082010831) · [Hosted acceptance](https://github.com/vzhu08/databricks-datathon/issues/304#issuecomment-7082157852) · [Notebook replay](https://github.com/vzhu08/databricks-datathon/issues/307#issuecomment-7082076850)
+*Local Streamlit capture from the reviewed public search integration at `9ed7d7d9`. The operator claim and institutional contact are public. This screenshot shows the local workflow.*
 
-To run the synthetic app locally from the repository root:
+The bundled lookup can also run from the repository root:
 
 ```sh
-python -m pip install -r app/requirements.txt
-FIND_CARE_DATA=demo streamlit run app/app.py
+python -m app.public_facility_search --place Pune --service 'maintenance haemodialysis'
 ```
 
-[Local walkthrough and configuration](app/README.md#operator-walkthrough)
+General **dialysis** returns KEM and Jehangir Hospital in collection order. Maintenance haemodialysis returns only KEM because its bundled claim explicitly names that service. This search reads two operator-published claims. A miss means the collection has no relevant claim. The results carry no distance, acceptance or availability rank, and no reviewed linkage to named Virtue Foundation rows. [Jehangir nephrology page](https://www.jehangirhospital.com/nephrology-sp/) · [Search scope and reproduction](app/public_facility_search/README.md)
+
+### Signed-in presenter and offline notebook
+
+The last signed-in acceptance on **November 22, 2026** verified Databricks Free Edition deployment `01f1e691dbe61f44b15964084cc46203`, source `94b6443`. That build opens on **Check symptoms** with assessment off. Its individual finder and road-time example use simulated endpoints, campuses and capacity. The national counts and Pune edition 1 planning comparison were verified there. The real public-source screen has a local integration check and awaits signed-in acceptance. [Edition and VF SQL verification](https://github.com/vzhu08/databricks-datathon/issues/336#issuecomment-7082010831) · [Hosted acceptance](https://github.com/vzhu08/databricks-datathon/issues/304#issuecomment-7082157852) · [Public-screen release queue](https://github.com/vzhu08/databricks-datathon/issues/350)
+
+The linked offline notebook was verified at `716559e`, SHA-256 `13fbfcbf55d6dc36b34bcca2ea903031648c4fe41f4c624fe3059dc8e7ef411d`. It covers the national aggregates and synthetic engineering controls. [Notebook execution receipt](https://github.com/vzhu08/databricks-datathon/issues/307#issuecomment-7082351589)
 
 ## Exploration
 
@@ -139,15 +142,32 @@ Service evidence records who made the claim, where it appears, which campus it r
 
 The allocation policy is deterministic given an urgency, time limit, comparable travel times and staffed resource pools. The highest-urgency request takes the fastest feasible option. A less urgent request can take a bounded detour to preserve the last reachable specialist slot. Unknown or stale capacity does not supply a slot. A missing comparison can make scarcity indeterminate and withhold the detour. An optional TomTom adapter supplies ordinary-car travel estimates in the routing work. The hosted storm uses a fixed travel matrix. [Policy and travel design](docs/implementation/ROUTING_AND_SURGE_DEMO.md) · [Optional routing adapter](https://github.com/vzhu08/databricks-datathon/pull/310)
 
-### Worked example · dialysis near Jaipur
+### Worked example · from public claim to verification
 
-The catalogue keeps explicit service mentions within the requested distance and shows them nearest first. The fictional North Campus phrase qualifies as a direct mention. A related specialty by itself is a weaker lead, and the reported map point does not establish a building or entrance. The “Why this finding?” panel shows which record field supports the result and which branch and date checks remain open.
+The Pune lookup checks the requested city and service against reviewed operator wording. Jehangir’s bundled claim supports the broad dialysis query. KEM’s page explicitly names maintenance haemodialysis, so only KEM comes back for that narrower request. Call the published hospital main line to confirm the requested service, available staffed appointment and arrival instructions. An undated operator page leaves those questions open. [KEM source](https://www.kemhospitalpune.org/specialities/nephrology/) · [Lookup rules](app/public_facility_search/README.md)
 
-In the separate simulated recommendation, Campus A is the fastest feasible option at **8 minutes**. The routine request goes to Campus B in **12 minutes**, within the 10-minute detour limit, to preserve A’s last reachable monitored slot. The highest-urgency monitored request can then take A. In the checked eight-request replay, nearest first places **7/8**, urgency-aware places **8/8**, and the first routine request adds **four minutes** in total. Both policies process requests as they arrive. [Pinned replay data](contracts/fixtures/storm_replay.json) · [Reproduce the simulation](app/simulation/README.md)
+The separate eight-request engineering control uses entirely fictional Jaipur inputs. A routine request takes Campus B at **12 simulated minutes** instead of Campus A at **8**, preserving A’s last monitored slot. Nearest first places **7/8** and urgency-aware places **8/8**, with **four extra minutes** in total. Both policies process requests as they arrive. [Pinned replay data](contracts/fixtures/storm_replay.json) · [Reproduce the simulation](app/simulation/README.md)
 
 ## Impact
 
 For the health worker, the next step is to confirm the campus and patient entrance, then ask whether the service is running and a staffed appointment is available. A match or a modeled recommendation gives a starting point for that check.
+
+### Four-care Pune replay for the finalist video
+
+Vincent confirmed this edition in the local Windows presenter. Both policies use **120 simulated requests** and the same staffed slots at **12 real Pune sites**, with an offline OpenStreetMap street map. Travel is modeled at an assumed **30 km/h**. Service eligibility, demand and staffing are modeled. [Edition and source pins](https://github.com/vzhu08/databricks-datathon/issues/354#issuecomment-7082584764) · [Independent same-input replay](https://github.com/vzhu08/databricks-datathon/issues/354#issuecomment-7082572887)
+
+| Modeled class | Requests | Nearest first placed | Batch planner placed |
+| --- | ---: | ---: | ---: |
+| Scheduled dialysis | 30 | 30 | 30 |
+| Minor injury and urgent care | 36 | 36 | 36 |
+| Scheduled ophthalmic treatment | 30 | 30 | 30 |
+| High-acuity trauma and stabilization | 24 | 18 | 24 |
+| **All** | **120** | **114** | **120** |
+
+The batch planner places six more modeled requests, all in high-acuity trauma. The result measures assignment to feasible modeled slots. The model has no observation of actual treatment or receiving capacity. The final video take has a separate packaging and playback check. © OpenStreetMap contributors. [Map attribution](https://www.openstreetmap.org/copyright)
+
+<details>
+<summary>Earlier signed-in comparison: Pune edition 1</summary>
 
 For the district planner, the **Pune edition 1** comparison uses 12 public facility locations and the same 120 simulated requests and 144 simulated staffed slots over six hours. Eight sites have mapped points and four use campus anchors. Patients, starting points, service capability, staffing and travel are modeled. Travel uses straight-line geodesic distance at an assumed **30 km/h**. The exact planner sees the full shift and minimizes unmet highest, time-sensitive and routine requests in that order, then minimizes modeled travel. Nearest first commits each request to the fastest compatible slot as it arrives. [Public geography recipe](https://github.com/vzhu08/databricks-datathon/pull/332) · [Independent allocation replay](https://github.com/vzhu08/databricks-datathon/issues/323#issuecomment-7081879579)
 
@@ -166,6 +186,8 @@ For example, nearest first took the minute-45 dialysis slot for a routine reques
 
 *Pune edition 1, seed 17, as shown in the signed-in presenter at `94b6443`. Facility geography uses public OSM and NHP evidence. © OpenStreetMap contributors.* [Hosted acceptance](https://github.com/vzhu08/databricks-datathon/issues/304#issuecomment-7082157852) · [OpenStreetMap attribution](https://www.openstreetmap.org/copyright)
 
+</details>
+
 ## What we checked
 
 | Scope | Result and limit |
@@ -173,7 +195,7 @@ For example, nearest first took the minute-45 dialysis slot for a routine reques
 | **Real national dataset** | The frozen Delta v0 replay preserves **10,088 original occurrences**, including duplicate occurrences, with **10,077 distinct upstream IDs**. The directory v4 readback places **2,524** in the campus category, **7,418** in the area-only category and **146** in unresolved. These are directory classes. Route-ready destinations require a separate check. [Directory readback](https://github.com/vzhu08/databricks-datathon/issues/160#issuecomment-7075940482) |
 | **Real service evidence** | The independently recounted comparison found **186 external leads** among **30,264 occurrence/service decisions**. All 30,264 remained unconfirmed in that edition. The frozen 30-case sample still awaits independent human review and accuracy measurement. [Replay and readback](https://github.com/vzhu08/databricks-datathon/issues/168#issuecomment-7075091984) |
 | **Hosted and checked** | Provider-off symptom screen, synthetic recommendation and referral note, separate record lookup, default TomTom routing on a normal submit, national named-location summary, and Pune edition 1. [Hosted check](https://github.com/vzhu08/databricks-datathon/issues/304#issuecomment-7082157852) |
-| **Separate release checks** | The provisional VF-only lookup rule and the evidence-enriched four-class storm scenario have separate acceptance. The standalone notebook's verified earlier 120-request control uses invented sites. [VF-only scope](https://github.com/vzhu08/databricks-datathon/issues/330) · [Storm follow-up](https://github.com/vzhu08/databricks-datathon/issues/323) · [Offline notebook receipt](https://github.com/vzhu08/databricks-datathon/issues/307#issuecomment-7082076850) |
+| **Separate release checks** | The public-source UI has a local check. Live Storm routing has passed merged fixture and fake-transport checks and awaits signed-in UI and readback. The four-care video edition was independently replayed locally. The final clip has a separate playback check. The standalone notebook’s verified earlier 120-request control uses invented sites. [Public-screen release queue](https://github.com/vzhu08/databricks-datathon/issues/350) · [Final Storm take](https://github.com/vzhu08/databricks-datathon/issues/354) · [Offline notebook receipt](https://github.com/vzhu08/databricks-datathon/issues/307#issuecomment-7082351589) |
 
 The offline evidence walkthrough uses approved display files. Real source snapshots and Marketplace rows stay outside Git. [Offline walkthrough](app/facility_evidence_demo/README.md) · [Search contract](docs/implementation/SEARCH_CONTRACT.md) · [Release board](docs/implementation/OWNERSHIP.md)
 
