@@ -2,10 +2,17 @@
 
     streamlit run app/app.py
 
-With DATABRICKS_WAREHOUSE_ID and DATABRICKS_PREPARED_TABLE set (see app/data_access/README.md) it
-searches the prepared Virtue Foundation table. Without them it runs on the six invented facilities
-in contracts/fixtures/search.json and says so on screen. The screen never ranks: it shows what
-search_warehouse or search_facilities returns, worded by app/find_care.py.
+The data mode is explicit (find_care.data_mode) and named at the top of the screen:
+
+* demonstration: the six invented facilities in demo_facilities.json, with the full recommendation,
+  record text, backups and referral note.
+* real records: search_warehouse on the prepared table. Every response passes through
+  find_care.withheld first, so no facility is named, no record text or link is shown, and there is
+  no backup, referral note, download or raw response, until reviewed destinations and display
+  permission reach this screen through a verified interface.
+* setup problem: a half-configured warehouse says what is missing and never shows invented data.
+
+The screen never ranks: it words what the search returns (app/find_care.py).
 """
 import json
 import os
@@ -22,8 +29,11 @@ import find_care as words  # noqa: E402
 from data_access import search_warehouse  # noqa: E402
 from ranking import search_facilities  # noqa: E402
 
-FIXTURE = HERE.parent / "contracts" / "fixtures" / "search.json"
-LIVE = bool(os.environ.get("DATABRICKS_WAREHOUSE_ID") and os.environ.get("DATABRICKS_PREPARED_TABLE"))
+# Kept inside app/ so a deployment of this folder alone still has its demonstration facilities.
+# tests/find_care checks it is the same file as contracts/fixtures/search.json.
+FIXTURE = HERE / "demo_facilities.json"
+DATA = words.data_mode(os.environ)
+DEMO = DATA["mode"] == "demo"
 MODES = {"city": "City or town", "pin": "PIN code", "coordinates": "Coordinates"}
 EXAMPLES = [
     ("Dialysis near Jaipur, Rajasthan", "dialysis", "city", {"city": "Jaipur", "state": "Rajasthan"}, 50),
@@ -38,9 +48,10 @@ def _fixture_rows():
 
 
 def run_search(service, location, radius_km):
-    if LIVE:
-        return search_warehouse(service, location, radius_km=radius_km)
-    return search_facilities(service, location, facilities=_fixture_rows(), radius_km=radius_km)
+    if DEMO:
+        return search_facilities(service, location, facilities=_fixture_rows(), radius_km=radius_km)
+    # Nothing but the withheld form of a warehouse response leaves this function.
+    return words.withheld(search_warehouse(service, location, radius_km=radius_km))
 
 
 def plain(text):
@@ -75,16 +86,20 @@ def facility(card, heading=None):
 
 st.set_page_config(page_title="Find care", layout="wide")
 st.title("Find care")
-if LIVE:
-    st.caption("Searching the Virtue Foundation facility records. Every record is a claim collected from the web, "
-               "not a confirmed fact.")
-else:
-    st.caption("Demonstration. This screen is running on six invented facilities, not the real records.")
-
-if not LIVE and not FIXTURE.exists():
-    st.error("No facility table is configured, and the demonstration facilities are not part of this deployment. "
-             "Set DATABRICKS_WAREHOUSE_ID and DATABRICKS_PREPARED_TABLE for this app, then reload.")
+if DATA["mode"] == "setup":
+    st.error("Data: not available. This app is set to read the real facility records, but its setup is incomplete.")
+    for problem in DATA["problems"]:
+        st.markdown("- " + plain(problem))
+    st.caption(f"To run on the invented demonstration facilities instead, set {words.DATA_SETTING} to demo.")
     st.stop()
+if DEMO:
+    st.caption("Data: demonstration. This screen is running on six invented facilities, not the real records.")
+    if not FIXTURE.exists():
+        st.error("The demonstration facilities (demo_facilities.json) are missing from this deployment.")
+        st.stop()
+else:
+    st.caption("Data: real records. Searching the Virtue Foundation facility records. No facility is named or "
+               "recommended here until the team has reviewed and approved destinations.")
 
 left, right = st.columns([5, 9], gap="large")
 
@@ -121,14 +136,16 @@ with right:
         with st.container(border=True):
             st.markdown("**The recommendation appears here.**")
             st.write("You get one facility to send the patient to, the words from its record that back it, "
-                     "and what nobody has confirmed yet.")
+                     "and what nobody has confirmed yet." if DEMO else
+                     "You are told whether nearby records mention the service. No facility is named until "
+                     "the team has reviewed and approved destinations.")
     else:
         view = words.present(response, asked["service"], asked["location"], asked["radius_km"])
         with st.container(border=True):
             st.caption(view["request_line"])
             st.header(view["headline"])
             st.markdown(f"**{plain(view['subline'])}**")
-            if view["status"] == "ok":
+            if DEMO and view["status"] == "ok":
                 top = view["top"]
                 if top["place"]:
                     st.write(top["place"])
@@ -136,9 +153,9 @@ with right:
                 facility(top)
                 if view["caveat"]:
                     st.warning(view["caveat"])
-            for lead in view["leads"]:
+            for lead in view["leads"] if DEMO else []:
                 facility(lead, f"{lead['name']}. {lead['distance']}")
-            for choice in view["choices"]:
+            for choice in view["choices"] if DEMO else []:
                 label = ", ".join(part for part in (choice.get("city"), choice.get("state")) if part)
                 if st.button(label, key="choice-" + label):
                     ask(asked["service"], choice, asked["radius_km"])
@@ -147,18 +164,22 @@ with right:
                 st.write(view["next_step"])
             if view["approximate_note"]:
                 st.caption(view["approximate_note"])
-        if view["backups"]:
+        if DEMO and view["backups"]:
             st.subheader(f"If {view['top']['name']} cannot take the patient")
             for number, backup in enumerate(view["backups"], start=2):
                 facility(backup, f"{number}. {backup['name']}. {backup['distance']}")
-        if view["status"] in ("ok", "needs_confirmation"):
+        if DEMO and view["status"] in ("ok", "needs_confirmation"):
             st.subheader("Referral note")
             st.caption("Use the copy button on the note, or save it as a file.")
-            note = words.referral_note(view, synthetic=not LIVE)
+            note = words.referral_note(view, synthetic=True)
             st.code(note, language=None)
             st.download_button("Save referral note", note, file_name="referral-note.txt", mime="text/plain")
         st.subheader("How this was decided")
-        st.write(words.HOW)
+        st.write(words.HOW if DEMO else words.HOW_WITHHELD)
         with st.expander("Technical details"):
-            st.caption("The request and the unedited response from the search.")
-            st.json({"request": asked, "response": response})
+            if DEMO:
+                st.caption("The request and the unedited response from the search.")
+                st.json({"request": asked, "response": response})
+            else:
+                st.caption("The request and the search status. The response itself is not shown for real records.")
+                st.json({"request": asked, "data": "warehouse", "status": response["status"]})

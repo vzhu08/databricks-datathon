@@ -1,7 +1,14 @@
 import importlib.util
 import json
 import os
+import shutil
+import socket
+import subprocess
+import sys
+import tempfile
+import time
 import unittest
+import urllib.request
 from pathlib import Path
 from unittest import mock
 
@@ -11,6 +18,23 @@ from app.ranking import search_facilities
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = json.loads((ROOT / "contracts/fixtures/search.json").read_text(encoding="utf-8"))
 HAS_STREAMLIT = importlib.util.find_spec("streamlit") is not None
+APP = ROOT / "app"
+WAREHOUSE = {"DATABRICKS_WAREHOUSE_ID": "test-warehouse", "DATABRICKS_PREPARED_TABLE": "test_catalog.test_schema.prepared",
+             "DATABRICKS_HOST": "https://workspace.example.invalid", "DATABRICKS_CLIENT_ID": "test-client",
+             "DATABRICKS_CLIENT_SECRET": "test-secret"}
+SETTINGS = ("DATABRICKS_", words.DATA_SETTING)
+
+
+def restricted(response=None):
+    """Every facility field a real-record screen must not show: from the fixture rows, or from one response."""
+    found = set()
+    for row in FIXTURE["facilities"]:
+        found |= {row["facility_id"], row["raw_row_ref"], row["name"], *row["record_source_urls"]}
+        found |= {entry for field in ("description", "capabilities", "procedures", "equipment")
+                  for entry in ([row[field]] if isinstance(row[field], str) else row[field] or [])}
+    for card in (response or {}).get("direct_results", []) + (response or {}).get("indirect_leads", []):
+        found |= {card["facility_id"], card["name"], card["evidence_excerpt"], *card["record_source_urls"]}
+    return {text for text in found if text}
 
 
 def _run(query):
@@ -71,6 +95,52 @@ class WordingTests(unittest.TestCase):
         _, missing = _run({"service": "mri", "location": {"pin": "999999"}})
         self.assertEqual("That place could not be located.", missing["headline"])
 
+    def test_data_mode_is_explicit_and_a_half_configured_warehouse_is_a_setup_problem(self):
+        self.assertEqual({"mode": "demo", "problems": []}, words.data_mode({}))
+        self.assertEqual({"mode": "warehouse", "problems": []}, words.data_mode(WAREHOUSE))
+        self.assertEqual("demo", words.data_mode({**WAREHOUSE, "FIND_CARE_DATA": "demo"})["mode"])
+        self.assertEqual("warehouse", words.data_mode({**WAREHOUSE, "FIND_CARE_DATA": " Warehouse "})["mode"])
+        for missing in WAREHOUSE:
+            partial = {name: value for name, value in WAREHOUSE.items() if name != missing}
+            for environ in (partial, {**partial, missing: "  "}, {**partial, "FIND_CARE_DATA": "warehouse"}):
+                mode = words.data_mode(environ)
+                self.assertEqual("setup", mode["mode"], missing)
+                self.assertEqual(1, len(mode["problems"]), missing)
+                self.assertTrue(mode["problems"][0].startswith(missing + " is not set."), mode["problems"])
+        self.assertEqual("setup", words.data_mode({"FIND_CARE_DATA": "warehouse"})["mode"])
+        self.assertEqual(["FIND_CARE_DATA must be demo or warehouse."],
+                         words.data_mode({**WAREHOUSE, "FIND_CARE_DATA": "live"})["problems"])
+        shaped = words.data_mode({**WAREHOUSE, "DATABRICKS_PREPARED_TABLE": "private_schema.private_table"})
+        self.assertEqual(["DATABRICKS_PREPARED_TABLE must be written as catalog.schema.table."], shaped["problems"])
+        for mode in (shaped, words.data_mode({"DATABRICKS_WAREHOUSE_ID": "secret-warehouse-id"})):
+            self.assertNotIn("private_", " ".join(mode["problems"]))
+            self.assertNotIn("secret-warehouse-id", " ".join(mode["problems"]))
+
+    def test_a_withheld_response_keeps_no_facility_field_and_words_no_referral(self):
+        for case in FIXTURE["cases"]:
+            query = case["query"]
+            response = search_facilities(**query, facilities=FIXTURE["facilities"])
+            kept = words.withheld(response)
+            kept_text = json.dumps(kept)
+            for text in restricted(response) | {choice["state"] for choice in response["location_choices"]}:
+                self.assertNotIn(json.dumps(text)[1:-1], kept_text, case["id"])
+            self.assertEqual(([], [], []), (kept["direct_results"], kept["indirect_leads"], kept["location_choices"]))
+            self.assertNotIn(kept["status"], ("ok", "needs_confirmation"), case["id"])
+            view = words.present(kept, query["service"], query["location"], query.get("radius_km", 50))
+            self.assertEqual((None, [], [], [], None, None),
+                             (view["top"], view["backups"], view["leads"], view["choices"], view["why"], view["caveat"]))
+            for surface in (view["headline"], view["subline"], words.referral_note(view, False)):
+                self.assertNotIn("Send", surface, case["id"])
+            if response["status"] in ("ok", "needs_confirmation"):
+                self.assertEqual("withheld", kept["status"], case["id"])
+                self.assertEqual("No facility is recommended from the real records yet.", view["headline"])
+                self.assertIn("none has been reviewed and approved", view["subline"])
+        unknown = words.withheld({"status": "future_status", "message": "Example Regional Hospital", "direct_results": [{}]})
+        self.assertEqual((None, []), (unknown["message"], unknown["direct_results"]))
+
+    def test_the_demonstration_facilities_inside_the_app_folder_are_the_shared_fixture(self):
+        self.assertEqual((ROOT / "contracts/fixtures/search.json").read_bytes(), (APP / "demo_facilities.json").read_bytes())
+
     def test_typed_locations(self):
         self.assertEqual({"city": "Jaipur"}, words.build_location("city", city=" Jaipur ", state=" "))
         self.assertEqual({"city": "Jaipur", "state": "Rajasthan"}, words.build_location("city", city="Jaipur", state="Rajasthan"))
@@ -81,18 +151,83 @@ class WordingTests(unittest.TestCase):
                 words.build_location(mode, **typed)
 
 
+class FakeWarehouse:
+    """A connection that answers the adapter's three statements from prepared rows, or fails on connect."""
+
+    def __init__(self, rows=None, error=None):
+        self.rows, self.error, self.statements = rows or [], error, []
+
+    def __call__(self, _environ):
+        if self.error:
+            raise self.error
+        return self
+
+    def cursor(self):
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+    def close(self):
+        pass
+
+    def execute(self, statement, parameters=None):
+        self.statements.append(statement)
+        place = (parameters or {}).get("place")
+        if "trim(pin) = :place" in statement:
+            found = [row for row in self.rows if str(row["pin"]).strip() == place]
+        elif "= :place" in statement:
+            found = [row for row in self.rows if " ".join(str(row["city"]).split()).lower() == place]
+        else:
+            found = list(self.rows)
+        columns = list(found[0]) if found else []
+        self.description = [(column,) for column in columns]
+        self._found = [tuple(row[column] for column in columns) for row in found]
+
+    def fetchall(self):
+        return self._found
+
+
 @unittest.skipUnless(HAS_STREAMLIT, "Streamlit is needed to run the screen")
 class ScreenTests(unittest.TestCase):
-    def _app(self, **env):
-        from streamlit.testing.v1 import AppTest
-        clean = {k: v for k, v in os.environ.items() if not k.startswith("DATABRICKS_")}
-        with mock.patch.dict(os.environ, {**clean, **env}, clear=True):
-            app = AppTest.from_file(str(ROOT / "app" / "app.py"), default_timeout=30).run()
-        self.assertFalse(app.exception, app.exception)
-        return app, {**clean, **env}
+    def setUp(self):
+        # The screen imports its neighbours by bare name, as it does when app/ is the deployment root.
+        # Under test discovery those names can already belong to the test packages, so give them to app/
+        # for the length of one test and hand them back afterwards.
+        bare = ("find_care", "data_access", "ranking")
+        saved = {name: module for name, module in sys.modules.items() if name.split(".")[0] in bare}
+        for name in saved:
+            del sys.modules[name]
+        sys.path.insert(0, str(APP))
 
-    def _step(self, action, env):
-        with mock.patch.dict(os.environ, env, clear=True):
+        def restore():
+            sys.path.remove(str(APP))
+            for name in [name for name in sys.modules if name.split(".")[0] in bare]:
+                del sys.modules[name]
+            sys.modules.update(saved)
+
+        self.addCleanup(restore)
+        import data_access.warehouse as adapter
+        self.adapter = adapter
+
+    def _app(self, warehouse=None, **env):
+        from streamlit.testing.v1 import AppTest
+        clean = {k: v for k, v in os.environ.items() if not k.startswith(SETTINGS)}
+        self.env = {**clean, **env}
+        patcher = mock.patch.object(self.adapter, "_connect_from_environment",
+                                    warehouse or FakeWarehouse(error=AssertionError("no warehouse in this test")))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        with mock.patch.dict(os.environ, self.env, clear=True):
+            app = AppTest.from_file(str(APP / "app.py"), default_timeout=30).run()
+        self.assertFalse(app.exception, app.exception)
+        return app
+
+    def _step(self, action):
+        with mock.patch.dict(os.environ, self.env, clear=True):
             app = action.run()
         self.assertFalse(app.exception, app.exception)
         return app
@@ -102,41 +237,187 @@ class ScreenTests(unittest.TestCase):
         return " ".join(node.value for kind in ("title", "header", "subheader", "markdown", "caption", "warning", "error", "code")
                         for node in getattr(app, kind))
 
+    @staticmethod
+    def _everything(app):
+        """Every element the screen sent to the browser, as text, plus all it keeps in session state."""
+        def walk(node):
+            yield str(getattr(node, "proto", ""))
+            for child in getattr(node, "children", {}).values():
+                yield from walk(child)
+        state = {key: app.session_state[key] for key in ("asked", "response") if key in app.session_state}
+        return "\n".join(walk(app._tree)) + "\n" + json.dumps(state, default=str)
+
+    def _assert_nothing_restricted(self, app, response=None):
+        shown = self._everything(app)
+        self.assertGreater(len(shown), 500)  # the walk really collected the page
+        for text in restricted(response):
+            self.assertNotIn(text, shown)
+            self.assertNotIn(json.dumps(text)[1:-1], shown)
+        for surface in ("Send the patient", "Send to", "Referral note", "cannot take the patient", "Record sources",
+                        "Phone first", "example.invalid", "evidence_excerpt", "facility_id", "km in a straight line"):
+            self.assertNotIn(surface, shown)
+        if "response" in app.session_state:
+            kept = app.session_state["response"]
+            self.assertEqual(([], [], []), (kept["direct_results"], kept["indirect_leads"], kept["location_choices"]))
+        self.assertEqual(0, len(app.get("download_button")))
+        self.assertEqual(0, len(app.code))
+        self.assertEqual([], [button.key for button in app.button if str(button.key).startswith("choice-")])
+
     def test_the_judge_path_on_demonstration_data(self):
-        app, env = self._app()
+        app = self._app()
         text = self._text(app)
+        self.assertIn("Data: demonstration.", text)
         self.assertIn("six invented facilities", text)
         self.assertIn("The recommendation appears here.", text)
-        app = self._step(app.button(key="example-Dialysis near Jaipur, Rajasthan").click(), env)
+        app = self._step(app.button(key="example-Dialysis near Jaipur, Rajasthan").click())
         text = self._text(app)
         for part in ("Send the patient to Example Regional Hospital.", "North Campus provides hemodialysis",
-                     "procedures field", "Phone to confirm", "How this was decided", "example.invalid"):
+                     "procedures field", "Phone to confirm", "How this was decided", "example.invalid",
+                     "cannot take the patient"):
             self.assertIn(part, text)
         self.assertIn("Send to: Example Regional Hospital", app.code[0].value)
-        app = self._step(app.button(key="example-Dialysis within 2 km of PIN 302001").click(), env)
+        self.assertEqual(1, len(app.get("download_button")))
+        app = self._step(app.button(key="example-Dialysis within 2 km of PIN 302001").click())
         self.assertIn("No facility within 2 km clearly offers dialysis.", self._text(app))
 
+    def test_demonstration_can_be_chosen_outright_beside_warehouse_settings(self):
+        app = self._app(**WAREHOUSE, FIND_CARE_DATA="demo")
+        app = self._step(app.button(key="example-Dialysis near Jaipur, Rajasthan").click())
+        self.assertIn("Data: demonstration.", self._text(app))
+        self.assertIn("Send the patient to Example Regional Hospital.", self._text(app))
+
     def test_typed_city_asks_which_place_then_answers(self):
-        app, env = self._app()
+        app = self._app()
         app.text_input(key="city").set_value("Jaipur")
-        app = self._step(app.button(key="FormSubmitter:ask-Find a facility").click(), env)
+        app = self._step(app.button(key="FormSubmitter:ask-Find a facility").click())
         self.assertIn("More than one place has that name.", self._text(app))
-        app = self._step(app.button(key="choice-Jaipur, Rajasthan").click(), env)
+        app = self._step(app.button(key="choice-Jaipur, Rajasthan").click())
         self.assertIn("Send the patient to Example Regional Hospital.", self._text(app))
 
     def test_an_empty_location_is_refused_in_plain_words(self):
-        app, env = self._app()
-        app = self._step(app.button(key="FormSubmitter:ask-Find a facility").click(), env)
+        app = self._app()
+        app = self._step(app.button(key="FormSubmitter:ask-Find a facility").click())
         self.assertIn("Type the city or town.", self._text(app))
         self.assertNotIn("Send the patient", self._text(app))
 
-    def test_live_mode_reports_an_unreachable_table_and_recommends_nothing(self):
-        app, env = self._app(DATABRICKS_WAREHOUSE_ID="test-warehouse", DATABRICKS_PREPARED_TABLE="c.s.t")
-        self.assertIn("Virtue Foundation facility records", self._text(app))
-        app = self._step(app.button(key="example-Dialysis near Jaipur, Rajasthan").click(), env)
+    def test_a_direct_statement_in_the_warehouse_never_becomes_a_referral(self):
+        """The v0 search answers "ok" here only because a record states the service. The screen withholds it."""
+        warehouse = FakeWarehouse(FIXTURE["facilities"])
+        location = {"city": "Jaipur", "state": "Rajasthan"}
+        with mock.patch.dict(os.environ, WAREHOUSE, clear=True), \
+                mock.patch.object(self.adapter, "_connect_from_environment", warehouse):
+            raw = self.adapter.search_warehouse("dialysis", location)
+        self.assertEqual("ok", raw["status"])
+        self.assertEqual(2, len(raw["direct_results"]))
+        self.assertTrue(all(card["evidence_strength"] == "direct" and card["evidence_excerpt"]
+                            for card in raw["direct_results"]))
+        self.assertTrue(any(card["record_source_urls"] for card in raw["direct_results"]))
+
+        app = self._app(warehouse, **WAREHOUSE)
+        self.assertIn("Data: real records.", self._text(app))
+        self._assert_nothing_restricted(app)
+        asked = len(warehouse.statements)
+        app = self._step(app.button(key="example-Dialysis near Jaipur, Rajasthan").click())
+        self.assertGreater(len(warehouse.statements), asked)  # the stub warehouse really answered
+        text = self._text(app)
+        self.assertIn("No facility is recommended from the real records yet.", text)
+        self.assertIn("Records within 50 km mention dialysis, but none has been reviewed and approved", text)
+        self.assertIn("names none, shows no record text or links, and offers no referral note", text)
+        self._assert_nothing_restricted(app, raw)
+        self.assertEqual({"request": {"service": "dialysis", "location": location, "radius_km": 50},
+                          "data": "warehouse", "status": "withheld"}, json.loads(app.json[0].value))
+
+        # Related-only evidence, a typed ambiguous city and a plain miss are withheld the same way.
+        app = self._step(app.button(key="example-Dialysis within 2 km of PIN 302001").click())
+        self.assertIn("mention something related to dialysis, but none has been reviewed", self._text(app))
+        self._assert_nothing_restricted(app)
+        app.text_input(key="city").set_value("Jaipur")
+        app = self._step(app.button(key="FormSubmitter:ask-Find a facility").click())
+        self.assertIn("More than one place has that name.", self._text(app))
+        self.assertIn("Type the state as well and search again", self._text(app))
+        self._assert_nothing_restricted(app)
+        app.radio(key="service").set_value("trauma_care")
+        app.text_input(key="state").set_value("Rajasthan")
+        app.select_slider(key="radius").set_value(10)
+        app = self._step(app.button(key="FormSubmitter:ask-Find a facility").click())
+        self._assert_nothing_restricted(app)
+
+    def test_a_half_configured_warehouse_reports_the_setup_problem_and_shows_no_invented_data(self):
+        for missing, expected in (("DATABRICKS_PREPARED_TABLE", "DATABRICKS\\_PREPARED\\_TABLE is not set"),
+                                  ("DATABRICKS_WAREHOUSE_ID", "DATABRICKS\\_WAREHOUSE\\_ID is not set"),
+                                  ("DATABRICKS_CLIENT_SECRET", "DATABRICKS\\_CLIENT\\_SECRET is not set")):
+            app = self._app(**{name: value for name, value in WAREHOUSE.items() if name != missing})
+            text = self._text(app)
+            self.assertIn("Data: not available.", text)
+            self.assertIn("its setup is incomplete", text)
+            self.assertIn(expected, text)
+            self.assertNotIn("demonstration.", text)
+            self.assertNotIn("invented facilities, not the real records", text)
+            self.assertEqual([], [button.key for button in app.button])
+            for value in WAREHOUSE.values():
+                self.assertNotIn(value, self._everything(app))
+        app = self._app(DATABRICKS_WAREHOUSE_ID="test-warehouse")  # what app.yaml alone would give
+        self.assertIn("DATABRICKS\\_PREPARED\\_TABLE is not set", self._text(app))
+
+    def test_a_warehouse_read_failure_reports_unavailable_and_recommends_nothing(self):
+        app = self._app(FakeWarehouse(error=ConnectionError("Example Regional Hospital")), **WAREHOUSE)
+        self.assertIn("Data: real records.", self._text(app))
+        app = self._step(app.button(key="example-Dialysis near Jaipur, Rajasthan").click())
         text = self._text(app)
         self.assertIn("The facility records cannot be reached right now.", text)
-        self.assertNotIn("Send the patient", text)
+        self.assertIn("The facility warehouse is unavailable\\. Try again shortly\\.", text)
+        self._assert_nothing_restricted(app)
+
+
+@unittest.skipUnless(HAS_STREAMLIT, "Streamlit is needed to run the screen")
+class DeploymentShapeTests(unittest.TestCase):
+    """app.yaml's own command, run from a copy of app/ alone: no repository root, no contracts/ folder."""
+
+    DRIVE = (
+        "from streamlit.testing.v1 import AppTest\n"
+        "app = AppTest.from_file('app.py', default_timeout=30).run()\n"
+        "assert not app.exception, app.exception\n"
+        "assert any('Data: demonstration.' in c.value for c in app.caption), [c.value for c in app.caption]\n"
+        "app = app.button(key='example-Dialysis near Jaipur, Rajasthan').click().run()\n"
+        "assert not app.exception, app.exception\n"
+        "assert app.header[0].value == 'Send the patient to Example Regional Hospital.', app.header[0].value\n"
+        "print('demonstration answered')\n"
+    )
+
+    def setUp(self):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        self.source = Path(folder) / "source"
+        shutil.copytree(APP, self.source, ignore=shutil.ignore_patterns("__pycache__"))
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(SETTINGS) and k != "PYTHONPATH"}
+
+    def test_the_demonstration_answers_from_the_app_folder_alone(self):
+        self.assertFalse((self.source.parent / "contracts").exists())
+        done = subprocess.run([sys.executable, "-c", self.DRIVE], cwd=self.source, env=self.env,
+                              capture_output=True, text=True, timeout=120)
+        self.assertEqual(0, done.returncode, done.stderr[-2000:])
+        self.assertIn("demonstration answered", done.stdout)
+
+    def test_the_documented_command_starts_the_server(self):
+        command = [line for line in (self.source / "app.yaml").read_text(encoding="utf-8").splitlines()
+                   if line.startswith("command:")]
+        self.assertEqual(['command: ["streamlit", "run", "app.py"]'], command)
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        server = subprocess.Popen([sys.executable, "-m", "streamlit", "run", "app.py", "--server.headless", "true",
+                                   "--server.address", "127.0.0.1", "--server.port", str(port)],
+                                  cwd=self.source, env=self.env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.addCleanup(server.wait, 10)
+        self.addCleanup(server.terminate)
+        deadline, healthy = time.time() + 60, False
+        while time.time() < deadline and not healthy and server.poll() is None:
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}/_stcore/health", timeout=2) as reply:
+                    healthy = reply.status == 200
+            except OSError:
+                time.sleep(0.5)
+        self.assertTrue(healthy, "the server did not come up")
 
 
 if __name__ == "__main__":

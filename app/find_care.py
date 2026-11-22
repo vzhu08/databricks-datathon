@@ -3,7 +3,17 @@
 Pure functions with no Streamlit or Databricks dependency. Nothing here searches, ranks or
 filters. The order, the distances, the excerpts and the status are read from the response of
 `search_warehouse` or `search_facilities` (docs/implementation/SEARCH_CONTRACT.md).
+
+Two rules live here because every surface of the screen depends on them:
+
+* `data_mode` decides, from the app's settings alone, whether the screen runs on the invented
+  demonstration facilities, reads the warehouse, or stops with a setup problem. A half-configured
+  warehouse never falls back to invented data.
+* `withheld` is applied to every warehouse response before anything else sees it. Until a reviewed
+  service, campus and destination and the right to show record text reach this screen through a
+  verified interface, no facility field from the real records is kept, shown or exported.
 """
+import re
 
 SERVICES = {"dialysis": "Dialysis", "mri": "MRI scan", "trauma_care": "Trauma care"}
 SERVICE_PHRASE = {"dialysis": "dialysis", "mri": "an MRI scan", "trauma_care": "trauma care"}
@@ -17,6 +27,65 @@ HOW = (
     "Mentions that say a service is planned, unavailable or referred elsewhere are left out. "
     "Distance is a straight line, not road time. Up to three facilities are shown."
 )
+
+
+HOW_WITHHELD = (
+    "This screen is reading the real facility records. A record that mentions a service is a claim "
+    "collected from the web, and the nearest such record is not a safe referral. The team has not yet "
+    "reviewed the service, the campus and the right to show record text for any facility, so the "
+    "screen names none, shows no record text or links, and offers no referral note."
+)
+DATA_SETTING = "FIND_CARE_DATA"
+WAREHOUSE_SETTINGS = {
+    "DATABRICKS_WAREHOUSE_ID": "Add the SQL warehouse resource to this app.",
+    "DATABRICKS_PREPARED_TABLE": "Set it to the prepared table, written as catalog.schema.table.",
+    "DATABRICKS_HOST": "Databricks Apps supplies it when the app runs there.",
+    "DATABRICKS_CLIENT_ID": "Databricks Apps supplies it when the app runs there.",
+    "DATABRICKS_CLIENT_SECRET": "Databricks Apps supplies it when the app runs there.",
+}
+_TABLE = re.compile(r"[\w-]+\.[\w-]+\.[\w-]+")
+
+
+def data_mode(environ):
+    """Where the screen gets its facilities: {"mode": "demo" | "warehouse" | "setup", "problems": [...]}.
+
+    FIND_CARE_DATA chooses it outright. Left unset, the screen is a demonstration only when no
+    warehouse setting is present at all: any warehouse setting means the real records were intended,
+    so whatever is missing is reported instead of quietly showing invented facilities. Setting
+    values are never repeated in a problem line.
+    """
+    def has(name):
+        return bool(str(environ.get(name) or "").strip())
+
+    chosen = str(environ.get(DATA_SETTING) or "").strip().lower()
+    if chosen not in ("", "demo", "warehouse"):
+        return {"mode": "setup", "problems": [f"{DATA_SETTING} must be demo or warehouse."]}
+    if chosen == "demo" or (not chosen and not any(
+            has(name) for name in ("DATABRICKS_WAREHOUSE_ID", "DATABRICKS_PREPARED_TABLE"))):
+        return {"mode": "demo", "problems": []}
+    problems = [f"{name} is not set. {fix}" for name, fix in WAREHOUSE_SETTINGS.items() if not has(name)]
+    if has("DATABRICKS_PREPARED_TABLE") and not _TABLE.fullmatch(str(environ["DATABRICKS_PREPARED_TABLE"]).strip()):
+        problems.append("DATABRICKS_PREPARED_TABLE must be written as catalog.schema.table.")
+    return {"mode": "setup" if problems else "warehouse", "problems": problems}
+
+
+def withheld(response):
+    """All that is kept of a warehouse response before reviewed destinations and display permission exist.
+
+    Keeps the status and the search's own fixed messages. Drops every facility field: names, places,
+    distances, record text, source links and identifiers, and the place names offered for an
+    ambiguous city. A search that found records answers "withheld", never "ok".
+    """
+    status = response.get("status")
+    kept = {"status": status, "direct_results": [], "indirect_leads": [], "location_choices": [],
+            "approximate_location": False, "message": None, "withheld": True}
+    if status == "ok":
+        kept.update(status="withheld", evidence="direct")
+    elif status == "needs_confirmation":
+        kept.update(status="withheld", evidence="related")
+    elif status in ("invalid_input", "unresolved_location", "unavailable"):
+        kept["message"] = response.get("message")
+    return kept
 
 
 def build_location(mode, *, city="", state="", pin="", latitude="", longitude=""):
@@ -87,7 +156,14 @@ def present(response, service, location, radius_km):
         "approximate_note": ("The place you entered was located from the facilities recorded there, so "
                              "distances are approximate.") if approximate and (direct or leads) else None,
     }
-    if status == "ok":
+    if status == "withheld":
+        found = phrase if response.get("evidence") == "direct" else f"something related to {phrase}"
+        view["headline"] = "No facility is recommended from the real records yet."
+        view["subline"] = (f"Records within {radius_km} km mention {found}, but none has been reviewed and "
+                           "approved as a place to send a patient.")
+        view["next_step"] = ("Until the service and the campus have been checked for these records, this "
+                             "screen names no facility.")
+    elif status == "ok":
         top = direct[0]
         view["headline"] = f"Send the patient to {top['name']}."
         view["subline"] = top["distance"]
@@ -109,7 +185,8 @@ def present(response, service, location, radius_km):
                              else "Try a nearby larger town, or phone the district hospital.")
     elif status == "ambiguous_location":
         view["headline"] = "More than one place has that name."
-        view["subline"] = "Choose the one you mean."
+        view["subline"] = ("Type the state as well and search again." if response.get("withheld")
+                           else "Choose the one you mean.")
     elif status == "unavailable":
         view["headline"] = "The facility records cannot be reached right now."
         view["subline"] = response.get("message") or "Try again shortly."
