@@ -7,7 +7,7 @@
   - 794 flagged high-risk by our integrity check (838 on an independent replay)
   - 1,047 pins more than 100 km from their PIN
   - 118 rows in duplicate clusters
-- Sensitivity callout: *"1 in 6 raw top answers points to a facility that isn't where the map puts it. Fixing pins changes the top answer in 21% of searches."*
+- Sensitivity callout: *"1 in 6 raw top answers points to a facility that isn't where the map puts it. Applying the proposed (unreviewed) pin repairs would change the top answer in 21% of searches."*
 - Audit callout (stratified sample of 152, weighted, 95% CI):
   - map point wrong 12% (6–23%)
   - PIN wrong 6% (2–15%)
