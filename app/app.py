@@ -38,8 +38,9 @@ FIXTURE = HERE / "demo_facilities.json"
 DATA = words.data_mode(os.environ)
 DEMO = DATA["mode"] == "demo"
 # How the real directory's locations are classified (research/location_cutoff/b3/core.py, FROZEN). Wording
-# from the data review on the pull request that added it.
-REAL_SCOPE = ("The real directory has 10,088 Virtue Foundation records. The directory classifies 2,524 records at "
+# from the data review on the pull request that added it. It does not name the directory's owner, because the
+# demonstration answer below it must never read as a Virtue Foundation record.
+REAL_SCOPE = ("The real directory has 10,088 records. The directory classifies 2,524 records at "
               "campus level, 7,418 at area level, and 146 as unresolved. Campus classifications use map listings or "
               "matching addresses; independent building and entrance verification is still unavailable.")
 # label, care, the line typed into "Where", distance

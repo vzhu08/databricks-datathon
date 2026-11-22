@@ -544,7 +544,7 @@ class ScreenTests(unittest.TestCase):
         self.assertIn("2,524 records at campus level, 7,418 at area level, and 146 as unresolved", shown)
         self.assertIn("independent building and entrance verification is still unavailable", shown)
         self.assertNotIn("can be placed at a campus", shown)
-        self.assertIn("10,088 Virtue Foundation records", shown)
+        self.assertIn("The real directory has 10,088 records.", shown)
 
     def test_a_real_town_the_demonstration_does_not_know_is_explained(self):
         app = self._app()
