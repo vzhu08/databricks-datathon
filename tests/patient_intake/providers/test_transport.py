@@ -7,7 +7,7 @@ from app.patient_intake.providers.transport import Budget, MAX_RESPONSE, Transpo
 
 class TransportTests(unittest.TestCase):
     def setUp(self):
-        self.exchange = Mock(return_value=(200, "application/json", b'{"fictional":"unknown"}'))
+        self.exchange = Mock(return_value=(200, "application/json", b'{"fictional":"unknown"}', {}))
         self.transport = Transport(host="fictional.invalid", headers={}, attempts=20,
                                    exchange=self.exchange)
         self.budget = Budget(12)
@@ -43,19 +43,51 @@ class TransportTests(unittest.TestCase):
 
     def test_errors_never_leak_bodies_or_retry(self):
         for status, expected in [(302, "provider_error"), (401, "access_denied"),
-                                 (429, "rate_limited"), (503, "provider_error")]:
-            self.exchange.return_value = (status, "text/html", b"sensitive-test-value")
+                                 (503, "provider_error")]:
+            self.exchange.return_value = (status, "text/html", b"sensitive-test-value", {})
             self.assertEqual(self.call().status, expected)
         for raw in [b"[]", b"{", b'{"x":0,"x":1}', b'{"x":1e999}', b" " * (MAX_RESPONSE+1)]:
-            self.exchange.return_value = (200, "application/json", raw)
+            self.exchange.return_value = (200, "application/json", raw, {})
             self.assertEqual(self.call().status, "invalid_response")
         self.exchange.side_effect = OSError("sensitive-test-value")
         self.assertEqual(self.call().status, "unavailable")
-        self.assertEqual(self.exchange.call_count, 10)
+        self.assertEqual(self.exchange.call_count, 9)
+
+    def test_rate_metadata_and_cooldown_across_encounters(self):
+        now = [100]
+        self.exchange.return_value = (429, "text/plain", b"private", {
+            "Retry-After": "120", "RateLimit-Limit": "100", "RateLimit-Remaining": "0",
+            "RateLimit-Reset": "90", "Set-Cookie": "private",
+        })
+        transport = Transport(host="fictional.invalid", headers={}, attempts=3,
+                              exchange=self.exchange, clock=lambda: now[0])
+        first = transport.request("GET", "/state", encounter=Budget(1))
+        self.assertEqual(first.status, "rate_limited")
+        self.assertIsNone(first.data)
+        self.assertEqual(vars(first.rate), {
+            "retry_after_seconds": 120, "limit": 100, "remaining": 0, "reset_seconds": 90,
+        })
+        now[0] += 119
+        other = Budget(1)
+        self.assertEqual(transport.request("GET", "/state", encounter=other).status, "rate_limited")
+        self.assertEqual(self.exchange.call_count, 1)
+        now[0] += 1
+        self.exchange.return_value = (200, "application/json", b"{}", {
+            "RateLimit-Remaining": "0", "RateLimit-Reset": "invalid-private-value",
+        })
+        received = transport.request("GET", "/state", encounter=other)
+        self.assertEqual(received.status, "received")
+        self.assertIsNone(received.rate.reset_seconds)
+        self.assertEqual(transport.request("GET", "/state", encounter=Budget(1)).status, "rate_limited")
+        self.assertEqual(self.exchange.call_count, 2)
+
+    def test_documented_empty_response(self):
+        self.exchange.return_value = (204, "", b"", {})
+        self.assertEqual(self.call().status, "empty")
 
     def test_timed_out_requests_hold_slots_and_spend_quota(self):
         release = threading.Event()
-        self.exchange.side_effect = lambda *args: (release.wait(2), "application/json", b"{}")
+        self.exchange.side_effect = lambda *args: (release.wait(2), "application/json", b"{}", {})
         try:
             self.assertEqual(self.call(timeout=.02).status, "timeout")
             self.assertEqual(self.call(timeout=.02).status, "timeout")
