@@ -40,6 +40,12 @@ The user authorized additional methods alongside [the accreditation pilot](https
 
 Record one owner, one branch and the exclusive code paths listed on each task issue. Each method reports what it adds over its own baseline. Site identity and evidence of treatment are assessed separately. Capacity, current availability, and release into the finder each require their own evidence.
 
+### Real-data judge walkthrough and alternate search
+
+[Andrew’s Find Care UI chat](https://github.com/vzhu08/databricks-datathon/issues/252) owns the real-data judge walkthrough. B supplies the [real evidence and ranking-policy comparison](https://github.com/vzhu08/databricks-datathon/issues/239#issuecomment-7076269228), Vincent confirms the audience and fields, and D checks the displayed facts against their dated sources. Use actual VF-derived results plus attributable public records; label any unlinked public example and any unresolved branch. Missing capacity, traffic and destination eligibility stay unknown. A historical crisis segment requires sourced event, demand and operating data. The earlier fictional storm is retained for engineering regression tests.
+
+[Developer H](https://github.com/vzhu08/databricks-datathon/issues/251) owns the multi-engine search comparison for hard cases. Compare independently public institutional names across Bing India, DuckDuckGo India, Mappls and regional-language or local directories as available. Require publisher evidence for branch claims, count copied results once, and measure the incremental eligible matches and wrong-branch controls. Record any access limits separately. [Sanath Nagar public facility report](https://mchyderabad.esic.gov.in/attachments/circularfile/c5dd5062449cb824d950ae94ecb923cc.pdf) · [Dated service report](https://www.pib.gov.in/PressReleasePage.aspx?PRID=2306323&lang=2&reg=48)
+
 ### Ongoing methods research and national programmes · November 22
 
 | Owner | Branch and deliverable |
