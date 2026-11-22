@@ -2,14 +2,14 @@
 
 ## Ownership and delivery
 
-Oliver owns integration and model decisions. The user makes executive decisions in Oliver's main chat. Vincent runs data acquisition and refinement and distributes work in that lane. Andrew owns all UI and UX design and implementation. Ayush has one short, nonblocking replay check. Work and results are recorded on the [team board](OWNERSHIP.md) and [integration issue](https://github.com/vzhu08/databricks-datathon/issues/40). Oliver makes the final call on every merge, revert, branch retirement and release, including data changes. Each orchestrator has one five-minute board checker on their own account, through November 22, 2026 at 12:30 p.m. Eastern unless the user changes it.
+Oliver owns integration and model decisions. The user makes executive decisions in Oliver's main chat. Vincent runs data acquisition and refinement and distributes work in that lane. Andrew owns all UI and UX design and implementation. Developer D covers the independent replay check while Ayush is unavailable. Work and results are recorded on the [team board](OWNERSHIP.md) and [integration issue](https://github.com/vzhu08/databricks-datathon/issues/40). Oliver makes the final call on every merge, revert, branch retirement and release, including data changes. Each orchestrator has one five-minute board checker on their own account, through November 22, 2026 at 12:30 p.m. Eastern unless the user changes it.
 
 | Owner | Deliverable |
 | --- | --- |
 | [Oliver](https://github.com/vzhu08/databricks-datathon/issues/87) | Eligibility, fixed weights, model evaluation, allocator, offline seeded replay and stable event fixture. Supply Andrew's first fixture before completing the learned-model comparison. |
 | [Vincent](https://github.com/vzhu08/databricks-datathon/issues/88) | Versioned campus/service evidence, source coverage, resource units and uncertainty. Assign data work and recommend reviewed PRs to Oliver. |
 | [Andrew](https://github.com/vzhu08/databricks-datathon/issues/89) | All product UI and UX, synchronized map comparison, replay controls, capacity display, decision explanations, accessibility and offline judging flow. |
-| [Ayush](https://github.com/vzhu08/databricks-datathon/issues/90) | Watch one playable run and give one short clarity report on the detour, resource and simulated capacity. |
+| [Developer D](https://github.com/vzhu08/databricks-datathon/issues/90) | Watch one playable run and give one short clarity report on the detour, resource and simulated capacity. |
 
 ## Finder
 
