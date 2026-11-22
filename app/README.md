@@ -165,6 +165,19 @@ actual run, and without it the page is the replay alone. The format is in `storm
 Where the installed Streamlit has `st.iframe` (checked on 1.67) the frame is as tall as the
 replay. Older versions get a fixed frame that scrolls. Tests: `python -m unittest tests.storm_ui.test_storm_page`.
 
+## National directory (a section of Find care)
+
+Under the data notice, Find care shows one section about the **real** Virtue Foundation directory: for how
+many of its records outside evidence supports where the named facility is, how many are still open, and,
+on request, how the records were counted, the method, the sources and the limits. It is counts only. It
+names no facility, is the same whatever is asked in the search below, and reads no search or patient state.
+
+The counts come from one small file, `facility-area-display.json`, that the operator places beside
+`app.py` at deployment. It is not kept in Git. `national_directory.py` pins its bytes by SHA-256 to the
+reviewed edition (the same pin as `research/matching/facility_area_display.py`, which builds it) and
+checks that the counts add up. A missing, changed or older file shows "Coverage counts are not available
+in this copy of the app" and no number. Nothing is fetched, and no setting is needed.
+
 ## Data mode
 
 The mode is named at the top of the screen (`Data: demonstration`, `Data: real records` or

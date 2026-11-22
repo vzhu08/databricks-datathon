@@ -27,6 +27,8 @@ if str(HERE) not in sys.path:  # so the same imports work from the repository ro
     sys.path.append(str(HERE))
 
 import find_care as words  # noqa: E402
+import finding_provenance as provenance  # noqa: E402
+import national_directory  # noqa: E402
 import patient_ui  # noqa: E402
 import storm_page  # noqa: E402
 from data_access import search_warehouse  # noqa: E402
@@ -148,14 +150,17 @@ def fill(service, where, radius_km):
 
 
 def record(card):
-    """A facility's cited record: its words, the field they came from, and its sources."""
-    links = ", ".join(f'<a href="{html.escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">'
-                      f"{safe(url.split('/')[2])}</a>" for url in card["sources"])
-    related = "" if card["strength"] == "direct" else " It mentions something related, not the service itself."
-    source = f"Source: {links}." if links else "This record lists no source link."
+    """A facility's cited record: its words and the field they came from, which is the source of the claim.
+
+    A record address is a reference to the whole record, shown as text. It is never a link and never
+    called the source: the demonstration addresses do not resolve and prove nothing about the statement.
+    """
+    related = "" if card["strength"] == "direct" else " It mentions a related specialty, not the service itself."
+    reference = (f" {words.RECORD_REFERENCE}: " + ", ".join(safe(url) for url in card["sources"]) + "."
+                 if card["sources"] else " This record lists no record reference.")
     return (f'<div class="fc-record"><div class="fc-quote">“{safe(card["excerpt"])}”</div>'
-            f'<div class="fc-from">From the {safe(card["field"])} field of this facility\'s record.{related} '
-            f"{source}</div></div>")
+            f'<div class="fc-from">Source of this statement: the {safe(card["field"])} field of this facility\'s '
+            f"record.{related}{reference}</div></div>")
 
 
 def warning(card):
@@ -165,25 +170,39 @@ def warning(card):
     return f'<div class="fc-warning"><strong>Check the address.</strong> {safe(card["location_warning"])}</div>'
 
 
-def source_item(claim_name, source):
-    """One source behind a claim: publisher, origin, the fact, field, date and any record reference."""
-    links = "".join(f' <a href="{html.escape(item["url"], quote=True)}" target="_blank" rel="noopener noreferrer">'
-                    f"{safe(item['url'].split('/')[2])}</a> ({safe(item['note'])})" for item in source["links"])
-    role = {"support": "Supports", "conflict": "Conflicts with", "context": "Context for"}[source["role"]]
-    return (f"<li><strong>{role} {safe(claim_name.lower())}:</strong> {safe(source['fact'])}<br>"
-            f"Publisher: {safe(source['publisher'])}. Origin: {safe(source['origin'])} "
-            f"Where: {safe(source['field'])}. Evidence date: {safe(source['date'])}.{links}</li>")
+def source_item(source):
+    """One source behind a claim: what it supports, publisher, origin, field, scope, date and any reference."""
+    reference = (f" {words.RECORD_REFERENCE}: {safe(source['reference'])}. {safe(words.RECORD_LINK_NOTE)}"
+                 if source["reference"] else "")
+    cited = f" Cited at: {safe(source['citation'])}." if source["citation"] else ""
+    return (f"<li><strong>{safe(source['role'])}:</strong> {safe(source['fact'])}<br>"
+            f"Publisher: {safe(source['publisher'])}. Origin: {safe(source['origin'])}. "
+            f"Where: {safe(source['field'])}. Scope: {safe(source['scope'])} "
+            f"Evidence date: {safe(source['date'])}.{cited}{reference}</li>")
+
+
+def finding(response, service, group, index):
+    """B's mapped finding for one card of one response, or None. Never built from another request."""
+    if not DEMO or not response or response.get("withheld"):
+        return None
+    mapped = provenance.project_find_care(response, service, mode="demo")
+    return next((item for item in mapped["findings"]
+                 if (item["result_group"], item["index"]) == (group, index)), None)
 
 
 def claims(card, service, group, index):
     """The location and service lines for one card (#302), then the sources behind them on request."""
-    found = words.claim_lines(card, service, group, index)
+    mapped = finding(st.session_state.get("response"), service, group, index)
+    if not mapped:
+        return ""
+    found = words.claim_view(mapped, service, card["place"])
     lines, sources = [], []
     for claim in (found["location"], found["service"]):
         lines.append(f'<div class="fc-claim"><strong>{safe(claim["label"])}</strong> · {safe(claim["line"])}</div>')
-        sources += [source_item(claim["label"], source) for source in claim["sources"]]
-        sources.append(f'<li class="fc-next">{safe(claim["label"])}: {claim["source_records"]} record, '
-                       f'{claim["independent_supporting_origins"]} known supporting origin. Next check: '
+        if claim["review"]:
+            lines.append(f'<div class="fc-claim">{safe(claim["review"])}</div>')
+        sources += [source_item(source) for source in claim["sources"]]
+        sources.append(f'<li class="fc-next">{safe(claim["label"])}: {safe(claim["counts"])}. Next check: '
                        f'{safe(claim["missing_check"])}</li>')
     return (f'<div class="fc-claims" data-claims="{group}-{index}">{"".join(lines)}'
             '<details><summary>Why this finding?</summary><ul class="fc-sources">'
@@ -207,7 +226,8 @@ def not_told(view):
 
 def withheld_line(response, service):
     """The result-level evidence summary for real records. Names no facility and lists no source."""
-    summary = words.withheld_summary(response, service)
+    mapped = provenance.project_find_care(response, service, mode="warehouse")
+    summary = words.withheld_summary(mapped["summary"], service)
     if not summary:
         return ""
     return (f'<div class="fc-claims"><div class="fc-claim"><strong>{safe(summary["line"])}</strong></div>'
@@ -283,6 +303,8 @@ else:
 st.session_state.setdefault("service", "dialysis")
 st.session_state.setdefault("where", "Jaipur, Rajasthan" if DEMO else "")
 st.session_state.setdefault("radius", 50)
+# Counts for the whole real directory, the same whatever is asked below. No search or patient state is read.
+national_directory.render(st, HERE, DEMO)
 left, right = st.columns([5, 9], gap="large")
 
 with left:
