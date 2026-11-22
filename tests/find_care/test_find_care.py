@@ -443,9 +443,25 @@ class ScreenTests(unittest.TestCase):
             self.assertFalse(app.exception, app.exception)
             # The patient screen opens first. These tests are about Find care, the second choice.
             switch = app.radio(key="view")
-            app = switch.set_value(switch.options[1]).run()
+            app = switch.set_value("Find care").run()
+            source = app.radio(key="lookup_source")
+            target = "Simulated scenarios" if words.data_mode(self.env)["mode"] == "demo" else "Private warehouse lookup"
+            self.assertEqual(source.options, ["Public facility evidence", target])
+            self.assertEqual(source.value, "Public facility evidence")
+            app = source.set_value(target).run()
         self.assertFalse(app.exception, app.exception)
         return app
+
+    def test_public_source_miss_after_leaving_simulation(self):
+        app = self._app()
+        app = self._step(app.button(key="find").click())
+        self.assertIn("Send the patient to Campus B.", self._text(app))
+        app = self._step(app.radio(key="lookup_source").set_value("Public facility evidence"))
+        next(field for field in app.text_input if field.label == "City").set_value("Atlantis")
+        app = self._step(next(button for button in app.button if button.label == "Search public sources").click())
+        self.assertIn("This collection has no reviewed public claim", app.info[0].value)
+        self.assertNotIn("Send the patient", self._text(app))
+        self.assertFalse(app.get("link_button"))
 
     def _lookup(self, app):
         """The demonstration opens on the recommendation. The record lookup is its second, separate job."""
@@ -886,7 +902,7 @@ class ScreenTests(unittest.TestCase):
             self.assertNotIn("Data: demonstration.", text)
             self.assertNotIn("invented facilities, not the real records", text)
             self.assertEqual([], [button.key for button in app.button])  # no examples and no search form
-            self.assertEqual(0, len(app.text_input) + len([radio for radio in app.radio if radio.key != "view"]))
+            self.assertEqual(0, len(app.text_input) + len([radio for radio in app.radio if radio.key not in ("view", "lookup_source")]))
             everything = self._everything(app)
             for value in present.values():
                 self.assertNotIn(value, everything)
@@ -915,8 +931,9 @@ class DeploymentShapeTests(unittest.TestCase):
         "app = AppTest.from_file('app.py', default_timeout=30).run()\n"
         "assert not app.exception, app.exception\n"
         "assert any('Check your symptoms' in t.value for t in app.title), [t.value for t in app.title]\n"
-        "app = app.radio(key='view').set_value('Find care (demonstration)').run()\n"
+        "app = app.radio(key='view').set_value('Find care').run()\n"
         "assert not app.exception, app.exception\n"
+        "app = app.radio(key='lookup_source').set_value('Simulated scenarios').run()\n"
         "assert any('Data: demonstration.' in m.value for m in app.markdown), [m.value for m in app.markdown]\n"
         "app = app.button(key='find').click().run()\n"
         "assert not app.exception, app.exception\n"
