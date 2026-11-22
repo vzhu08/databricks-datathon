@@ -9,14 +9,14 @@ from .databricks_interview import DatabricksInterviewProvider
 _WARNING_QUESTION = (
     "Do you have severe trouble breathing, a tight or heavy feeling or pressure in your chest, "
     "or blue or grey lips now? Have you had sudden facial drooping, weakness on one side, or "
-    "trouble speaking in the last 24 hours, even if it stopped? If any apply, seek emergency help now."
+    "trouble speaking in the last 24 hours, even if it stopped? If any apply, call 112 now in India."
 )
 # A backstop for already confirmed, present/current reviews that conflict with a negative screen.
 # The direct safety question does not depend on extraction or keyword coverage.
 _WARNING_WORDS = re.compile(
     r"\b(?:gasping|choking|severe (?:difficulty|trouble) breathing|"
     r"(?:tight|heavy) chest|chest (?:pressure|tightness|heaviness)|pressure in (?:my |the )?chest|"
-    r"(?:blue|grey|gray) lips|(?:facial?|face) droop(?:ing)?|one.sided weakness|slurred speech)\b", re.I
+    r"(?:blue|grey|gray) lips|(?:facial?|face) droop(?:ing)?|one[- ]sided weakness|slurred speech)\b", re.I
 )
 
 # Closed output vocabulary prevents model-authored instructions, orders or probabilities
@@ -94,6 +94,11 @@ class DatabricksAssessmentProvider(DatabricksInterviewProvider):
                     if row["presence"] == "present" and row["temporality"] == "current"}
         if not eligible:
             return self._stop("No current symptom was confirmed to assess. Speak with a clinician if concerned.")
+        # The reviewed rows carry literal quotes, not normalized clinical concepts.
+        # Opposite current polarities cannot reliably be reconciled by row ID.
+        if any(row["presence"] == "absent" and row["temporality"] == "current" for row in payload["reviewed"]):
+            return self._stop("Your review includes both present and absent symptoms. "
+                              "A clinician can help interpret these observations together.")
         obj, failure = self._model(_ASSESS, dict(payload, context=data["context"], vocabulary=_CAUSES))
         if failure:
             return failure
@@ -108,7 +113,8 @@ class DatabricksAssessmentProvider(DatabricksInterviewProvider):
         causes = obj["causes"]
         if urgency not in _ACTION or obj["uncertainty"] not in _UNCERTAINTY or type(causes) is not list:
             raise ValueError
-        if (urgency == "emergency_ambulance" and causes) or (urgency != "emergency_ambulance" and not 1 <= len(causes) <= 3):
+        emergency = urgency == "emergency_ambulance"
+        if (emergency and causes) or (not emergency and not 1 <= len(causes) <= 3):
             raise ValueError
         labels = []
         for item in causes:
