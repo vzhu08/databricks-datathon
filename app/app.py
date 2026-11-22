@@ -28,6 +28,7 @@ if str(HERE) not in sys.path:  # so the same imports work from the repository ro
 
 import find_care as words  # noqa: E402
 import patient_ui  # noqa: E402
+import storm_page  # noqa: E402
 from data_access import search_warehouse  # noqa: E402
 from ranking import search_facilities  # noqa: E402
 
@@ -249,8 +250,12 @@ def slip(view, stale, service=None, response=None):
 
 st.set_page_config(page_title="Check symptoms and find care", layout="wide")
 # The patient screen is the product and opens first. Find care below is the separate facility search.
-if patient_ui.entry(st, "Find care (demonstration)" if DEMO else "Find care") == patient_ui.PATIENT:
+VIEW = patient_ui.entry(st, "Find care (demonstration)" if DEMO else "Find care", storm_page.STORM)
+if VIEW == patient_ui.PATIENT:
     patient_ui.render()
+    st.stop()
+if VIEW == storm_page.STORM:  # a simulated replay on its own: no patient visit, facility search or warehouse
+    storm_page.render(st)
     st.stop()
 st.markdown(STYLE, unsafe_allow_html=True)
 st.title("Find care")
