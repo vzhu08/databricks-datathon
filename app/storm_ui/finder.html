@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Campus finder</title>
+<link rel="stylesheet" href="storm.css">
+<link rel="stylesheet" href="finder.css">
+</head>
+<body class="finder">
+<header class="masthead">
+  <h1>Campus finder</h1>
+  <p class="synthetic-note" id="synthetic-note">Example responses. Every campus, the origin and every time and distance on this page are invented.</p>
+  <nav class="pages" aria-label="Demo pages">
+    <a href="index.html">Storm replay</a>
+    <span aria-current="page">Campus finder</span>
+  </nav>
+</header>
+
+<section class="setup" aria-label="Search shown">
+  <label class="field">Example response
+    <select id="example"></select>
+  </label>
+  <div class="field file">
+    <button type="button" id="open-file">Open response file</button>
+    <input type="file" id="file" accept="application/json,.json" hidden>
+  </div>
+  <div class="field" id="search-field" hidden>
+    <button type="button" id="search" class="primary">Search driving times</button>
+  </div>
+  <p class="scenario-note" id="request-note"></p>
+  <p class="hint" id="search-status" role="status"></p>
+  <p class="error" id="file-error" role="alert" hidden></p>
+</section>
+
+<main id="result" hidden>
+  <section class="state" aria-labelledby="state-title">
+    <h2 id="state-title"></h2>
+    <p id="state-text"></p>
+    <ul id="state-reasons"></ul>
+    <p class="hint" id="request-meta"></p>
+  </section>
+
+  <section class="ranked" aria-labelledby="ranked-heading">
+    <h2 id="ranked-heading">Ranked campuses</h2>
+    <p class="hint" id="ranked-note"></p>
+    <div class="scroll"><table id="ranked-table"></table></div>
+  </section>
+
+  <section class="others" aria-labelledby="others-heading">
+    <h2 id="others-heading">Campuses not in the ranking</h2>
+    <div id="groups"></div>
+  </section>
+
+  <section class="narrowing" aria-labelledby="narrowing-heading">
+    <h2 id="narrowing-heading">How the search narrowed</h2>
+    <table id="counts-table"></table>
+  </section>
+
+  <section class="source" aria-labelledby="source-heading">
+    <h2 id="source-heading">Where the estimates come from</h2>
+    <div id="source-body"></div>
+    <p class="hint">A driving estimate is for an ordinary car. It is not an ambulance time, and it does not confirm
+      admission or that the service is available now.</p>
+  </section>
+</main>
+
+<script src="data/finder_examples.js"></script>
+<script src="finder_state.js"></script>
+<script src="finder.js"></script>
+</body>
+</html>

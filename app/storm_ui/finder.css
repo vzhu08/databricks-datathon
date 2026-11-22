@@ -1,0 +1,41 @@
+/* Campus finder page. Layered on storm.css: same paper, ink and type. */
+
+.finder main { max-width: 68rem; }
+.finder main section { margin-top: calc(var(--step) * 5); padding-top: calc(var(--step) * 3); border-top: 2px solid var(--ink); }
+.finder main section > h2 + * { margin-top: var(--step); }
+.finder #search-status:empty { display: none; }
+
+/* The state of the search is the first thing read, so it is set large and plain. */
+.state h2 { font-size: 1.75rem; line-height: 1.15; max-width: 30ch; }
+.state p { max-width: 70ch; }
+#state-text { font-size: 1.125rem; }
+#state-reasons { margin-top: var(--step); max-width: 70ch; }
+#state-reasons li { padding-left: 1.1rem; position: relative; }
+#state-reasons li::before { content: ""; position: absolute; left: 0; top: 0.6em; width: 0.5rem; border-top: 2px solid var(--ink); }
+.state[data-tone="none"] h2 { color: var(--red); }
+
+.scroll { overflow-x: auto; }
+#ranked-table { min-width: 44rem; }
+#ranked-table td.figure, .group td.figure { font-weight: 700; white-space: nowrap; }
+#ranked-table .rank { width: 4rem; font-weight: 700; }
+.campus-id { display: block; font-size: 0.8125rem; font-weight: 400; color: var(--slate); }
+
+.group { margin-top: calc(var(--step) * 3); }
+.group h3 { margin-bottom: calc(var(--step) / 2); }
+.group table { min-width: 40rem; table-layout: fixed; }
+.group thead th:first-child { width: 14rem; }
+.group thead th:nth-child(n+3) { width: 11rem; }
+
+#counts-table { max-width: 34rem; }
+#counts-table td { text-align: right; font-weight: 700; width: 5rem; }
+#counts-table th { font-weight: 400; }
+
+#source-body p { max-width: 75ch; margin-top: var(--step); }
+#source-body dl { display: grid; grid-template-columns: max-content 1fr; gap: calc(var(--step) / 2) calc(var(--step) * 3); margin: var(--step) 0 0; max-width: 75ch; }
+#source-body dt { color: var(--slate); }
+#source-body dd { margin: 0; }
+
+@media (max-width: 900px) {
+  .state h2 { font-size: 1.5rem; }
+}
+.finder a { color: var(--ink); }
