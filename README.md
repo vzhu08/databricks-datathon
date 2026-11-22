@@ -2,17 +2,17 @@
 
 A community health worker in Pune needs to find maintenance haemodialysis. Find care returns KEM Hospital, Pune, from the hospital’s own published service information. Use the published main line to confirm the service, an available staffed appointment and where the patient should arrive.
 
-[Open the live Databricks app](https://vf-find-care-7474658456464525.aws.databricksapps.com/) (sign-in and app access required) · [Root submission notebook](submission.ipynb) · [Download the verified offline notebook](https://github.com/vzhu08/databricks-datathon/raw/716559ecd1991f0da476ec750ca22648fd4b84af/submission.ipynb)
+[Open the live Databricks app](https://vf-find-care-7474658456464525.aws.databricksapps.com/) (sign-in and app access required) · [Root submission notebook](submission.ipynb) · [Download the verified offline notebook](https://github.com/vzhu08/databricks-datathon/raw/5f6169c8e07aec3b53bc2856714ac9ba3e0c23e1/submission.ipynb)
 
 **National result.** Outside evidence places a named facility in a supported area for **7,895 of 10,088 original Virtue Foundation (VF) records (78.3%)**. [Exploration](#exploration) · [Modeling](#modeling) · [Impact](#impact)
 
 ## Try the real Pune lookup
 
-In the **locally verified Find care screen**, enter **Pune** under **City** and **maintenance haemodialysis** under **Service**, then select **Search public sources**. Open **Read the operator’s service page** on the KEM result. The page describes maintenance haemodialysis, and the result locates the hospital in Rasta Peth at the scope printed by the operator. The project checked the page on **November 22, 2026**. The treatment observation date, staffing, availability, appointment acceptance and patient entrance remain unknown. [KEM nephrology and dialysis page](https://www.kemhospitalpune.org/specialities/nephrology/) · [Local capture and replay](https://github.com/vzhu08/databricks-datathon/issues/350#issuecomment-7082553857)
+In the signed-in app, choose **Find care**. **Public facility evidence** opens with **Pune** under **City** and **maintenance haemodialysis** under **Service**. Select **Search public sources**. Open **Read the operator’s service page** on the KEM result. The page describes maintenance haemodialysis, and the result locates the hospital in Rasta Peth at the scope printed by the operator. The project checked the page on **November 22, 2026**. The treatment observation date, staffing, availability, appointment acceptance and patient entrance remain unknown. [KEM nephrology and dialysis page](https://www.kemhospitalpune.org/specialities/nephrology/) · [Signed-in release check](https://github.com/vzhu08/databricks-datathon/issues/319#issuecomment-7082597709)
 
-![Locally verified Pune maintenance haemodialysis lookup showing KEM Hospital, its operator link, the unknown availability and entrance, and the instruction to call ahead.](docs/demo/screenshots/08-pune-public-search-local.jpg)
+![Signed-in Pune maintenance haemodialysis lookup showing KEM Hospital, its operator link and unknown staffing, appointment acceptance, availability and entrance.](docs/demo/screenshots/08-pune-public-search-hosted.jpg)
 
-*Local Streamlit capture from the reviewed public search integration at `9ed7d7d9`. The operator claim and institutional contact are public. This screenshot shows the local workflow.*
+*Signed-in Databricks capture from deployment `01f1e69700c21edca2c44cb40d648aa8`, source `2044508`. The card shows public operator evidence.*
 
 The bundled lookup can also run from the repository root:
 
@@ -24,9 +24,9 @@ General **dialysis** returns KEM and Jehangir Hospital in collection order. Main
 
 ### Signed-in presenter and offline notebook
 
-The last signed-in acceptance on **November 22, 2026** verified Databricks Free Edition deployment `01f1e691dbe61f44b15964084cc46203`, source `94b6443`. That build opens on **Check symptoms** with assessment off. Its individual finder and road-time example use simulated endpoints, campuses and capacity. The national counts and Pune edition 1 planning comparison were verified there. The real public-source screen has a local integration check and awaits signed-in acceptance. [Edition and VF SQL verification](https://github.com/vzhu08/databricks-datathon/issues/336#issuecomment-7082010831) · [Hosted acceptance](https://github.com/vzhu08/databricks-datathon/issues/304#issuecomment-7082157852) · [Public-screen release queue](https://github.com/vzhu08/databricks-datathon/issues/350)
+The app opens on **Check symptoms**. The assessment provider is off on this release. A symptom description stays in the visit and receives no assessment. **Public facility evidence** is a separate manual city-and-service search. It uses the fields you enter there and makes no provider call. The signed-in release on **November 22, 2026** used Databricks Free Edition. Its national count card uses published aggregates from the real VF run. [Edition and VF SQL verification](https://github.com/vzhu08/databricks-datathon/issues/336#issuecomment-7082010831) · [Hosted KEM acceptance](https://github.com/vzhu08/databricks-datathon/issues/319#issuecomment-7082597709)
 
-The linked offline notebook was verified at `716559e`, SHA-256 `13fbfcbf55d6dc36b34bcca2ea903031648c4fe41f4c624fe3059dc8e7ef411d`. It covers the national aggregates and synthetic engineering controls. [Notebook execution receipt](https://github.com/vzhu08/databricks-datathon/issues/307#issuecomment-7082351589)
+The linked offline notebook was verified at `5f6169c8e07aec3b53bc2856714ac9ba3e0c23e1`, SHA-256 `fa3691d137714860d3dd055e1ac61dcea61a005753e32cc31671c564bb144023`. **Run all** to reproduce the real Pune lookup, national aggregate evidence, four-care Pune replay and separately labeled synthetic engineering controls. [Notebook execution receipt](https://github.com/vzhu08/databricks-datathon/issues/307#issuecomment-7082763710)
 
 ## Exploration
 
@@ -164,7 +164,7 @@ Vincent confirmed this edition in the local Windows presenter. Both policies use
 | High-acuity trauma and stabilization | 24 | 18 | 24 |
 | **All** | **120** | **114** | **120** |
 
-The batch planner places six more modeled requests, all in high-acuity trauma. The result measures assignment to feasible modeled slots. The model has no observation of actual treatment or receiving capacity. The final video take has a separate packaging and playback check. © OpenStreetMap contributors. [Map attribution](https://www.openstreetmap.org/copyright)
+The batch planner places six more modeled requests, all in high-acuity trauma. The result measures assignment to feasible modeled slots. The model has no observation of actual treatment or receiving capacity. Oliver accepted Vincent’s four-care recording, and independent playback matched these outcomes. [Verified four-care footage](https://github.com/vzhu08/databricks-datathon/issues/354#issuecomment-7082746128) © OpenStreetMap contributors. [Map attribution](https://www.openstreetmap.org/copyright)
 
 <details>
 <summary>Earlier signed-in comparison: Pune edition 1</summary>
@@ -194,8 +194,8 @@ For example, nearest first took the minute-45 dialysis slot for a routine reques
 | --- | --- |
 | **Real national dataset** | The frozen Delta v0 replay preserves **10,088 original occurrences**, including duplicate occurrences, with **10,077 distinct upstream IDs**. The directory v4 readback places **2,524** in the campus category, **7,418** in the area-only category and **146** in unresolved. These are directory classes. Route-ready destinations require a separate check. [Directory readback](https://github.com/vzhu08/databricks-datathon/issues/160#issuecomment-7075940482) |
 | **Real service evidence** | The independently recounted comparison found **186 external leads** among **30,264 occurrence/service decisions**. All 30,264 remained unconfirmed in that edition. The frozen 30-case sample still awaits independent human review and accuracy measurement. [Replay and readback](https://github.com/vzhu08/databricks-datathon/issues/168#issuecomment-7075091984) |
-| **Hosted and checked** | Provider-off symptom screen, synthetic recommendation and referral note, separate record lookup, default TomTom routing on a normal submit, national named-location summary, and Pune edition 1. [Hosted check](https://github.com/vzhu08/databricks-datathon/issues/304#issuecomment-7082157852) |
-| **Separate release checks** | The public-source UI has a local check. Live Storm routing has passed merged fixture and fake-transport checks and awaits signed-in UI and readback. The four-care video edition was independently replayed locally. The final clip has a separate playback check. The standalone notebook’s verified earlier 120-request control uses invented sites. [Public-screen release queue](https://github.com/vzhu08/databricks-datathon/issues/350) · [Final Storm take](https://github.com/vzhu08/databricks-datathon/issues/354) · [Offline notebook receipt](https://github.com/vzhu08/databricks-datathon/issues/307#issuecomment-7082351589) |
+| **Hosted and checked** | Assessment-off symptom screen, separate public-source Pune lookup and national named-location counts at `2044508`. The earlier presenter check covered the synthetic recommendation, ordinary-car routing and Pune edition 1. [Public lookup](https://github.com/vzhu08/databricks-datathon/issues/319#issuecomment-7082597709) · [Earlier presenter](https://github.com/vzhu08/databricks-datathon/issues/304#issuecomment-7082157852) |
+| **Separate release checks** | The four-care filmed model uses the offline Windows presenter and modeled travel. Live Storm routing has passed merged fixture and fake-transport checks and awaits signed-in UI and readback. The notebook also retains a separate 120-request control with invented sites. [Public-screen release queue](https://github.com/vzhu08/databricks-datathon/issues/350) · [Final Storm take](https://github.com/vzhu08/databricks-datathon/issues/354) · [Offline notebook receipt](https://github.com/vzhu08/databricks-datathon/issues/307#issuecomment-7082763710) |
 
 The offline evidence walkthrough uses approved display files. Real source snapshots and Marketplace rows stay outside Git. [Offline walkthrough](app/facility_evidence_demo/README.md) · [Search contract](docs/implementation/SEARCH_CONTRACT.md) · [Release board](docs/implementation/OWNERSHIP.md)
 
