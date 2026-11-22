@@ -84,13 +84,24 @@ class IntakeCliTests(unittest.TestCase):
         from app.intake.__main__ import load_journeys, replay_journey
 
         fixture, _ = load_journeys()
-        with patch.object(finder_bridge, "rank_campuses", wraps=finder_bridge.rank_campuses) as rank:
+        ranker = finder_bridge.rank_campuses
+        bridge = finder_bridge.find_care_for_intake
+        with patch.object(finder_bridge, "rank_campuses", wraps=ranker) as rank:
             for journey_id, steps in fixture["journeys"].items():
-                with self.subTest(journey=journey_id):
-                    ready = sum(step["expected"]["request"] is not None for step in steps)
+                expected_calls = [int(step["expected"]["request"] is not None) for step in steps]
+                calls_by_transition = []
+
+                def observe(*args, **kwargs):
+                    before = rank.call_count
+                    response = bridge(*args, **kwargs)
+                    calls_by_transition.append(rank.call_count - before)
+                    return response
+
+                with self.subTest(journey=journey_id), patch.object(
+                    finder_bridge, "find_care_for_intake", side_effect=observe,
+                ):
                     replay_journey(fixture, journey_id)
-                    self.assertEqual(rank.call_count, ready)
-                    rank.reset_mock()
+                    self.assertEqual(calls_by_transition, expected_calls)
 
     def test_cli_rejects_an_unlisted_journey(self):
         result = run_cli("not-a-checked-in-journey")

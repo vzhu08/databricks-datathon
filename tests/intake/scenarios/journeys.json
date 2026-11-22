@@ -161,7 +161,7 @@
       "scenario_id": "incomplete_history",
       "scenario_version": "1",
       "synthetic": true,
-      "presenting_problem": "A fictional adult has a simulated routine MRI referral and describes mild symptoms. They cannot say when their symptoms began. The fictional adult is not pregnant and reports no chest pain, stroke-like signs, severe breathing difficulty, loss of consciousness, or heavy bleeding.",
+      "presenting_problem": "A fictional adult has a simulated routine MRI referral and describes mild symptoms. The story leaves symptom onset for the questionnaire. The fictional adult is not pregnant and reports no chest pain, stroke-like signs, severe breathing difficulty, loss of consciousness, or heavy bleeding.",
       "concern_category": "mri_referral",
       "service": "mri",
       "known_answers": {
