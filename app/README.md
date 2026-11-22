@@ -153,7 +153,10 @@ against the exact optimum for a stated objective, on identical inputs. The repla
 `storm_plan.py` allocates nothing. It reads the file, refuses it unless it holds together (no patient
 assigned twice, every assignment to a facility that offers the needed service, no resource used beyond its
 staffed places, assigned plus unserved equal to the patients under both policies, https links only), and
-counts every figure it shows from the assignments. The view states what is real (the locations, each
+counts every figure it shows from the assignments. The file must state `geography.location_basis`:
+`synthetic` is shown as simulated sites, and `public_source` is shown as real locations only with the
+SHA-256 of a roster approved in `storm_plan.APPROVED_ROSTERS`, a map credit, and a cleared precision class
+and source on every facility. Any other file is refused. The view states what is real (the locations, each
 labelled mapped facility point, campus simulation anchor or area only, with the publisher and licence the
 file gives) and what is simulated (patients, need, urgency, services, staffed places, travel). The map has
 no background and makes no request. The file is not kept in Git: it is placed at deployment after the
