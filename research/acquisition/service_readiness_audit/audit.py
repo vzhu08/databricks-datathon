@@ -151,7 +151,7 @@ def coverage(rows, as_of):
             "incremental_coverage": None, "incremental_coverage_reason": "requires baseline comparison and approved campus links"}
 
 
-def build_plan(frame, *, as_of, target=30, seed=SEED, fixture=False):
+def build_plan(frame, *, as_of, target=30, seed=SEED, fixture=False, hot_partial=False):
     denominator = validate(frame, fixture=fixture)
     day = date.fromisoformat(as_of)
     require(type(target) is int and target > 0 and identifier(seed), "positive target and nonempty seed required")
@@ -160,7 +160,10 @@ def build_plan(frame, *, as_of, target=30, seed=SEED, fixture=False):
     frame_hash = digest({**frame, "decisions": sorted(rows, key=lambda r: (r["occurrence_key"], r["service"]))})
     groups = defaultdict(list)
     for row in rows:
-        groups[canonical(dimensions(row, day)).decode()].append(row)
+        stratum = dimensions(row, day)
+        if hot_partial:
+            stratum = {"service": row["service"], "hot_candidate": bool(row["mentions"])}
+        groups[canonical(stratum).decode()].append(row)
     allocation = {key: min(2, len(members)) for key, members in groups.items()}
     minimum = sum(allocation.values())
     budget = min(target, len(rows))
@@ -184,7 +187,13 @@ def build_plan(frame, *, as_of, target=30, seed=SEED, fixture=False):
                        "sample": n, "inclusion_probability": n / population, "weight": population / n})
         def rank(row):
             return digest([seed, frame["freeze_sha256"], frame_hash, row["occurrence_key"], row["service"]])
-        for row in sorted(members, key=lambda r: (rank(r), r["occurrence_key"], r["service"]))[:n]:
+        if hot_partial:
+            ordered = sorted(members, key=lambda r: (r["region"] or "", r["state"] or "", rank(r)))
+            offset = int(digest([seed, frame_hash, sid]), 16) % population
+            selected = [ordered[(offset + j * population) // n] for j in range(n)]
+        else:
+            selected = sorted(members, key=rank)[:n]
+        for row in selected:
             audit_id = rank(row)
             sample.append({"audit_id": audit_id, "occurrence_key": row["occurrence_key"], "service": row["service"],
                            "status": row["status"], "stratum_id": sid, "weight": population / n})
@@ -195,7 +204,8 @@ def build_plan(frame, *, as_of, target=30, seed=SEED, fixture=False):
     plan = {"schema": "l-readiness-plan-v1", "fixture_only": fixture, "as_of": as_of, "seed": seed,
             "frame_sha256": frame_hash, "freeze_sha256": frame["freeze_sha256"],
             "input_hashes": frame["input_hashes"], "original_payload_multiset_sha256": frame["original_payload_multiset_sha256"],
-            "denominator": denominator, "target_sample": target, "actual_sample": len(sample),
+            "denominator": denominator, "sampling_design": "hot-geographic-systematic-v1" if hot_partial else "crossed-hash-rank-v1",
+            "target_sample": target, "actual_sample": len(sample),
             "coverage": coverage(rows, day), "strata": strata, "sample": sorted(sample, key=lambda r: r["audit_id"]),
             "human_review_count": 0, "validated_accuracy": None, "accuracy_interval": None,
             "audit_state": "awaiting_two_independent_human_reviews_and_adjudication",
