@@ -1,0 +1,13 @@
+# Databricks Apps entry point. Deploy with `app/` as the app's source folder.
+command: ["streamlit", "run", "app.py"]
+env:
+  # Data mode. `demo` runs on the six invented facilities in demo_facilities.json.
+  # `warehouse` reads the prepared table and needs both settings below; if either is missing the
+  # screen reports it and shows no facilities. On real records the screen names and recommends no
+  # facility until reviewed destinations and display permission exist (see README.md).
+  - name: FIND_CARE_DATA
+    value: demo
+  # - name: DATABRICKS_WAREHOUSE_ID
+  #   valueFrom: sql-warehouse
+  # - name: DATABRICKS_PREPARED_TABLE
+  #   value: catalog.schema.table
