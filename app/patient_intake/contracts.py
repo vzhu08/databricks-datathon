@@ -50,6 +50,8 @@ def _snapshot(value):
 
 
 POLICY_VERSION = "patient-runtime.v1"
+_EXPERIMENTAL_PROVIDER_ID = "databricks-assessment-experimental"
+_STRUCTURED_ASSESSMENT_STATES = ("completed", "urgent", "experimental_assessment")
 _FAILURES = {"unsupported", "unavailable", "timeout", "rate_limited", "budget_exhausted",
              "invalid_response", "unauthorized", "unsupported_correction"}
 
@@ -60,17 +62,20 @@ def _text(value, limit=2048):
 
 def _valid_disposition(assessment):
     state = assessment.get("state")
+    experimental = state == "experimental_assessment"
+    if experimental != (assessment.get("provider_id") == _EXPERIMENTAL_PROVIDER_ID):
+        return False
     level = assessment.get("urgency")
     step = assessment.get("next_step")
     if level in ("emergency_ambulance", "emergency", "consultation_24"):
-        return state == "urgent" and step is None
-    if state != "completed":
+        return (experimental or state == "urgent") and step is None
+    if not experimental and state != "completed":
         return False
     if level == "self_care":
         return step is None
     return (level == "consultation" and type(step) is dict and set(step) == {"kind", "specialty_code"}
             and step["kind"] == "consultation"
-            and (step["specialty_code"] is None or _text(step["specialty_code"], 96)))
+            and (step["specialty_code"] is None or (not experimental and _text(step["specialty_code"], 96))))
 
 
 def _provider_reply(raw, identity):
@@ -89,7 +94,7 @@ def _provider_reply(raw, identity):
         if (set(reply) - (base | {"question", "continuation"}) or type(reply.get("question")) is not dict
                 or (reply.get("continuation") is not None and not _text(reply["continuation"], 1024))):
             raise InvalidRecord("invalid_response")
-    elif state in ("completed", "urgent"):
+    elif state in _STRUCTURED_ASSESSMENT_STATES:
         if set(reply) != base | {"guidance", "urgency", "uncertainty", "possible_causes", "next_step"}:
             raise InvalidRecord("invalid_response")
         if not all(_text(reply[k]) for k in ("guidance", "urgency", "uncertainty")):

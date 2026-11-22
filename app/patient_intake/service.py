@@ -5,7 +5,9 @@ import hmac
 import json
 import secrets
 
-from .contracts import POLICY_VERSION, _provider_reply, _snapshot, _text, _valid_disposition
+from .contracts import (
+    POLICY_VERSION, _STRUCTURED_ASSESSMENT_STATES, _provider_reply, _snapshot, _text, _valid_disposition,
+)
 
 
 class _Confirmation:
@@ -45,6 +47,7 @@ def _empty(revision, state="draft", consent=False):
 
 
 _ANY_REVISION = object()
+_TERMINAL_INTERVIEW_STATES = ("urgent", "provider_stop", "experimental_assessment")
 
 
 def _read(handle, expected=_ANY_REVISION):
@@ -86,7 +89,7 @@ class PatientIntakeService:
         a = data["assessment"]
         if a["policy_version"] != POLICY_VERSION or (a["consent"] and not self._consented(data)):
             return dict(_empty(revision, "provider_unavailable"), reason="configuration_changed")
-        if a["state"] in ("completed", "urgent") and not _valid_disposition(a):
+        if a["state"] in _STRUCTURED_ASSESSMENT_STATES and not _valid_disposition(a):
             return dict(_empty(revision, "provider_unavailable"), reason="invalid_response")
         return a
 
@@ -168,7 +171,7 @@ class PatientIntakeService:
         if _unsupported_context(data):
             return data["assessment"]
         if (data.get("interview_ended") or data["assessment"]["state"] in
-                ("assessment_in_progress", "awaiting_clarification", "urgent", "provider_stop")):
+                ("assessment_in_progress", "awaiting_clarification", *_TERMINAL_INTERVIEW_STATES)):
             raise ValueError("assessment_action_unavailable")
         if self._identity is None:
             return self._commit(handle, rev, data, "provider_unavailable", reason="unavailable")
@@ -214,7 +217,7 @@ class PatientIntakeService:
                 data["continuation"] = reply.get("continuation")
                 data["server_question"] = question
                 return state, {"question": _snapshot(self._interview.question_view(question))}
-            if state in ("urgent", "provider_stop"):
+            if state in _TERMINAL_INTERVIEW_STATES:
                 data["interview_ended"] = True
             if state == "completed" and self._interview.has_unresolved_evidence(data["interview"]) is not False:
                 return "unsupported", {"reason": "unsupported_correction"}

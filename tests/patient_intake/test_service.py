@@ -255,6 +255,121 @@ class RuntimeFlowTests(unittest.TestCase):
         self.navigator.assert_not_called()
 
 
+class ExperimentalAssessmentTests(unittest.TestCase):
+    def setUp(self):
+        from unittest.mock import Mock
+        from app.patient_intake import PatientIntakeService
+        from app.patient_intake.handoff import PatientHandoff
+        from app.patient_intake.interview import PatientInterview
+        from app.patient_intake.session import PatientSession
+
+        owner = PatientSession(notice_version="fixture")
+        self.handle = owner.open(consent=True, notice_version="fixture")
+        self.addCleanup(owner.delete, self.handle)
+        self.order_reader = Mock()
+        self.release_reader = Mock()
+        self.handoff = Mock(wraps=PatientHandoff(read_verified_order=self.order_reader,
+                                                read_reviewed_release=self.release_reader))
+        self.provider = Mock()
+        self.identity = ("databricks-assessment-experimental", "fixture-assessment.v1")
+        self.service = PatientIntakeService(interview=PatientInterview(), provider=self.provider,
+                                            provider_identity=self.identity, handoff=self.handoff)
+        self.edit(0)
+
+    def edit(self, revision):
+        return self.service.edit(self.handle, revision, description="Invented description", context={})
+
+    def reply(self, urgency="consultation", **overrides):
+        proposal = {"kind": "consultation", "specialty_code": None} if urgency == "consultation" else None
+        return dict({"state": "experimental_assessment", "provider_id": self.identity[0],
+                     "provider_version": self.identity[1], "urgency": urgency, "guidance": "Fixture guidance",
+                     "uncertainty": "Fixture uncertainty", "possible_causes": ["Fixture possibility"],
+                     "next_step": proposal}, **overrides)
+
+    def test_suggested_consultation_never_opens_handoff(self):
+        self.provider.assess.return_value = self.reply()
+        self.assertEqual(self.service.assess(self.handle, 1)["reason"], "consent_or_input_required")
+        self.provider.assess.assert_not_called()
+        consent = self.service.consent(self.handle, 2, granted=True)
+        result = self.service.assess(self.handle, consent["revision"])
+        self.assertEqual(result["state"], "experimental_assessment")
+        self.assertEqual(result["revision"], consent["revision"] + 2)
+        self.assertEqual((result["provider_id"], result["provider_version"]), self.identity)
+        self.assertEqual(result["possible_causes"], ["Fixture possibility"])
+        self.assertEqual(result["uncertainty"], "Fixture uncertainty")
+        self.assertEqual(result, self.service.view(self.handle))
+        revision, data = self.handle.read()
+        self.assertIsNone(data["result_secret"])
+        self.assertIsNone(data["continuation"])
+        with self.assertRaisesRegex(ValueError, "confirmation_unavailable"):
+            self.service.confirm(self.handle, revision)
+        with self.assertRaisesRegex(ValueError, "confirmation_unavailable"):
+            self.service.navigate(self.handle, revision, confirmation={"ready": True})
+        self.handoff.assert_not_called()
+        self.assertEqual(self.handoff(self.handle, revision, result), {"state": "assessment_blocked"})
+        self.order_reader.assert_not_called()
+        self.release_reader.assert_not_called()
+
+        withdrawn = self.service.consent(self.handle, revision, granted=False)
+        self.assertIsNone(withdrawn["guidance"])
+        regranted = self.service.consent(self.handle, withdrawn["revision"], granted=True)
+        with self.assertRaisesRegex(ValueError, "assessment_action_unavailable"):
+            self.service.assess(self.handle, regranted["revision"])
+        draft = self.edit(regranted["revision"])
+        self.assertFalse(draft["consent"])
+        self.assertEqual(draft["possible_causes"], [])
+        self.provider.assess.assert_called_once()
+
+    def test_urgent_experimental_result_is_nonroutable_and_has_no_consultation(self):
+        self.provider.assess.return_value = self.reply("emergency_ambulance", possible_causes=[])
+        consent = self.service.consent(self.handle, 1, granted=True)
+        result = self.service.assess(self.handle, consent["revision"])
+        self.assertEqual(result["state"], "experimental_assessment")
+        self.assertEqual(result["urgency"], "emergency_ambulance")
+        self.assertEqual(result["guidance"], "Fixture guidance")
+        self.assertIsNone(result["next_step"])
+        with self.assertRaisesRegex(ValueError, "confirmation_unavailable"):
+            self.service.confirm(self.handle, result["revision"])
+        self.handoff.assert_not_called()
+
+    def test_rejects_legacy_terminal_states_and_invalid_experimental_fields(self):
+        from app.patient_intake.contracts import _provider_reply
+        invalid = (
+            self.reply(state="completed"),
+            self.reply("emergency", state="urgent"),
+            self.reply(next_step={"kind": "consultation", "specialty_code": "fixture"}),
+            self.reply("consultation_24", next_step={"kind": "consultation", "specialty_code": None}),
+            self.reply("unknown"),
+            self.reply(continuation="unexpected"),
+        )
+        for reply in invalid:
+            with self.subTest(reply=reply), self.assertRaises(InvalidRecord):
+                _provider_reply(reply, self.identity)
+        with self.assertRaises(InvalidRecord):
+            _provider_reply(self.reply(provider_id="different-fixture"), ("different-fixture", self.identity[1]))
+
+        self.provider.assess.return_value = invalid[0]
+        consent = self.service.consent(self.handle, 1, granted=True)
+        result = self.service.assess(self.handle, consent["revision"])
+        self.assertEqual((result["state"], result["reason"]), ("provider_unavailable", "invalid_response"))
+        self.assertIsNone(result["guidance"])
+        with self.assertRaisesRegex(ValueError, "confirmation_unavailable"):
+            self.service.confirm(self.handle, result["revision"])
+        self.handoff.assert_not_called()
+
+    def test_edit_during_assessment_withholds_stale_differential(self):
+        def delayed(*args, **kwargs):
+            self.edit(self.service.view(self.handle)["revision"])
+            return self.reply()
+        self.provider.assess.side_effect = delayed
+        consent = self.service.consent(self.handle, 1, granted=True)
+        with self.assertRaisesRegex(ValueError, "revision_stale"):
+            self.service.assess(self.handle, consent["revision"])
+        current = self.service.view(self.handle)
+        self.assertEqual((current["state"], current["possible_causes"]), ("draft", []))
+        self.assertFalse(current["consent"])
+
+
 class OwnedProviderTests(unittest.TestCase):
     """Exercise the approved handle calls without network I/O or a vendor account."""
 
