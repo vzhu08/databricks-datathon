@@ -158,6 +158,22 @@ exception categories and returned metadata are sanitized.
 
 ## Durable shared admission and reservations
 
+Before first use, configure the approved account, product, allocation, deployment
+mode and durable ledger path, then run `python3 -m app.travel.admin initialize`.
+The parent directory must exist. The command creates the file exclusively for
+the configured account and records the five Explorer attempts in the same
+transaction as setup. It needs no API key and performs no provider requests.
+
+Runtime, `status`, `reserve` and `release` require an existing recognized ledger.
+A missing or invalid ledger, missing account scope or missing receipt causes
+the adapter to report `budget_store_unavailable` before sending a request. For an
+existing ledger made by the earlier adapter, stop its writers, back it up, then
+run `python3 -m app.travel.admin adopt-legacy` with the same account settings.
+This checks the previous schema and accounted Explorer usage before marking the
+file for the new runtime. Counts, reservations and active permits stay intact.
+If the storage is lost, restore the original volume or a ledger whose usage
+the operator has reconciled through the last possible attempt before resuming.
+
 The ledger reserves every attempt **before** I/O, including retries, failures
 and ambiguous timeouts. Atomic SQLite transactions enforce at most 2 attempts
 per rolling second, 60 per rolling minute and 2 in flight across processes on
@@ -175,15 +191,16 @@ unusable. Changing this allocation is an operator-reviewed code/config decision.
 The public [pricing](https://docs.tomtom.com/pricing) separately lists Routing
 20K and Matrix 2.5K; the adapter never spends the Matrix allowance or buys usage.
 
-The five Explorer attempts are reconciled once under a stable receipt ID on
-**2026-11-22 UTC**, including the invalid-input attempt. Receipt insertion and
-charging commit atomically across restarts/processes. The dashboard's lower
+The Explorer receipt accounts for **2026-11-22 UTC**, including the invalid-input
+attempt. Restarts and parallel workers reuse that receipt. The dashboard's lower
 observed value cannot refund attempts. `usage` exposes used counts, routine
 remaining, protected allocations, active run reservations, available per-profile
 counts, unallocated allowance and active attempts. `validation_active_runs` is
 a subset of `validation_remaining`, not an additional allocation.
 
 One retry uses exponential backoff (0.25s with the current one-retry cap).
+An HTTP 400 that rejects one campus pair leaves that campus unavailable and the
+remaining pairs eligible. Each attempted pair uses one call.
 Valid Retry-After seconds/HTTP dates are honored up to 5s. Two 429s without an
 intervening successful response establish a durable account/product-wide 30s
 cooldown. Admission waits have a finite bound; exhausted waits return local

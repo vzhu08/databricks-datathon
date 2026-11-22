@@ -1,6 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+import json
 from pathlib import Path
+import sqlite3
 from tempfile import TemporaryDirectory
 from threading import Event, Lock
 import unittest
@@ -8,8 +10,8 @@ from unittest.mock import Mock, patch
 
 from app.travel.budget import ALLOWANCE, PRODUCT, SQLiteBudget
 from app.travel.finder import find_campuses
-from app.travel.tomtom import TransportFailure, retry_delay
-from tests.travel.helpers import campus, client, request, route
+from app.travel.tomtom import TransportFailure, http_transport, retry_delay
+from tests.travel.helpers import campus, client, no_route, request, route
 
 
 class Clock:
@@ -34,6 +36,7 @@ class AdmissionTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.path = Path(directory.name) / "usage.sqlite"
         self.clock = Clock()
+        SQLiteBudget(self.path, verified_allowance=ALLOWANCE).initialize("synthetic-account", PRODUCT)
 
     def adapter(self, send, **kwargs):
         c = client(send, **kwargs)
@@ -153,6 +156,62 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(result.calls_attempted, 1)
         self.assertEqual(result.errors, ["budget_store_unavailable"])
         self.assertEqual(result.usage["active"], 1)  # permit was not silently cleared
+        self.assertNotIn("PRIVATE", repr(result))
+
+    def test_lost_budget_cannot_restore_allowance_and_recovery_keeps_usage(self):
+        send = Mock(return_value=route())
+        c = self.adapter(send, daily_calls=6)
+        dest = [("a", (1, 1))]
+        first = c.routes((0, 0), dest)
+        self.assertEqual(first.calls_attempted, 1)
+        self.assertEqual(first.usage["used"], 6)
+        restored = self.path.with_suffix(".backup")
+        self.path.rename(restored)
+
+        def assert_closed():
+            result = c.routes((0, 0), dest)
+            self.assertEqual(result.errors, ["budget_store_unavailable"])
+            self.assertEqual(result.calls_attempted, 0)
+            self.assertIsNone(result.requested_at)
+            self.assertFalse(result.results["a"]["fallback_allowed"])
+            self.assertEqual(send.call_count, 1)
+
+        assert_closed()
+        self.assertFalse(self.path.exists())
+        self.path.touch()
+        assert_closed()
+        self.assertEqual(self.path.stat().st_size, 0)
+        with sqlite3.connect(str(self.path)) as db:
+            db.execute("CREATE TABLE unrelated (value INTEGER)")
+        previous_bytes = self.path.read_bytes()
+        assert_closed()
+        self.assertEqual(self.path.read_bytes(), previous_bytes)
+        restored.replace(self.path)
+        result = c.routes((0, 0), dest)
+        self.assertEqual(result.errors, ["daily_call_budget_exceeded"])
+        self.assertEqual(result.usage["used"], 6)
+        self.assertEqual(send.call_count, 1)
+
+    def test_http_bad_input_preserves_second_eta_and_charges_both_attempts(self):
+        data = request([campus("bad", 75.801), campus("good", 75.82)])
+        responses = []
+        for status, payload in [(400, no_route("BAD_INPUT")), (200, route(120))]:
+            connection = Mock()
+            connection.getresponse.return_value.status = status
+            connection.getresponse.return_value.read.return_value = json.dumps(payload).encode()
+            responses.append(connection)
+        c = self.adapter(http_transport)
+        with patch("app.travel.tomtom.http.client.HTTPSConnection", side_effect=responses) as https:
+            result = find_campuses(data, provider=c)
+        self.assertEqual(https.call_count, 2)
+        self.assertEqual(result["routing"]["state"], "partial")
+        self.assertEqual(result["routing"]["counts"]["provider_calls_attempted"], 2)
+        self.assertEqual(result["routing"]["usage"]["used"], 7)
+        rows = {row["facility_id"]: row for row in result["routing"]["results"]}
+        self.assertEqual(rows["bad"]["reason"], "provider_request_rejected")
+        self.assertIsNone(rows["bad"]["estimated_minutes"])
+        self.assertEqual(rows["good"]["estimated_minutes"], 2)
+        self.assertEqual([row["facility_id"] for row in result["ranked"]], ["good"])
         self.assertNotIn("PRIVATE", repr(result))
 
     def test_retry_after_seconds_http_date_invalid_and_nonfinite(self):

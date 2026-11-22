@@ -12,7 +12,7 @@ from .budget import ALLOWANCE, PRODUCT, SQLiteBudget, dry_run
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("dry-run", "status", "reserve", "release"))
+    parser.add_argument("action", choices=("dry-run", "initialize", "adopt-legacy", "status", "reserve", "release"))
     parser.add_argument("--campuses", type=int, default=25)
     parser.add_argument("--searches", type=int, default=1)
     parser.add_argument("--retries", type=int, default=1)
@@ -39,7 +39,13 @@ def main(argv=None):
             raise ValueError("Reservation changes require the trusted validation operator profile")
         ledger = SQLiteBudget(env["TOMTOM_BUDGET_DB"], verified_allowance=ALLOWANCE)
         account, now = env["TOMTOM_ACCOUNT_SCOPE"], datetime.now(timezone.utc)
-        if args.action == "status":
+        if args.action == "initialize":
+            ledger.initialize(account, PRODUCT)
+            result = ledger.status(account, PRODUCT, now)
+        elif args.action == "adopt-legacy":
+            ledger.adopt_legacy(account, PRODUCT)
+            result = ledger.status(account, PRODUCT, now)
+        elif args.action == "status":
             result = ledger.status(account, PRODUCT, now)
         elif args.action == "reserve":
             result = {**calculation, **ledger.reserve_run(account, PRODUCT, now, calculation["worst_case_calls"])}

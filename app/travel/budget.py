@@ -1,5 +1,6 @@
 """Single-host atomic TomTom admission ledger. Stores counters, never route content."""
 
+import os
 import sqlite3
 import uuid
 from contextlib import closing, contextmanager
@@ -13,6 +14,25 @@ SAFETY_MARGIN = 1000
 PRODUCT = "tomtom_maps_v1"
 EXPLORER_RECEIPT = "jaipur-explorer-2026-11-22-five-attempts"
 EXPLORER_DAY = "2026-11-22"
+APPLICATION_ID = 0x54544F4D  # TTOM
+SCHEMA_VERSION = 1
+SCHEMA = tuple(statement.strip() for statement in """
+CREATE TABLE scopes (
+    account TEXT, product TEXT, allowance INTEGER, last_clock REAL DEFAULT 0,
+    strikes INTEGER DEFAULT 0, cooldown REAL DEFAULT 0, PRIMARY KEY(account,product));
+CREATE TABLE usage (
+    account TEXT, product TEXT, profile TEXT, kind TEXT, period TEXT, used INTEGER,
+    PRIMARY KEY(account,product,profile,kind,period));
+CREATE TABLE receipts (
+    account TEXT, product TEXT, receipt TEXT, PRIMARY KEY(account,product,receipt));
+CREATE TABLE attempts (
+    token TEXT PRIMARY KEY, account TEXT, product TEXT, profile TEXT, started REAL,
+    active INTEGER, run_id TEXT);
+CREATE INDEX recent_attempts ON attempts(account,product,started);
+CREATE TABLE reservations (
+    run_id TEXT PRIMARY KEY, account TEXT, product TEXT, month TEXT,
+    total INTEGER, remaining INTEGER, spent INTEGER, state TEXT);
+""".split(";") if statement.strip())
 
 
 @dataclass(frozen=True)
@@ -50,43 +70,80 @@ class SQLiteBudget:
             raise ValueError("The routing budget file must use an absolute path")
         self.verified_allowance = verified_allowance
 
+    def initialize(self, account, product):
+        """Operator-only first setup. Exclusive creation cannot reset existing usage."""
+        if not self._verified_scope(account, product):
+            raise ValueError("The ledger requires verified account and product settings")
+        # The caller must choose an existing durable parent directory. SQLite
+        # never creates the path itself, even during initialization.
+        os.close(os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+        with self._transaction(require_recognized=False) as c:
+            for statement in SCHEMA:
+                c.execute(statement)
+            c.execute("INSERT INTO scopes(account,product,allowance) VALUES(?,?,?)",
+                      (account, product, ALLOWANCE))
+            c.execute("INSERT INTO receipts VALUES(?,?,?)", (account, product, EXPLORER_RECEIPT))
+            self._charge(c, account, product, "routine", EXPLORER_DAY, 5)
+            self._mark_recognized(c)
+
+    def adopt_legacy(self, account, product):
+        """Operator-only upgrade of a prior ledger with its accounted usage intact."""
+        if not self._verified_scope(account, product):
+            raise ValueError("The ledger requires verified account and product settings")
+        with self._transaction(require_recognized=False) as c:
+            if self._identity(c) != (0, 0) or not self._schema_matches(c):
+                raise sqlite3.DatabaseError("Unrecognized legacy routing ledger")
+            self._read_scope(c, account, product)
+            self._mark_recognized(c)
+
+    @staticmethod
+    def _identity(c):
+        return tuple(c.execute("PRAGMA " + key).fetchone()[0]
+                     for key in ("application_id", "user_version"))
+
+    @staticmethod
+    def _schema_matches(c):
+        statements = c.execute("SELECT sql FROM sqlite_master WHERE sql IS NOT NULL").fetchall()
+        return {" ".join(sql.split()) for (sql,) in statements} == {
+            " ".join(sql.split()) for sql in SCHEMA}
+
+    @staticmethod
+    def _mark_recognized(c):
+        c.execute(f"PRAGMA application_id = {APPLICATION_ID}")
+        c.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+
     @contextmanager
-    def _transaction(self):
-        with closing(sqlite3.connect(str(self.path), timeout=1)) as c, c:
-            c.executescript("""
-                CREATE TABLE IF NOT EXISTS scopes (
-                    account TEXT, product TEXT, allowance INTEGER, last_clock REAL DEFAULT 0,
-                    strikes INTEGER DEFAULT 0, cooldown REAL DEFAULT 0, PRIMARY KEY(account,product));
-                CREATE TABLE IF NOT EXISTS usage (
-                    account TEXT, product TEXT, profile TEXT, kind TEXT, period TEXT, used INTEGER,
-                    PRIMARY KEY(account,product,profile,kind,period));
-                CREATE TABLE IF NOT EXISTS receipts (
-                    account TEXT, product TEXT, receipt TEXT, PRIMARY KEY(account,product,receipt));
-                CREATE TABLE IF NOT EXISTS attempts (
-                    token TEXT PRIMARY KEY, account TEXT, product TEXT, profile TEXT, started REAL,
-                    active INTEGER, run_id TEXT);
-                CREATE INDEX IF NOT EXISTS recent_attempts ON attempts(account,product,started);
-                CREATE TABLE IF NOT EXISTS reservations (
-                    run_id TEXT PRIMARY KEY, account TEXT, product TEXT, month TEXT,
-                    total INTEGER, remaining INTEGER, spent INTEGER, state TEXT);
-            """)
+    def _transaction(self, *, require_recognized=True):
+        with closing(sqlite3.connect(self.path.as_uri() + "?mode=rw", uri=True, timeout=1)) as c, c:
             c.execute("BEGIN IMMEDIATE")
+            if require_recognized and (self._identity(c) != (APPLICATION_ID, SCHEMA_VERSION)
+                                       or not self._schema_matches(c)):
+                raise sqlite3.DatabaseError("Unrecognized routing ledger")
             yield c
 
+    def _verified_scope(self, account, product):
+        return (self.verified_allowance == ALLOWANCE and product == PRODUCT
+                and isinstance(account, str) and bool(account.strip()))
+
+    def _read_scope(self, c, account, product):
+        scope = c.execute("SELECT allowance,last_clock FROM scopes WHERE account=? AND product=?",
+                          (account, product)).fetchone()
+        receipt = c.execute("SELECT 1 FROM receipts WHERE account=? AND product=? AND receipt=?",
+                            (account, product, EXPLORER_RECEIPT)).fetchone()
+        if (scope is None or scope[0] != ALLOWANCE or receipt is None or
+                self._used(c, account, product, "routine", "day", EXPLORER_DAY) < 5 or
+                self._used(c, account, product, "routine", "month", EXPLORER_DAY[:7]) < 5):
+            raise sqlite3.DatabaseError("Routing ledger is missing its configured scope or Explorer usage")
+        return scope[1]
+
     def _scope(self, c, account, product, now):
-        if self.verified_allowance != ALLOWANCE or product != PRODUCT or not isinstance(account, str) or not account.strip():
+        if not self._verified_scope(account, product):
             return "unverified_allocation"
-        c.execute("INSERT OR IGNORE INTO scopes(account,product,allowance) VALUES(?,?,?)", (account, product, ALLOWANCE))
-        allowance, last = c.execute("SELECT allowance,last_clock FROM scopes WHERE account=? AND product=?", (account, product)).fetchone()
-        if allowance != ALLOWANCE:
-            return "unverified_allocation"
+        last = self._read_scope(c, account, product)
         # Never roll counters/rate windows backwards after a clock correction.
         if now.timestamp() < last - 1:
             return "local_clock_regressed"
         c.execute("UPDATE scopes SET last_clock=? WHERE account=? AND product=?", (max(last, now.timestamp()), account, product))
-        inserted = c.execute("INSERT OR IGNORE INTO receipts VALUES(?,?,?)", (account, product, EXPLORER_RECEIPT)).rowcount
-        if inserted:
-            self._charge(c, account, product, "routine", EXPLORER_DAY, 5)
         return None
 
     @staticmethod

@@ -27,6 +27,7 @@ class BudgetTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.path = Path(self.directory.name) / "usage.sqlite"
         self.budget = SQLiteBudget(self.path, verified_allowance=ALLOWANCE)
+        self.budget.initialize("account", PRODUCT)
 
     def status(self, now=NOW):
         return self.budget.status("account", PRODUCT, now)
@@ -52,6 +53,7 @@ class BudgetTests(unittest.TestCase):
     def test_concurrent_processes_cannot_overspend_daily_or_monthly_budget(self):
         for daily, monthly, reason in [(6, 500, "daily_call_budget_exceeded"), (100, 6, "monthly_call_budget_exceeded")]:
             path = str(Path(self.directory.name) / (reason + ".sqlite"))
+            SQLiteBudget(path, verified_allowance=ALLOWANCE).initialize("account", PRODUCT)
             with ProcessPoolExecutor(max_workers=4) as pool:
                 results = list(pool.map(process_admit, [(path, daily, monthly, NOW)] * 10))
             self.assertEqual(sum(bool(r.token) for r in results), 1)
@@ -144,7 +146,6 @@ class BudgetTests(unittest.TestCase):
     def test_zero_io_dry_run_and_operator_absolute_path(self):
         with patch("http.client.HTTPSConnection", side_effect=AssertionError("must stay offline")):
             self.assertEqual(dry_run(25), {"candidate_count": 25, "max_retries": 1, "worst_case_calls": 50, "provider_calls": 0})
-        self.assertFalse(self.path.exists())
         for count in (26, -1, True):
             with self.assertRaises(ValueError):
                 dry_run(count)

@@ -339,9 +339,12 @@ class TomTomRoutes:
                 if reason is None:
                     return parse_route(payload, last_sent_at)
                 if not retryable or attempt == c.max_retries:
-                    if reason in ("authentication_failed", "provider_quota_exceeded", "provider_request_rejected"):
+                    # A rejected pair may have invalid input even when other
+                    # campuses in this search are routable.
+                    if reason in ("authentication_failed", "provider_quota_exceeded"):
                         with lock:
-                            stop[0] = reason
+                            if stop[0] is None:
+                                stop[0] = reason
                     return unknown(reason, last_sent_at, fallback=reason in RETRYABLE or reason == "authentication_failed")
                 self.sleep(max(.25 * (2 ** attempt), retry_after))
             raise AssertionError("Unreachable retry state")
