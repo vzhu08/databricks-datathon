@@ -62,10 +62,13 @@ class PageTests(unittest.TestCase):
         for word in ("fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "navigator.sendBeacon", "WebSocket"):
             self.assertNotIn(word, page)
 
-    def test_the_frame_uses_the_newer_element_and_falls_back_on_older_streamlit(self):
+    def test_the_frame_uses_the_newer_element_when_streamlit_has_it(self):
         new = mock.Mock(spec=["iframe"])
         storm_page.frame(new, "<p>invented</p>")
         new.iframe.assert_called_once_with("<p>invented</p>", height="content")
+
+    @unittest.skipUnless(HAS_STREAMLIT, "streamlit is not installed")
+    def test_the_frame_falls_back_on_older_streamlit(self):
         with mock.patch("streamlit.components.v1.html") as html:
             storm_page.frame(mock.Mock(spec=[]), "<p>invented</p>")
             html.assert_called_once_with("<p>invented</p>", height=storm_page.HEIGHT, scrolling=True)
