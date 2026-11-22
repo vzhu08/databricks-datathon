@@ -114,11 +114,38 @@ TEMPORALITY = {"current": "now", "historical": "in the past", "unknown": "timing
 
 PROVIDER_SETTING = "PATIENT_PROVIDER"
 DATABRICKS = "databricks-experimental"
+ASSESSMENT = "databricks-assessment-experimental"
+EXPERIMENTAL_STATE = "experimental_assessment"
 ENDPOINTS = ("databricks-gpt-oss-20b", "databricks-gpt-oss-120b")
 ENDPOINT_SETTING = "PATIENT_PROVIDER_ENDPOINT"
 LANE_SETTING = "PATIENT_PROVIDER_LANE"
 ATTEMPT_SETTINGS = {"demo": ("PATIENT_PROVIDER_DEMO_ATTEMPTS", 6), "test": ("PATIENT_PROVIDER_TEST_ATTEMPTS", 2)}
 PROVIDER_LABEL = "Databricks endpoint {endpoint} (experimental language model, not clinically validated)"
+ASSESSMENT_LABEL = ("Databricks endpoint {endpoint} (experimental language-model assessment, not clinically "
+                    "validated)")
+EXPERIMENTAL_CONSENT = (
+    "This is an experimental assessment by a language model. From what you confirm, it may suggest possible causes "
+    "and how urgently to seek care. It has not been clinically validated, it can be wrong, and it cannot confirm "
+    "or rule out any condition. It does not replace a doctor. If you think this may be an emergency, do not wait "
+    "for it.")
+EXPERIMENTAL_RESULT = ("Experimental result from an automated assessment that uses a language model. It is not a "
+                       "diagnosis, it has not been clinically validated and it can be wrong. A doctor has not "
+                       "reviewed it.")
+EXPERIMENTAL_URGENT = ("emergency_ambulance", "emergency", "consultation_24")
+EXPERIMENTAL_ACTION = {
+    "emergency_ambulance": "Suggested action: call an ambulance now",
+    "emergency": "Suggested action: go to an emergency department now",
+    "consultation_24": "Suggested action: see a doctor within 24 hours",
+    "consultation": "Suggested action: see a doctor",
+    "self_care": "Suggested action: self-care may be enough. See a doctor if you do not improve",
+}
+EXPERIMENTAL_CONSIDERED = ("The experimental assessment below used your description and the answers you gave. It "
+                           "has not established a diagnosis.")
+EXPERIMENTAL_CAUSES = ("Possibilities the model suggested, in no order and with no likelihood. None is confirmed, and "
+                       "the cause may be something not listed here.")
+EXPERIMENTAL_NO_CAUSES = "No possible cause was suggested. That does not mean nothing is wrong."
+EXPERIMENTAL_NO_ROUTE = ("No hospital is suggested or chosen from an experimental result, and it is not a referral "
+                         "or a doctor's order. You can change your description or start over.")
 SETUP_PROBLEM = ("Symptom assessment is unavailable on this server. You can write a description, but it will not "
                  "be sent anywhere or assessed.")
 _CAP = re.compile(r"[0-9]{1,2}", re.ASCII)
@@ -137,7 +164,7 @@ def provider_mode(environ):
     if not chosen:
         return {"mode": "off", "problems": []}
     problems = []
-    if chosen != DATABRICKS:
+    if chosen not in (DATABRICKS, ASSESSMENT):
         problems.append(f"{PROVIDER_SETTING} does not name a provider this app can use")
     endpoint = (environ.get(ENDPOINT_SETTING) or "").strip()
     if endpoint not in ENDPOINTS:
@@ -156,7 +183,7 @@ def provider_mode(environ):
         problems.append(f"{ATTEMPT_SETTINGS[lane][0]} allows no requests")
     if problems:
         return {"mode": "problem", "problems": problems}
-    return {"mode": DATABRICKS, "problems": [], "endpoint": endpoint, "lane": lane,
+    return {"mode": chosen, "problems": [], "endpoint": endpoint, "lane": lane,
             "demo_attempts": attempts["demo"], "test_attempts": attempts["test"]}
 
 
@@ -179,9 +206,10 @@ def compose(environ=None):
     """Return (service, provider label) for one encounter.
 
     This is the only place an assessment provider enters the screen. With no provider setting the
-    service has no provider and the runtime reports the assessment as unavailable. The one provider
-    this app can switch on is the team's experimental Databricks interview, through its own server
-    factory: that factory owns the workspace credentials, the per-worker request caps and the
+    service has no provider and the runtime reports the assessment as unavailable. The providers
+    this app can switch on are the team's experimental Databricks interview (documentation only)
+    and, only when named exactly, its experimental differential assessment. Both come from the same
+    server factory, which owns the workspace credentials, the per-worker request caps and the
     transport. Nothing here reads a secret, and no test story or fixture lives here.
     """
     settings = provider_mode(os.environ if environ is None else environ)
@@ -189,18 +217,26 @@ def compose(environ=None):
     if settings["problems"] and tuple(settings["problems"]) not in _reported:  # once per worker, not per redraw
         _reported.add(tuple(settings["problems"]))
         _log.warning("Patient assessment provider is off: %s", "; ".join(settings["problems"]))
-    if settings["mode"] == DATABRICKS:
+    if settings["mode"] in (DATABRICKS, ASSESSMENT):
+        # The mode is passed only for the assessment, so leaving it out keeps the documentation interview.
+        mode = {"mode": "assessment"} if settings["mode"] == ASSESSMENT else {}
         try:
             provider = _databricks_factory()(
                 endpoint=settings["endpoint"], enabled=True, lane=settings["lane"],
-                demo_attempts=settings["demo_attempts"], test_attempts=settings["test_attempts"])
+                demo_attempts=settings["demo_attempts"], test_attempts=settings["test_attempts"], **mode)
         except ValueError:  # for example the settings changed after this worker started
             provider = None
     if provider is None:
         return PatientIntakeService(interview=PatientInterview(), handoff=PatientHandoff()), None
     service = PatientIntakeService(interview=PatientInterview(), provider=provider,
                                    provider_identity=provider.identity, handoff=PatientHandoff())
-    return service, PROVIDER_LABEL.format(endpoint=settings["endpoint"])
+    label = ASSESSMENT_LABEL if settings["mode"] == ASSESSMENT else PROVIDER_LABEL
+    return service, label.format(endpoint=settings["endpoint"])
+
+
+def assessment_on(environ, label):
+    """True when this visit has a provider and the server asked for the experimental assessment."""
+    return label is not None and provider_mode(environ)["mode"] == ASSESSMENT
 
 
 def entry(st, other):
@@ -229,7 +265,7 @@ def step(view, *, has_statement, editing=False):
     if state == "awaiting_clarification":
         question = view.get("question")
         return "question" if isinstance(question, dict) and question.get("kind") in KINDS else "withheld"
-    if state in ("urgent", "completed", "provider_stop", "unsupported", "assessment_in_progress"):
+    if state in ("urgent", "completed", "provider_stop", "unsupported", "assessment_in_progress", EXPERIMENTAL_STATE):
         return state
     return "unavailable"
 
@@ -252,6 +288,25 @@ def result_lines(view):
         lines["next_step"] = ("The provider suggests seeing a doctor" + (f" (specialty code {code})" if code else "")
                               + ". This is a suggestion from the provider, not a referral.")
     return lines
+
+
+def experimental_lines(view):
+    """The words for an experimental assessment, in reading order. It is a suggestion from a model:
+    never a diagnosis, a likelihood, a referral or a place to go."""
+    urgency = view.get("urgency")
+    next_step = view.get("next_step")
+    return {
+        "urgent": urgency in EXPERIMENTAL_URGENT,
+        "emergency": urgency in ("emergency_ambulance", "emergency"),
+        "heading": EXPERIMENTAL_ACTION.get(urgency, "Suggested action: see a doctor"),
+        "guidance": view.get("guidance") or "",
+        "uncertainty": view.get("uncertainty") or "",
+        "causes": list(view.get("possible_causes") or []),
+        "next_step": ("The model suggests seeing a doctor. This is a suggestion, not a referral or a doctor's order."
+                      if isinstance(next_step, dict) and next_step.get("kind") == "consultation" else None),
+        "provenance": (f"Suggested by {view.get('provider_id')}, version {view.get('provider_version')}, "
+                       f"under policy {view.get('policy_version')}."),
+    }
 
 
 def reason_line(view):
@@ -486,11 +541,11 @@ def _describe(st, box, said):
         st.button("Keep what I wrote before", on_click=_edit, args=(st, False))
 
 
-def _said(st, said):
+def _said(st, said, state=None):
     if said:
         st.caption("You wrote")
         st.text(said[0])
-        st.caption(UNINTERPRETED)
+        st.caption(EXPERIMENTAL_CONSIDERED if state == EXPERIMENTAL_STATE else UNINTERPRETED)
 
 
 def _question(st, box, question):
@@ -529,6 +584,30 @@ def _question(st, box, question):
         st.form_submit_button("Send answer", type="primary", on_click=_answer, args=(st, question))
         if question.get("optional") is True:
             st.form_submit_button("Skip this question", on_click=_answer, args=(st, question, True))
+
+
+def _experimental(st, view):
+    """An experimental assessment: the suggested action first, then possibilities and what is uncertain.
+    There is no hospital step here and no button that could start one."""
+    lines = experimental_lines(view)
+    st.subheader("Experimental assessment")
+    st.warning(EXPERIMENTAL_RESULT)
+    (st.error if lines["urgent"] else st.info)(lines["heading"])
+    st.markdown(plain(lines["guidance"]))
+    if lines["emergency"]:
+        st.markdown(f'<div class="pt-emergency">{html.escape(EMERGENCY)}</div>', unsafe_allow_html=True)
+    if lines["next_step"]:
+        st.markdown(lines["next_step"])
+    st.subheader("Possible causes, not a diagnosis")
+    if lines["causes"]:
+        st.caption(EXPERIMENTAL_CAUSES)
+        st.markdown("\n".join("- " + plain(cause) for cause in lines["causes"]))
+    else:
+        st.caption(EXPERIMENTAL_NO_CAUSES)
+    st.subheader("What is uncertain")
+    st.markdown(plain(lines["uncertainty"]))
+    st.caption(plain(lines["provenance"]) + " " + NOT_A_DOCTOR)
+    st.caption(EXPERIMENTAL_NO_ROUTE)
 
 
 def _result(st, box, view):
@@ -612,12 +691,14 @@ def render():
     if now == "describe":
         _describe(st, box, said)
     else:
-        _said(st, said)
+        _said(st, said, view["state"])
     if now == "consent":
         st.subheader("Send your description for assessment?")
         st.markdown(f"To assess it, your description, your age and your answers to any follow-up questions are sent "
                     f"to **{plain(box['provider'])}**. "
                     "Nothing is sent until you agree, and you can withdraw your agreement afterwards. " + PROVIDER_COPY)
+        if assessment_on(os.environ, box["provider"]):
+            st.warning(EXPERIMENTAL_CONSENT)
         st.button("I agree. Send it for assessment", type="primary", on_click=_agree_and_send, args=(st,))
     elif now == "send":
         st.subheader("Ready to assess")
@@ -627,6 +708,8 @@ def render():
         _question(st, box, view["question"])
     elif now in ("urgent", "completed"):
         _result(st, box, view)
+    elif now == EXPERIMENTAL_STATE:
+        _experimental(st, view)
     elif now == "provider_stop":
         st.subheader("This assessment has stopped")
         st.markdown(plain(view.get("guidance") or ""))

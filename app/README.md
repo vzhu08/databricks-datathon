@@ -20,6 +20,7 @@ drawn it shows the runtime's current public view for the encounter and nothing e
 | Agree to send | Who receives the description. Nothing is sent before this | `consent`, then `assess` |
 | Questions | The provider's reading of the patient's words to confirm, doubt or reject, then follow-up questions: one choice, several choices, free text, a list of items each answered on its own, an amount with a unit the patient picks, or a pick from an issued list. An optional question has its own Skip button | `answer`, then `assess` |
 | Result | Urgency, the provider's guidance and uncertainty, possible causes with no likelihood, and who assessed it | `view` only |
+| Experimental assessment | Only with the experimental assessment provider: a notice that it is an unvalidated language-model result and not a diagnosis, the suggested action (a red banner with the emergency line for emergency levels), possible causes with no order or likelihood, what is uncertain, and who suggested it. No hospital step and no confirm button | `view` only |
 | Stopped | A provider stop shows the provider's message and nothing else: no urgency, causes or hospital | `view` only |
 | Where to go | Only after a completed result, and only from the runtime's reviewed handoff | `confirm`, then `navigate` |
 
@@ -75,7 +76,7 @@ environment when a visit is opened:
 
 | Setting | Value | Meaning |
 | --- | --- | --- |
-| `PATIENT_PROVIDER` | `databricks-experimental` | Unset or empty means no provider. Any other value is a setup problem |
+| `PATIENT_PROVIDER` | `databricks-experimental` or `databricks-assessment-experimental` | Unset or empty means no provider. The first is the documentation interview. The second, named exactly, is the experimental differential assessment (the factory is called with `mode="assessment"`). Any other value is a setup problem |
 | `PATIENT_PROVIDER_ENDPOINT` | `databricks-gpt-oss-20b` or `databricks-gpt-oss-120b` | The pinned endpoint. Required, with no default |
 | `PATIENT_PROVIDER_LANE` | `demo` (default) or `test` | Which request allowance this app draws on |
 | `PATIENT_PROVIDER_DEMO_ATTEMPTS` | `0` to `6`, default `0` | Requests the demo lane may make for the life of the worker |
@@ -98,6 +99,18 @@ What follows from that:
   NAME (experimental language model, not clinically validated)". Its result is a provider stop with
   the provider's message, never an urgency, a cause or a hospital.
 - The other settings alone do nothing. Without `PATIENT_PROVIDER` the factory is never called.
+
+With `databricks-assessment-experimental` the screen also:
+
+- warns before the agree button that this is an experimental language-model assessment that can be
+  wrong, cannot confirm or rule out a condition and does not replace a doctor;
+- shows the runtime's `experimental_assessment` state as a suggestion: "Suggested action: ..." first,
+  then "Possible causes, not a diagnosis" and "What is uncertain". It never shows a likelihood, never
+  says a cause is confirmed, and never offers the hospital check or any confirmation for routing;
+- replaces "Your description has not been interpreted." under the patient's words with a line that
+  the experimental assessment used the description and answers and has not established a diagnosis;
+- keeps edit, withdraw, Start over, idle expiry and every failure state exactly as for other providers.
+  The assessment needs an adult age and English, and says so through the runtime's unsupported state.
 
 The screen passes `language: "en"` and the optional age as context, which is all the interview
 contract accepts today.
