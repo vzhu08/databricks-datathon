@@ -1,15 +1,16 @@
 # Find care app
 
-`app.py` is the Streamlit screen for Databricks Apps. It takes a service and a location, typed on
-one line as a city or town (with the state after a comma), a six-digit PIN code, or coordinates,
-and words what the team's search returns. It follows the
-[search contract](../docs/implementation/SEARCH_CONTRACT.md) and never ranks or filters on its own.
-`find_care.py` holds the wording and the two rules below as pure functions.
+`app.py` is the Streamlit entry point for Check symptoms, Find care and Storm demo. The example
+record lookup and private warehouse search take a service and a location, typed on one line as
+a city or town (with the state after a comma), a six-digit PIN code, or coordinates. Their searches
+follow the [search contract](../docs/implementation/SEARCH_CONTRACT.md).
+`find_care.py` holds their wording and data-mode rules as pure functions.
 
 ## Check symptoms (the patient screen)
 
-The app opens on **Check symptoms**. Find care is the second choice in the switch at the top of the
-page. `patient_ui.py` is the patient screen over the patient runtime in `patient_intake/`
+The hosted app opens on **Check symptoms** with the assessment provider off. A saved description
+stays in the visit and receives no assessment. Find care is the second choice in the switch at the
+top of the page. `patient_ui.py` is the patient screen over the patient runtime in `patient_intake/`
 ([contract](../contracts/patient_intake/README.md)). It holds no clinical logic. Each time it is
 drawn it shows the runtime's current public view for the encounter and nothing else.
 
@@ -183,25 +184,30 @@ in this copy of the app" and no number. Nothing is fetched, and no setting is ne
 
 ## Data mode
 
-The mode is named at the top of the screen (`Data: demonstration`, `Data: real records` or
-`Data: not available`) and is decided by `find_care.data_mode` from the app's settings:
+Find care opens in **Public facility evidence**. The user starts the search manually using the city
+and service fields. The default Pune search for maintenance haemodialysis returns KEM Hospital,
+Pune, with the operator's published service claim, source page and contact. Current staffing,
+availability, appointment acceptance and the exact entrance remain unknown.
+[Try the real Pune lookup in the hosted app](../README.md#try-the-real-pune-lookup)
+
+`find_care.data_mode` uses the app's settings to decide which additional mode is available.
 
 | Setting | Mode |
 | --- | --- |
-| `FIND_CARE_DATA=demo`, or none of the five warehouse settings present | Demonstration on the six invented facilities in `demo_facilities.json` |
-| `FIND_CARE_DATA=warehouse`, or any of the five warehouse settings present | Real records through `search_warehouse` |
+| `FIND_CARE_DATA=demo`, or none of the five warehouse settings present | **Simulated scenarios** with invented campuses and the six invented facilities in `demo_facilities.json` |
+| `FIND_CARE_DATA=warehouse`, or any of the five warehouse settings present | **Private warehouse lookup** through `search_warehouse` when configured |
 
 The five warehouse settings are `DATABRICKS_WAREHOUSE_ID`, `DATABRICKS_PREPARED_TABLE`,
 `DATABRICKS_HOST`, `DATABRICKS_CLIENT_ID` and `DATABRICKS_CLIENT_SECRET`. Databricks Apps supplies
-the last three to every app, so a deployed app is a demonstration only because `app.yaml` says
-`FIND_CARE_DATA=demo`. A warehouse that is only partly configured, including the host or the
-credentials on their own, is a setup problem and never a fallback to invented data. The screen
+the last three to every app. `app.yaml` sets `FIND_CARE_DATA=demo` to make **Simulated scenarios**
+available alongside the default public search. A warehouse that is only partly configured, including
+the host or the credentials on their own, is a setup problem and never a fallback to invented data. The screen
 names each missing setting without repeating any value, and stops.
 A table that cannot be read gives "The facility records cannot be reached right now."
 
-## What each mode shows
+## What the additional modes show
 
-**Demonstration.** Two separate jobs, chosen at the top of the form.
+**Simulated scenarios.** Two separate jobs, chosen at the top of the form.
 
 *Recommend a campus* (opens first) is the one actionable answer. The reader gives the care, the
 urgency and one of four simulated Jaipur starting areas. The capacity model (`capacity_recommendation`)
@@ -223,7 +229,7 @@ minutes. If any of the three settings is missing, no road-time source is offered
 the field they came from, the location and service evidence lines, and what is not confirmed. It
 directs nobody anywhere and offers no referral note. Its facilities are never joined to campuses A to F.
 
-**Real records.** The v0 search answers `ok` when a record states the service and orders by
+**Private warehouse lookup.** The v0 search answers `ok` when a record states the service and orders by
 straight-line distance. That is not enough for a referral, and the team's verified count of
 eligible real destinations is zero. So every warehouse response passes through
 `find_care.withheld` before anything else sees it. The screen says whether nearby records mention
@@ -253,13 +259,10 @@ sets `FIND_CARE_DATA=demo`. The demonstration facilities are inside `app/` so th
 enough on its own. `demo_facilities.json` is a copy of `contracts/fixtures/search.json`, and a
 test fails if the two differ.
 
-Not done here: no deployment has been made, and the screen has not read the real table. Live
-deployment and publication need a separate decision.
-
 ## Operator walkthrough
 
-For whoever runs the demo or records the video. Everything in this section uses invented
-facilities. Nothing here needs a Databricks account.
+For whoever runs the local simulation or records it. These sample steps use invented facilities
+and run without a Databricks account.
 
 ### Two separate things to show
 
@@ -267,8 +270,8 @@ facilities. Nothing here needs a Databricks account.
 | --- | --- | --- |
 | Source folder | `app/storm_ui/` | `app/` |
 | Start it | Open `app/storm_ui/index.html` in a browser. No server or install. | `streamlit run app.py` from `app/` (below) |
-| What it is | Find care with urgency (campuses A to F, travel in minutes), then the storm stress test (`replay.html`) | The screen packaged for Databricks Apps (six invented facilities, straight-line distance) |
-| Data | Answers and replays computed ahead of time from invented records | `demo_facilities.json`, or the prepared table when configured |
+| What it is | Find care with urgency (campuses A to F, travel in minutes), then the storm stress test (`replay.html`) | The **Simulated scenarios** option in the app packaged for Databricks Apps |
+| Data | Answers and replays computed ahead of time from invented records | Synthetic campus fixtures and `demo_facilities.json` |
 
 They share no code path at run time and their invented facilities differ, so do not present one
 as the other. The one exception is the storm replay, which the Streamlit app also carries as its
@@ -282,40 +285,33 @@ pip install -r requirements.txt
 FIND_CARE_DATA=demo streamlit run app.py
 ```
 
-`FIND_CARE_DATA=demo` is the explicit synthetic mode, and `app.yaml` sets the same value for a
-deployed app. Expected startup: Streamlit prints a local address, and the page shows the title
-**Find care**, a band reading **Data: demonstration. This screen is running on six invented
-facilities, not the real records.** (the demonstration band also names the invented campuses), and
-a form already set to Recommend a campus, Dialysis, Routine and Central.
+Streamlit prints a local address and opens **Check symptoms**. Choose **Find care**, then
+**Simulated scenarios**. The page shows a **Data: demonstration** notice and a form already set to
+**Recommend a campus**, **Dialysis**, **Routine** and **Central**.
 
 | Do this | Expect |
 | --- | --- |
 | Press **Find a facility** | "Send the patient to Campus B.", 12 simulated minutes, 4 minutes further than Campus A to keep its last monitored dialysis station free. The referral note says "Send to: Campus B" |
 | Press the example **Highest urgency dialysis** | "Send the patient to Campus A.", in the result and the note |
 | Change the urgency or the starting area | The recommendation and its note are removed until the next press |
-| Choose **Look up the example records**, then **Dialysis near Jaipur, Rajasthan** | "Nearest record that states the service: Example Regional Hospital.", marked as not a recommendation, with no referral note |
+| Choose **Look up the example records**, then **Dialysis near Jaipur, Rajasthan** | "Provisional lead: Example Regional Hospital. Confirm before anyone travels." The result offers a confirmation call script |
 | Press the example **Dialysis within 2 km of PIN 302001** | "No facility within 2 km clearly offers dialysis." This is the weak-evidence result |
 
 ### Recognising incomplete configuration
 
-If the screen opens with a red box, **Data: not available. This app is set to read the real
+If **Private warehouse lookup** opens with a red box, **Data: not available. This app is set to read the real
 facility records, but its setup is incomplete.**, followed by one line per missing setting and no
 form, the app is not in demonstration mode and at least one of the five warehouse settings is
 missing or malformed. It never falls back to invented data on its own. For a demonstration, set
 `FIND_CARE_DATA=demo` and restart. The settings are listed under [Data mode](#data-mode).
 
-### What has been run, and what has not
+### Local checks and deployment
 
-Run locally, on invented facilities only: both offline pages in a browser; the Streamlit
-demonstration through its test harness and as a real server started from a copy of `app/` alone
-with the command in `app.yaml`; and the real-records screen against a mocked warehouse that
-returns the invented facilities.
+Local checks exercise the offline pages, the Streamlit demonstration started from a copy of
+`app/`, the public lookup against the packaged operator claims, and the private lookup with a
+mocked warehouse.
 
-Not run: no deployment to Databricks Apps, no read of the prepared table by this screen, and no
-start with the settings Databricks supplies. Those wait for an authorised live deployment, which
-is Oliver's decision.
-
-If that deployment is made from a workspace folder holding a copy of `app/`, no Git access is
+If deployment is made from a workspace folder holding a copy of `app/`, no Git access is
 involved. If it is made from this repository, the repository is private, so the app's service
 principal needs a Git credential and the source code path must be `app`. Both routes are in
 Databricks' [Deploy a Databricks app](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/deploy).
@@ -384,15 +380,15 @@ the order: the screen words what the search returns.
 ## Checks
 
 ```
-python -m unittest tests.find_care.test_find_care
+python -m unittest tests.patient_ui.test_patient_ui tests.find_care.test_find_care \
+  tests.public_facility_search.test_search tests.storm_ui.test_storm_page
 ```
 
-Nine wording and rule tests run on the shared fixture. Ten screen tests drive the app through
-Streamlit's test harness, including a stub warehouse whose v0 answer is `ok` only because a record
-states the service, a half-configured warehouse, a read failure, and a request changed after its
-answer. Two more copy `app/` to an empty folder, answer the demonstration example there, and start
-the server with the command in `app.yaml`. The twelve tests that need Streamlit are skipped when it
-is not installed.
+The command checks Check symptoms, Find care and the Storm replay using local fixtures and
+Streamlit's test harness. It exercises the packaged public claims, the simulated recommendation,
+and the warehouse path with a stub, including incomplete setup and a read failure. It also copies
+`app/` to an empty folder and starts the server with the command in `app.yaml`. Tests that use
+Streamlit skip when it is absent.
 
 ## Design review
 
