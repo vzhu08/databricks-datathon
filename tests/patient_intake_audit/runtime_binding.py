@@ -20,6 +20,9 @@ from threading import Event, Lock, Thread
 from unittest.mock import patch
 
 
+PROCESS_START_EVENTS = frozenset({"subprocess.Popen", "os.system", "os.posix_spawn", "os.fork", "os.exec"})
+
+
 class ProviderScript:
     identity = ("audit-stub", "v2")
 
@@ -709,7 +712,7 @@ class SideEffects:
             with self.lock:
                 self.counts["live_network_attempts"] += 1
             raise PermissionError("offline observer")
-        if event in {"subprocess.Popen", "os.system", "os.posix_spawn", "os.fork", "os.exec"}:
+        if event in PROCESS_START_EVENTS:
             with self.lock:
                 self.counts["blocked_process_starts"] += 1
             raise PermissionError("offline observer")

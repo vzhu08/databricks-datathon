@@ -8,8 +8,13 @@ import sys
 import subprocess
 import time
 
+if __package__:
+    from .runtime_binding import PROCESS_START_EVENTS, SideEffects
+else:
+    from runtime_binding import PROCESS_START_EVENTS, SideEffects
 
-def guard(event, args):
+
+def guard_loopback(event, args):
     if event in {"socket.connect", "socket.getaddrinfo", "socket.sendto"}:
         destination = args[0] if event == "socket.getaddrinfo" else args[-1]
         host = destination[0] if isinstance(destination, tuple) else destination
@@ -24,6 +29,28 @@ def guard(event, args):
         raise PermissionError("local browser fixture only")
 
 
+class BrowserEffects(SideEffects):
+    calibrated = False
+
+    def guard(self, event, args):
+        if self.calibrated and event not in PROCESS_START_EVENTS:
+            return guard_loopback(event, args)
+        try:
+            return super().guard(event, args)
+        except PermissionError:
+            if self.calibrated:
+                print("AUDIT_BOUNDARY blocked_process_starts", event, flush=True)
+            raise
+
+    def profile(self, frame, event, unused):
+        if event == "call" and self.calibrated:
+            code = frame.f_code
+            group = self.points.get((code.co_filename, code.co_firstlineno))
+            if group and group != "mock_exchange_starts":
+                print("AUDIT_BOUNDARY", group, flush=True)
+        super().profile(frame, event, unused)
+
+
 def run():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("app", type=Path)
@@ -33,25 +60,8 @@ def run():
     controls = args.controls.resolve()
     controls.mkdir(mode=0o700, exist_ok=False)
     (controls / "clock").write_text("0")
-    from runtime_binding import SideEffects
-
-    class BrowserEffects(SideEffects):
-        calibrated = False
-
-        def guard(self, event, args):
-            if not self.calibrated:
-                return super().guard(event, args)
-            guard(event, args)
-
-        def profile(self, frame, event, unused):
-            if event == "call" and self.calibrated:
-                code = frame.f_code
-                group = self.points.get((code.co_filename, code.co_firstlineno))
-                if group and group != "mock_exchange_starts":
-                    print("AUDIT_BOUNDARY", group, flush=True)
-            super().profile(frame, event, unused)
-
     app = args.app.resolve()
+    # These two local Git reads precede the guard. App imports and serving follow it.
     sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=app, text=True).strip()
     subprocess.run(["git", "diff", "--quiet", "HEAD", "--", "."], cwd=app, check=True)
     print("AUDIT_BUILD", sha, f"http://127.0.0.1:{args.port}", flush=True)
