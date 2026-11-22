@@ -25,6 +25,31 @@ The app-only test runs the actual session store, interview reducer, assessment s
 
 The staged v2 check exercises explicit skip, per-item choices, group-wide unknown, units, and selection from a bound complete catalog. It separately tests anonymous resource creation, reverse-order disposal with a separate budget, mailbox saturation, and reset while a create is in flight. The transport doubles record intended requests without sending them. A late verified resource can be cleaned up after local reset. Unknown delivery remains unresolved. The in-process mailbox does not recover obligations after process loss.
 
-The patient runtime has no live provider environment variable contract yet. `FIND_CARE_DATA` controls only the legacy fixture/warehouse screen. The optional MGP adapter can create an encounter-owned anonymous survey when a trusted server binding verifies the input evidence. The engineering checks use a synthetic binding. They do not establish interpretation of a fresh symptom statement or support for a large paged catalog. Keep the patient app unconfigured until the provider supports the agreed input path and is approved. A provider-backed smoke command requires a selected account, approved invented inputs and a physical-call budget. Make any future invocation explicitly opt in, reserve the smallest approved budget before dispatch, turn off automatic retries, and report actual attempted calls. Before enabling patient access, record clinician-adjudicated validation for the intended population and languages, approval for consent and data handling, and explicit deployment and release decisions. Destination navigation also needs verified campus and service evidence and display permission. A passing local package or test run does not establish any of those approvals.
+## Server configuration
+
+The patient provider is off by default. Keep `PATIENT_PROVIDER` unset for local packaging checks and for deployment until an operator explicitly approves activation. This runbook does not enable the provider or change `app.yaml`. `FIND_CARE_DATA` controls the separate Find care fixture or warehouse screen.
+
+Builds that include the approved patient UI wiring read these settings from the server process. The screen names the experimental provider before asking for consent to send the description. Importing the app, saving a draft, or rerendering the screen does not send a provider request.
+
+| Setting | Meaning |
+| --- | --- |
+| `PATIENT_PROVIDER` | Unset leaves assessment off. The approved experimental option is `databricks-experimental`. |
+| `PATIENT_PROVIDER_ENDPOINT` | Required when configured. Pin the approved endpoint to `databricks-gpt-oss-20b` or `databricks-gpt-oss-120b`. |
+| `PATIENT_PROVIDER_LANE` | `demo` or `test`. Defaults to `demo` when omitted. |
+| `PATIENT_PROVIDER_DEMO_ATTEMPTS` | Server worker's demo request cap, from 0 to 6. Defaults to 0. |
+| `PATIENT_PROVIDER_TEST_ATTEMPTS` | Server worker's test request cap, from 0 to 2. Defaults to 0. |
+
+The selected lane needs a nonzero cap. The worker shares the cap across visits and reruns, and the test and demo lanes have separate allowances. These limits are in process. A restart resets the in-memory counters and a second replica has its own counters. Keep the operator ledger outside the app and coordinate quotas separately before changing configuration, restarting a worker, or increasing replica count. A restart does not renew an approved allowance.
+
+The Databricks SDK resolves the operator profile and credentials on the server. For an approved local OAuth profile that uses CLI auth, install the existing Databricks CLI on the process path or set `DATABRICKS_CLI_PATH` to its executable if it is installed elsewhere. Do not put credentials in this runbook, the UI, or a client bundle. Local profile authentication does not prove that a deployed app identity can query the same endpoint.
+
+## Provider verification
+
+The experimental interview requests at most **1,024 output tokens per inference**, for both extraction and finalization. It validates the response locally and does not retry. A successful interview proposes source-linked observations for review, asks one clarification, and ends with a fixed, non-routable message. The optional MGP adapter is separate and needs a trusted server binding for an encounter-owned survey. Neither adapter establishes clinical validity for fresh patient text.
+
+- [Offline app-only UI and factory checks](https://github.com/vzhu08/databricks-datathon/issues/229#issuecomment-7077096595) passed 49 targeted regressions. The staged app used injected exchanges to check consent and shared quotas. No live requests ran.
+- [Separate live operator receipt](https://github.com/vzhu08/databricks-datathon/issues/223#issuecomment-7077123960) records two HTTP 200 responses and 1,122 total tokens on one invented encounter at reviewed head `4ffc949`. The operator simulated patient review and clarification. The fixed terminal response supplied no urgency, causes or destination. This tested the SDK-backed operator path, without a deployed patient browser or app identity.
+
+The approved lifetime operator ledger is fully consumed at **five physical calls**, and **all six demo attempts remain reserved**. Do not rerun a live smoke check. For a future separately approved check, use an authorized profile and invented inputs, allocate physical calls before dispatch, and record the attempts even if the first request fails. Before enabling patient access, record clinical validation for the intended population and languages, consent and data-handling approval, and explicit deployment and release decisions. Destination navigation also needs verified campus and service evidence and display permission. Passing local or operator checks does not grant those approvals.
 
 Databricks Apps verification covers an authenticated workspace deployment. For an external patient deployment, place the same Streamlit app behind a TLS reverse proxy on a separately approved host. Keep the backend port private and inject secrets into the server process from the host's secret manager. Set the access policy at the proxy and session owner boundary. If session state is in memory, use one replica for an approved limited environment until session affinity or an approved shared encounter store is verified. Check expiry, deletion and restart behavior on the chosen host before opening access.
