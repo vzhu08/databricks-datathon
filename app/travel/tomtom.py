@@ -15,7 +15,10 @@ from threading import Lock
 from email.utils import parsedate_to_datetime
 from urllib.parse import urlencode
 
-from app.ranking.location import coordinates
+if "." in __package__:  # Repository package app.travel
+    from ..ranking.location import coordinates
+else:  # Databricks ships app/ as the import root
+    from ranking.location import coordinates
 from .budget import ALLOCATIONS, ALLOWANCE, SQLiteBudget
 
 PROVIDER = "tomtom"
@@ -213,6 +216,8 @@ class TomTomRoutes:
         c = self.config
         if not c.enabled:
             return "routing_disabled"
+        if c.deployment_mode == "databricks_apps":
+            return "unsupported_budget_deployment"
         if c.product != PRODUCT:
             return "unverified_product_entitlement"
         if not c.api_key:
@@ -363,6 +368,12 @@ class TomTomRoutes:
 def from_environment(environ=None):
     """Backend-only settings. Enable only after approved entitlement and Jaipur checks."""
     env = os.environ if environ is None else environ
+    if any(key in env for key in ("DATABRICKS_APP_NAME", "DATABRICKS_APP_PORT", "DATABRICKS_APP_URL")):
+        # App-local SQLite disappears on restart and is private to each replica.
+        # Keep even an accidental single_host configuration away from the network.
+        if env.get("TOMTOM_ENABLED") == "true":
+            return TomTomRoutes(RoutesConfig(enabled=True, product=PRODUCT, deployment_mode="databricks_apps"))
+        return TomTomRoutes()
     try:
         config = RoutesConfig(enabled=env.get("TOMTOM_ENABLED") == "true",
                               api_key=env.get("TOMTOM_API_KEY", ""),
