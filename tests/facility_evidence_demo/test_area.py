@@ -34,11 +34,23 @@ def edited(change):
 
 
 class AreaLoaderTests(unittest.TestCase):
-    def test_nothing_is_shown_until_an_edition_is_pinned(self):
-        self.assertIsNone(area.AREA_PINNED_SHA256)
+    def test_pin_is_the_cleared_edition_and_never_the_fixture(self):
+        self.assertEqual("0ac26497a9914aa2c42b445f37a2c0e2399fe1c232e3fea38a073d0f5802032f", area.AREA_REAL_SHA256)
+        self.assertEqual(area.AREA_REAL_SHA256, area.AREA_PINNED_SHA256)
+        self.assertNotEqual(SHA, area.AREA_PINNED_SHA256)
         loaded = area.load({area.PATH_SETTING: str(FIXTURE)})
         self.assertEqual("unavailable", loaded["status"])
+        self.assertIn("fingerprint", loaded["reason"])
+
+    def test_nothing_is_shown_without_a_pin(self):
+        with mock.patch.object(area, "AREA_PINNED_SHA256", None):
+            loaded = area.load({area.PATH_SETTING: str(FIXTURE)})
+        self.assertEqual("unavailable", loaded["status"])
         self.assertIn("cleared for this audience", loaded["reason"])
+
+    def test_missing_file_is_unavailable(self):
+        loaded = area.load({area.PATH_SETTING: "/nonexistent/area-display.json"})
+        self.assertEqual("unavailable", loaded["status"])
 
     def test_synthetic_file_loads_and_is_labelled_synthetic(self):
         loaded = load_bytes(RAW, SHA)
@@ -132,6 +144,7 @@ class AreaScreenTests(unittest.TestCase):
         self.assertIn("City only", text)
         self.assertIn("730 of 1,000", text)
         self.assertIn("Every figure in this section is invented", text)
+        self.assertIn("What the private search can do", text)
         self.assertNotIn("Area data unavailable", text)
 
     def test_unpinned_area_is_unavailable_without_hiding_the_walkthrough(self):

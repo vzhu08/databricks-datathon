@@ -144,6 +144,9 @@ def area_view(loaded_area):
          f'<p class="fe-quiet">Out of {esc(a["ids"])} Each record is counted once, at the most specific level '
          "its evidence supports. This view shows no facility pin, travel time, distance order, receiving capacity "
          "or service claim, because an area is not a destination.</p>"
+         "<h3>What the private search can do</h3>"
+         "<p>Inside the team's private records, the search returns each record's supported area and its type. "
+         "That per-record view is not cleared for this page, so only the totals appear here.</p>"
          '<h3>What a richer view needs</h3><ul>'
          "<li>Area names or boundaries cleared for this audience, so each area can be shown by name or on a map.</li>"
          "<li>Reviewed building evidence for a record before it moves from an area to a building.</li>"

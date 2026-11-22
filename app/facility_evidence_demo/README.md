@@ -63,13 +63,13 @@ unknown. It reads its own audience-cleared aggregate:
 FACILITY_AREA_DISPLAY=<path to the cleared area aggregate> FACILITY_EVIDENCE_DISPLAY=... streamlit run app/facility_evidence_demo/app.py
 ```
 
-- The file must match `area.AREA_PINNED_SHA256` and `area_schema.json`. That schema is a proposal for B3/Vincent
-  and holds counts and labels only. It has no field for an area name, boundary, point, travel time, rank,
+- The file must match `area.AREA_PINNED_SHA256` and `area_schema.json`. That schema is B3's cleared shape and holds counts and labels only. It has no field for an area name, boundary, point, travel time, rank,
   capacity or service.
 - The counts must reconcile: the levels sum to the originals, the campus categories to the campus count and
   the reasons to the unknown count.
-- No edition is pinned yet, so the section shows "Area data unavailable" and the rest of the page is
-  unaffected. To enable it, set `AREA_REAL_SHA256` to the cleared file's SHA-256.
+- Pinned to B3's cleared aggregate, SHA-256 `0ac26497…2032f` (#252 comment 7077110474, #270 comment 7077111112).
+  Any other bytes, an unset path or a missing file give "Area data unavailable", and the rest of the page is
+  unaffected.
 - City-only records read "City only", with no neighbourhood or point inferred, as F's acceptance check on
   #270 requires. The campus category says it is not an independently verified building or entrance.
 - A richer view needs area names or boundaries cleared for this audience, and reviewed building evidence.

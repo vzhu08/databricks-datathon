@@ -1,5 +1,5 @@
 {
-  "$comment": "Proposed field schema for the audience-cleared area-view aggregate (#270, #252). Counts and labels only: no row, key, name, address, coordinate, boundary or point. Every object is closed, so any other key puts the area view in its data-unavailable state.",
+  "$comment": "Field schema for the audience-cleared area-view aggregate (#270, #252); B3's cleared edition passes it. Counts and labels only: no row, key, name, address, coordinate, boundary or point. Every object is closed, so any other key puts the area view in its data-unavailable state.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema", "audience", "edition", "as_of", "source", "originals", "distinct_upstream_ids",

@@ -22,8 +22,8 @@ except ImportError:  # run as a script by Streamlit
 HERE = Path(__file__).resolve().parent
 SCHEMA = json.loads((HERE / "area_schema.json").read_text(encoding="utf-8"))
 PATH_SETTING = "FACILITY_AREA_DISPLAY"
-# None until B3/Vincent clear an area edition for this audience and post its SHA-256 on #270.
-AREA_REAL_SHA256 = None
+# B3's cleared area aggregate for the judge walkthrough, #252 (comment 7077110474) and #270 (comment 7077111112).
+AREA_REAL_SHA256 = "0ac26497a9914aa2c42b445f37a2c0e2399fe1c232e3fea38a073d0f5802032f"
 AREA_PINNED_SHA256 = AREA_REAL_SHA256  # what load() accepts; only tests ever change it
 
 # Most specific first. Each row: key, label, what the label means on screen.
