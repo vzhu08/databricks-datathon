@@ -11,6 +11,11 @@ import json
 import re
 from pathlib import Path
 
+try:  # as a module of the app package (tests) or beside app.py (the deployed folder)
+    from . import storm_plan
+except ImportError:
+    import storm_plan
+
 STORM = "Storm demo (simulated)"
 SOURCE = Path(__file__).resolve().parent / "storm_ui"
 HEIGHT = 1500
@@ -21,6 +26,7 @@ HOW = ("Press Play or Next to run one shift, or Skip to the result to reach the 
        "always sends each patient to the nearest campus. The right side may send a routine patient a little "
        "farther to keep the last specialist slot free for someone urgent. Select a patient in the table to see why "
        "each side chose as it did. Show as: Text only gives the same replay without the maps.")
+REPLAY = "Checked 8-request replay"
 UNAVAILABLE = "The storm replay files are not in this deployment, so the replay cannot be shown."
 NAMES = {"nearest_first": "Nearest first", "scarcity_aware": "Urgency-aware"}
 # The offline page links to its sibling pages. Inside the hosted app those files are not served, so the
@@ -84,6 +90,15 @@ def document(source=SOURCE):
 def render(st):
     """Draw the page. Called by app.py before any patient or facility code runs."""
     st.title("Storm demo")
+    try:  # the planning simulation is offered only once a results file that holds together is present
+        plan = storm_plan.load()
+    except storm_plan.Unavailable:
+        plan = None
+    if plan is not None:
+        views = [REPLAY, storm_plan.choice(plan)]
+        if st.radio("Storm view", views, horizontal=True, key="storm_view", label_visibility="collapsed") != REPLAY:
+            storm_plan.render(st, plan)
+            return
     st.warning(SIMULATED)
     try:
         summary, page = headline(bundle()), document()

@@ -70,10 +70,13 @@ to this single row cannot both commit against the same revision. The client
 recomputes its decision from durable state after an acknowledged zero-row
 update or a known terminal Delta write conflict, up to three attempts total.
 Only a complete successful UPDATE returning one affected row authorizes a
-provider send. The SQL transport submits each statement once.
+provider send. The SQL transport submits each statement once. If the API
+returns a pending or running statement after its initial five-second wait,
+the transport polls that same statement ID within a 15-second client deadline.
 
 On a missing, canceled or ambiguous write acknowledgment, the caller receives
-no permit. A possibly committed charge and active permit are retained. Each
+no permit. A statement can still complete after polling ends. A possibly
+committed charge and active permit are retained. Each
 active permit counts against concurrency and rate limits until released.
 Completed attempts retain their rate slot from the recorded finish time.
 When a known 429 strike and an active permit coexist, additional admission
@@ -98,9 +101,12 @@ explicitly releases its unspent balance.
 
 A successful attempt requires four SQL statements: a read and an update to
 admit, and a read and an update to finish. The adapter also reads usage once
-per batch. Conflicts and denied admissions add reads. Each statement waits
-up to five seconds at the API, and a cold or busy warehouse can fail
-admission. Measure stopped and warm warehouse latency with synthetic
+per batch. Conflicts and denied admissions add reads. Polling adds status
+requests for an existing statement. A cold or busy warehouse can still fail
+admission. Server logs record fixed SQL outcomes, submission and poll counts,
+and elapsed milliseconds (debug for immediate success, info for delayed
+success and write conflicts, warning for unavailable results).
+Measure stopped and warm warehouse latency with synthetic
 admissions and a fake provider. For a normal search with three eligible
 campuses, expect 13 SQL statements before any retries, or 25 if all three
 provider calls retry once. Use measured end-to-end latency before activation.
