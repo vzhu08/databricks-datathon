@@ -496,6 +496,23 @@ class ScreenTests(unittest.TestCase):
         app = self.run_(next(radio for radio in app.radio if radio.key == "view").set_value("Check symptoms"))
         self.assertFalse([node for node in app.markdown if "data-plan=" in node.value])
 
+    def test_one_line_above_the_switch_says_what_the_two_views_are(self):
+        import storm_page as page
+        self.assertEqual([], [note.value for note in self.storm().caption if "Two views" in note.value])
+        self.file.write_text(json.dumps(plan()), encoding="utf-8")
+        app = self.storm()
+        expected = page.views_note(plan())
+        self.assertIn("tests how many of 6 simulated patients each policy can place across 3 real site locations",
+                      expected)
+        self.assertNotIn("places 6", expected)  # the count is who asked, not who was placed
+        for choice in (0, 1):  # the same line on both views, counted from the file
+            app = self.run_(self.views(app)[0].set_value(self.views(app)[0].options[choice]))
+            self.assertEqual([expected], [note.value for note in app.caption if "Two views" in note.value])
+        invented = plan()
+        invented["geography"]["location_basis"] = "synthetic"
+        self.assertIn("across 3 simulated sites", page.views_note(invented))
+        self.assertNotIn("real", page.views_note(invented))
+
 
 if __name__ == "__main__":
     unittest.main()
