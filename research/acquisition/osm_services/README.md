@@ -70,6 +70,8 @@ trauma provision. Categories count objects nonexclusively; one object can have
 several raw claims or conflicting categories.
 The lexicon covers the listed English spellings/tokens; it does not translate
 unrecognized languages or assert that all unrecognized tag grammars were found.
+Negation/lifecycle/scope categories are conservative text-screen flags for review,
+not semantic adjudications of an entire sentence or a current campus status.
 
 All observations have `patient_status=unconfirmed`, no adjudicated campus or VF
 ID, and no inferred service observation date. Map edit dates, source versions,

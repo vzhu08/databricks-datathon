@@ -48,7 +48,7 @@ def load(path, expected_sha=FROZEN_SHA256):
     edition = {'publisher': 'HOT / OSM / Geofabrik', 'source_url': URL, 'sha256': actual,
                'byte_length': len(raw), 'snapshot_date': metadata['properties'].get('oex:snapshot'),
                'artifact_created': metadata['properties'].get('created'),
-               'first_retrieved_at': '2026-11-21T18:04:39.155206Z',
+               'first_retrieved_at': '2026-11-21T18:04:39.155206Z' if actual == FROZEN_SHA256 else None,
                'publication_date': None, 'license': metadata['properties']['license'],
                'config_sha256': sha256(config.encode()).hexdigest(),
                'source_metadata': metadata['properties']}
