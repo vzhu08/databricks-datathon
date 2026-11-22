@@ -15,7 +15,10 @@ from threading import Lock
 from email.utils import parsedate_to_datetime
 from urllib.parse import urlencode
 
-from app.ranking.location import coordinates
+if "." in __package__:  # Repository package app.travel
+    from ..ranking.location import coordinates
+else:  # Databricks ships app/ as the import root
+    from ranking.location import coordinates
 from .budget import ALLOCATIONS, ALLOWANCE, SQLiteBudget
 
 PROVIDER = "tomtom"
@@ -213,13 +216,16 @@ class TomTomRoutes:
         c = self.config
         if not c.enabled:
             return "routing_disabled"
+        if c.deployment_mode == "databricks_apps" or (
+                c.deployment_mode == "databricks_delta" and isinstance(self.budget, SQLiteBudget)):
+            return "unsupported_budget_deployment"
         if c.product != PRODUCT:
             return "unverified_product_entitlement"
         if not c.api_key:
             return "missing_credentials"
         if not c.account_scope.strip():
             return "missing_approved_account"
-        if c.deployment_mode != "single_host":
+        if c.deployment_mode not in ("single_host", "databricks_delta"):
             return "unsupported_budget_deployment"
         if c.verified_monthly_allowance != ALLOWANCE:
             return "unverified_allocation"
@@ -363,6 +369,14 @@ class TomTomRoutes:
 def from_environment(environ=None):
     """Backend-only settings. Enable only after approved entitlement and Jaipur checks."""
     env = os.environ if environ is None else environ
+    mode = env.get("TOMTOM_DEPLOYMENT_MODE", "")
+    in_app = any(key in env for key in ("DATABRICKS_APP_NAME", "DATABRICKS_APP_PORT", "DATABRICKS_APP_URL"))
+    if in_app and mode != "databricks_delta":
+        # App-local SQLite disappears on restart and is private to each replica.
+        # Keep even an accidental single_host configuration away from the network.
+        if env.get("TOMTOM_ENABLED") == "true":
+            return TomTomRoutes(RoutesConfig(enabled=True, product=PRODUCT, deployment_mode="databricks_apps"))
+        return TomTomRoutes()
     try:
         config = RoutesConfig(enabled=env.get("TOMTOM_ENABLED") == "true",
                               api_key=env.get("TOMTOM_API_KEY", ""),
@@ -373,7 +387,7 @@ def from_environment(environ=None):
                               query_calls=int(env.get("TOMTOM_QUERY_CALLS", "50")),
                               concurrency=int(env.get("TOMTOM_CONCURRENCY", "2")),
                               verified_monthly_allowance=int(env.get("TOMTOM_VERIFIED_MONTHLY_ALLOWANCE", "0")),
-                              deployment_mode=env.get("TOMTOM_DEPLOYMENT_MODE", ""),
+                              deployment_mode=mode,
                               profile=env.get("TOMTOM_PROFILE", "routine"),
                               run_id=env.get("TOMTOM_RUN_ID"),
                               rate_wait_seconds=float(env.get("TOMTOM_RATE_WAIT_SECONDS", "65")),
@@ -382,6 +396,19 @@ def from_environment(environ=None):
                               shortlist_limit=int(env.get("TOMTOM_SHORTLIST_LIMIT", "25")))
     except (TypeError, ValueError):
         raise ValueError("Invalid backend routing configuration; check operator settings") from None
-    path = env.get("TOMTOM_BUDGET_DB")
-    budget = SQLiteBudget(path, verified_allowance=config.verified_monthly_allowance) if config.enabled and path else None
+    budget = None
+    if config.enabled and mode == "databricks_delta":
+        warehouse = env.get("TOMTOM_BUDGET_WAREHOUSE_ID")
+        table = env.get("TOMTOM_BUDGET_TABLE")
+        if warehouse and table and config.account_scope.strip():
+            try:
+                from .delta_budget import DeltaBudget
+            except ModuleNotFoundError as exc:
+                if exc.name != f"{__package__}.delta_budget":
+                    raise
+                return TomTomRoutes(config)  # Incomplete selective deployment; no budget, no sends.
+            budget = DeltaBudget(warehouse, table, account_scope=config.account_scope,
+                                 verified_allowance=config.verified_monthly_allowance)
+    elif config.enabled and mode == "single_host" and env.get("TOMTOM_BUDGET_DB"):
+        budget = SQLiteBudget(env["TOMTOM_BUDGET_DB"], verified_allowance=config.verified_monthly_allowance)
     return TomTomRoutes(config, budget=budget)
