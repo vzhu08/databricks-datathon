@@ -69,7 +69,7 @@ def _tools(labels):
     return set(labels)
 
 
-def _instance_edges(data):
+def _instance_edges(data, *, travel_ticks=None, ticks_per_second=1):
     """Build both policies' common feasible edge list with integer-second boundaries."""
     horizon = data["scenario"]["horizon_minutes"]
     if not _integer(horizon, 1):
@@ -97,12 +97,17 @@ def _instance_edges(data):
             slots[sid] = (fid, slot)
         facility["resources"] = list(resources.values())
 
-    explicit = data.get("travel_seconds")
+    if not _integer(ticks_per_second, 1) or (travel_ticks is None and ticks_per_second != 1):
+        raise ValueError("An explicit tick matrix is required for subsecond travel")
+    if travel_ticks is not None and "travel_seconds" in data:
+        raise ValueError("Supply either whole seconds or a tick matrix")
+    explicit = travel_ticks if travel_ticks is not None else data.get("travel_seconds")
     if explicit is not None and (not isinstance(explicit, dict) or set(explicit) - patients.keys()):
         raise ValueError("Travel seconds must be keyed by known patient ID")
     if explicit is None and data["scenario"].get("speed_kmh") != SPEED_KMH:
         raise ValueError("Supply a modelled travel matrix or declare the supported synthetic speed")
 
+    minute_ticks = 60 * ticks_per_second
     options, blocked = {}, {}
     for pid, patient in patients.items():
         service = patient.get("service")
@@ -131,12 +136,13 @@ def _instance_edges(data):
                 continue
             timed += 1
             appointment = slot["start_minute"]
-            if start * 60 + seconds <= appointment * 60 <= deadline * 60:
+            if start * minute_ticks + seconds <= appointment * minute_ticks <= deadline * minute_ticks:
                 eligible.append(_Option(fid, sid, appointment, seconds))
         options[pid] = sorted(eligible, key=lambda o: (o.seconds, o.start, o.facility, o.slot_id))
         blocked[pid] = ("compatible_slots_exhausted" if eligible
                         else "no_matching_service_or_tools" if not fitting
-                        else "modelled_travel_unknown" if not timed else "outside_appointment_window")
+                        else ("traffic_travel_unavailable" if travel_ticks is not None else "modelled_travel_unknown")
+                        if not timed else "outside_appointment_window")
     return facilities, patients, slots, options, blocked
 
 
@@ -215,7 +221,11 @@ def _nearest(patients, slots, options):
     return picked
 
 
-def _output(patients, slots, blocked, assigned):
+def _in_seconds(ticks, scale):
+    return ticks // scale if ticks % scale == 0 else ticks / scale
+
+
+def _output(patients, slots, blocked, assigned, scale=1):
     bookings = []
     unmet = []
     by_priority = {priority: {"assigned": 0, "unmet": 0} for priority in URGENCY_ORDER}
@@ -231,13 +241,14 @@ def _output(patients, slots, blocked, assigned):
         used[option.slot_id] += 1
         bookings.append({"patient": pid, "facility": option.facility, "service": patient["service"],
                          "slot_id": option.slot_id, "slot_start_minute": option.start,
-                         "travel_seconds": option.seconds, "travel_minutes": option.seconds / 60})
+                         "travel_seconds": _in_seconds(option.seconds, scale),
+                         "travel_minutes": option.seconds / (60 * scale)})
     return {
         "assignments": bookings,
         "unserved": unmet,
         "metrics": {
             "assigned": len(bookings), "unmet": len(unmet), "by_priority": by_priority,
-            "total_travel_seconds": sum(row["travel_seconds"] for row in bookings),
+            "total_travel_seconds": _in_seconds(sum(row.seconds for row in assigned.values()), scale),
             "sites_assigned": len({row["facility"] for row in bookings}),
             "resources_used": [
                 {"slot_id": sid, "facility": fid, "service": slot["service"],
@@ -264,11 +275,17 @@ def _validate_geography(geography):
             raise ValueError("Public-source geography requires attribution")
 
 
-def solve(instance):
-    """Return both policies' storm-plan-v1 results without modifying the input."""
+def solve(instance, *, travel_ticks=None, ticks_per_second=1):
+    """Return both storm-plan-v1 policies.
+
+    A request-scoped traffic matrix can be supplied as integer ticks so both
+    policies use the exact same fractional-second arrivals and costs.
+    """
     data = deepcopy(instance)
     _validate_geography(data["geography"])
-    facilities, patients, slots, options, blocked = _instance_edges(data)
+    facilities, patients, slots, options, blocked = _instance_edges(
+        data, travel_ticks=travel_ticks, ticks_per_second=ticks_per_second,
+    )
     return {
         "schema_version": SCHEMA_VERSION,
         "geography": data["geography"],
@@ -276,8 +293,10 @@ def solve(instance):
         "facilities": list(facilities.values()),
         "patients": list(patients.values()),
         "policies": {
-            "nearest_first": _output(patients, slots, blocked, _nearest(patients, slots, options)),
-            "exact_optimum": _output(patients, slots, blocked, _exact(patients, slots, options)),
+            "nearest_first": _output(patients, slots, blocked, _nearest(patients, slots, options),
+                                     ticks_per_second),
+            "exact_optimum": _output(patients, slots, blocked, _exact(patients, slots, options),
+                                      ticks_per_second),
         },
     }
 
