@@ -84,13 +84,25 @@ class AssessmentTests(unittest.TestCase):
         self.exchange.assert_not_called()
 
     def test_confirmed_current_warning_overrides_negative_screen_before_final_call(self):
-        quote = "I have chest pressure now."
-        self.start(quote)
-        self.exchange.side_effect = [result(extraction(quote)), result(differential())]
-        self.answer("no")
-        self.answer("confirm")
-        self.assertEqual(self.reply["urgency"], "emergency_ambulance")
-        self.assertEqual(self.exchange.call_count, 1)
+        for quote in ("I have chest pressure now.", "There is heavy pressure right in the middle of my chest.",
+                      "My chest has felt very tight since this morning."):
+            self.start(quote)
+            self.exchange.side_effect = [result(extraction(quote)), result(differential())]
+            self.answer("no")
+            self.answer("confirm")
+            self.assertEqual(self.reply["urgency"], "emergency_ambulance")
+            self.assertNotIn("continuation", self.reply)
+        self.assertEqual(self.exchange.call_count, 3)
+
+    def test_nonspecific_confirmed_rows_cannot_support_causes(self):
+        for quote in ("Something is wrong.", "I feel different today."):
+            self.start(quote)
+            self.exchange.side_effect = [result(extraction(quote)), result(differential())]
+            for answer in ("no", "confirm", "unchanged"):
+                self.answer(answer)
+            self.assertEqual(self.reply["state"], "provider_stop")
+            self.assertNotIn("possible_causes", self.reply)
+        self.assertEqual(self.exchange.call_count, 2)
 
     def test_grounding_dispute_unknown_and_history_only_suppress_differential(self):
         for decision, presence, time in (("disagree", "present", "current"), ("uncertain", "present", "current"),
@@ -122,7 +134,7 @@ class AssessmentTests(unittest.TestCase):
         self.assertEqual(self.exchange.call_count, 2)
 
     def test_complete_response_strict_schema_and_evidence_index(self):
-        payload = {"reviewed": [{"quote": "A", "presence": "present", "temporality": "current"},
+        payload = {"reviewed": [{"quote": "My head hurts.", "presence": "present", "temporality": "current"},
                                 {"quote": "B", "presence": "present", "temporality": "historical"}]}
         self.start()
         base = differential()

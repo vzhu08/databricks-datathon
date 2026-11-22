@@ -19,6 +19,22 @@ _WARNING_WORDS = re.compile(
     r"(?:blue|grey|gray) lips|(?:facial?|face) droop(?:ing)?|one[- ]sided weakness|slurred speech)\b", re.I
 )
 
+# Word order varies ("my chest feels heavy", "pressure in the middle of my chest").
+# Require pressure/heaviness and the anatomical site on the same confirmed line.
+_CHEST = re.compile(r"\bchest\b", re.I)
+_PRESSURE = re.compile(r"\b(?:press(?:ure|ing)|squeez(?:e|ing)|tight(?:ness)?|heavy|heaviness)\b", re.I)
+
+# Positive allowlist for supporting rows. Unrecognized symptom descriptions abstain.
+# This is a minimum specificity check, not a symptom-to-condition mapping.
+_SYMPTOM = re.compile(
+    r"\b(?:pain(?:ful)?|hurts?|ach(?:e|es|ing)|headaches?|migraines?|sore(?:ness)?|cramps?|"
+    r"itch(?:y|es|ing)?|rash(?:es)?|swell(?:ing)?|swollen|stiff(?:ness)?|"
+    r"cough(?:s|ing)?|sneez(?:e|es|ing)|congest(?:ed|ion)|runny nose|sore throat|"
+    r"fever(?:ish)?|chills|wheez(?:e|es|ing)|breathless(?:ness)?|short of breath|"
+    r"nause(?:a|ous)|vomit(?:s|ing)?|diarrh(?:ea|oea)|heartburn|dizz(?:y|iness)|"
+    r"fatigue(?:d)?|tired(?:ness)?|burn(?:s|ing)?|numb(?:ness)?|tingl(?:es|ing))\b", re.I
+)
+
 # Closed output vocabulary prevents model-authored instructions, orders or probabilities
 # from appearing in a cause label. The model selects a differential afresh or abstains.
 _CAUSES = (
@@ -84,16 +100,18 @@ class DatabricksAssessmentProvider(DatabricksInterviewProvider):
                                   "A clinician can help assess your symptoms.")
         if pos > 0:
             review = data["patient_evidence"][-1]
+            quote = review["candidate"]["label"]
             if (review["patient_presence"] == "present" and review["candidate"]["temporality"] == "current"
-                    and _WARNING_WORDS.search(review["candidate"]["label"])):
+                    and (_WARNING_WORDS.search(quote) or (_CHEST.search(quote) and _PRESSURE.search(quote)))):
                 return self._emergency()
         return super()._issue(data, plan, pos)
 
     def _finish(self, data, payload):
         eligible = {i for i, row in enumerate(payload["reviewed"])
-                    if row["presence"] == "present" and row["temporality"] == "current"}
+                    if row["presence"] == "present" and row["temporality"] == "current"
+                    and _SYMPTOM.search(row["quote"])}
         if not eligible:
-            return self._stop("No current symptom was confirmed to assess. Speak with a clinician if concerned.")
+            return self._stop("There is too little specific information about a current symptom. Describe what you feel, where and when, or speak with a clinician.")
         # The reviewed rows carry literal quotes, not normalized clinical concepts.
         # Opposite current polarities cannot reliably be reconciled by row ID.
         if any(row["presence"] == "absent" and row["temporality"] == "current" for row in payload["reviewed"]):
