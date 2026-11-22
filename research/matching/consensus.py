@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import lru_cache
 import gzip
 from hashlib import file_digest, sha256
 import json
+from itertools import combinations
 from math import floor, isfinite
 from pathlib import Path
 import re
@@ -16,7 +18,7 @@ from tempfile import TemporaryDirectory
 from research.geography.distance import haversine_m
 from research.matching.normalize import fold, name_evidence, pin_key, state_key, tokens
 from research.matching.national import NO_STATE, NOT_A_STATE, STATES
-from research.matching.premises import MISSING
+from research.matching.premises import MISSING, derive
 
 
 SITE_RADIUS_M = 150
@@ -137,6 +139,7 @@ class Candidate:
 class RegistryBranches:
     supporting_references: set[str]
     competing_references: set[str]
+    supporting_registry_references: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
 def same_site(left, right, address_agreement=None):
@@ -224,15 +227,35 @@ def original_area(original):
 
 
 def matched_site_address(candidates):
-    """Find a civic address shared by two source families in the same site."""
-    families = defaultdict(set)
+    """Return records witnessing one shared civic address in the selected site."""
+    addresses = defaultdict(list)
     for candidate in candidates:
         ref = candidate.reference
         if ref.civic_address and candidate.votes and ref.family:
             for kind, value in (("pin", ref.pin), ("city", ref.city)):
                 if value:
-                    families[(directory_address(ref.civic_address), kind, value)].add(ref.family)
-    return any(len(sources) >= 2 for sources in families.values())
+                    addresses[(directory_address(ref.civic_address), kind, value)].append(candidate)
+    witnessed = (sorted(items, key=rank_candidate) for items in addresses.values()
+                 if len({item.reference.family for item in items}) >= 2)
+    return min(witnessed, key=lambda items: tuple(map(rank_candidate, items)), default=[])
+
+
+@lru_cache(maxsize=16_384)
+def recorded_streets(address):
+    if not address:
+        return frozenset()
+    fields = [{"role": "address", "field": "address_original", "ordinal": None, "raw": address}]
+    evidence = derive({"state": None, "pin": None, "coord": {"usable": False}}, fields, None)
+    return frozenset(evidence["streets"]) if not evidence["mixed_campus"] else frozenset()
+
+
+def street_ambiguities(site):
+    """Retain address disagreements among nearby records that v4 grouped together."""
+    streets = {item.reference.id: recorded_streets(item.reference.address) for item in site
+               if item.reference.coordinates}
+    comparable = sorted(ref for ref, labels in streets.items() if len(labels) == 1)
+    return [{"reason": "different_structured_streets", "references": [left, right]}
+            for left, right in combinations(comparable, 2) if streets[left].isdisjoint(streets[right])]
 
 
 def directory_location(candidates, original, original_conflict, supplement):
@@ -249,29 +272,45 @@ def directory_location(candidates, original, original_conflict, supplement):
         for index, site in enumerate(plausible):
             clean = [item for item in site if not (item.contradicts_base or item.branch_conflict)]
             anchors = [item for item in clean if item.location_basis]
-            address_corroboration = bool(supplement and any(
-                item.reference.id in supplement.supporting_references for item in clean))
-            if not (anchors or address_corroboration or matched_site_address(clean)):
+            registry_witnesses = [item for item in clean if supplement and
+                                  item.reference.id in supplement.supporting_references]
+            civic_witnesses = matched_site_address(clean)
+            if not (anchors or registry_witnesses or civic_witnesses):
                 continue
             rivals = {family for family, indexes in source_sites.items() if indexes - {index}}
             if supplement and any(item.reference.id in supplement.competing_references for item in site):
                 rivals.add("nhp")
             support = {item.reference.family for item in clean if item.votes and item.reference.family}
-            if address_corroboration:
+            if registry_witnesses:
                 support.add("nhp")
             support -= rivals
             if rivals and (len(rivals) > 1 or len(support) <= len(rivals)):
                 continue
-            preferred = min(anchors or clean,
-                            key=lambda item: (item.location_basis != "matching_branch_address",
-                                              *rank_candidate(item)))
+            def evidence_rank(item):
+                return (item.location_basis != "matching_branch_address", *rank_candidate(item))
+
+            preferred = min(anchors or registry_witnesses + civic_witnesses, key=evidence_rank)
             ref = preferred.reference
+            basis = preferred.location_basis or "matching_branch_address"
+            witnesses = [ref.id]
+            registry_references = ()
+            if basis == "matching_branch_address":
+                if preferred in civic_witnesses:
+                    witnesses = sorted(item.reference.id for item in civic_witnesses)
+                if supplement:
+                    registry_references = supplement.supporting_registry_references.get(ref.id, ())
+            display = min(anchors or clean, key=evidence_rank).reference
             return {
                 "status": "campus_located",
-                "basis": preferred.location_basis or "matching_branch_address",
+                "basis": basis,
                 "reference": ref.id,
                 "address": ref.address,
                 "coordinates": ref.coordinates,
+                "basis_references": witnesses,
+                "registry_basis_references": list(registry_references),
+                "map_display_point": {"reference": display.id, "coordinates": display.coordinates}
+                if display.coordinates else None,
+                "premises_ambiguities": street_ambiguities(site),
                 "supporting_families": sorted(support),
                 "competing_families": sorted(rivals),
             }
@@ -455,16 +494,19 @@ def registry_branches(path, occurrences):
                 comparison["occurrence_key"], comparison["representative"], comparison["state"]):
             raise ValueError("Registry comparison and original occurrences do not reconcile")
         support, rivals = set(), set()
+        witnesses = defaultdict(set)
         for detail in comparison.get("details", []):
             if detail["source"] not in {"nhp_official_only", "blood"}:
                 raise ValueError("Unexpected registry comparison source")
             matched = detail["compatible_incumbent_keys"] if not detail["original_conflict"] else []
             if detail["source"] == "nhp_official_only":
                 support.update(matched)
+                for reference in matched:
+                    witnesses[reference].add(detail["key"])
             if matched or detail["alternative"] or (detail["leader_conflict"] and
                     comparison["outcome"] == "ambiguous_host_or_branch"):
                 rivals.update(detail["incompatible_serious_incumbent_keys"])
-        branches = RegistryBranches(support, rivals)
+        branches = RegistryBranches(support, rivals, {key: tuple(sorted(refs)) for key, refs in witnesses.items()})
         if supplements.setdefault(representative, branches) != branches:
             raise ValueError("Identical occurrences disagree in the registry comparison")
     return supplements
@@ -535,6 +577,7 @@ def run(replay, occurrences_path, batches, projection, output, insurer_links=Non
     totals, by_state, transitions = Counter(), defaultdict(Counter), defaultdict(Counter)
     locations, location_bases, locations_by_state = Counter(), defaultdict(Counter), defaultdict(Counter)
     campus_competition = Counter()
+    street_disagreements = Counter()
     if output.exists():
         raise FileExistsError(output)
     with TemporaryDirectory(dir=output.parent) as temp:
@@ -554,6 +597,9 @@ def run(replay, occurrences_path, batches, projection, output, insurer_links=Non
                 locations_by_state[row["state"]][status] += 1
                 if status == "campus_located":
                     campus_competition["outvoted_one" if location["competing_families"] else "no_rival"] += 1
+                    if location["premises_ambiguities"]:
+                        street_disagreements["occurrences"] += 1
+                        street_disagreements["reference_pairs"] += len(location["premises_ambiguities"])
                 old_outcome = old_outcomes.get(row["facility_id"])
                 if old_outcome:
                     transitions[old_outcome][category] += 1
@@ -568,6 +614,8 @@ def run(replay, occurrences_path, batches, projection, output, insurer_links=Non
                   "location_statuses": {key: locations[key] for key in LOCATION_STATUSES},
                   "location_bases": location_bases,
                   "campus_competition": {key: campus_competition[key] for key in ("no_rival", "outvoted_one")},
+                  "campus_premises_ambiguities": {key: street_disagreements[key]
+                                                for key in ("occurrences", "reference_pairs")},
                   "location_by_state": {
                       state: {status: locations_by_state[state][status] for status in LOCATION_STATUSES}
                       for state in LOCATION_STATE_BUCKETS | locations_by_state.keys()},

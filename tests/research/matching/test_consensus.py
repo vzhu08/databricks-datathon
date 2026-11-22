@@ -76,6 +76,41 @@ class CampusConsensusTests(unittest.TestCase):
         self.assertEqual(result["basis"], "matching_branch_address")
         self.assertIsNone(result["coordinates"])
 
+    def test_selects_shared_civic_witnesses_ahead_of_display_only_reference(self):
+        records = [candidate("map", "a-no-address", plausible=True),
+                   candidate("directory", "b-explicit", address="5 Defence Colony Road", plausible=True),
+                   candidate("registry", "c-explicit", address="5 Defence Colony Rd.", plausible=True)]
+        result = classify(records)["directory_location"]
+        self.assertEqual(result["basis"], "matching_branch_address")
+        self.assertEqual(result["reference"], "b-explicit")
+        self.assertEqual(result["address"], "5 Defence Colony Road")
+        self.assertEqual(result["basis_references"], ["b-explicit", "c-explicit"])
+        self.assertEqual(result["map_display_point"]["reference"], "a-no-address")
+
+    def test_selects_registry_address_witness_ahead_of_display_only_reference(self):
+        records = [candidate("map", "a-no-address", plausible=True),
+                   candidate("directory", "b-explicit", address="5 Defence Colony Road", plausible=True)]
+        registry = RegistryBranches({"b-explicit"}, set(), {"b-explicit": ("nhp:fixture",)})
+        result = classify(records, supplement=registry)["directory_location"]
+        self.assertEqual(result["basis"], "matching_branch_address")
+        self.assertEqual(result["reference"], "b-explicit")
+        self.assertEqual(result["address"], "5 Defence Colony Road")
+        self.assertEqual(result["basis_references"], ["b-explicit"])
+        self.assertEqual(result["registry_basis_references"], ["nhp:fixture"])
+        self.assertEqual(result["map_display_point"]["reference"], "a-no-address")
+
+    def test_retains_nearby_street_conflict_when_house_numbers_are_missing(self):
+        records = [candidate("osm", "map", address="Defence Colony Road",
+                             basis="named_map_listing", plausible=True),
+                   candidate("registry", "nearby", point=(13.0101, 80.19), plausible=True,
+                             address="Gandhi Nagar Road")]
+        self.assertTrue(all(record.reference.civic_address is None for record in records))
+        result = classify(records)["directory_location"]
+        self.assertEqual(result["status"], "campus_located")
+        self.assertEqual(result["competing_families"], [])
+        self.assertEqual(result["premises_ambiguities"], [
+            {"reason": "different_structured_streets", "references": ["map", "nearby"]}])
+
     def test_only_one_competing_family_can_be_outvoted(self):
         first = candidate("osm", "map", basis="named_map_listing", plausible=True)
         corroborating = candidate("registry", "registry", plausible=True)
