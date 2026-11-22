@@ -38,7 +38,7 @@ import find_decision as decisions  # noqa: E402
 import finding_provenance as provenance  # noqa: E402
 import national_directory  # noqa: E402
 import patient_ui  # noqa: E402
-from public_facility_search import search_public_facilities  # noqa: E402
+from public_facility_search import covered as public_coverage, search_public_facilities  # noqa: E402
 import storm_page  # noqa: E402
 from data_access import search_warehouse  # noqa: E402
 from ranking import search_facilities  # noqa: E402
@@ -57,6 +57,17 @@ NOTICES = str(os.environ.get(NOTICES_SETTING) or "").strip()
 TRAFFIC_ON = os.environ.get("TOMTOM_ENABLED") == "true" and bool(CAPTION) and bool(NOTICES)
 TRAVEL_SOURCES = {True: f"Road time with traffic ({capacity.TRAFFIC_SOURCE}, ordinary car)",
                   False: "Simulated minutes"}
+# How a public-source result comes about, in the order a reader can check it.
+PUBLIC_HOW = (
+    "The collection holds a few claims paraphrased from hospital operators' own web pages. Each links to the "
+    "page it came from and gives the day that page was checked.",
+    "A claim is listed when its city is the one you typed and the service you typed is a wording that page "
+    "supports. Nothing else is matched or guessed.",
+    "Claims are shown in the collection's own order. They are not ranked, and the order says nothing about "
+    "quality.",
+    "An operator's page is not a check of today's service. Availability, staffing, appointments and the "
+    "entrance are unknown, so the next step is always a phone call.",
+)
 RECOMMEND, LOOKUP = "recommend", "lookup"
 MODES = {RECOMMEND: "Recommend a campus", LOOKUP: "Look up the example records"}
 DATA = words.data_mode(os.environ)
@@ -319,15 +330,13 @@ def note_evidence(card, service, group, index):
     mapped = finding(st.session_state.get("response"), service, group, index)
     if not mapped:
         return []
-    found, lines, references = words.claim_view(mapped, service, card["place"]), [], []
+    found, lines = words.claim_view(mapped, service, card["place"]), []
     for claim in (found["location"], found["service"]):
         lines.append(f"{claim['label']} evidence: {claim['line']} ({claim['counts']}.)")
-        references += [source["reference"] for source in claim["sources"] if source["reference"]]
     for source in found["location"]["sources"]:
         if source["citation"]:
             lines.append(f"Location citation: {source['citation']}. {words.citation_scope_note(source['citation_scope'])}")
-    for reference in dict.fromkeys(references):
-        lines.append(f"{words.RECORD_REFERENCE}: {reference} ({words.RECORD_LINK_NOTE})")
+    # The service statement's own citation is already on the script's "Citation" line, so it is not repeated.
     return lines
 
 
@@ -529,6 +538,7 @@ elif DATA["mode"] in ("warehouse", "setup"):
 lookup_mode = st.radio("Find care mode", lookup_modes, horizontal=True, key="lookup_source")
 if lookup_mode == "Public facility evidence":
     st.caption("Search the reviewed public-source collection by city and service. Coverage is limited.")
+    st.markdown(f'<div class="fc-emergency">{safe(patient_ui.EMERGENCY)}</div>', unsafe_allow_html=True)
     place = st.text_input("City", value="Pune", max_chars=120)
     service = st.text_input("Service", value="maintenance haemodialysis", max_chars=120)
     if st.button("Search public sources", type="primary"):
@@ -538,7 +548,14 @@ if lookup_mode == "Public facility evidence":
             st.error("Public facility evidence is currently unavailable.")
         else:
             if not claims:
-                st.info("This collection has no reviewed public claim for that city and service.")
+                try:
+                    holds = "; ".join(f"{city} ({', '.join(name.lower() for name in names)})"
+                                      for city, names in public_coverage().items())
+                except (OSError, ValueError):
+                    holds = ""
+                st.info("This collection has no reviewed public claim for that city and service. "
+                        + (f"It currently holds claims for: {holds}. " if holds else "")
+                        + "A miss here does not mean that no facility offers the service.")
             for claim in claims:
                 st.subheader(claim["operator"])
                 st.write(claim["service"])
@@ -547,8 +564,12 @@ if lookup_mode == "Public facility evidence":
                 st.write(f"Page checked {claim['checked_on']}. Treatment observation date unknown.")
                 st.write("Current availability, staffing, appointment acceptance and exact entrance are unknown.")
                 st.caption("Source scope: public operator evidence. No reviewed match to a Virtue Foundation record.")
-                st.write(f"Call the published {claim['contact_label'].lower()} ({claim['contact_phone']}) "
-                         "to confirm the service and current availability.")
+                st.markdown("**Next step.** " + plain(
+                    f"Call the published {claim['contact_label'].lower()} ({claim['contact_phone']}) "
+                    "to confirm the service and current availability."))
+            if claims:
+                st.subheader("How this was decided")
+                st.markdown("\n".join(f"{number}. {plain(rule)}" for number, rule in enumerate(PUBLIC_HOW, start=1)))
     national_directory.render(st, HERE, False)
     st.stop()
 if DATA["mode"] == "setup":
@@ -558,8 +579,12 @@ if DATA["mode"] == "setup":
     st.caption(f"To run on the invented demonstration facilities instead, set {words.DATA_SETTING} to demo.")
     st.stop()
 if DEMO:
-    st.markdown('<div class="fc-lede">Say what care a patient needs, how urgent it is and where they start. You '
-                "get one campus to send them to, chosen by free staffed places and travel time.</div>"
+    # The opening line describes the job the form is doing now, so the lookup never promises a destination.
+    lede = ("Say what care a patient needs, how urgent it is and where they start. You get one campus to send "
+            "them to, chosen by free staffed places and travel time." if mode() == RECOMMEND else
+            "Say what care a patient needs and where they are. You get the best supported lead among the "
+            "example records, what its record says and a call script to confirm it. Nobody is sent anywhere.")
+    st.markdown(f'<div class="fc-lede">{lede}</div>'
                 '<div class="fc-mode"><strong>Data: demonstration.</strong> This screen is running on invented '
                 "campuses and six invented facilities, not the real records.</div>", unsafe_allow_html=True)
     if not FIXTURE.exists():
@@ -616,6 +641,7 @@ with left:
             st.button(label, key="capacity-" + label, on_click=fill_recommendation,
                       args=(ex_service, ex_urgency, ex_origin, ex_tool))
     else:
+        st.markdown(f'<div class="fc-emergency">{safe(patient_ui.EMERGENCY)}</div>', unsafe_allow_html=True)
         where = st.text_input("2. Where the patient is", key="where", placeholder="For example: Jaipur, Rajasthan")
         st.caption("A city or town (add the state after a comma), a six-digit PIN code, or coordinates.")
         radius = st.select_slider("Search within", options=list(words.RADII), key="radius",
