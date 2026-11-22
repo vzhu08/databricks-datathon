@@ -40,6 +40,16 @@ The user authorized additional methods alongside [the accreditation pilot](https
 
 Record one owner, one branch and the exclusive code paths listed on each task issue. Each method reports what it adds over its own baseline. Site identity and evidence of treatment are assessed separately. Capacity, current availability, and release into the finder each require their own evidence.
 
+### Real-data judge walkthrough and alternate search
+
+[Andrew’s Find Care UI chat](https://github.com/vzhu08/databricks-datathon/issues/252) owns the real-data judge walkthrough. B supplies the [real evidence and ranking-policy comparison](https://github.com/vzhu08/databricks-datathon/issues/239#issuecomment-7076269228), Vincent confirms the audience and fields, and D checks the displayed facts against their dated sources. Use actual VF-derived results plus attributable public records; label any unlinked public example and any unresolved branch. Missing capacity, traffic and destination eligibility stay unknown. A historical crisis segment requires sourced event, demand and operating data. The earlier fictional storm is retained for engineering regression tests.
+
+[Developer H](https://github.com/vzhu08/databricks-datathon/issues/251) owns the multi-engine search comparison for hard cases. Compare independently public institutional names across Bing India, DuckDuckGo India, Mappls and regional-language or local directories as available. Require publisher evidence for branch claims, count copied results once, and measure the incremental eligible matches and wrong-branch controls. Record any access limits separately. [Sanath Nagar public facility report](https://mchyderabad.esic.gov.in/attachments/circularfile/c5dd5062449cb824d950ae94ecb923cc.pdf) · [Dated service report](https://www.pib.gov.in/PressReleasePage.aspx?PRID=2306323&lang=2&reg=48)
+
+B has delivered the audience-cleared display package. Both walkthrough cases have zero eligible destinations. Andrew shows the source, the strongest claim it supports, the unresolved branch or service question, and the next verification step. D checks the frozen figures against their sources. [B’s display receipt](https://github.com/vzhu08/databricks-datathon/issues/239#issuecomment-7076437052) · [UI and replay handoff](https://github.com/vzhu08/databricks-datathon/issues/252#issuecomment-7076475559)
+
+F’s [first](../research/facility-verification-methods/cycle-01.md) and [second](../research/facility-verification-methods/cycle-02.md) methods reviews are on main. A found no eligible native-script fields among the 49 issuer listings. G and K found no independently corroborated branch and operating period among 12 operator and 13 equipment observations. H’s pilot had zero eligible queries among 24 difficult VF records. H now tests the public NHP directory for additional eligible queries and runs a separate benchmark of up to eight public branches with paired Google and alternative-engine searches. [A’s comparison](https://github.com/vzhu08/databricks-datathon/issues/235) · [G and K’s comparison](https://github.com/vzhu08/databricks-datathon/issues/232#issuecomment-7076438076) · [H’s benchmark](https://github.com/vzhu08/databricks-datathon/issues/251#issuecomment-7076473737)
+
 ### Ongoing methods research and national programmes · November 22
 
 | Owner | Branch and deliverable |
@@ -53,6 +63,8 @@ The four experiments above continue in parallel. F proposes new methods; Oliver 
 ### Patient product coordination
 
 The separate [#223 engineering programme](https://github.com/vzhu08/databricks-datathon/issues/223) has exclusive implementation paths and branches on the individual issues. [M](https://github.com/vzhu08/databricks-datathon/issues/224) proposes the runtime record and interfaces. [N](https://github.com/vzhu08/databricks-datathon/issues/225) evaluates assessment providers. [O](https://github.com/vzhu08/databricks-datathon/issues/226) owns isolated sessions, [P](https://github.com/vzhu08/databricks-datathon/issues/227) owns the reviewed-destination handoff, [Q](https://github.com/vzhu08/databricks-datathon/issues/228) owns interview flow, [R](https://github.com/vzhu08/databricks-datathon/issues/229) owns runtime integration tests and [S](https://github.com/vzhu08/databricks-datathon/issues/230) owns independent evaluation. [Andrew](https://github.com/vzhu08/databricks-datathon/issues/231) owns all patient UI. M circulates interface proposals to consumers and Oliver before shared-contract edits. Provider selection, clinical validation, live activation and release have separate decisions. Preserve the completed synthetic acceptance suite.
+
+The M, O, Q and P foundations merged on November 22. All 53 component tests passed on the integrated tree. S’s separate product audit observed 56 of 186 expected fields and zero complete cases among 35. UI, provider lifecycle and broader product evaluation continue on their assigned issues. Live activation and submission remain pending. [Integration and audit receipts](https://github.com/vzhu08/databricks-datathon/issues/223)
 
 ### National service and equipment assignments
 
