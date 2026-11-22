@@ -1,0 +1,445 @@
+{
+  "schema_version": "intake.journeys.v1",
+  "synthetic": true,
+  "origin_id": "central",
+  "scenarios": {
+    "injury_unassessed": {
+      "schema_version": "intake.scenario.v1",
+      "scenario_id": "injury_unassessed",
+      "scenario_version": "1",
+      "synthetic": true,
+      "presenting_problem": "A fictional adult reports moderate pain after a recent fall from a low step. The fictional adult is not pregnant and reports no chest pain, stroke-like signs, severe breathing difficulty, or loss of consciousness. The story leaves the bleeding answer for the questionnaire.",
+      "concern_category": "injury",
+      "service": null,
+      "known_answers": {
+        "context.age_group": "adult",
+        "context.pregnancy": "not_pregnant",
+        "context.onset": "recent",
+        "context.severity": "moderate",
+        "warning.chest_pain": "no",
+        "warning.stroke_like": "no",
+        "warning.severe_breathing_difficulty": "no",
+        "warning.unresponsive": "no"
+      },
+      "clinician_plan": null
+    },
+    "injury_assessed": {
+      "schema_version": "intake.scenario.v1",
+      "scenario_id": "injury_assessed",
+      "scenario_version": "1",
+      "synthetic": true,
+      "presenting_problem": "A fictional adult reports moderate pain after a recent fall from a low step. The fictional adult is not pregnant and reports no chest pain, stroke-like signs, severe breathing difficulty, loss of consciousness, or heavy bleeding. In a later scripted scene, a simulated clinician documented an assessment for time-sensitive trauma care.",
+      "concern_category": "injury",
+      "service": "trauma_care",
+      "known_answers": {
+        "context.age_group": "adult",
+        "context.pregnancy": "not_pregnant",
+        "context.onset": "recent",
+        "context.severity": "moderate",
+        "warning.chest_pain": "no",
+        "warning.stroke_like": "no",
+        "warning.severe_breathing_difficulty": "no",
+        "warning.unresponsive": "no",
+        "warning.heavy_bleeding": "no"
+      },
+      "clinician_plan": {
+        "scenario_id": "injury_assessed",
+        "scenario_version": "1",
+        "synthetic": true,
+        "authority": "simulated_clinician_assessment",
+        "service": "trauma_care",
+        "urgency": "time_sensitive",
+        "required_capabilities": [],
+        "preferred_capabilities": []
+      }
+    },
+    "scheduled_dialysis": {
+      "schema_version": "intake.scenario.v1",
+      "scenario_id": "scheduled_dialysis",
+      "scenario_version": "1",
+      "synthetic": true,
+      "presenting_problem": "A fictional adult reports mild discomfort and has a scheduled routine dialysis session in a simulated treatment plan. The fictional adult is not pregnant and reports no chest pain, stroke-like signs, severe breathing difficulty, loss of consciousness, or heavy bleeding.",
+      "concern_category": "dialysis_plan",
+      "service": "dialysis",
+      "known_answers": {
+        "context.age_group": "adult",
+        "context.pregnancy": "not_pregnant",
+        "warning.chest_pain": "no",
+        "warning.stroke_like": "no",
+        "warning.severe_breathing_difficulty": "no",
+        "warning.unresponsive": "no",
+        "warning.heavy_bleeding": "no",
+        "context.onset": "scheduled",
+        "context.severity": "mild"
+      },
+      "clinician_plan": {
+        "scenario_id": "scheduled_dialysis",
+        "scenario_version": "1",
+        "synthetic": true,
+        "authority": "simulated_treatment_plan",
+        "service": "dialysis",
+        "urgency": "routine",
+        "required_capabilities": [],
+        "preferred_capabilities": []
+      }
+    },
+    "scheduled_mri": {
+      "schema_version": "intake.scenario.v1",
+      "scenario_id": "scheduled_mri",
+      "scenario_version": "1",
+      "synthetic": true,
+      "presenting_problem": "A fictional adult has a scheduled routine MRI in a simulated referral. The fictional adult is not pregnant and reports no chest pain, stroke-like signs, severe breathing difficulty, loss of consciousness, or heavy bleeding. The story leaves symptom severity for the questionnaire.",
+      "concern_category": "mri_referral",
+      "service": "mri",
+      "known_answers": {
+        "context.age_group": "adult",
+        "context.pregnancy": "not_pregnant",
+        "warning.chest_pain": "no",
+        "warning.stroke_like": "no",
+        "warning.severe_breathing_difficulty": "no",
+        "warning.unresponsive": "no",
+        "warning.heavy_bleeding": "no",
+        "context.onset": "scheduled"
+      },
+      "clinician_plan": {
+        "scenario_id": "scheduled_mri",
+        "scenario_version": "1",
+        "synthetic": true,
+        "authority": "simulated_clinician_referral",
+        "service": "mri",
+        "urgency": "routine",
+        "required_capabilities": [],
+        "preferred_capabilities": []
+      }
+    },
+    "warning_with_mri_plan": {
+      "schema_version": "intake.scenario.v1",
+      "scenario_id": "warning_with_mri_plan",
+      "scenario_version": "1",
+      "synthetic": true,
+      "presenting_problem": "A fictional adult has a scheduled routine MRI referral. They now report new chest pain. The other history and warning answers have not been recorded.",
+      "concern_category": "mri_referral",
+      "service": "mri",
+      "known_answers": {
+        "context.age_group": "adult",
+        "warning.chest_pain": "yes"
+      },
+      "clinician_plan": {
+        "scenario_id": "warning_with_mri_plan",
+        "scenario_version": "1",
+        "synthetic": true,
+        "authority": "simulated_clinician_referral",
+        "service": "mri",
+        "urgency": "routine",
+        "required_capabilities": [],
+        "preferred_capabilities": []
+      }
+    },
+    "unsupported_concern": {
+      "schema_version": "intake.scenario.v1",
+      "scenario_id": "unsupported_concern",
+      "scenario_version": "1",
+      "synthetic": true,
+      "presenting_problem": "A fictional adult asks about an ongoing, mild general health concern. They have no simulated referral or treatment plan. The fictional adult is not pregnant and reports no chest pain, stroke-like signs, severe breathing difficulty, loss of consciousness, or heavy bleeding.",
+      "concern_category": "general_medical",
+      "service": null,
+      "known_answers": {
+        "context.age_group": "adult",
+        "context.pregnancy": "not_pregnant",
+        "warning.chest_pain": "no",
+        "warning.stroke_like": "no",
+        "warning.severe_breathing_difficulty": "no",
+        "warning.unresponsive": "no",
+        "warning.heavy_bleeding": "no",
+        "context.onset": "ongoing",
+        "context.severity": "mild"
+      },
+      "clinician_plan": null
+    },
+    "incomplete_history": {
+      "schema_version": "intake.scenario.v1",
+      "scenario_id": "incomplete_history",
+      "scenario_version": "1",
+      "synthetic": true,
+      "presenting_problem": "A fictional adult has a simulated routine MRI referral and describes mild symptoms. The story leaves symptom onset for the questionnaire. The fictional adult is not pregnant and reports no chest pain, stroke-like signs, severe breathing difficulty, loss of consciousness, or heavy bleeding.",
+      "concern_category": "mri_referral",
+      "service": "mri",
+      "known_answers": {
+        "context.age_group": "adult",
+        "context.pregnancy": "not_pregnant",
+        "warning.chest_pain": "no",
+        "warning.stroke_like": "no",
+        "warning.severe_breathing_difficulty": "no",
+        "warning.unresponsive": "no",
+        "warning.heavy_bleeding": "no",
+        "context.severity": "mild"
+      },
+      "clinician_plan": {
+        "scenario_id": "incomplete_history",
+        "scenario_version": "1",
+        "synthetic": true,
+        "authority": "simulated_clinician_referral",
+        "service": "mri",
+        "urgency": "routine",
+        "required_capabilities": [],
+        "preferred_capabilities": []
+      }
+    }
+  },
+  "journeys": {
+    "injury_to_assessment": [
+      {
+        "action": "select",
+        "scenario_id": "injury_unassessed",
+        "expected": {
+          "state": "more_information_needed",
+          "next_question_ids": [
+            "warning.heavy_bleeding"
+          ],
+          "request": null,
+          "ranked_facility_ids": []
+        }
+      },
+      {
+        "action": "answer",
+        "question_id": "warning.heavy_bleeding",
+        "answer_id": "no",
+        "expected": {
+          "state": "clinician_assessment_needed",
+          "next_question_ids": [],
+          "request": null,
+          "ranked_facility_ids": [],
+          "concern_category": "injury"
+        }
+      },
+      {
+        "action": "select",
+        "scenario_id": "injury_assessed",
+        "expected": {
+          "state": "confirmation_required",
+          "next_question_ids": [],
+          "request": null,
+          "ranked_facility_ids": [],
+          "confirmation_status": "absent"
+        }
+      },
+      {
+        "action": "confirm",
+        "expected": {
+          "state": "ready",
+          "next_question_ids": [],
+          "request": {
+            "service": "trauma_care",
+            "urgency": "time_sensitive",
+            "required_capabilities": [],
+            "preferred_capabilities": []
+          },
+          "ranked_facility_ids": [
+            "F"
+          ],
+          "confirmation_status": "current"
+        }
+      }
+    ],
+    "scheduled_dialysis": [
+      {
+        "action": "select",
+        "scenario_id": "scheduled_dialysis",
+        "expected": {
+          "state": "confirmation_required",
+          "next_question_ids": [],
+          "request": null,
+          "ranked_facility_ids": [],
+          "confirmation_status": "absent"
+        }
+      },
+      {
+        "action": "confirm",
+        "expected": {
+          "state": "ready",
+          "next_question_ids": [],
+          "request": {
+            "service": "dialysis",
+            "urgency": "routine",
+            "required_capabilities": [],
+            "preferred_capabilities": []
+          },
+          "ranked_facility_ids": [
+            "B",
+            "C",
+            "F"
+          ],
+          "confirmation_status": "current"
+        }
+      }
+    ],
+    "scheduled_mri": [
+      {
+        "action": "select",
+        "scenario_id": "scheduled_mri",
+        "expected": {
+          "state": "more_information_needed",
+          "next_question_ids": [
+            "context.severity"
+          ],
+          "request": null,
+          "ranked_facility_ids": []
+        }
+      },
+      {
+        "action": "answer",
+        "question_id": "context.severity",
+        "answer_id": "mild",
+        "expected": {
+          "state": "confirmation_required",
+          "next_question_ids": [],
+          "request": null,
+          "ranked_facility_ids": [],
+          "confirmation_status": "absent"
+        }
+      },
+      {
+        "action": "confirm",
+        "expected": {
+          "state": "ready",
+          "next_question_ids": [],
+          "request": {
+            "service": "mri",
+            "urgency": "routine",
+            "required_capabilities": [],
+            "preferred_capabilities": []
+          },
+          "ranked_facility_ids": [
+            "A",
+            "D"
+          ],
+          "confirmation_status": "current"
+        }
+      }
+    ],
+    "warning_overrides_plan": [
+      {
+        "action": "select",
+        "scenario_id": "warning_with_mri_plan",
+        "expected": {
+          "state": "emergency_escalation",
+          "next_question_ids": [],
+          "request": null,
+          "ranked_facility_ids": [],
+          "message_id": "intake.warning.emergency.v1"
+        }
+      }
+    ],
+    "unsupported_concern": [
+      {
+        "action": "select",
+        "scenario_id": "unsupported_concern",
+        "expected": {
+          "state": "unsupported_care_need",
+          "next_question_ids": [],
+          "request": null,
+          "ranked_facility_ids": []
+        }
+      }
+    ],
+    "incomplete_history": [
+      {
+        "action": "select",
+        "scenario_id": "incomplete_history",
+        "expected": {
+          "state": "more_information_needed",
+          "next_question_ids": [
+            "context.onset"
+          ],
+          "request": null,
+          "ranked_facility_ids": []
+        }
+      },
+      {
+        "action": "answer",
+        "question_id": "context.onset",
+        "answer_id": "unknown",
+        "expected": {
+          "state": "more_information_needed",
+          "next_question_ids": [],
+          "request": null,
+          "ranked_facility_ids": []
+        }
+      }
+    ],
+    "edit_after_confirmation": [
+      {
+        "action": "select",
+        "scenario_id": "scheduled_mri",
+        "expected": {
+          "state": "more_information_needed",
+          "next_question_ids": [
+            "context.severity"
+          ],
+          "request": null,
+          "ranked_facility_ids": []
+        }
+      },
+      {
+        "action": "answer",
+        "question_id": "context.severity",
+        "answer_id": "mild",
+        "expected": {
+          "state": "confirmation_required",
+          "next_question_ids": [],
+          "request": null,
+          "ranked_facility_ids": [],
+          "confirmation_status": "absent"
+        }
+      },
+      {
+        "action": "confirm",
+        "expected": {
+          "state": "ready",
+          "next_question_ids": [],
+          "request": {
+            "service": "mri",
+            "urgency": "routine",
+            "required_capabilities": [],
+            "preferred_capabilities": []
+          },
+          "ranked_facility_ids": [
+            "A",
+            "D"
+          ],
+          "confirmation_status": "current"
+        }
+      },
+      {
+        "action": "edit",
+        "question_id": "context.severity",
+        "answer_id": "moderate",
+        "expected": {
+          "state": "confirmation_required",
+          "next_question_ids": [],
+          "request": null,
+          "ranked_facility_ids": [],
+          "confirmation_status": "stale"
+        }
+      },
+      {
+        "action": "confirm",
+        "expected": {
+          "state": "ready",
+          "next_question_ids": [],
+          "request": {
+            "service": "mri",
+            "urgency": "routine",
+            "required_capabilities": [],
+            "preferred_capabilities": []
+          },
+          "ranked_facility_ids": [
+            "A",
+            "D"
+          ],
+          "confirmation_status": "current"
+        }
+      }
+    ]
+  }
+}
