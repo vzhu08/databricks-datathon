@@ -1,5 +1,39 @@
 # ACQ-D01 handoff
 
+## Live private rehearsal verified · November 21
+
+The user directly approved the prepared private rehearsal in D's session. [Run `340752881611694`](https://dbc-8e9d86de-9a34.cloud.databricks.com/?o=7474658456464525#job/463683257534634/run/340752881611694), task `676555033382384`, completed successfully in `workspace.datathon_vf_v0_validation`. The initial run `263595276083607` failed before any tables were created because notebook widget registration reset the extracted code path. Code commit `c5211c94c622414a2bd237782118fbaf11ae9351` preserves existing job/bootstrap widgets. Its regression test fails on the old notebook and passes on the correction. The replacement finished within the original 30-minute window: 897.335 seconds from initial start to success, including the correction.
+
+**Fixtures:** all 108 enrichment tests pass with the real #79 producer at `3763fcf` in the proposed combination of D and main `663c573` (tree `2e15f7698f11d68e09a48e7587a5d0dbfcf74a6e`). Standalone D passes 107 with one explicit integration skip until #79 is present. The code bundle changed only notebook 04 and was verified again after upload/download: SHA-256 `146be24e2384efeb97aa4747055b05fc02816f04cab7a1d458b240d13223bf36`.
+
+**Live Delta:** all five completed-table readbacks, identical replay without new versions, interruption after the third table, hidden partial attempts, recovery with unchanged payloads, and older-run replay without pointer rollback passed. All 10,088 original occurrences / 10,077 original IDs and payloads remain unchanged. The accepted base, C identity frame and combined A+C batch pins remain unchanged; the combined batch SHA-256 is `26d89fadd5877b0d56d01ab8d0b3fabefd300492bfcdb4483c6256ea52ea1176`.
+
+| Table | Completed rows | First Delta version | Recovery Delta version |
+| --- | ---: | ---: | ---: |
+| `source_snapshots` | 2 | 1 | 3 |
+| `external_facilities` | 146,847 | 1 | 3 |
+| `facility_matches` | 20,713 | 1 | 3 |
+| `facility_evidence` | 0 | 1 | 2 |
+| `review_queue` | 18,925 | 1 | 2 |
+
+The operational `enrichment_publication` table advanced from Delta version 2 to 3, holding logical revisions 1 and 2 respectively. Its final completed pointer is `vf-in-retrieval-v0-20261121-01-recovery`; the original completed run remains readable. Partial staging rows remain deliberately retained, so consumers must use the completed manifest's attempt ID and table versions.
+
+Independent read-only SQL matched every completed count and ordered payload fingerprint against the frozen local package at both sets of pinned versions. Statements `01f1e606-9a39-158f-81fc-263e8b6e560f` and `01f1e607-49ce-1441-81ee-9396fd6e6022` also verified the final two manifests, current pointer and retained staging counts. The downloaded receipt matched the successful notebook output at SHA-256 `e44ca92d682f208f067d900aaafcec3937ac4cbb7a488a49fc7d91eb38c5623e`. Private receipt: `/Volumes/workspace/datathon_acquisition/matching_inputs/delta-rehearsal-v0-20261121-d01/delta-rehearsal-receipt.json`. Local receipts and code bundles remain ignored under `data/local/publication-rehearsal-20261121/`, with final state in `current-state.json` and verification files under `widget-fix/`.
+
+**Release and submission:** this is the private retrieval-only rehearsal, with existing permissions. No service-status artifact or supplementary source was added, and no patient release or submission occurred. The validation schema now contains completed runs and retained attempts; do not rerun notebook initialization. Oliver's integration chat owns the final PR review and merge. The earlier preparation checkpoints below record the prior approval gate and local-only status.
+
+## Earlier private rehearsal preparation and artifact binding · November 21
+
+PR #85 follow-up addresses Vincent's [consumer-shape review](https://github.com/vzhu08/databricks-datathon/pull/85#pullrequestreview-6008598001). The binder now rejects missing or malformed checked-source lists, reasons, review lists and original/external citation fields before staging. The positive fixture has the producer's complete lookup shape. A combined checkout with #79 at `4352d17bfd02df4427b96e00728f77d13c6495b7` passes all **107 enrichment tests**, including actual producer output through publication/readback and both real lookup functions. D's branch alone passes 106 with that integration test explicitly skipped until #79 is present. Both real consumers also read every one of the 10,088 occurrences / 30,264 decisions from the unchanged downloaded structural artifact after the stricter binding checks. The separate live-approval request remains pending.
+
+Vincent accepted the frozen retrieval inputs and `workspace.datathon_vf_v0_validation` destination in [#6](https://github.com/vzhu08/databricks-datathon/issues/6#issuecomment-7069928655). D prepared notebook 04 for run `vf-in-retrieval-v0-20261121-01` and its isolated `-recovery` attempt. It uses the existing five additive tables and operational manifest, retains partial attempts, verifies all five pinned readbacks, checks replay without new versions and checks recovery without original-payload drift. It excludes service-status controls, second-pass identity rows and supplementary sources.
+
+Read-only workspace checks found that the target schema does not exist, catalog-level grants contain no inherited data-read privilege, and there is no existing cluster/job to reuse. Automatic approval review rejected the attempted schema/notebook/serverless-run creation because direct user authorization is required for those persistent and potentially usage-bearing mutations. That command did not execute. The exact requests and code bundle are prepared in ignored `data/local/publication-rehearsal-20261121/`; direct user approval is pending. No validation schema, live table, notebook or run was created by that rejected action. No live publication or submission is claimed.
+
+The separately authorized status-artifact binding is implemented in D's publisher and notebooks 02/03. It preserves the original input-metadata digest before operational references are added; verifies the artifact bytes, base/version/date/identity pins and every occurrence/service; reconciles counts; and requires the entire merged batch hash before staging. The completed manifest retains the separate artifact reference. Consumer reads and replay recheck it. These are structural checks, not clinical adjudication or release approval.
+
+**Local validation:** all 104 enrichment tests pass on Python 3.12.16, including seven status-binding tests and a persistent rehearsal simulation. The binding also passes against the previously downloaded structural artifact `9428f87d55547fdf51256a2b73c0db1a9551dd00c02fdd1096ba21b3a5798767`, preserving all 10,088 occurrences / 30,264 unconfirmed decisions and the accepted batch hash. This was a local read of the existing private readback, not a new live storage or Delta check. Compilation and diff checks pass. Earlier handoff sections below record historical checkpoints; the duplicate-metadata, portability and original source-access blockers are resolved in their later issue receipts.
+
 ## Portability correction and joint validation · November 21
 
 PR [#74](https://github.com/vzhu08/databricks-datathon/pull/74) now writes and compares manifest-relative paths with `as_posix()`, addressing Vincent's [native Windows reproducer](https://github.com/vzhu08/databricks-datathon/issues/6#issuecomment-7069398792). Tested code commit: `f08f4711a0724daca26ba495d8294e3f93daac7a`. All **96 enrichment tests** pass on Python 3.9.6; compilation and diff checks pass. Two nested-path regressions exercise Windows relative-path formatting on this macOS host, fail against the previous implementation, and pass with the correction. Native Windows execution remains Vincent's independent check.
