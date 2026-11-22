@@ -26,9 +26,14 @@ drawn it shows the runtime's current public view for the encounter and nothing e
 What it will not do:
 
 - **No provider, no assessment.** `patient_ui.compose` is the one place an assessment provider is
-  injected, and this repository configures none. The screen says assessment is switched off before
-  the patient writes anything, and after a description is saved the runtime itself returns
-  `provider_unavailable`. There is no scripted story, sample picker or fixture fallback.
+  injected, and it stays off unless the server settings below switch it on. `app.yaml` sets none of
+  them. The screen says assessment is switched off before the patient writes anything, and after a
+  description is saved the runtime itself returns `provider_unavailable`. There is no scripted
+  story, sample picker or fixture fallback.
+- **No guessed provider.** A provider that is asked for but wrongly or partly set up is not
+  replaced by a default. The patient is told only that assessment is unavailable on this server and
+  that the description will not be sent anywhere. Which settings are at fault goes to the server
+  log for the operator, once per worker, as setting names and never values.
 - **No stale result.** An edit, a withdrawn agreement, a failed or out-of-date step, an expiry and
   Start over all leave only what the runtime holds now. The screen keeps no copy of a result.
 - **No text left on an idle page.** An open page is told to look again one second after the visit's
@@ -59,10 +64,43 @@ What it will not do:
 - Pressing "I have read this" is the patient's own confirmation. The screen says it is not a
   doctor's order and books nothing.
 
-Wiring a provider is a change in `compose` by the runtime owner: the adapter, its
-`(provider_id, provider_version)` identity and its server-side secrets. The label it returns is the
-name the patient is shown before agreeing to send anything. The screen passes `language: "en"` and
-the optional age as context, which is all the interview contract accepts today.
+### Switching the assessment provider on
+
+Off by default, and switching it on is the operator's decision, not this screen's. The one provider
+`compose` can build is the team's experimental Databricks interview
+([provider notes](../docs/patient_intake/providers.md)), through its server factory
+`patient_intake.providers.databricks_config.configured_databricks_provider`. These are the names
+main approved in the [runbook](../docs/patient_intake/run.md), read from the server process's
+environment when a visit is opened:
+
+| Setting | Value | Meaning |
+| --- | --- | --- |
+| `PATIENT_PROVIDER` | `databricks-experimental` | Unset or empty means no provider. Any other value is a setup problem |
+| `PATIENT_PROVIDER_ENDPOINT` | `databricks-gpt-oss-20b` or `databricks-gpt-oss-120b` | The pinned endpoint. Required, with no default |
+| `PATIENT_PROVIDER_LANE` | `demo` (default) or `test` | Which request allowance this app draws on |
+| `PATIENT_PROVIDER_DEMO_ATTEMPTS` | `0` to `6`, default `0` | Requests the demo lane may make for the life of the worker |
+| `PATIENT_PROVIDER_TEST_ATTEMPTS` | `0` to `2`, default `0` | The same for the test lane |
+
+What follows from that:
+
+- The allowance is shared by every visit on a worker. A new visit does not refill it. When it is
+  used up, a patient is told that this server has no assessment requests left, whichever visit used
+  them. Changing a setting needs a restart of the app.
+- A cap must be one or two plain digits within its range. Anything else, such as other number
+  scripts, signs, decimals or a very long value, is a setup problem and never an error page.
+- With the chosen lane's allowance at `0` the provider is asked for but can do nothing, so that is
+  a setup problem too.
+- To see why assessment is off, read the worker's log line "Patient assessment provider is off: ..."
+  or call `patient_ui.provider_mode(os.environ)`. The patient screen never shows a setting name.
+- Credentials never pass through this screen or these settings. The factory signs in with the
+  Databricks SDK's own server-side authentication for the workspace the app runs in.
+- Before agreeing to send anything, the patient is shown who receives it: "Databricks endpoint
+  NAME (experimental language model, not clinically validated)". Its result is a provider stop with
+  the provider's message, never an urgency, a cause or a hospital.
+- The other settings alone do nothing. Without `PATIENT_PROVIDER` the factory is never called.
+
+The screen passes `language: "en"` and the optional age as context, which is all the interview
+contract accepts today.
 
 Browser checks: `python tests/patient_ui/stand_in.py PORT [VISIT_SECONDS]` starts this same app with
 a scripted stand-in provider composed through `compose`, one per visit, and an optional short visit
