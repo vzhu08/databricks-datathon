@@ -119,6 +119,21 @@ class RuntimeFlowTests(unittest.TestCase):
         self.assertIsNone(self.assess()["guidance"])
         self.assertEqual(self.adapter.assess.call_count, 2)
 
+    def test_write_superseded_before_readback_reports_stale(self):
+        original = self.handle.replace
+
+        def interrupted(revision, data):
+            committed = original(revision, data)
+            self.handle.replace = original
+            self.service.consent(self.handle, committed, granted=False)
+            return committed
+
+        self.handle.replace = interrupted
+        with self.assertRaisesRegex(ValueError, "revision_stale"):
+            self.assess()
+        self.adapter.assess.assert_not_called()
+        self.assertFalse(self.service.view(self.handle)["consent"])
+
     def test_late_completion_cannot_replace_an_edit(self):
         def delayed(*args, **kwargs):
             self.assertEqual(self.service.view(self.handle)["state"], "assessment_in_progress")
@@ -156,6 +171,36 @@ class RuntimeFlowTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.service.confirm(self.handle, self.handle.rev)
         self.navigator.assert_not_called()
+
+    def test_provider_stop_clears_completion_and_requires_a_new_interview(self):
+        completed = self.assess()
+        prior = self.service.confirm(self.handle, completed["revision"])
+        self.adapter.assess.return_value = dict(**self.identity, state="provider_stop", guidance="Invented stop")
+        stopped = self.assess()
+        self.assertEqual((stopped["state"], stopped["guidance"]), ("provider_stop", "Invented stop"))
+        self.assertIsNone(stopped["urgency"])
+        self.assertIsNone(stopped["next_step"])
+        self.assertEqual(stopped["possible_causes"], [])
+        with self.assertRaises(ValueError):
+            self.service.confirm(self.handle, stopped["revision"])
+        with self.assertRaises(ValueError):
+            self.service.navigate(self.handle, stopped["revision"], confirmation=prior)
+        self.navigator.assert_not_called()
+        self.service.consent(self.handle, self.handle.rev, granted=False)
+        self.service.consent(self.handle, self.handle.rev, granted=True)
+        with self.assertRaises(ValueError):
+            self.assess()
+        self.assertEqual(self.adapter.assess.call_count, 2)
+        self.edit()
+        self.service.consent(self.handle, self.handle.rev, granted=True)
+        self.assertEqual(self.assess()["state"], "provider_stop")
+
+    def test_malformed_stop_never_commits_guidance(self):
+        for extra in ({"next_step": None}, {"urgency": "emergency"}, {"guidance": " "}):
+            self.adapter.assess.return_value = dict(dict(self.identity, state="provider_stop", guidance="Fixture"), **extra)
+            result = self.assess()
+            self.assertEqual(result["reason"], "invalid_response")
+            self.assertIsNone(result["guidance"])
 
     def test_disposition_must_match_state_and_next_step_before_confirmation(self):
         consult = {"kind": "consultation", "specialty_code": None}
@@ -208,3 +253,127 @@ class RuntimeFlowTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.service.navigate(self.handle, self.handle.rev, confirmation=receipt)
         self.navigator.assert_not_called()
+
+
+class OwnedProviderTests(unittest.TestCase):
+    """Exercise the approved handle calls without network I/O or a vendor account."""
+
+    class BoundHandle(Handle):
+        def __init__(self):
+            super().__init__()
+            self.binding = None
+
+        def bind_provider(self, expected_revision, factory):
+            if expected_revision != self.rev or self.data["state"] != "assessment_in_progress":
+                raise ValueError("revision_stale")
+            if self.binding is None:
+                self.binding = factory()
+            return self.binding
+
+        def replace(self, revision, data, *, retire_provider=False):
+            committed = super().replace(revision, data)
+            if retire_provider and self.binding is not None:
+                self.binding.cleanup_reservation.retire()
+                self.binding = None
+            return committed
+
+    def setUp(self):
+        from unittest.mock import Mock
+        from app.patient_intake import PatientIntakeService
+        self.handle = self.BoundHandle()
+        self.adapter = Mock()
+        self.factory = Mock(return_value=self.adapter)
+        self.service = PatientIntakeService(interview=Interview(), provider_bindings=self.factory,
+                                            provider_identity=("fixture", "1"))
+        self.reply = dict(state="awaiting_clarification", provider_id="fixture", provider_version="1",
+                          question=dict(id="fixture", kind="text", prompt="Invented", options=[]),
+                          continuation="private")
+        self.adapter.assess.return_value = self.reply
+        self.edit()
+
+    def edit(self):
+        return self.service.edit(self.handle, self.handle.rev, description="Invented narrative", context={})
+
+    def consent(self, granted):
+        return self.service.consent(self.handle, self.handle.rev, granted=granted)
+
+    def assess(self):
+        return self.service.assess(self.handle, self.handle.rev)
+
+    def test_consent_precedes_binding_and_repeat_grant_preserves_current_question(self):
+        self.assertEqual(self.assess()["reason"], "consent_or_input_required")
+        self.factory.assert_not_called()
+        self.consent(True)
+        q = self.assess()
+        self.assertEqual(q["description_status"], "uninterpreted")
+        self.assertEqual(self.consent(True), q)
+        self.service.answer(self.handle, q["revision"], question_id=q["question"]["issuance_id"], answers="Fixture")
+        self.assess()
+        self.factory.assert_called_once_with()
+        self.assertEqual(self.adapter.assess.call_args.kwargs["continuation"], "private")
+        with self.assertRaises(ValueError):
+            self.service.consent(self.handle, q["revision"], granted=False)
+        self.adapter.cleanup_reservation.retire.assert_not_called()
+        self.consent(False)
+        self.assertIsNone(self.handle.binding)
+        self.adapter.cleanup_reservation.retire.assert_called_once_with()
+        self.assertEqual(self.assess()["reason"], "consent_or_input_required")
+
+    def test_edit_during_provider_turn_retires_binding_and_discards_late_question(self):
+        self.consent(True)
+        def delayed(*args, **kwargs):
+            self.edit()
+            return self.reply
+        self.adapter.assess.side_effect = delayed
+        with self.assertRaisesRegex(ValueError, "revision_stale"):
+            self.assess()
+        self.adapter.cleanup_reservation.retire.assert_called_once_with()
+        self.assertIsNone(self.handle.binding)
+        current = self.service.view(self.handle)
+        self.assertFalse(current["consent"])
+        self.assertIsNone(current["question"])
+
+    def test_reservation_failure_withholds_provider_dispatch(self):
+        self.consent(True)
+        self.factory.side_effect = ValueError("fixture-private-mailbox")
+        a = self.assess()
+        self.assertEqual((a["state"], a["reason"]), ("provider_unavailable", "unavailable"))
+        self.assertNotIn("fixture-private-mailbox", repr(a))
+        self.adapter.assess.assert_not_called()
+
+    def test_switching_to_direct_adapter_requires_reconsent_and_retires_old_owner(self):
+        from app.patient_intake import PatientIntakeService
+        self.consent(True)
+        self.assess()
+        direct = PatientIntakeService(interview=Interview(), provider=self.adapter, provider_identity=("fixture", "1"))
+        self.assertEqual(direct.view(self.handle)["reason"], "configuration_changed")
+        direct.consent(self.handle, self.handle.rev, granted=True)
+        self.assertIsNone(self.handle.binding)
+        self.adapter.cleanup_reservation.retire.assert_called_once_with()
+        with self.assertRaises(ValueError):
+            PatientIntakeService(interview=Interview(), provider=self.adapter, provider_bindings=self.factory)
+
+    def test_unsupported_context_remains_visible_until_a_valid_edit(self):
+        from app.patient_intake import PatientIntakeService
+        from app.patient_intake.interview import PatientInterview
+        from app.patient_intake.session import PatientSession
+        owner = PatientSession(notice_version="fixture")
+        handle = owner.open(consent=True, notice_version="fixture")
+        self.addCleanup(owner.delete, handle)
+        reducer = PatientInterview(supported_age_range=(20, 30), supported_languages=["en-IN"])
+        service = PatientIntakeService(interview=reducer, provider_bindings=self.factory,
+                                      provider_identity=("fixture", "1"))
+        revision = 0
+        for context in ({"age_years": 19, "language": "en-IN"}, {"age_years": 24, "language": "fr"}):
+            blocked = service.edit(handle, revision, description="Invented", context=context)
+            self.assertEqual((blocked["state"], blocked["reason"]), ("unsupported", "unsupported_context"))
+            for grant in (True, False):
+                self.assertEqual(service.consent(handle, blocked["revision"], granted=grant), blocked)
+                self.assertEqual(service.assess(handle, blocked["revision"]), blocked)
+            invalid = service.edit(handle, blocked["revision"], description="", context={})
+            self.assertEqual(invalid["reason"], "unsupported_context")
+            revision = invalid["revision"]
+        self.factory.assert_not_called()
+        valid = service.edit(handle, revision, description="Invented", context={"age_years": 24, "language": "en-IN"})
+        self.assertEqual((valid["state"], valid["reason"], valid["consent"]), ("draft", None, False))
+        self.assertEqual(service.assess(handle, valid["revision"])["reason"], "consent_or_input_required")

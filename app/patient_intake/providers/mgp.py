@@ -271,6 +271,12 @@ class MgpSurveyCandidate:
         return _reply("awaiting_clarification", question=display, continuation=continuation)
 
     def _catalog_options(self, source):
+        items = self._catalog_data(source)
+        if type(items) is not list or not 1 <= len(items) <= 16 or any(type(i) is not dict for i in items):
+            return None
+        return [{"id": item.get("id"), "label": item.get("name")} for item in items]
+
+    def _catalog_data(self, source):
         """Resolve an exact, complete, locally authorized list. Never follow vendor URLs."""
         if not callable(self._catalog_for) or not _text(source, 512) or not source.startswith("/") or source.startswith("//"):
             return None
@@ -291,10 +297,7 @@ class MgpSurveyCandidate:
         if any(not _identifier(v, _OPTION) for v in filters.values()):
             return None
         # Only this server binding can attest edition, demographics and completeness.
-        items = self._catalog_for(self._survey, path.rsplit("/", 1)[1], filters)
-        if type(items) is not list or not 1 <= len(items) <= 16 or any(type(i) is not dict for i in items):
-            return None
-        return [{"id": item.get("id"), "label": item.get("name")} for item in items]
+        return self._catalog_for(self._survey, path.rsplit("/", 1)[1], filters)
 
     def _finished(self):
         survey = self._call("GET", "")
