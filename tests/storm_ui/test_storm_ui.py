@@ -24,7 +24,7 @@ class StormUiDataTests(unittest.TestCase):
         self.assertTrue(all(replay["synthetic"] is True for replay in bundle["replays"].values()))
 
     def test_page_assets_stay_offline(self):
-        for name in ("index.html", "storm.css", "storm.js", "replay_state.js"):
+        for name in ("index.html", "replay.html", "storm.css", "ask.css", "storm.js", "ask.js", "ask_state.js", "replay_state.js"):
             path = ROOT / "app" / "storm_ui" / name
             if path.exists():
                 # The SVG namespace is an identifier the browser never fetches.

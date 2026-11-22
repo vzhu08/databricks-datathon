@@ -314,22 +314,23 @@
    * The end-of-shift sentence. Totals are stated as totals. Any statement about individual requests
    * comes from comparing their outcomes one by one, never from equal counts or equal minutes.
    */
-  function summary(replay, policyA, policyB, nameA, nameB) {
+  function summary(replay, policyA, policyB, nameA, nameB, nameOf) {
+    var who = function (ids) { return ids.map(nameOf || function (id) { return id; }).join(", "); };
     var last = lastMinute(replay);
     var a = stateAt(replay, policyA, last).metrics, b = stateAt(replay, policyB, last).metrics;
     var each = compare(replay, policyA, policyB, last);
     function minutesText(n) { return n + (n === 1 ? " minute" : " minutes"); }
-    var text = nameA + " served " + a.assigned + " of " + a.requested + " requests. " +
+    var text = nameA + " served " + a.assigned + " of " + a.requested + " patients. " +
       nameB + " served " + b.assigned + " of " + b.requested + ".";
     var gap = b.extra_travel_minutes - a.extra_travel_minutes;
     if (gap !== 0) text += " " + (gap > 0 ? nameB : nameA) + " added " + minutesText(Math.abs(gap)) + " of travel in total.";
     if (each.identical) {
-      text += " Every request had the same outcome under both: the same campus, the same slot pool and the same travel time.";
+      text += " Every patient had the same outcome under both: the same campus, the same slot pool and the same travel time.";
     } else {
-      text += " " + each.differing.length + (each.differing.length === 1 ? " request" : " requests") +
-        " had a different outcome under the two policies: " + each.differing.join(", ") + ".";
-      if (each.served_only_first.length) text += " Served only under " + nameA + ": " + each.served_only_first.join(", ") + ".";
-      if (each.served_only_second.length) text += " Served only under " + nameB + ": " + each.served_only_second.join(", ") + ".";
+      text += " " + each.differing.length + (each.differing.length === 1 ? " patient" : " patients") +
+        " had a different outcome under the two policies: " + who(each.differing) + ".";
+      if (each.served_only_first.length) text += " Served only under " + nameA + ": " + who(each.served_only_first) + ".";
+      if (each.served_only_second.length) text += " Served only under " + nameB + ": " + who(each.served_only_second) + ".";
     }
     return text;
   }

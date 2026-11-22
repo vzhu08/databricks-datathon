@@ -1,0 +1,135 @@
+/*
+ * Find care page. Layered on storm.css: same paper, ink and Overpass.
+ * The answer is drawn as a referral slip, the thing a health worker hands over. It is the one
+ * loud element on the page; the form and the reasoning around it stay quiet.
+ */
+:root { --caution: #f6ebcd; --caution-ink: #6b4a00; }
+
+.ask .masthead { align-items: center; max-width: 70.5rem; }
+.ask .synthetic-note { margin-left: auto; max-width: 44ch; font-weight: 400; color: var(--slate); font-size: 0.9375rem; text-align: right; }
+
+/* The three steps are a real sequence, so they are numbered. */
+.steps ol { display: flex; flex-wrap: wrap; gap: var(--step) calc(var(--step) * 3); margin: 0; padding: 0; list-style: none; counter-reset: step; }
+.steps li { counter-increment: step; }
+.steps a { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--slate); font-weight: 600; text-decoration: none; padding: 0.35rem 0; }
+.steps a::before {
+  content: counter(step); display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem;
+  border: 1.5px solid currentColor; border-radius: 50%; font-size: 0.875rem;
+}
+.steps a:hover { color: var(--ink); text-decoration: underline; }
+.steps a[aria-current] { color: var(--ink); }
+.steps a[aria-current]::before { background: var(--ink); border-color: var(--ink); color: var(--sheet); }
+
+.desk {
+  display: grid; grid-template-columns: 21rem minmax(0, 46rem); gap: calc(var(--step) * 7); align-items: start;
+  margin-top: calc(var(--step) * 5);
+}
+
+/* Ask */
+.ask-form { position: sticky; top: calc(var(--step) * 3); display: grid; gap: calc(var(--step) * 3); }
+.ask-form h2 { font-size: 1.5rem; line-height: 1.2; }
+.ask-form legend, .ask-form .field { font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
+.ask-form legend { padding: 0; margin-bottom: var(--step); }
+.ask-form .field { gap: var(--step); }
+.ask-form select { width: 100%; min-height: 2.75rem; font-weight: 400; }
+.choice { display: grid; gap: calc(var(--step) / 2); }
+.choice label {
+  display: flex; align-items: center; gap: 0.6rem; min-height: 2.75rem; padding: 0.4rem 0.8rem;
+  background: var(--sheet); border: 1.5px solid var(--rule); border-radius: 3px; cursor: pointer;
+}
+.choice label:hover { border-color: var(--ink); }
+.choice input { margin: 0; width: 1.1rem; height: 1.1rem; }
+.choice label:has(input:checked) { border-color: var(--ink); font-weight: 600; }
+.choice label:has(input:focus-visible) { outline: 3px solid var(--blue); outline-offset: 2px; }
+.choice input:focus-visible { outline: none; }
+#find { min-height: 3rem; font-size: 1.0625rem; }
+.examples h3 { font-size: 0.9375rem; font-weight: 600; color: var(--slate); }
+.examples ul { display: grid; gap: calc(var(--step) / 2); margin-top: var(--step); }
+.examples button {
+  border: 0; background: none; padding: 0.3rem 0; min-height: 2rem; text-align: left; font-weight: 400;
+  text-decoration: underline; text-underline-offset: 0.18em;
+}
+.examples button:hover:not(:disabled) { background: none; color: var(--blue); }
+
+/* Recommendation */
+.answer:focus { outline: none; }
+.empty { padding: calc(var(--step) * 5) calc(var(--step) * 4); border: 1.5px dashed var(--slate); border-radius: 3px; color: var(--slate); }
+.empty p { max-width: 52ch; }
+.empty-lead { font-size: 1.25rem; font-weight: 600; color: var(--ink); margin-bottom: var(--step); }
+.stale { margin-bottom: calc(var(--step) * 2); padding: var(--step) calc(var(--step) * 2); border: 1.5px solid var(--ink); border-radius: 3px; font-weight: 600; }
+
+.slip { background: var(--sheet); border: 1.5px solid var(--ink); border-radius: 3px; padding: 0 calc(var(--step) * 4) calc(var(--step) * 4); }
+.slip-for {
+  margin: 0 calc(var(--step) * -4); padding: calc(var(--step) * 1.5) calc(var(--step) * 4);
+  border-bottom: 1.5px dashed var(--slate); color: var(--slate); font-size: 0.9375rem;
+}
+.slip-answer { margin-top: calc(var(--step) * 3); font-size: 2.5rem; line-height: 1.08; letter-spacing: -0.015em; }
+.slip-trip { margin-top: var(--step); font-size: 1.375rem; font-weight: 600; line-height: 1.25; }
+#why { margin-top: calc(var(--step) * 3); }
+#why p { max-width: 62ch; font-size: 1.0625rem; }
+#why p + p { margin-top: var(--step); }
+.record { margin: calc(var(--step) * 3) 0 0; padding: calc(var(--step) * 2) calc(var(--step) * 2.5); background: var(--paper); border-radius: 3px; }
+.record blockquote { margin: 0; font-size: 1.125rem; line-height: 1.4; max-width: 56ch; quotes: "\201C" "\201D"; }
+.record blockquote::before { content: open-quote; }
+.record blockquote::after { content: close-quote; }
+.record figcaption { margin-top: var(--step); color: var(--slate); font-size: 0.9375rem; }
+.caveat {
+  display: flex; align-items: flex-start; gap: calc(var(--step) * 1.5); margin-top: calc(var(--step) * 3);
+  padding: calc(var(--step) * 1.5) calc(var(--step) * 2); background: var(--caution); color: var(--caution-ink);
+  border: 1.5px solid var(--amber); border-radius: 3px; font-weight: 600;
+}
+.caveat svg { width: 1.5rem; height: 1.5rem; flex: none; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--step) calc(var(--step) * 2); margin-top: calc(var(--step) * 3); }
+.actions button { min-height: 2.75rem; }
+.copy-status { color: var(--slate); }
+
+.leads { margin-top: calc(var(--step) * 3); display: grid; gap: calc(var(--step) * 2); }
+.leads li, #backup-list li, #leftout-list li { max-width: 66ch; }
+.leads strong, #backup-list strong, #leftout-list strong { font-weight: 700; }
+.quote { display: block; color: var(--slate); }
+
+.answer section, .next { margin-top: calc(var(--step) * 5); }
+.answer section h3 { font-size: 1.25rem; }
+#backup-list { margin: var(--step) 0 0; padding-left: 1.5rem; display: grid; gap: calc(var(--step) * 1.5); }
+#backup-list li::marker { font-weight: 700; }
+#weights-line { margin-top: var(--step); max-width: 66ch; }
+.scroll { overflow-x: auto; }
+#how-table { margin-top: calc(var(--step) * 2); min-width: 36rem; }
+#how-table th, #how-table td { white-space: nowrap; }
+#how-table td.num, #how-table th.num { text-align: right; }
+#how-table tbody tr:first-child td, #how-table tbody tr:first-child th { font-weight: 700; }
+#how-table .of { color: var(--slate); font-weight: 400; }
+#leftout-list { margin-top: var(--step); display: grid; gap: calc(var(--step) * 1.5); }
+.next a, .technical a { color: var(--ink); font-weight: 600; }
+.technical { margin-top: calc(var(--step) * 5); padding-top: calc(var(--step) * 2); border-top: 1.5px solid var(--rule); color: var(--slate); }
+.technical summary { cursor: pointer; font-weight: 600; }
+.technical p { margin-top: var(--step); max-width: 66ch; }
+.technical pre {
+  margin: var(--step) 0 0; padding: calc(var(--step) * 2); max-height: 22rem; overflow: auto;
+  background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px; font-size: 0.8125rem; color: var(--ink);
+}
+
+/* The one authored moment: the slip feeds out, the way a printed slip does. */
+@media (prefers-reduced-motion: no-preference) {
+  .slip.fresh { animation: feed 0.5s var(--ease) both; }
+  @keyframes feed { from { clip-path: inset(0 0 100% 0); transform: translateY(-0.5rem); } to { clip-path: inset(0 0 0 0); transform: none; } }
+}
+
+@media (max-width: 1000px) {
+  .desk { grid-template-columns: minmax(0, 1fr); gap: calc(var(--step) * 4); margin-top: calc(var(--step) * 3); }
+  .ask-form { position: static; }
+  .ask .synthetic-note { margin-left: 0; text-align: left; flex-basis: 100%; }
+  .slip { padding: 0 calc(var(--step) * 2) calc(var(--step) * 3); }
+  .slip-for { margin: 0 calc(var(--step) * -2); padding-left: calc(var(--step) * 2); padding-right: calc(var(--step) * 2); }
+  .slip-answer { font-size: 2rem; }
+  .actions button { flex: 1 1 10rem; }
+}
+
+@media print {
+  body { background: #fff; padding: 0; }
+  .masthead nav, .ask-form, .actions, .how, .leftout, .next, .technical { display: none !important; }
+  /* An out-of-date answer never reaches paper: only the notice prints. */
+  #result[data-stale="true"] > :not(.stale) { display: none !important; }
+  .desk { display: block; margin: 0; }
+  .slip { border-color: #000; }
+}

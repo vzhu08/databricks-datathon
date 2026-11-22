@@ -1,4 +1,18 @@
-# Storm routing replay page
+# Offline demo pages
+
+Three pages that open from a file, in the order a judge meets them. [DESIGN_NOTES.md](DESIGN_NOTES.md)
+records the judge's path they were built for and the before and after review scores.
+
+1. `index.html`, **Find care**. Choose the care needed, a starting point and the urgency, and get
+   one campus, the record text behind it, what is not confirmed, two backups, and how the points
+   were worked out. Every ranking is `app.ranking.urgency.rank_campuses` output, computed ahead of
+   time by `python -m app.storm_ui.build_ask` over invented records. The page looks answers up and
+   words them. It never ranks.
+2. `replay.html`, **Storm stress test**. The storm replay described below.
+3. `finder.html`, **Driving-time response check**. A technical page, linked from the technical
+   details of an answer.
+
+## Storm stress test page
 
 A single offline page that plays one fictional Jaipur-area storm shift under two allocation
 policies with the same arrivals and the same clock. It reads replays written by
@@ -8,7 +22,7 @@ counted from the events announced so far.
 
 ## Open it
 
-Open `app/storm_ui/index.html` in a browser. No server, install or network is needed. The fonts
+Open `app/storm_ui/replay.html` in a browser, or reach it from step 3 of `index.html`. No server, install or network is needed. The fonts
 and the replays are files in this folder.
 
 To show a replay with another seed or setting, write it and open it with **Open replay file**:
@@ -26,7 +40,8 @@ the problem and keeps the replay that was open, at the same minute.
 1. **Setup.** Scenario (storm, no surge, overload, arrivals reversed, slot count unknown at A, slot
    goes offline), the longest detour the scarcity-aware policy may ask for (0, 5, 10 or 15
    minutes), map or text-only view, and the file opener.
-2. **Clock.** Restart, Back, Play or Pause, Next, and a scrubber. Next and Back jump to the next or
+2. **Clock.** Restart, Back, Play or Pause, Next, Skip to the result, and a scrubber. One sentence
+   under the clock gives the running result. Next and Back jump to the next or
    previous minute at which something happens. Space plays or pauses and the arrow keys step.
    Nothing later than the clock minute is shown, including totals.
 3. **Two policy panels.** Each has the rule in a sentence, a schematic map and running totals:
@@ -47,7 +62,7 @@ the problem and keeps the replay that was open, at the same minute.
 6. **Text-only view.** Replaces each map with an ordered log of what happened and a table of
    staffed slots by campus. It carries the same information as the map.
 
-## Campus finder page
+## Driving-time response check page
 
 `finder.html` shows one response from the finder when the request opts in to driving times
 (`python -m app.ranking request.json` with a `routing` section, see `app/travel/README.md`). It
@@ -91,11 +106,15 @@ timers and stores nothing.
 
 | File | Purpose |
 | --- | --- |
-| `index.html`, `storm.css`, `storm.js` | The page. Plain HTML, CSS and JavaScript with no dependencies. |
+| `index.html`, `ask.css`, `ask.js` | The Find care page. |
+| `ask_state.js` | Pure functions that turn one precomputed answer into the sentences, points and referral note the page shows. Runs in the browser and in Node. |
+| `build_ask.py` | Writes `data/answers.js`: the ranker's response for every service, starting point and urgency, over invented records. |
+| `data/answers.js` | Generated. Do not edit. `python -m app.storm_ui.build_ask` rewrites it and `--check` verifies it. |
+| `replay.html`, `storm.css`, `storm.js` | The storm stress test page. Plain HTML, CSS and JavaScript with no dependencies. |
 | `replay_state.js` | Pure functions that turn a replay and a clock minute into what a panel shows. Runs in the browser and in Node. |
 | `build.py` | Writes `data/scenarios.js` from `app.simulation`: six scenarios at four detour caps, seed 17. |
 | `data/scenarios.js` | Generated. Do not edit. `python -m app.storm_ui.build` rewrites it and `--check` verifies it. |
-| `finder.html`, `finder.css`, `finder.js` | The campus finder page. It shares `storm.css` and the fonts. |
+| `finder.html`, `finder.css`, `finder.js` | The driving-time response check page. It shares `storm.css` and the fonts. |
 | `finder_state.js` | Pure functions that sort one finder response into what the page shows. Runs in the browser and in Node. |
 | `build_finder.py` | Writes `data/finder_examples.js` from `app.travel.finder` with a stand-in provider. Needs `app.travel`. |
 | `data/finder_examples.js` | Generated. Do not edit. `python -m app.storm_ui.build_finder` rewrites it and `--check` verifies it. |
