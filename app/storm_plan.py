@@ -13,7 +13,7 @@ shows the checked replay alone and this section is not offered.
 import html
 import json
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import Counter
 from pathlib import Path
 
@@ -74,7 +74,7 @@ STYLE = """
 .sp h3 { margin: 1.6rem 0 0.4rem; font-size: 1.15rem; }
 .sp h3.sp-top { margin-top: 0.2rem; font-size: 1.35rem; }
 .sp-facts { margin: 0.4rem 0 0; padding: 0; list-style: none; max-width: 100ch; }
-.sp-facts li { margin-bottom: 0.3rem; }
+.sp-facts li { margin-bottom: 0.3rem; overflow-wrap: anywhere; }
 .sp-pair { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 0.8rem; }
 .sp-card { flex: 1 1 17rem; padding: 0.9rem 1.1rem; background: #ffffff; border: 1.5px solid #c3ced6;
   border-radius: 3px; }
@@ -96,6 +96,10 @@ STYLE = """
 .sp-key { margin-top: 0.4rem; color: #4b6274; font-size: 0.95rem; max-width: 90ch; }
 .sp-key svg { vertical-align: -0.2em; }
 .sp a { color: #14283b; }
+.sp-live { margin: 0.7rem 0 1.5rem; padding: 0.9rem 1.1rem 1rem; background: #ffffff; border: 1.5px solid #c3ced6;
+  border-radius: 3px; }
+.sp .sp-live h3 { margin-top: 0; }
+.sp-live p { margin: 0.4rem 0 0; max-width: 100ch; }
 </style>
 """
 
@@ -360,11 +364,11 @@ def difference(plan, order):
         others = sorted((row for row in first["assignments"] if row.get("slot_id") == chosen["slot_id"]), key=rank)
         if others:
             other = patients[others[-1]["patient"]]
-            holder = {"id": other["id"], "priority": _plain(urgency(other)).lower(),
+            holder = {"id": other["id"], "priority": _inline(urgency(other)),
                       "arrival": other.get("arrival_minute")}
-    return {"id": patient["id"], "priority": _plain(urgency(patient)).lower(),
-            "service": _plain(patient["service"]).lower(), "arrival": patient.get("arrival_minute"),
-            "kind": _plain(patient_class(patient)).lower() if patient_class(patient) else None,
+    return {"id": patient["id"], "priority": _inline(urgency(patient)),
+            "service": _inline(patient["service"]), "arrival": patient.get("arrival_minute"),
+            "kind": _inline(patient_class(patient)) if patient_class(patient) else None,
             "reason": left.get(patient["id"]), "near": place(near[patient["id"]]) if patient["id"] in near else None,
             "best": place(chosen), "holder": holder}
 
@@ -380,7 +384,7 @@ def advice(plan, results, order, total):
     if gain > 0:
         urgent = best["by_priority"][top] - first["by_priority"][top]
         lines.append(f"Assigning the same staffed places differently placed {gain} more of the {total:,} simulated "
-                     f"patients, {urgent} of them {_plain(top).lower()} priority, with no added capacity.")
+                     f"patients, {urgent} of them {_inline(top)} priority, with no added capacity.")
     patients = {patient["id"]: patient for patient in plan["patients"]}
     short = Counter(patients[row["patient"]]["service"] for row in plan["policies"][best["key"]]["unserved"])
     if short:
@@ -388,7 +392,7 @@ def advice(plan, results, order, total):
         places = sum(resource["slots"] for facility in plan["facilities"] for resource in facility["resources"]
                      if resource["service"] == service)
         used = sum(1 for row in plan["policies"][best["key"]]["assignments"] if row["service"] == service)
-        name = _plain(service).lower()
+        name = _inline(service)
         if places:
             lines.append(f"Even at the optimum {best['unmet']:,} had no place, {count:,} of them needing {name}: "
                          f"{used:,} of the {places:,} {name} places in the shift were used. That is the shortage to "
@@ -424,8 +428,39 @@ def _minutes(value):
     return f"{value:,.0f}" if value.is_integer() else f"{value:,.1f}"
 
 
+INITIALS = ("mri", "ct", "icu", "nicu", "ecg")
+
+
 def _plain(reason):
-    return reason.replace("_", " ").strip().capitalize()
+    """A code such as time_sensitive or mri as words, with medical initials kept in capitals."""
+    words = reason.replace("_", " ").strip().capitalize().split(" ")
+    return " ".join(word.upper() if word.lower() in INITIALS else word for word in words)
+
+
+def _inline(reason):
+    """The same words for the middle of a sentence: lower case, except the initials."""
+    return " ".join(word if word.lower() in INITIALS else word.lower() for word in _plain(reason).split(" "))
+
+
+def _pickup_name(code):
+    """PUNE-SIM-PICKUP-W as words. An id this page does not know is shown as written."""
+    code = str(code)
+    for ending, name in (("PICKUP-W", "West shared pickup"), ("PICKUP-E", "East shared pickup")):
+        if code.endswith(ending):
+            return name
+    return code
+
+
+def _when(stamp):
+    """2026-11-22T17:40:00Z as 22 November 2026, 17:40 UTC. Anything else is shown as written."""
+    try:
+        moment = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except ValueError:
+        return str(stamp)
+    if moment.utcoffset() is None:
+        return str(stamp)
+    moment = moment.astimezone(timezone.utc)
+    return f"{moment.day} {moment:%B %Y}, {moment:%H:%M} UTC"
 
 
 def view(plan):
@@ -462,6 +497,14 @@ def view(plan):
     if gain > 0:
         say = (f"On identical inputs the exact optimum placed {gain} more simulated "
                f"{'patient' if gain == 1 else 'patients'} than nearest first.")
+    elif plan.get("traffic") and not best["assigned"] and not plan["traffic"]["usable_pairs"]:
+        say = ("No road time came back for any route, so neither policy could place a simulated patient in this "
+               "run. That is the road-time service being unavailable, not the planner: the modeled result is "
+               "unchanged.")
+    elif plan.get("traffic") and not best["assigned"]:
+        usable = plan["traffic"]["usable_pairs"]
+        say = (f"Road times came back for {usable:,} {'route' if usable == 1 else 'routes'}, but with them neither "
+               "policy could place a simulated patient in this run. The reasons are in the table below.")
     elif gain == 0:
         say = "On identical inputs both policies placed the same number of simulated patients."
     else:
@@ -516,9 +559,9 @@ def chart(plan, width=720, height=440, pad=28):
     for start in starts:
         x, y = at(start)
         if traffic:
-            name = html.escape(start["id"], quote=False)
+            name = html.escape(_pickup_name(start["id"]), quote=False)
             marks.append(f'<path data-pickup="shared" d="M{x} {y-7} l7 7 -7 7 -7 -7 Z" fill="#0b7067" '
-                         f'stroke="white"><title>{name}, shared simulated pickup</title></path>')
+                         f'stroke="white"><title>{name}, simulated</title></path>')
         else:
             marks.append(f'<circle cx="{x}" cy="{y}" r="2" fill="#8a9aa7"/>')
     for facility in sorted(facilities, key=lambda row: row["precision"] != "area"):
@@ -540,26 +583,33 @@ def chart(plan, width=720, height=440, pad=28):
 
 
 def _traffic_header(facts, safe):
-    def count(value):
-        return f"{value:,}" if value is not None else "unknown"
-
-    summary = (
-        f"{facts['eligible_pairs']} eligible pairs · {count(facts['attempted_pairs'])} unique pairs attempted · "
-        f"{facts['usable_pairs']} usable · {facts['unavailable_pairs']} unavailable · "
-        f"{count(facts['actual_attempts'])} actual attempts including retries"
-    )
-    groups = " · ".join(f"{safe(row['id'])}: {row['patient_count']} simulated requests" for row in facts["pickups"])
+    """What one signed-in road-time run asked for and got back, in words a first-time reader can follow."""
+    pickups, total = facts["pickups"], facts["eligible_pairs"]
+    attempted, attempts = facts["attempted_pairs"], facts["actual_attempts"]
+    asked = (f"Road times were asked for {attempted:,} of the {total:,} pickup-to-site routes"
+             if attempted is not None else
+             f"It is not known how many of the {total:,} pickup-to-site routes were asked for")
+    sent = (f"{attempts:,} {'request was' if attempts == 1 else 'requests were'} sent in all, counting retries."
+            if attempts is not None else "The number of requests sent is not known.")
+    summary = (f"{asked} ({len(pickups)} pickups × {facts['site_count']} sites). {facts['usable_pairs']:,} came "
+               f"back usable and {facts['unavailable_pairs']:,} are unavailable. {sent}")
+    groups = " · ".join(f"{safe(_pickup_name(row['id']))}: {row['patient_count']:,} simulated requests"
+                        for row in pickups)
+    stamp = facts.get("observed_at")
+    seen = (f'Observed <time datetime="{html.escape(str(stamp), quote=True)}">{safe(_when(stamp))}</time>.'
+            if stamp else "No observation time, because no route was observed.")
     credit = facts.get("attribution") or {}
     attribution = (f'<p data-attribution="storm-traffic">{safe(credit["caption"])}</p>'
                    f'<details><summary>Map data copyright notices</summary><p>{safe(credit["notices"])}</p></details>'
                    if credit.get("caption") and credit.get("notices") else "")
     state = ("" if facts["usable_pairs"] else
              '<p role="status"><strong>No road estimates available for this run.</strong> '
-             "The modeled baseline remains available below.</p>")
-    return (f'<div data-storm-traffic="observed"><h3>Signed-in road-time comparison</h3>{state}'
-            f'<p>{safe(facts["pickup_rule"])} {groups}.</p><p>{summary}.</p>'
-            f'<p>Source: {safe(facts["source"])}. Observation time: '
-            f'{safe(facts.get("observed_at") or "unavailable")}.</p>{attribution}</div>')
+             "The modeled baseline remains available below. Nothing is wrong with the planner or the modeled "
+             "result: without a road time for any route, neither policy can place a simulated patient.</p>")
+    return (f'<div class="sp-live" data-storm-traffic="observed" data-usable="{facts["usable_pairs"]}">'
+            f"<h3>Signed-in road-time comparison</h3>{state}"
+            f'<p>{safe(facts["pickup_rule"])} {groups}.</p><p>{summary}</p>'
+            f'<p>Source: {safe(facts["source"])}. {seen}</p>{attribution}</div>')
 
 
 def markup(plan):
@@ -647,7 +697,9 @@ def markup(plan):
         + "</tr>" for row in found["resources"])
     key = " &nbsp; ".join(f"{KEYS[kind]} {safe(name.lower())} ({count:,})" for kind, name, count in found["precision"])
     if traffic:
-        key += " &nbsp; ◆ Shared simulated pickup (2)"
+        key += (' &nbsp; <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true">'
+                '<path d="M8 2 l7 7 -7 7 -7 -7 Z" fill="#0b7067"/></svg> '
+                f"shared simulated pickup ({len(traffic['pickups']):,})")
     else:
         key += (' &nbsp; <svg width="12" height="18" viewBox="0 0 12 18" aria-hidden="true"><circle cx="6" cy="9" r="2.5" '
             'fill="#8a9aa7"/></svg> simulated patient start')
