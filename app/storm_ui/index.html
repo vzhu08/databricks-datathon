@@ -17,11 +17,27 @@
       <li><a href="replay.html">Stress test</a></li>
     </ol>
   </nav>
-  <p class="synthetic-note">Demonstration near Jaipur. Every campus, record and travel time here is invented.</p>
+  <p class="synthetic-note">Demonstration near Jaipur. Every patient, campus, record and travel time here is invented.</p>
 </header>
 
 <main class="desk">
-  <form id="ask" class="ask-form" aria-labelledby="ask-heading">
+  <div class="ask-col">
+  <fieldset class="mode" id="mode">
+    <legend class="visually-hidden">How to start</legend>
+    <label><input type="radio" name="mode" value="intake" id="mode-intake" checked> From the problem</label>
+    <label><input type="radio" name="mode" value="direct" id="mode-direct"> Care already decided</label>
+  </fieldset>
+
+  <section id="intake" class="intake" aria-labelledby="intake-heading">
+    <h2 id="intake-heading">What is the patient’s problem?</h2>
+    <p class="fiction">Pick a made-up patient and answer for them. This shows the steps before a campus is chosen. It is not medical advice.</p>
+    <fieldset class="choice" id="scenario">
+      <legend>1. Choose a fictional patient</legend>
+    </fieldset>
+    <p class="fiction">Then answer up to five questions for this patient.</p>
+  </section>
+
+  <form id="ask" class="ask-form" aria-labelledby="ask-heading" hidden>
     <h2 id="ask-heading">Where should this patient go?</h2>
     <fieldset class="choice" id="service">
       <legend>Care needed</legend>
@@ -38,6 +54,7 @@
       <ul id="examples" aria-labelledby="examples-heading"></ul>
     </div>
   </form>
+  </div>
 
   <section id="answer" class="answer" aria-labelledby="answer-heading" tabindex="-1">
     <h2 id="answer-heading" class="visually-hidden">Recommendation</h2>
@@ -47,6 +64,52 @@
       <p>You get one campus to send the patient to, the record that backs it, and what nobody has confirmed yet.</p>
     </div>
     <p class="error" id="load-error" role="alert" hidden></p>
+
+    <div class="intake-work" id="intake-work" hidden>
+      <div class="story" id="story">
+        <p id="story-text"></p>
+        <p class="story-known" id="story-known"></p>
+      </div>
+      <div class="questions" id="questions">
+        <h3 id="questions-heading">2. Answer for this patient</h3>
+        <ol class="answered" id="answered" aria-label="Answers so far"></ol>
+        <fieldset class="question" id="question">
+          <legend id="question-text"></legend>
+          <div class="answer-buttons" id="answer-buttons"></div>
+        </fieldset>
+        <p class="questions-hint" id="questions-hint"></p>
+        <button type="button" class="quiet" id="story-answers">Fill in the answers from the story</button>
+      </div>
+    </div>
+
+    <article class="slip outcome" id="outcome" tabindex="-1" aria-labelledby="outcome-headline" hidden>
+      <p class="slip-for" id="outcome-for"></p>
+      <h3 class="slip-answer" id="outcome-headline"></h3>
+      <p class="outcome-body" id="outcome-body"></p>
+      <dl class="summary" id="outcome-summary" hidden></dl>
+      <div class="outcome-part" id="outcome-concern" hidden>
+        <h4>Possible concern, not a diagnosis</h4>
+        <ul id="outcome-concern-list"></ul>
+      </div>
+      <div class="outcome-part" id="outcome-why" hidden>
+        <h4>Why</h4>
+        <ul id="outcome-why-list"></ul>
+      </div>
+      <div class="outcome-part" id="outcome-limits" hidden>
+        <h4>What this does not tell you</h4>
+        <ul id="outcome-limits-list"></ul>
+      </div>
+      <div class="actions" id="outcome-confirm" hidden>
+        <button type="button" class="primary" id="confirm">Confirm this summary</button>
+      </div>
+      <div class="actions outcome-find" id="outcome-find" hidden>
+        <label class="field" for="intake-place">Starting from
+          <select id="intake-place"></select>
+        </label>
+        <button type="button" class="primary" id="intake-find">Find a campus</button>
+      </div>
+      <p class="outcome-sources" id="outcome-sources" hidden></p>
+    </article>
 
     <div id="result" hidden>
       <p class="stale" id="stale" hidden>You changed the request. This answer is for the earlier one, so Copy and Print are off. Press Find a campus to update it.</p>
@@ -101,7 +164,10 @@
 </main>
 
 <script src="data/answers.js"></script>
+<script src="data/intake.js"></script>
 <script src="ask_state.js"></script>
+<script src="intake_state.js"></script>
 <script src="ask.js"></script>
+<script src="intake.js"></script>
 </body>
 </html>

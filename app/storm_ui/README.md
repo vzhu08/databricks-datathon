@@ -3,14 +3,46 @@
 Three pages that open from a file, in the order a judge meets them. [DESIGN_NOTES.md](DESIGN_NOTES.md)
 records the judge's path they were built for and the before and after review scores.
 
-1. `index.html`, **Find care**. Choose the care needed, a starting point and the urgency, and get
-   one campus, the record text behind it, what is not confirmed, two backups, and how the points
-   were worked out. Every ranking is `app.ranking.urgency.rank_campuses` output, computed ahead of
+1. `index.html`, **Find care**. It opens on the intake described below (**From the problem**).
+   **Care already decided** is the finder on its own: choose the care needed, a starting point and
+   the urgency, and get one campus, the record text behind it, what is not confirmed, two backups,
+   and how the points were worked out. Every ranking is `app.ranking.urgency.rank_campuses` output, computed ahead of
    time by `python -m app.storm_ui.build_ask` over invented records. The page looks answers up and
    words them. It never ranks.
 2. `replay.html`, **Storm stress test**. The storm replay described below.
 3. `finder.html`, **Driving-time response check**. A technical page, linked from the technical
    details of an answer.
+
+## Intake before Find care (provisional)
+
+The steps before a campus is chosen: pick one of seven fictional patients, answer up to five
+questions for them one at a time (yes, no or not sure), and read the outcome.
+
+| Outcome | What the page shows | Campus search |
+| --- | --- | --- |
+| A danger sign was answered yes | The emergency message, at once, even with questions unanswered or care already booked | None |
+| A safety or scope answer is "not sure" | Which answer is unresolved. Not sure is never counted as no | None |
+| Nobody has assessed the patient | A possible concern (a category, not a diagnosis), the reasons, and that a clinician must assess first | None |
+| A child or pregnant patient, or care with no campuses here | That the demonstration does not cover it. It is not mapped to another service | None |
+| A clinician in the story asked for dialysis, an MRI scan or trauma care | A summary to confirm, then the starting point and **Find a campus** | Only after the summary is confirmed |
+
+Changing the patient, an answer, the starting point or the mode removes the confirmation and any
+campus answer on screen. A confirmation belongs to one exact set of answers.
+
+**What is provisional.** The team's intake contract and assessment engine (issue 127) are not
+written yet. `build_intake.py` holds a stand-in `assess` function that follows the acceptance cases
+on issue 124, with placeholder questions, rules and wording that no clinician has reviewed, and
+references that are proposed and not yet checked. Every outcome on screen says so. To move to the
+real engine, replace `assess`, `QUESTIONS`, `SCENARIOS` and `CATALOGUE` in `build_intake.py`, and
+adjust `read` in `intake_state.js`, the one function that knows the stored field names.
+
+**What the page does and does not do.** As with Find care, the page decides nothing. The build step
+asks `assess` about every state a visitor can reach (347 states, at most five questions on any
+path) and stores the unedited answers. The page looks one up and words it from the bundle's
+catalogue. It asks for a campus only when `IntakeState.finderRequest` returns a request, which
+needs a stored state that is ready, synthetic, confirmed for exactly these answers, with no open
+or unsure question, and asking for the same routable service and urgency as the clinician in the
+story. A stored state that merely says "ready" is refused.
 
 ## Storm stress test page
 
@@ -110,6 +142,10 @@ timers and stores nothing.
 | `ask_state.js` | Pure functions that turn one precomputed answer into the sentences, points and referral note the page shows. Runs in the browser and in Node. |
 | `build_ask.py` | Writes `data/answers.js`: the ranker's response for every service, starting point and urgency, over invented records. |
 | `data/answers.js` | Generated. Do not edit. `python -m app.storm_ui.build_ask` rewrites it and `--check` verifies it. |
+| `intake.js` | The intake's controls on the Find care page. Holds no rule and no clinical wording. |
+| `intake_state.js` | Pure functions that look up one stored intake state, word it, and decide whether the finder may be asked. Runs in the browser and in Node. |
+| `build_intake.py` | Provisional. Writes `data/intake.js` by walking a stand-in assessment function over seven fictional patients. |
+| `data/intake.js` | Generated. Do not edit. `python -m app.storm_ui.build_intake` rewrites it and `--check` verifies it. |
 | `replay.html`, `storm.css`, `storm.js` | The storm stress test page. Plain HTML, CSS and JavaScript with no dependencies. |
 | `replay_state.js` | Pure functions that turn a replay and a clock minute into what a panel shows. Runs in the browser and in Node. |
 | `build.py` | Writes `data/scenarios.js` from `app.simulation`: six scenarios at four detour caps, seed 17. |

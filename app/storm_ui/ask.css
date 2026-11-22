@@ -26,7 +26,9 @@
 }
 
 /* Ask */
-.ask-form { position: sticky; top: calc(var(--step) * 3); display: grid; gap: calc(var(--step) * 3); }
+.ask-form { display: grid; gap: calc(var(--step) * 3); }
+/* The short finder form stays in view beside a long answer. The intake is too tall to pin. */
+.ask-col:has(#ask:not([hidden])) { position: sticky; top: calc(var(--step) * 3); }
 .ask-form h2 { font-size: 1.5rem; line-height: 1.2; }
 .ask-form legend, .ask-form .field { font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
 .ask-form legend { padding: 0; margin-bottom: var(--step); }
@@ -132,4 +134,61 @@
   #result[data-stale="true"] > :not(.stale) { display: none !important; }
   .desk { display: block; margin: 0; }
   .slip { border-color: #000; }
+}
+
+/* Intake: the steps before a campus is chosen. Quiet on the left, one outcome slip on the right. */
+.ask-col { display: grid; gap: calc(var(--step) * 3); min-width: 0; }
+.mode { display: grid; grid-template-columns: 1fr 1fr; border: 1.5px solid var(--ink); border-radius: 3px; overflow: hidden; }
+.mode label { position: relative; display: grid; place-items: center; min-height: 2.75rem; padding: 0.3rem 0.5rem; text-align: center; font-size: 0.9375rem; font-weight: 600; cursor: pointer; background: var(--sheet); }
+.mode label + label { border-left: 1.5px solid var(--ink); }
+.mode input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.mode label:has(input:checked) { background: var(--ink); color: var(--sheet); }
+.mode label:has(input:focus-visible) { outline: 3px solid var(--blue); outline-offset: -4px; }
+.intake { display: grid; gap: calc(var(--step) * 3); }
+.intake h2 { font-size: 1.5rem; line-height: 1.2; }
+.intake legend, .intake h3 { font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
+.intake legend { padding: 0; margin-bottom: var(--step); }
+.fiction { color: var(--slate); font-size: 0.9375rem; margin-top: calc(var(--step) * -2); }
+.story { padding: calc(var(--step) * 1.5) calc(var(--step) * 2); background: var(--sheet); border-left: 3px solid var(--ink); }
+.story-known { margin-top: var(--step); font-weight: 600; }
+.questions { display: grid; gap: calc(var(--step) * 1.5); }
+.answered { margin: 0; padding: 0; list-style: none; display: grid; gap: calc(var(--step) / 2); }
+.answered li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: baseline; gap: var(--step); font-size: 0.9375rem; padding-bottom: calc(var(--step) / 2); border-bottom: 1px solid var(--rule); }
+.answered .asked { color: var(--slate); }
+.question { padding: calc(var(--step) * 2); background: var(--sheet); border: 1.5px solid var(--ink); border-radius: 3px; }
+.question legend { float: left; width: 100%; font-size: 1.0625rem; line-height: 1.35; margin-bottom: calc(var(--step) * 1.5); }
+.question legend:focus { outline: none; }
+.answer-buttons { clear: both; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--step); }
+.answer-buttons button { min-height: 2.75rem; }
+button.quiet { justify-self: start; border: 0; background: none; padding: 0.2rem 0; min-height: 2rem; font-weight: 400; text-decoration: underline; text-underline-offset: 0.18em; }
+button.quiet:hover:not(:disabled) { background: none; color: var(--blue); }
+.questions-hint { color: var(--slate); font-size: 0.9375rem; }
+.intake-work { display: grid; gap: calc(var(--step) * 3); margin-bottom: calc(var(--step) * 4); }
+.intake-work h3 { font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
+.intake-work .question { max-width: 34rem; }
+.intake-work .answered { max-width: 34rem; }
+.slip { scroll-margin-top: calc(var(--step) * 2); }
+
+.outcome:focus { outline: none; }
+.outcome-body { margin-top: var(--step); font-size: 1.1875rem; line-height: 1.35; max-width: 56ch; }
+.outcome[data-kind="emergency"] { border-color: var(--red); border-width: 3px; }
+.outcome[data-kind="emergency"] .slip-answer { color: var(--red); }
+.outcome[data-kind="ready"] .slip-answer, .outcome[data-kind="confirm"] .slip-answer { font-size: 2rem; }
+.summary { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: calc(var(--step) / 2) calc(var(--step) * 3); margin: calc(var(--step) * 3) 0 0; padding: calc(var(--step) * 2) calc(var(--step) * 2.5); background: var(--paper); border-radius: 3px; }
+.summary dt { color: var(--slate); }
+.summary dd { margin: 0; font-weight: 600; }
+.outcome-part { margin-top: calc(var(--step) * 3); }
+.outcome-part h4 { font-size: 0.9375rem; font-weight: 600; color: var(--slate); }
+.outcome-part ul { margin-top: calc(var(--step) / 2); padding-left: 1.2rem; list-style: disc; display: grid; gap: calc(var(--step) / 2); max-width: 62ch; }
+.outcome-find { align-items: flex-end; }
+.outcome-find .field { font-size: 0.9375rem; font-weight: 600; color: var(--ink); gap: var(--step); }
+.outcome-find select { min-height: 2.75rem; min-width: 12rem; font-weight: 400; }
+.outcome-sources { margin-top: calc(var(--step) * 3); padding-top: calc(var(--step) * 1.5); border-top: 1px solid var(--rule); color: var(--slate); font-size: 0.875rem; max-width: 66ch; }
+#outcome + #result { margin-top: calc(var(--step) * 4); }
+@media (max-width: 1000px) {
+  .ask-col:has(#ask:not([hidden])) { position: static; }
+  .outcome[data-kind="ready"] .slip-answer, .outcome[data-kind="confirm"] .slip-answer { font-size: 1.75rem; }
+}
+@media print {
+  .ask-col, .intake-work, .outcome { display: none !important; }
 }
