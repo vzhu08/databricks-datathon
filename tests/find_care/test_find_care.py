@@ -162,6 +162,48 @@ class WordingTests(unittest.TestCase):
         # Real records keep no card, so they keep no warning either.
         self.assertNotIn("location_warning", json.dumps(words.withheld(flagged)))
 
+    def test_each_demonstration_card_gets_its_own_location_and_service_claim(self):
+        """#302: claim lines read only the card, name the synthetic publisher and never confirm a service."""
+        _, view = _run({"service": "dialysis", "location": {"city": "Jaipur", "state": "Rajasthan"}, "radius_km": 50})
+        found = words.claim_lines(view["top"], "dialysis", "direct_results", 0)
+        self.assertEqual(("direct_results", 0), (found["result_group"], found["index"]))
+        location, service = found["location"], found["service"]
+        self.assertIn("recorded map point", location["line"])
+        self.assertIn("entrance unverified", location["line"])
+        self.assertEqual(("Unconfirmed", "Reported"), (service["state"], service["strength"]))
+        self.assertIn("procedures field only", service["line"])
+        self.assertIn("date unknown", service["line"])
+        for claim in (location, service):
+            self.assertEqual((1, 1), (claim["source_records"], claim["independent_supporting_origins"]))
+            self.assertTrue(claim["missing_check"])
+            for source in claim["sources"]:
+                self.assertEqual(words.DEMO_PUBLISHER, source["publisher"])
+                self.assertEqual("unknown", source["date"])
+                self.assertNotIn("Virtue", source["publisher"])
+                self.assertTrue(all(link["note"] == words.RECORD_LINK_NOTE for link in source["links"]))
+        self.assertEqual(["https://example.invalid/north-campus"], [l["url"] for l in service["sources"][0]["links"]])
+
+        _, view = _run({"service": "dialysis", "location": {"pin": "302001"}, "radius_km": 2})
+        lead = words.claim_lines(view["leads"][0], "dialysis", "indirect_leads", 0)["service"]
+        self.assertEqual(("Unconfirmed", "No evidence", 0), (lead["state"], lead["strength"],
+                                                             lead["independent_supporting_origins"]))
+        self.assertEqual(["context"], [source["role"] for source in lead["sources"]])
+        # The service named is the one asked for, never another.
+        mri = words.claim_lines(view["leads"][0], "mri", "indirect_leads", 0)["service"]
+        self.assertEqual("MRI scan", mri["label"])
+        self.assertNotIn("dialysis", mri["line"] + mri["missing_check"])
+
+    def test_the_withheld_summary_names_no_facility_and_lists_no_source(self):
+        for evidence, words_found in (("direct", "mention dialysis."), ("related", "something related to dialysis")):
+            summary = words.withheld_summary({"status": "withheld", "evidence": evidence}, "dialysis")
+            self.assertIn("Unconfirmed", summary["line"])
+            self.assertIn(words_found, summary["line"])
+            self.assertIn("Independent corroboration unknown", summary["detail"])
+            for text in restricted():
+                self.assertNotIn(text, json.dumps(summary))
+        for status in ("no_match", "unavailable", "ambiguous_location"):
+            self.assertIsNone(words.withheld_summary({"status": status}, "dialysis"))
+
     def test_data_mode_is_explicit_and_a_half_configured_warehouse_is_a_setup_problem(self):
         self.assertEqual({"mode": "demo", "problems": []}, words.data_mode({}))
         self.assertEqual({"mode": "warehouse", "problems": []}, words.data_mode(WAREHOUSE))
@@ -422,7 +464,15 @@ class ScreenTests(unittest.TestCase):
                          (app.radio(key="service").value, app.text_input(key="where").value,
                           app.select_slider(key="radius").value))
         self.assertNotIn("You changed the request", text)
+        # #302: every card carries its own location and service lines, and the sources behind them.
+        for part in ("How well this is supported", "Why this finding?", "Synthetic demo record",
+                     'data-claims="direct_results-0"', 'data-claims="direct_results-1"',
+                     "Dialysis</strong> · Unconfirmed · Reported in the demo record", words.RECORD_LINK_NOTE):
+            self.assertIn(part, text)
+        self.assertNotIn("Virtue Foundation", text)
         app = self._step(app.button(key="example-Dialysis within 2 km of PIN 302001").click())
+        self.assertIn('data-claims="indirect_leads-0"', self._text(app))
+        self.assertIn("No evidence of onsite dialysis", self._text(app))
         self.assertIn("No facility within 2 km clearly offers dialysis.", self._text(app))
         self.assertIn("A kidney department or a kidney specialist is not a working dialysis unit.", self._text(app))
         self.assertEqual(("302001", 2), (app.text_input(key="where").value, app.select_slider(key="radius").value))
@@ -448,6 +498,9 @@ class ScreenTests(unittest.TestCase):
             self.assertEqual((0, 0), (len(changed.code), len(changed.get("download_button"))))
             self.assertNotIn("cannot take the patient", text)
             self.assertIn("Dialysis near Jaipur, Rajasthan, within 50 km.", text)  # still says what it answers
+            # #302: an out-of-date answer shows no sources, so dialysis evidence never sits under MRI.
+            self.assertNotIn("data-claims", text)
+            self.assertNotIn("Why this finding?", text)
             # Putting the request back, or asking again, makes the answer current.
             back = self._step(changed.button(key="example-Dialysis near Jaipur, Rajasthan").click())
             self.assertNotIn("You changed the request", self._text(back))
@@ -509,6 +562,9 @@ class ScreenTests(unittest.TestCase):
         self.assertIn("names none, shows no record text or links, and offers no referral note", text)
         self.assertIn("What this does not tell you", text)
         self.assertIn(words.UNCHECKED_CLAIM, text)
+        self.assertIn("Dialysis · Unconfirmed · Records nearby mention dialysis.", text)
+        self.assertIn("Independent corroboration unknown", text)
+        self.assertNotIn("data-claims", text)
         self._assert_nothing_restricted(app, raw)
         self.assertEqual({"request": {"service": "dialysis", "location": location, "radius_km": 50},
                           "data": "warehouse", "status": "withheld"}, json.loads(app.json[0].value))
