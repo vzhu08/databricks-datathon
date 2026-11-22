@@ -35,7 +35,7 @@ def _process_client():
 
 def _unavailable(reason):
     return {"status": "unavailable", "minutes": None, "source": _SOURCE,
-            "reason": reason, "outcome": "unavailable"}
+            "reason": reason, "outcome": "unavailable", "requested_at": None}
 
 
 def _route_candidates(request, capacity, approved):
@@ -125,6 +125,6 @@ def demo_car_travel(request, snapshot, *, origin_id, provider=None):
         travel[row["facility_id"]] = {
             "status": "known" if row["outcome"] == "ok" else "unavailable",
             "minutes": row["estimated_minutes"], "source": _SOURCE,
-            "reason": row["reason"], "outcome": row["outcome"],
+            "reason": row["reason"], "outcome": row["outcome"], "requested_at": row["requested_at"],
         }
     return travel

@@ -157,6 +157,27 @@ class HostedTests(unittest.TestCase):
             self.assertEqual(service.disabled_reason(), "unsupported_budget_deployment")
             self.assertIsNone(service.budget)
 
+    def test_missing_delta_binding_never_falls_back_to_sqlite(self):
+        env = {"DATABRICKS_APP_NAME": "test", "TOMTOM_ENABLED": "true", "TOMTOM_DEPLOYMENT_MODE": "databricks_delta",
+               "TOMTOM_BUDGET_DB": "/tmp/unused.sqlite", "TOMTOM_ACCOUNT_SCOPE": "fixture",
+               "TOMTOM_PRODUCT": "tomtom_maps_v1", "TOMTOM_API_KEY": "FAKE", "TOMTOM_DAILY_CALLS": "10",
+               "TOMTOM_MONTHLY_CALLS": "10", "TOMTOM_VERIFIED_MONTHLY_ALLOWANCE": "20000"}
+        for binding in ({"TOMTOM_BUDGET_TABLE": "a.b.c"}, {"TOMTOM_BUDGET_WAREHOUSE_ID": "a" * 16}):
+            client = from_environment(dict(env, **binding))
+            self.addCleanup(client.close)
+            self.assertIsNone(client.budget)
+            self.assertEqual(client.disabled_reason(), "missing_budget_store")
+
+    @unittest.skipUnless(find_spec("app.travel.delta_budget"), "requires #314")
+    def test_packaged_delta_dispatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "deployment"
+            shutil.copytree(Path(__file__).resolve().parents[2] / "app", root,
+                            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+            control = Path(__file__).with_name("packaged_delta_control.py").read_text()
+            subprocess.run([sys.executable, "-B", "-c", control + "\ncheck()"], cwd=root,
+                           env={"PATH": os.defpath}, check=True)
+
     def test_actual_flat_packaging_in_isolated_process(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "deployment"

@@ -137,7 +137,8 @@ select a profile, supply keys, raise quotas or pass a reservation ID.
 | `TOMTOM_PRODUCT` | Absent; explicitly `tomtom_maps_v1` after entitlement verification. |
 | `TOMTOM_ACCOUNT_SCOPE` | Absent; one stable nonsecret account identifier shared by every key/worker using the allowance. |
 | `TOMTOM_VERIFIED_MONTHLY_ALLOWANCE` | Absent/0; must equal the operator-verified `20000`. Unknown/changed allowance fails closed. |
-| `TOMTOM_DEPLOYMENT_MODE` | Absent; only `single_host` is implemented. Multi-host needs a shared atomic store first. |
+| `TOMTOM_DEPLOYMENT_MODE` | Use `single_host` with durable SQLite on one host, or `databricks_delta` with the shared Serializable Delta ledger. Databricks Apps requires the latter. |
+| `TOMTOM_BUDGET_WAREHOUSE_ID`, `TOMTOM_BUDGET_TABLE` | For Delta, bind a SQL warehouse ID and the three-part quota table name. |
 | `TOMTOM_BUDGET_DB` | Absent; one durable absolute SQLite path outside Git, shared by all backend processes. |
 | `TOMTOM_PROFILE` | `routine`; trusted operator may select `demo` or `validation`. |
 | `TOMTOM_DAILY_CALLS` | 0 (closed); routine at most 100. Other profiles at most their monthly allocation. |
@@ -286,6 +287,30 @@ recommendation = recommend_capacity(request, {**snapshot, "travel": travel})
 
 The snapshot must carry the matching `origin_id`. The adapter resolves points from the fictional Jaipur scenario and checks any supplied campus coordinates against that edition. Each campus has an observation with status, decimal minutes, source, outcome and reason. A successful duration describes an ordinary car driving between simulated places. An unavailable or no-route observation has null minutes. Use the entire returned map, including failures, before selecting a destination. For scarcity-aware allocation the route batch also measures reviewed pools that could supply the protected tool, even when the current request requires a different tool. The allocator alone decides request eligibility. An explicit provider no-route result (`no_route_found`) can exclude an unreachable spare. Failed map matching or missing observations leave its reachability uncertain. One process-scoped adapter owns the thread pool. Submit once per explicit search and retain no completed provider result across users.
 
-**Hosted quota prerequisite.** Databricks Apps discards its local filesystem on restart. Replicas have separate local filesystems. The adapter therefore refuses instance-local SQLite in an Apps runtime even when configured as single-host. Copying SQLite to or from a Volume cannot coordinate concurrent admissions. Oliver can review a single durable admission service or a shared PostgreSQL ledger on Lakebase. A replacement must serialize admissions per account/product across workers, preserve charged attempts (including the five Explorer calls), reservations, rate windows, in-flight permits, cooldowns and the safety margin, and pass restart and two-replica tests before enabling hosted sends. [Databricks app state](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/key-concepts) · [Lakebase app resources](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/lakebase).
+### Private presenter deployment
 
-For an authorized single-host adapter smoke, the existing settings above still apply: a server-only TomTom secret, verified Maps v1 entitlement and account scope, explicit call caps, durable pre-provisioned ledger, and a reserved validation run. The hosted key alone cannot enable traffic. Oliver owns provisioning and account-specific Evaluation display clearance; Andrew owns attribution on the rendered result.
+Deploy the integrated tracked app tree with this adapter and K’s `travel/delta_budget.py` from #314. The shared budget needs a single provisioned Serializable Delta row, the original five Explorer charges, warehouse CAN USE, table SELECT/MODIFY, and the app’s OAuth identity. See [Delta ledger operator steps](DELTA_BUDGET.md). App-local SQLite stays blocked, including when a local DB path is configured alongside an incomplete Delta binding. Databricks documents instance-local storage as temporary. [App state](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/key-concepts)
+
+For Oliver’s one-attempt synthetic smoke, merge the following entries into the existing deployment's `app.yaml` env list. Replace the reservation placeholder with a valid one-attempt validation run. This overlay starts disabled. After the counter check and reservation, the operator may set `TOMTOM_ENABLED` to `"true"` for that smoke. A failed send still consumes its attempt. Restore disabled mode after the smoke; choose separate, approved demo-profile caps for any later presenter session.
+
+```yaml
+env:
+  - {name: TOMTOM_API_KEY, valueFrom: tomtom-api-key}
+  - {name: TOMTOM_BUDGET_WAREHOUSE_ID, valueFrom: tomtom-quota-warehouse}
+  - {name: TOMTOM_BUDGET_TABLE, valueFrom: tomtom-quota-table}
+  - {name: TOMTOM_ENABLED, value: "false"}
+  - {name: TOMTOM_DEPLOYMENT_MODE, value: databricks_delta}
+  - {name: TOMTOM_ACCOUNT_SCOPE, value: vf-find-care-tomtom-evaluation}
+  - {name: TOMTOM_PRODUCT, value: tomtom_maps_v1}
+  - {name: TOMTOM_VERIFIED_MONTHLY_ALLOWANCE, value: "20000"}
+  - {name: TOMTOM_PROFILE, value: validation}
+  - {name: TOMTOM_RUN_ID, value: "<operator-reserved-run-id>"}
+  - {name: TOMTOM_DAILY_CALLS, value: "1"}
+  - {name: TOMTOM_MONTHLY_CALLS, value: "1"}
+  - {name: TOMTOM_QUERY_CALLS, value: "1"}
+  - {name: TOMTOM_SHORTLIST_LIMIT, value: "1"}
+  - {name: TOMTOM_CONCURRENCY, value: "1"}
+  - {name: TOMTOM_MAX_RETRIES, value: "0"}
+```
+
+The key belongs only in the server-side resource. The operator checks counters before and after and owns the single preapproved synthetic pair. Andrew should place the verified applicable attribution alongside current traffic estimates and make the full applicable notices accessible; retain the simulated-place, ordinary-car and request-time labels. The classic TomTom Maps Copyrights service documents the caption and the full notices separately. Obtain the current applicable notice through the operator-approved channel with the proper entitlement and budget. No Copyrights request is included in the routing smoke. The Evaluation credential’s private presenter use remains subject to Oliver’s account-specific clearance. [TomTom Copyrights API](https://docs.tomtom.com/map-display-api/documentation/tomtom-maps/v2/copyrights/copyrights) · [Portal terms](https://docs.tomtom.com/legal/terms-and-conditions)
