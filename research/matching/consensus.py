@@ -520,7 +520,14 @@ def registry_branches(path, occurrences):
 
 
 def run(replay, occurrences_path, batches, projection, output, insurer_links=None, control=None,
-        base=None, joint_occurrences=None, registry_comparison=None, address_search=False):
+        base=None, joint_occurrences=None, registry_comparison=None, address_search=False,
+        area_nhp=None, area_nabh=None, area_operators=()):
+    registry = None
+    if area_nhp or area_nabh or area_operators:
+        if not (address_search and area_nhp and area_nabh):
+            raise ValueError("Facility-area replay requires address search and both official directories")
+        from research.matching.facility_area import RegistryIndex, area_counts, facility_area, registry_listings
+        registry = RegistryIndex(registry_listings(area_nhp, area_nabh, area_operators))
     occurrences = list(json_lines(occurrences_path))
     if address_search and not base:
         raise ValueError("Address search requires the original VF address fields")
@@ -541,7 +548,8 @@ def run(replay, occurrences_path, batches, projection, output, insurer_links=Non
     if len({row["facility_id"] for row in occurrences}) != len(occurrences):
         raise ValueError("Occurrence keys must be unique")
     paths = [replay, occurrences_path, projection, *batches]
-    paths.extend(path for path in (insurer_links, control, base, joint_occurrences, registry_comparison) if path)
+    paths.extend(path for path in (insurer_links, control, base, joint_occurrences, registry_comparison,
+                                    area_nhp, area_nabh, *area_operators) if path)
     inputs = {path.as_posix(): digest(path) for path in paths}
     supplements = registry_branches(registry_comparison, occurrences) if registry_comparison else {}
     old_outcomes = {}
@@ -587,11 +595,15 @@ def run(replay, occurrences_path, batches, projection, output, insurer_links=Non
                                               supplements.get(representative))
         if address_search:
             supplement = supplements.get(representative)
+            raw_row = base_by_id[original["facility_id"]]
+            signals = {p["external_facility_id"]: p["signals"] for p in pairs + historical}
             classified[representative]["address_search"] = search_result(
-                base_by_id[original["facility_id"]], original, candidates,
-                {p["external_facility_id"]: p["signals"] for p in pairs + historical},
+                raw_row, original, candidates, signals,
                 bool(supplement and (supplement.competing_references or supplement.unmapped_alternative)),
                 providers)
+            if registry is not None:
+                classified[representative]["facility_area"] = facility_area(
+                    raw_row, original, candidates, signals, providers, registry)
     if classified.keys() != representatives.keys() or insurer:
         raise ValueError("Candidate and occurrence representatives do not reconcile")
 
@@ -644,6 +656,8 @@ def run(replay, occurrences_path, batches, projection, output, insurer_links=Non
                   "occurrence_output_sha256": digest(interim / "occurrences.jsonl.gz")}
         if address_search:
             report["address_search"] = summarize(occurrences, classified)
+        if registry is not None:
+            report["facility_area"] = area_counts(occurrences, classified)
         (interim / "aggregate.json").write_text(encoded(report), encoding="utf-8", newline="\n")
         output.mkdir()
         for file in interim.iterdir():
@@ -660,10 +674,14 @@ def main():
         parser.add_argument(f"--{name}", type=Path)
     parser.add_argument("--address-search", action="store_true",
                         help="Also evaluate written addresses and name-search areas under 1 km")
+    parser.add_argument("--area-nhp", type=Path, help="Official NHP locator edition (JSONL)")
+    parser.add_argument("--area-nabh", type=Path, help="National NABH listing edition (SQLite)")
+    parser.add_argument("--area-operator", type=Path, action="append", default=[],
+                        help="Authorized first-party operator observations (JSONL)")
     args = parser.parse_args()
     report = run(args.replay, args.occurrences, args.reference, args.projection, args.output,
                  args.insurer_links, args.control, args.base, args.joint_occurrences, args.registry_comparison,
-                 args.address_search)
+                 args.address_search, args.area_nhp, args.area_nabh, args.area_operator)
     print(encoded({key: report[key] for key in ("occurrences", "candidate_pairs", "categories", "location_statuses")}),
           end="")
 

@@ -313,6 +313,16 @@ If the address stays open, `nearby_name_search` retains the alternatives with th
 
 `aggregate.json` includes the prior-by-new transition table, state/UT counts and mutually exclusive combined directory counts. Read the four combined groups in order: supported written address, prior named map listing, additional nearby name-search area, and remaining. They sum to the full original denominator. The baseline and candidate are rules for directory evidence whose actual address accuracy requires independent labels.
 
+### Named hospital in an area
+
+For the national facility-area replay, add `--area-nhp <facility-locators.jsonl.gz>` from the existing official NHP edition (#181) and `--area-nabh <nabh.sqlite>` from the existing private NABH directory (#67/#173). The runner hashes both inputs with the previous eleven. An optional repeatable `--area-operator <observations.jsonl>` accepts a previously authorized first-party operator extract. Each observation supplies the first-party facility page in `operator_url`, the printed `name`, and any printed `address`, `pin`, `city` and `state`. A website URL on the VF row alone supplies no operator observation.
+
+Each occurrence retains the publisher record locator and the matched PIN, locality or landmark. Locality and landmark matches require geographic context and a distinctive phrase from the VF address. A city-wide name match alone supplies no area. The map check also accepts a named OSM or documented Overture listing with the same area, or with coordinates agreeing with VF. The field `possible_shared_origin` flags identifiable or unresolved source reuse. Equal coordinates are valid agreement and can reflect copying.
+
+The `nearby_points` alternatives retain every plausible coordinate-bearing candidate for that branch. The maximum distance between displayed points must be under 1,000 m. Two external families can support an area despite a displaced VF point if their points agree and at least one matches the VF written area. A reference without coordinates can still support the registry result. Where the written area agrees but points conflict, use the returned area label. These results support a directory search by facility name. Present-day operation, service availability and entrance location each require separate evidence.
+
+The national aggregate reports overlapping evidence counts and an exclusive breakdown of the gain over the previous directory. Each original row contributes once to total coverage, including repeated upstream IDs. The source extracts stay in their existing private editions. Store only permitted aggregate counts and the method in the team handoff.
+
 ## Limits
 
 - Fixture results, public-source results and live Databricks results are separate. The handoff states which exist.
