@@ -201,10 +201,11 @@ def submit():
     if mode() == RECOMMEND:
         return recommend()
     st.session_state.pop("capacity", None)
+    where = st.session_state.get("where", "")
     try:
-        location = words.parse_location(st.session_state.get("where", ""))
+        location = words.parse_location(where)
     except ValueError as error:
-        st.session_state["problem"] = str(error)
+        st.session_state["problem"] = {where: str(error)}
         st.session_state.pop("asked", None)
         st.session_state.pop("response", None)
         return
@@ -640,8 +641,10 @@ with left:
         radius = st.select_slider("Search within", options=list(words.RADII), key="radius",
                                   format_func=lambda km: f"{km} km")
         st.button(SEARCH_LABEL, type="primary", use_container_width=True, on_click=submit, key="find")
-        if st.session_state.get("problem"):
-            st.error(st.session_state["problem"])
+        rejected = st.session_state.get("problem")
+        problem = rejected.get(where) if isinstance(rejected, dict) else None
+        if problem:
+            st.error(problem)
         st.caption("Or start from an example")
         for label, ex_service, ex_where, ex_radius in EXAMPLES:
             st.button(label, key="example-" + label, on_click=fill, args=(ex_service, ex_where, ex_radius))
@@ -715,7 +718,7 @@ with right:
                 st.json({"request": check["asked"], "travel_kind": check["travel_kind"],
                          "travel": check["travel_rows"], "result": check["result"]})
     elif not response:
-        if where.strip() and where != START_WHERE and not st.session_state.get("problem"):
+        if where.strip() and where != START_WHERE and not problem:
             # Enter in the field only keeps the text. Without this line a first search by Enter shows nothing.
             st.markdown(f'<div class="fc-stale">Nothing has been searched yet. Press {safe(SEARCH_LABEL)} to '
                         "search for the place you typed.</div>", unsafe_allow_html=True)
@@ -742,7 +745,7 @@ with right:
         found = decisions.explain(decision, asked["service"]) if decision else None
         if stale:
             st.markdown('<div class="fc-stale">You changed the request. The answer below is for the earlier one. '
-                        "Press the button to update it.</div>", unsafe_allow_html=True)
+                        f"Press {safe(SEARCH_LABEL)} to update it.</div>", unsafe_allow_html=True)
         st.markdown(slip(view, stale, asked["service"], response, found), unsafe_allow_html=True)
         for choice in view["choices"] if DEMO and not stale else []:
             label = ", ".join(part for part in (choice.get("city"), choice.get("state")) if part)
