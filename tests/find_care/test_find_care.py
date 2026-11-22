@@ -470,12 +470,39 @@ class ScreenTests(unittest.TestCase):
         next(field for field in app.text_input if field.label == "City").set_value("Atlantis")
         app = self._step(next(button for button in app.button if button.label == "Search public sources").click())
         self.assertIn("This collection has no reviewed public claim", app.info[0].value)
-        self.assertIn("It currently holds claims for: Pune (dialysis, maintenance haemodialysis).", app.info[0].value)
-        self.assertIn("A miss here does not mean that no facility offers the service.", app.info[0].value)
+        self.assertIn("**Pune** in **City**", app.info[0].value)
+        self.assertIn("**dialysis** or **maintenance haemodialysis** in **Service**", app.info[0].value)
+        self.assertIn("select **Search public sources** again", app.info[0].value)
         self.assertIn("call 112 now", self._text(app))
         self.assertNotIn("How this was decided", self._text(app))
         self.assertNotIn("Send the patient", self._text(app))
+        self.assertNotIn("KEM Hospital, Pune", self._text(app))
         self.assertFalse(app.get("link_button"))
+        next(field for field in app.text_input if field.label == "City").set_value("Pune")
+        next(field for field in app.text_input if field.label == "Service").set_value("dialysis")
+        app = self._step(next(button for button in app.button if button.label == "Search public sources").click())
+        self.assertEqual(2, len(app.get("link_button")))
+
+    def test_public_blank_fields_clear_results_and_name_the_missing_inputs(self):
+        app = self._step(self._app().radio(key="lookup_source").set_value("Public facility evidence"))
+        for city, service, missing in (
+            ("", "maintenance haemodialysis", "**City**"),
+            ("Pune", "   ", "**Service**"),
+            ("   ", "", "**City** and **Service**"),
+        ):
+            with self.subTest(missing=missing):
+                next(field for field in app.text_input if field.label == "City").set_value("Pune")
+                next(field for field in app.text_input if field.label == "Service").set_value("maintenance haemodialysis")
+                app = self._step(next(button for button in app.button if button.label == "Search public sources").click())
+                self.assertEqual(1, len(app.get("link_button")))
+                next(field for field in app.text_input if field.label == "City").set_value(city)
+                next(field for field in app.text_input if field.label == "Service").set_value(service)
+                app = self._step(next(button for button in app.button if button.label == "Search public sources").click())
+                self.assertIn(f"Fill in {missing}, then select **Search public sources**.",
+                              [warning.value for warning in app.warning])
+                self.assertFalse(app.info)
+                self.assertFalse(app.get("link_button"))
+                self.assertNotIn("KEM Hospital, Pune", self._text(app))
 
     def _lookup(self, app):
         """The demonstration opens on the recommendation. The record lookup is its second, separate job."""

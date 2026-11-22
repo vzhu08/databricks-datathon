@@ -38,7 +38,7 @@ import find_decision as decisions  # noqa: E402
 import finding_provenance as provenance  # noqa: E402
 import national_directory  # noqa: E402
 import patient_ui  # noqa: E402
-from public_facility_search import covered as public_coverage, search_public_facilities  # noqa: E402
+from public_facility_search import search_public_facilities  # noqa: E402
 import storm_page  # noqa: E402
 from data_access import search_warehouse  # noqa: E402
 from ranking import search_facilities  # noqa: E402
@@ -556,19 +556,18 @@ if lookup_mode == "Public facility evidence":
         st.warning(f"Shorten {' and '.join(over_limit)} to {limit} characters or fewer and search again.")
     elif submitted:
         try:
-            claims = search_public_facilities(place=place, service=service)
+            missing = [f"**{label}**" for label, value in (("City", place), ("Service", service))
+                       if not value.strip()]
+            claims = [] if missing else search_public_facilities(place=place, service=service)
         except (OSError, ValueError):
             st.error("Public facility evidence is currently unavailable.")
         else:
-            if not claims:
-                try:
-                    holds = "; ".join(f"{city} ({', '.join(name.lower() for name in names)})"
-                                      for city, names in public_coverage().items())
-                except (OSError, ValueError):
-                    holds = ""
+            if missing:
+                st.warning(f"Fill in {' and '.join(missing)}, then select **Search public sources**.")
+            elif not claims:
                 st.info("This collection has no reviewed public claim for that city and service. "
-                        + (f"It currently holds claims for: {holds}. " if holds else "")
-                        + "A miss here does not mean that no facility offers the service.")
+                        "For a covered example, enter **Pune** in **City** and **dialysis** or "
+                        "**maintenance haemodialysis** in **Service**, then select **Search public sources** again.")
             for claim in claims:
                 st.subheader(claim["operator"])
                 st.write(claim["service"])

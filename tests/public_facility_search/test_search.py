@@ -6,16 +6,13 @@ import sys
 from tempfile import TemporaryDirectory
 import unittest
 
-from app.public_facility_search import covered, search_public_facilities
+from app.public_facility_search import search_public_facilities
 
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 class PublicFacilitySearchTests(unittest.TestCase):
-    def test_coverage_names_each_city_and_its_services_once(self):
-        self.assertEqual({"Pune": ["Dialysis", "Maintenance haemodialysis"]}, covered())
-
     def test_pune_operator_claims_and_contacts(self):
         results = search_public_facilities(place="  PUNE ", service="DIALYSIS")
         self.assertEqual(
