@@ -544,12 +544,18 @@ if lookup_mode == "Public facility evidence":
         st.warning(f"Shorten {' and '.join(over_limit)} to {limit} characters or fewer and search again.")
     elif submitted:
         try:
-            claims = search_public_facilities(place=place, service=service)
+            missing = [f"**{label}**" for label, value in (("City", place), ("Service", service))
+                       if not value.strip()]
+            claims = [] if missing else search_public_facilities(place=place, service=service)
         except (OSError, ValueError):
             st.error("Public facility evidence is currently unavailable.")
         else:
-            if not claims:
-                st.info("This collection has no reviewed public claim for that city and service.")
+            if missing:
+                st.warning(f"Fill in {' and '.join(missing)}, then select **Search public sources**.")
+            elif not claims:
+                st.info("This collection has no reviewed public claim for that city and service. "
+                        "For a covered example, enter **Pune** in **City** and **dialysis** or "
+                        "**maintenance haemodialysis** in **Service**, then select **Search public sources** again.")
             for claim in claims:
                 st.subheader(claim["operator"])
                 st.write(claim["service"])
