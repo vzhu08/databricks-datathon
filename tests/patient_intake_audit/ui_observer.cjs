@@ -117,10 +117,18 @@ async function runCase(browser, id) {
         await answer(page, "no");
         await visible(page, "New synthetic result");
         return { old_result_visible: await text(page, "Earlier synthetic result").isVisible() };
-      case "terminated-empty":
-        await visible(page, "This could not be assessed");
-        return { generic_unsupported_message: await visible(page, "The assessment provider cannot assess this description."),
-                 terminal_visible: await page.getByText(/interview (has )?ended|provider ended/i).isVisible() };
+      case "terminated-empty": {
+        await text(page, "This assessment has stopped").or(text(page, "This could not be assessed")).first().waitFor();
+        const exactGuidance = "The interview ended without a current question. No assessment is available.";
+        return {
+          terminal_visible: await text(page, exactGuidance).isVisible(),
+          continuation_visible: await page.getByRole("button", {
+            name: /^(send answer|skip this question|send for assessment|try again)$/i,
+          }).count() > 0,
+          hospital_action_visible: await button(page, "I have read this. Check for a reviewed hospital").isVisible(),
+          result_visible: await text(page, "How sure this is").isVisible(),
+        };
+      }
       case "privacy-sinks": {
         await visible(page, "The assessment provider understood this from your words:");
         await answer(page, "Matches my statement");
@@ -179,13 +187,15 @@ async function runCase(browser, id) {
 }
 
 (async () => {
-  const browser = await chromium.launch({ args: ["--disable-background-networking"] });
   const cases = ["no-configuration", "qualified-completion", "unsupported-age", "malformed-provider",
                  "provider-emergency", "provider-instruction-text", "outage-after-success", "budget-exhausted",
                  "question-loop", "provider-stop", "optional-skip", "shared-cache", "contradiction",
                  "same-count-edit", "terminated-empty", "privacy-sinks", "expired-session", "reset-in-flight"];
+  const selected = process.argv[4];
+  if (selected && !cases.includes(selected)) throw Error("Unknown audit case");
+  const browser = await chromium.launch({ args: ["--disable-background-networking"] });
   try {
-    for (const id of cases) {
+    for (const id of selected ? [selected] : cases) {
       try { observations[id] = await runCase(browser, id); }
       catch (err) { errors.push(id); console.error(id, err.message.split("\n")[0]); }
     }

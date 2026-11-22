@@ -413,11 +413,14 @@ def terminal(case_id, details):
         initial_assessment = has_assessment(flow)
         details["initial_state"] = initial["state"]
         starts = len(flow.provider.requests)
-        attempt(lambda: flow.invoke("answer", question_id="closed-question", answers="unknown"), "question_stale")
+        details["answer_accepted"] = attempt(
+            lambda: flow.invoke("answer", question_id="closed-question", answers="unknown"), "question_stale")
         if not emergency:
-            attempt(lambda: flow.invoke("assess"), "assessment_action_unavailable")
+            details["continuation_accepted"] = attempt(
+                lambda: flow.invoke("assess"), "assessment_action_unavailable")
         details["state_after_continuation"] = flow.service.view(flow.handle)["state"]
         navigated = attempt(lambda: search(flow), "confirmation_unavailable")
+        details["search_accepted"] = navigated
         measured = dict(additional_provider_attempts=len(flow.provider.requests) - starts)
         if emergency:
             measured["ordinary_routing"] = navigated
@@ -715,9 +718,12 @@ class SideEffects:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--app", required=True, type=Path, help="Staged app/ from the recorded component SHAs")
+    cases = json.loads(Path(__file__).with_name("cases.v1.json").read_bytes())["cases"]
+    parser.add_argument("--case", choices=[case["id"] for case in cases], help="Replay one frozen case")
     args = parser.parse_args()
     effects = SideEffects(args.app.resolve())
-    cases = json.loads(Path(__file__).with_name("cases.v1.json").read_bytes())["cases"]
+    if args.case:
+        cases = [case for case in cases if case["id"] == args.case]
     rows = {}
     per_case_counts = {}
     supplemental = {}

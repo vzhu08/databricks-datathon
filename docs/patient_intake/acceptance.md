@@ -108,6 +108,12 @@ node tests/patient_intake_audit/ui_observer.cjs http://127.0.0.1:18523 "$CONTROL
 python3 -B tests/patient_intake_audit/ui_score.py "$BACKEND_REPORT" "$BROWSER_REPORT" "$SERVER_LOG"
 ```
 
+#### Targeted empty-interview retest
+
+Provider [#268 at `b6d20d7`](https://github.com/vzhu08/databricks-datathon/commit/b6d20d756bb77a194206347840fa9bbff687efc1) and [UI #266 at `fec08c5`](https://github.com/vzhu08/databricks-datathon/commit/fec08c53abe3e1eb8ee4428dd8e08ea1ae92fe5a) were combined in local commit `105c54ffd8c313bd45d35567bc1149ae72dbe22c`, app tree `f8ac7008b3c24b26f1b358966d2cf0742e9ab354`. Only `terminated-empty` ran. Its six frozen fields passed. A single synthetic HTTP 204 returned `provider_stop`. Chromium displayed “The interview ended without a current question. No assessment is available.” It showed no assessment result, continuation or hospital action. Server calls to answer, continue and search were rejected. There were zero additional mock exchanges and zero finder, route or external-network attempts.
+
+Use `runtime_binding.py --app "$UI_REPO/app" --case terminated-empty` with Python’s `-I -S -B` flags. Start the pinned local browser server as above and append `terminated-empty` after the private controls directory when invoking `ui_observer.cjs`. The targeted result applies to this composition. The 35-case score above describes the earlier UI replay, and final browser acceptance awaits a full run on the revised UI head.
+
 ## Clinical evaluation for a release decision
 
 **Intended use to approve in advance.** A patient in India enters new symptoms, confirms their interpretation, and receives next-step guidance from a specified assessment provider and version. The clinical lead must approve the initial supported ages, acuity, languages, exclusions, care settings, output wording, escalation pathways and validated endpoints for that provider. Record whether any possible-cause list is in scope. A verified clinical order, independently reviewed campus and permission for routing are separately required where applicable. Narrow eligibility to the studied scope. Undefined or unsupported populations get an explicit stop. Facility-triage guidance is setting-specific; WHO describes the IITT as a tool for emergency units. [WHO IITT](https://www.who.int/tools/triage)

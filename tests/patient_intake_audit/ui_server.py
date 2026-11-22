@@ -108,7 +108,13 @@ def run():
         }
         if case == "terminated-empty":
             from v2_observer import Wire, prebound
-            wire = Wire(lambda *_: (204, None))
+            def empty_question(method, path, payload):
+                print("AUDIT_EXCHANGE terminated-empty", flush=True)
+                if method != "GET" or not path.endswith("/questions/current") or payload is not None:
+                    raise ValueError("unexpected empty-question request")
+                return 204, None
+
+            wire = Wire(empty_question)
             from patient_intake.providers.mgp import PROVIDER_ID, PROVIDER_VERSION
             return PatientIntakeService(interview=PatientInterview(), provider=prebound(wire),
                                         provider_identity=(PROVIDER_ID, PROVIDER_VERSION)), "Synthetic test provider"
