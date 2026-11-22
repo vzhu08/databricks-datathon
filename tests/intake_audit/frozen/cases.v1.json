@@ -1,0 +1,1166 @@
+{
+  "version": "1.0.0",
+  "owner": "Developer S",
+  "task": "https://github.com/vzhu08/databricks-datathon/issues/133",
+  "synthetic": true,
+  "frozen_before_candidate_outputs": true,
+  "population": "Independent deliberate fictional software challenges; not a clinical or national accuracy sample.",
+  "basis": [
+    "#124 acceptance criteria and orchestration acceptance 7073694662",
+    "#127 consumer direction 7073777400",
+    "#133 initial independent audit assignment"
+  ],
+  "state_semantics": {
+    "ready": "A confirmed current synthetic request is eligible for the offline finder.",
+    "emergency_escalation": "Warning escalation without ordinary ranking.",
+    "needs_more_information": "Incomplete/ambiguous inputs or missing valid summary confirmation.",
+    "clinician_assessment_needed": "Simulated clinical authority absent or insufficient.",
+    "unsupported_care_need": "Unsupported concern or population is explicitly withheld.",
+    "invalid_input": "Malformed or untrusted input is rejected.",
+    "error": "Visible failure without reusing a prior recommendation."
+  },
+  "baselines": {
+    "complete_<service>": "Trusted fictional adult nonpregnant scenario, supported scope, all structured warnings negative, complete onset/severity, matching prior simulated clinical authority, explicit routine urgency and empty required capabilities, synthetic provenance, no summary confirmation initially.",
+    "no_clinician_authority": "Same complete fictional safety/context inputs but no service request or prior clinician authority."
+  },
+  "adapter_rules": [
+    "Translate semantics into the approved contract without changing case intent or expectation.",
+    "If a semantic input is not representable, record NOT_RUN and the reason, never silently drop it.",
+    "For multi-phase stale-state cases, require the initial ready phase to succeed before counting the blocked second phase.",
+    "Only S may change the adapter; changing frozen cases creates a new edition and preserves the original digest.",
+    "All live calls must be instrumented and denied. Blocked cases require zero finder calls; ready controls require exactly one offline finder invocation.",
+    "Allowed state sets acknowledge unresolved API naming/precedence only; readiness and request/service/call constraints are fixed.",
+    "Input exceptions count as invalid_input only if they are expected validation errors and the downstream consumer clears prior results. Unexpected exceptions are errors, not successful abstention."
+  ],
+  "cases": [
+    {
+      "id": "control_dialysis",
+      "group": "ready_controls",
+      "setup": "complete_dialysis",
+      "steps": [
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "ready"
+        ],
+        "request_service": "dialysis",
+        "finder_calls": 1,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "A trusted scenario supplies the matching prior simulated plan/referral/assessment, explicit urgency and capabilities; the visitor confirms the current summary."
+    },
+    {
+      "id": "control_mri",
+      "group": "ready_controls",
+      "setup": "complete_mri",
+      "steps": [
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "ready"
+        ],
+        "request_service": "mri",
+        "finder_calls": 1,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "A trusted scenario supplies the matching prior simulated plan/referral/assessment, explicit urgency and capabilities; the visitor confirms the current summary."
+    },
+    {
+      "id": "control_trauma",
+      "group": "ready_controls",
+      "setup": "complete_trauma",
+      "steps": [
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "ready"
+        ],
+        "request_service": "trauma",
+        "finder_calls": 1,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "A trusted scenario supplies the matching prior simulated plan/referral/assessment, explicit urgency and capabilities; the visitor confirms the current summary."
+    },
+    {
+      "id": "warning_chest_pain",
+      "group": "warning_precedence",
+      "setup": "complete_mri",
+      "steps": [
+        "set_warning:chest_pain=yes",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "emergency_escalation"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "A prior routine referral cannot suppress a known warning."
+    },
+    {
+      "id": "warning_stroke_like",
+      "group": "warning_precedence",
+      "setup": "complete_mri",
+      "steps": [
+        "set_warning:stroke_like=yes",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "emergency_escalation"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "A prior routine referral cannot suppress a known warning."
+    },
+    {
+      "id": "warning_severe_breathing",
+      "group": "warning_precedence",
+      "setup": "complete_mri",
+      "steps": [
+        "set_warning:severe_breathing=yes",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "emergency_escalation"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "A prior routine referral cannot suppress a known warning."
+    },
+    {
+      "id": "warning_unresponsive",
+      "group": "warning_precedence",
+      "setup": "complete_mri",
+      "steps": [
+        "set_warning:unresponsive=yes",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "emergency_escalation"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "A prior routine referral cannot suppress a known warning."
+    },
+    {
+      "id": "warning_heavy_bleeding",
+      "group": "warning_precedence",
+      "setup": "complete_mri",
+      "steps": [
+        "set_warning:heavy_bleeding=yes",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "emergency_escalation"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "A prior routine referral cannot suppress a known warning."
+    },
+    {
+      "id": "warning_over_missing_context",
+      "group": "warning_precedence",
+      "setup": "complete_mri",
+      "steps": [
+        "set_warning:heavy_bleeding=yes",
+        "remove_age",
+        "remove_onset",
+        "remove_severity",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "emergency_escalation"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Known warning precedes missing nonessential data or unsupported scope."
+    },
+    {
+      "id": "warning_over_unknown_other_warning",
+      "group": "warning_precedence",
+      "setup": "complete_mri",
+      "steps": [
+        "set_warning:heavy_bleeding=yes",
+        "set_other_warning:unknown",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "emergency_escalation"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Known warning precedes missing nonessential data or unsupported scope."
+    },
+    {
+      "id": "warning_over_unsupported_age",
+      "group": "warning_precedence",
+      "setup": "complete_mri",
+      "steps": [
+        "set_warning:heavy_bleeding=yes",
+        "set_age:child",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "emergency_escalation"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Known warning precedes missing nonessential data or unsupported scope."
+    },
+    {
+      "id": "warning_over_unsupported_need",
+      "group": "warning_precedence",
+      "setup": "complete_mri",
+      "steps": [
+        "set_warning:heavy_bleeding=yes",
+        "set_care_need:general_medical",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "emergency_escalation"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Known warning precedes missing nonessential data or unsupported scope."
+    },
+    {
+      "id": "safety_all_missing",
+      "group": "unresolved_safety",
+      "setup": "complete_dialysis",
+      "steps": [
+        "remove_all_warning_answers",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "needs_more_information",
+          "clinician_assessment_needed"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "An absent/unknown safety answer must not act as a negative answer."
+    },
+    {
+      "id": "safety_one_missing",
+      "group": "unresolved_safety",
+      "setup": "complete_dialysis",
+      "steps": [
+        "remove_warning:severe_breathing",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "needs_more_information",
+          "clinician_assessment_needed"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "An absent/unknown safety answer must not act as a negative answer."
+    },
+    {
+      "id": "safety_one_unknown",
+      "group": "unresolved_safety",
+      "setup": "complete_dialysis",
+      "steps": [
+        "set_warning:severe_breathing=unknown",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "needs_more_information",
+          "clinician_assessment_needed"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "An absent/unknown safety answer must not act as a negative answer."
+    },
+    {
+      "id": "safety_all_unknown",
+      "group": "unresolved_safety",
+      "setup": "complete_dialysis",
+      "steps": [
+        "set_all_warnings:unknown",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "needs_more_information",
+          "clinician_assessment_needed"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "An absent/unknown safety answer must not act as a negative answer."
+    },
+    {
+      "id": "conflict_warning_disagrees",
+      "group": "contradiction",
+      "setup": "complete_mri",
+      "steps": [
+        "set_warning:chest_pain=yes",
+        "add_conflicting_warning:chest_pain=no",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "emergency_escalation",
+          "needs_more_information",
+          "clinician_assessment_needed",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Contradictory facts cannot create a ready request; preserve known danger evidence or reject/clarify the conflict."
+    },
+    {
+      "id": "conflict_text_disagrees",
+      "group": "contradiction",
+      "setup": "complete_mri",
+      "steps": [
+        "set_presenting_text:Current chest pain",
+        "set_warning:chest_pain=no",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "emergency_escalation",
+          "needs_more_information",
+          "clinician_assessment_needed",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Contradictory facts cannot create a ready request; preserve known danger evidence or reject/clarify the conflict."
+    },
+    {
+      "id": "conflict_answer_duplicate",
+      "group": "contradiction",
+      "setup": "complete_mri",
+      "steps": [
+        "duplicate_warning_answer:severe_breathing=yes,no",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "emergency_escalation",
+          "needs_more_information",
+          "clinician_assessment_needed",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Contradictory facts cannot create a ready request; preserve known danger evidence or reject/clarify the conflict."
+    },
+    {
+      "id": "wording_negated_mri",
+      "group": "wording",
+      "setup": "no_clinician_authority",
+      "steps": [
+        "set_presenting_text:No MRI referral was supplied.",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "clinician_assessment_needed",
+          "unsupported_care_need",
+          "needs_more_information",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Free text, negation and history cannot supply current simulated clinical authority or a service order."
+    },
+    {
+      "id": "wording_historical_dialysis",
+      "group": "wording",
+      "setup": "no_clinician_authority",
+      "steps": [
+        "set_presenting_text:The fictional person discussed dialysis years ago; no current plan exists.",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "clinician_assessment_needed",
+          "unsupported_care_need",
+          "needs_more_information",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Free text, negation and history cannot supply current simulated clinical authority or a service order."
+    },
+    {
+      "id": "wording_negated_injury",
+      "group": "wording",
+      "setup": "no_clinician_authority",
+      "steps": [
+        "set_presenting_text:No injury and no trauma assessment.",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "clinician_assessment_needed",
+          "unsupported_care_need",
+          "needs_more_information",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Free text, negation and history cannot supply current simulated clinical authority or a service order."
+    },
+    {
+      "id": "wording_unrecognized",
+      "group": "wording",
+      "setup": "no_clinician_authority",
+      "steps": [
+        "set_presenting_text:Fictional concern outside the supported scripted catalogue.",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "clinician_assessment_needed",
+          "unsupported_care_need",
+          "needs_more_information",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Free text, negation and history cannot supply current simulated clinical authority or a service order."
+    },
+    {
+      "id": "scope_child",
+      "group": "unsupported_scope",
+      "setup": "complete_mri",
+      "steps": [
+        "set_population:child",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "unsupported_care_need",
+          "clinician_assessment_needed",
+          "needs_more_information",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Unsupported or unresolved population must withhold ordinary routing."
+    },
+    {
+      "id": "scope_pregnancy",
+      "group": "unsupported_scope",
+      "setup": "complete_mri",
+      "steps": [
+        "set_population:pregnancy",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "unsupported_care_need",
+          "clinician_assessment_needed",
+          "needs_more_information",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Unsupported or unresolved population must withhold ordinary routing."
+    },
+    {
+      "id": "scope_unknown_age",
+      "group": "unsupported_scope",
+      "setup": "complete_mri",
+      "steps": [
+        "set_population:unknown_age",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "unsupported_care_need",
+          "clinician_assessment_needed",
+          "needs_more_information",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Unsupported or unresolved population must withhold ordinary routing."
+    },
+    {
+      "id": "care_general_medical",
+      "group": "unsupported_scope",
+      "setup": "no_clinician_authority",
+      "steps": [
+        "set_care_need:general_medical",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "unsupported_care_need",
+          "clinician_assessment_needed",
+          "emergency_escalation"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "An unsupported care need cannot be silently mapped to trauma."
+    },
+    {
+      "id": "care_cardiac",
+      "group": "unsupported_scope",
+      "setup": "no_clinician_authority",
+      "steps": [
+        "set_care_need:cardiac",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "unsupported_care_need",
+          "clinician_assessment_needed",
+          "emergency_escalation"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "An unsupported care need cannot be silently mapped to trauma."
+    },
+    {
+      "id": "care_stroke",
+      "group": "unsupported_scope",
+      "setup": "no_clinician_authority",
+      "steps": [
+        "set_care_need:stroke",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "unsupported_care_need",
+          "clinician_assessment_needed",
+          "emergency_escalation"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "An unsupported care need cannot be silently mapped to trauma."
+    },
+    {
+      "id": "no_authority_dialysis",
+      "group": "clinical_authority",
+      "setup": "complete_dialysis",
+      "steps": [
+        "remove_clinician_authority",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "clinician_assessment_needed"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Visitor summary confirmation cannot supply a fictional clinician plan, referral or assessment."
+    },
+    {
+      "id": "no_authority_mri",
+      "group": "clinical_authority",
+      "setup": "complete_mri",
+      "steps": [
+        "remove_clinician_authority",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "clinician_assessment_needed"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Visitor summary confirmation cannot supply a fictional clinician plan, referral or assessment."
+    },
+    {
+      "id": "no_authority_trauma",
+      "group": "clinical_authority",
+      "setup": "complete_trauma",
+      "steps": [
+        "remove_clinician_authority",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "clinician_assessment_needed"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Visitor summary confirmation cannot supply a fictional clinician plan, referral or assessment."
+    },
+    {
+      "id": "authority_wrong_service",
+      "group": "clinical_authority",
+      "setup": "complete_mri",
+      "steps": [
+        "replace_authority_service:dialysis",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "clinician_assessment_needed",
+          "unsupported_care_need",
+          "needs_more_information",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Authority comes from the trusted scenario and must agree with the requested service and explicit urgency."
+    },
+    {
+      "id": "authority_visitor_supplied",
+      "group": "clinical_authority",
+      "setup": "complete_mri",
+      "steps": [
+        "remove_clinician_authority",
+        "inject_client_authority:mri",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "clinician_assessment_needed",
+          "unsupported_care_need",
+          "needs_more_information",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Authority comes from the trusted scenario and must agree with the requested service and explicit urgency."
+    },
+    {
+      "id": "authority_missing_urgency",
+      "group": "clinical_authority",
+      "setup": "complete_mri",
+      "steps": [
+        "remove_plan_urgency",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "clinician_assessment_needed",
+          "unsupported_care_need",
+          "needs_more_information",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Authority comes from the trusted scenario and must agree with the requested service and explicit urgency."
+    },
+    {
+      "id": "authority_conflicting_service",
+      "group": "clinical_authority",
+      "setup": "complete_mri",
+      "steps": [
+        "add_second_authority:trauma",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "clinician_assessment_needed",
+          "unsupported_care_need",
+          "needs_more_information",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Authority comes from the trusted scenario and must agree with the requested service and explicit urgency."
+    },
+    {
+      "id": "confirmation_missing",
+      "group": "confirmation_binding",
+      "setup": "complete_mri",
+      "steps": [
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "needs_more_information",
+          "clinician_assessment_needed",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "No request or finder call before trusted confirmation of the current inputs under the current policy."
+    },
+    {
+      "id": "confirmation_forged_ready",
+      "group": "confirmation_binding",
+      "setup": "complete_mri",
+      "steps": [
+        "inject_client_state:ready",
+        "inject_client_request:mri",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "needs_more_information",
+          "clinician_assessment_needed",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "No request or finder call before trusted confirmation of the current inputs under the current policy."
+    },
+    {
+      "id": "confirmation_forged_boolean",
+      "group": "confirmation_binding",
+      "setup": "complete_mri",
+      "steps": [
+        "inject_confirmation:true",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "needs_more_information",
+          "clinician_assessment_needed",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "No request or finder call before trusted confirmation of the current inputs under the current policy."
+    },
+    {
+      "id": "confirmation_wrong_revision",
+      "group": "confirmation_binding",
+      "setup": "complete_mri",
+      "steps": [
+        "confirm_current",
+        "mutate_confirmation_revision",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "needs_more_information",
+          "clinician_assessment_needed",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "No request or finder call before trusted confirmation of the current inputs under the current policy."
+    },
+    {
+      "id": "confirmation_wrong_policy",
+      "group": "confirmation_binding",
+      "setup": "complete_mri",
+      "steps": [
+        "confirm_current",
+        "mutate_confirmation_policy",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "needs_more_information",
+          "clinician_assessment_needed",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "No request or finder call before trusted confirmation of the current inputs under the current policy."
+    },
+    {
+      "id": "confirmation_cross_scenario",
+      "group": "confirmation_binding",
+      "setup": "complete_mri",
+      "steps": [
+        "confirm_other_scenario",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "needs_more_information",
+          "clinician_assessment_needed",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "No request or finder call before trusted confirmation of the current inputs under the current policy."
+    },
+    {
+      "id": "edited_warning",
+      "group": "stale_state",
+      "setup": "complete_mri",
+      "steps": [
+        "confirm_current",
+        "find_initial",
+        "set_warning:severe_breathing=yes",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "emergency_escalation"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "An initial ready result must be invalidated; the second find is blocked, and the first result is not visible as current. finder_calls counts the second phase only."
+    },
+    {
+      "id": "edited_unknown",
+      "group": "stale_state",
+      "setup": "complete_mri",
+      "steps": [
+        "confirm_current",
+        "find_initial",
+        "set_warning:severe_breathing=unknown",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "needs_more_information",
+          "clinician_assessment_needed",
+          "unsupported_care_need",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "An initial ready result must be invalidated; the second find is blocked, and the first result is not visible as current. finder_calls counts the second phase only."
+    },
+    {
+      "id": "edited_service",
+      "group": "stale_state",
+      "setup": "complete_mri",
+      "steps": [
+        "confirm_current",
+        "find_initial",
+        "replace_requested_service:dialysis",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "needs_more_information",
+          "clinician_assessment_needed",
+          "unsupported_care_need",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "An initial ready result must be invalidated; the second find is blocked, and the first result is not visible as current. finder_calls counts the second phase only."
+    },
+    {
+      "id": "edited_scenario",
+      "group": "stale_state",
+      "setup": "complete_mri",
+      "steps": [
+        "confirm_current",
+        "find_initial",
+        "replace_scenario:complete_dialysis",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "needs_more_information",
+          "clinician_assessment_needed",
+          "unsupported_care_need",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "An initial ready result must be invalidated; the second find is blocked, and the first result is not visible as current. finder_calls counts the second phase only."
+    },
+    {
+      "id": "edited_policy",
+      "group": "stale_state",
+      "setup": "complete_mri",
+      "steps": [
+        "confirm_current",
+        "find_initial",
+        "advance_policy_version",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "needs_more_information",
+          "clinician_assessment_needed",
+          "unsupported_care_need",
+          "invalid_input"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "An initial ready result must be invalidated; the second find is blocked, and the first result is not visible as current. finder_calls counts the second phase only."
+    },
+    {
+      "id": "mode_warehouse",
+      "group": "synthetic_boundary",
+      "setup": "complete_mri",
+      "steps": [
+        "set_mode:warehouse",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "invalid_input",
+          "unsupported_care_need"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Synthetic intake cannot authorize real destinations or implicitly accept missing provenance."
+    },
+    {
+      "id": "mode_real",
+      "group": "synthetic_boundary",
+      "setup": "complete_mri",
+      "steps": [
+        "set_mode:real",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "invalid_input",
+          "unsupported_care_need"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Synthetic intake cannot authorize real destinations or implicitly accept missing provenance."
+    },
+    {
+      "id": "mode_missing",
+      "group": "synthetic_boundary",
+      "setup": "complete_mri",
+      "steps": [
+        "set_mode:missing",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "invalid_input",
+          "unsupported_care_need"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "Synthetic intake cannot authorize real destinations or implicitly accept missing provenance."
+    },
+    {
+      "id": "invalid_boolean_string",
+      "group": "strict_types",
+      "setup": "complete_mri",
+      "steps": [
+        "set_warning:severe_breathing=string_false",
+        "confirm_current",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "invalid_input",
+          "needs_more_information"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "A string is not a strict structured safety answer."
+    },
+    {
+      "id": "failure_after_success",
+      "group": "stale_state",
+      "setup": "complete_mri",
+      "steps": [
+        "confirm_current",
+        "find_initial",
+        "make_next_assessment_fail",
+        "find"
+      ],
+      "expected": {
+        "states": [
+          "invalid_input",
+          "error"
+        ],
+        "request_service": null,
+        "finder_calls": 0,
+        "live_calls": 0,
+        "stale_result_visible": false
+      },
+      "rationale": "A later failure stays visible and cannot recycle an old recommendation. finder_calls counts the failed phase only."
+    }
+  ]
+}
