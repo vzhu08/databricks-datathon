@@ -16,7 +16,8 @@ def search_public_facilities(place: str, service: str) -> list[dict]:
         result = {key: value for key, value in claim.items() if key != "service_queries"}
         result.update(
             evidence_basis="Operator-reported service",
-            location_scope=f"Named hospital in {claim['city']}. City-level location only.",
+            treatment_observation_date=None,
+            appointment_acceptance="Unknown",
             availability="Unknown",
             staffing="Unknown",
             entrance="Unknown",

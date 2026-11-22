@@ -2,6 +2,7 @@
   {
     "operator": "KEM Hospital, Pune",
     "city": "Pune",
+    "location_scope": "Operator-listed hospital in Rasta Peth, Pune",
     "service": "Maintenance haemodialysis",
     "service_queries": ["dialysis", "haemodialysis", "hemodialysis", "maintenance dialysis", "maintenance haemodialysis", "maintenance hemodialysis"],
     "source_url": "https://www.kemhospitalpune.org/specialities/nephrology/",
@@ -13,6 +14,7 @@
   {
     "operator": "Jehangir Hospital",
     "city": "Pune",
+    "location_scope": "Operator-listed hospital on Sassoon Road, Pune",
     "service": "Dialysis",
     "service_queries": ["dialysis"],
     "source_url": "https://www.jehangirhospital.com/nephrology-sp/",

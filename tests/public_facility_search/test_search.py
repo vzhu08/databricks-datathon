@@ -24,14 +24,18 @@ class PublicFacilitySearchTests(unittest.TestCase):
                  "https://www.jehangirhospital.com/nephrology-sp/", "020-6681-9966"),
             ],
         )
+        self.assertEqual([r["location_scope"] for r in results], [
+            "Operator-listed hospital in Rasta Peth, Pune",
+            "Operator-listed hospital on Sassoon Road, Pune",
+        ])
         for row in results:
             self.assertEqual("Pune", row["city"])
             self.assertEqual("Operator-reported service", row["evidence_basis"])
-            self.assertEqual("City-level location only.", row["location_scope"].split(". ")[1])
+            self.assertIsNone(row["treatment_observation_date"])
             self.assertIsNone(row["source_date"])
             self.assertEqual("2026-11-22", row["checked_on"])
             self.assertEqual("No reviewed VF match asserted", row["vf_match"])
-            for field in ("availability", "staffing", "entrance"):
+            for field in ("availability", "staffing", "appointment_acceptance", "entrance"):
                 self.assertEqual("Unknown", row[field])
             self.assertIn("confirm", row["next_action"])
             self.assertNotIn("service_queries", row)
