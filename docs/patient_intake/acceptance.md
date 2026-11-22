@@ -114,6 +114,36 @@ Provider [#268 at `b6d20d7`](https://github.com/vzhu08/databricks-datathon/commi
 
 Use `runtime_binding.py --app "$UI_REPO/app" --case terminated-empty` with Python’s `-I -S -B` flags. Start the pinned local browser server as above and append `terminated-empty` after the private controls directory when invoking `ui_observer.cjs`. The targeted result applies to this composition. The 35-case score above describes the earlier UI replay, and final browser acceptance awaits a full run on the revised UI head.
 
+## Experimental differential assessment
+
+The independent 15-case packet was frozen at `7c7613776f5c9c63401e3284ec92d9a76dd79e7d` before candidate observations. Its SHA-256 is `49afd268de7a82390a714c0d81f2dc5ee28520b2e613a2fa88b98ec78ff73200`. The historical 35-case packet retains its original denominator and digest. Each new case uses an invented encounter. The only clinical escalation reference is the WHO guidance for current central chest pressure with breathlessness. One example cannot estimate emergency sensitivity, specificity, or coverage across languages or presentations. [Frozen packet](../../tests/patient_intake_audit/differential.v1.json) · [Pre-output receipt](https://github.com/vzhu08/databricks-datathon/issues/230#issuecomment-7079889554) · [WHO heart attack guidance](https://www.who.int/news-room/fact-sheets/detail/heart-attack)
+
+**Backend replay.** Both compositions below returned **13 passed, 2 failed, 0 not run**. Each replay started 32 in-memory transport exchanges. The calibrated observer recorded zero socket attempts, default provider HTTPS entries, finder entries, route attempts or process starts during cases. The runner exercises the service, consent, question issuance and answers, actual provider prompt construction and parser, and current server result. It inspects the server text supplied for display. Browser rendering, generated model responses, clinical correctness and deployment were unmeasured.
+
+| Local composition | Runtime and provider commits | Git tree for `app/` |
+| --- | --- | --- |
+| `471183f896c8968dd76100510eb56103bcf51781` | M `2b670258464b7a7162bc4a819983735e1e243f7b`, N `3ccf768f84ae2b8aac421cbf5ddcdb21202aec56` | `b29c283d034b6303ed266cb37d4dccf91cd16ec3` |
+| `c87fee1599dc0b18716df3157950e52209bc95f5` | M `f601e40b170a89d1ebaff88dd290050b56694288`, N `fd3609bc5699f52b7a50e42ee06d93a27aa7888a` | `6e09a40dc1c6aab678ad836a371ebe3b9c3a1689` |
+
+| Failed expectation | Observed behavior and requested correction |
+| --- | --- |
+| `current-emergency.routine_result` | The first safety question contained immediate emergency instructions. Answering Yes produced emergency guidance before any exchange. In another encounter the patient answered No, then confirmed the full current chest-pressure and breathlessness statement. The confirmed wording fell outside the provider's warning-phrase check. A valid fixture final response produced a routine consultation and cause. Retain emergency guidance when the reviewed warning signs conflict with the earlier screen. |
+| `insufficient-history.specific_cause_present` | With only “Something is wrong.” confirmed current and a follow-up answered “Unchanged,” a valid cause referencing row 0 appeared in the server result. Ask for a specific observation or abstain when the reviewed history contains none. |
+
+The positive control observed a reviewed source quote and change answer in the final request, followed by a possible cause, uncertainty, urgency and next step from the fixture. N's parser restricts labels to 18 terms and requires an eligible row index. The selected term's medical relevance and the effect of the follow-up on an actual model decision remain unknown. The replay rejected the sampled confidence claims, unapproved care instructions, extra fields, malformed JSON and truncated final reply. A timeout after an edit cleared the prior successful result. Search and confirmation attempts conferred no authority. The contradictory chest-pressure case stopped on the confirmed warning statement before reviewing the second line. That case does not measure general conflict resolution. [Provider findings](https://github.com/vzhu08/databricks-datathon/issues/225#issuecomment-7079934545)
+
+To reproduce the second composition from a checkout containing both component commits, run the following commands from the repository root. The offline observer exits 1 when any case fails or lacks a measurement. The local commit ID may differ with Git metadata. Verify the app tree against the table.
+
+```sh
+runtime_sha=f601e40b170a89d1ebaff88dd290050b56694288
+provider_sha=fd3609bc5699f52b7a50e42ee06d93a27aa7888a
+tree=$(git merge-tree --write-tree "$runtime_sha" "$provider_sha")
+candidate=$(git commit-tree "$tree" -p "$runtime_sha" -p "$provider_sha" -m 'Local offline audit composition')
+git rev-parse "$candidate:app"
+python3 -B tests/patient_intake_audit/differential_replay.py --commit "$candidate"
+python3 -B -m unittest discover -s tests/patient_intake_audit -t tests
+```
+
 ## Clinical evaluation for a release decision
 
 **Intended use to approve in advance.** A patient in India enters new symptoms, confirms their interpretation, and receives next-step guidance from a specified assessment provider and version. The clinical lead must approve the initial supported ages, acuity, languages, exclusions, care settings, output wording, escalation pathways and validated endpoints for that provider. Record whether any possible-cause list is in scope. A verified clinical order, independently reviewed campus and permission for routing are separately required where applicable. Narrow eligibility to the studied scope. Undefined or unsupported populations get an explicit stop. Facility-triage guidance is setting-specific; WHO describes the IITT as a tool for emergency units. [WHO IITT](https://www.who.int/tools/triage)

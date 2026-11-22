@@ -67,13 +67,13 @@ def case_result(case, observation):
                 blocker=blocker, measured_fields=len(measured))
 
 
-def score(cases, evidence):
+def score(cases, evidence, *, digest=DIGEST):
     if type(evidence) is not dict or set(evidence) != {"candidate_sha", "packet_sha256", "observations"}:
         raise ValueError("Expected candidate_sha, packet_sha256 and observations")
     sha = evidence["candidate_sha"]
     if sha is not None and (type(sha) is not str or not re.fullmatch("[a-f0-9]{40}", sha)):
         raise ValueError("Supply a full candidate commit SHA")
-    if evidence["packet_sha256"] != DIGEST:
+    if evidence["packet_sha256"] != digest:
         raise ValueError("Wrong packet edition")
     observations = evidence["observations"]
     ids = {c["id"] for c in cases}
@@ -83,7 +83,7 @@ def score(cases, evidence):
         raise ValueError("Observations require a candidate commit")
     rows = [case_result(c, observations.get(c["id"])) for c in cases]
     counts = Counter(row["status"] for row in rows)
-    return {"stage": "synthetic_engineering", "candidate_sha": sha, "packet_sha256": DIGEST,
+    return {"stage": "synthetic_engineering", "candidate_sha": sha, "packet_sha256": digest,
             "total": len(cases), "passed": counts["PASS"], "failed": counts["FAIL"],
             "not_run": counts["NOT_RUN"], "cases": rows}
 
