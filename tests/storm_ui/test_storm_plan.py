@@ -412,6 +412,26 @@ class PlanTests(unittest.TestCase):
 
 
 @unittest.skipUnless(HAS_STREAMLIT, "Streamlit is needed to run the screen")
+
+class WordingTests(unittest.TestCase):
+    def test_codes_become_words_and_medical_initials_stay_in_capitals(self):
+        self.assertEqual("MRI", storm_plan._plain("mri"))
+        self.assertEqual("Time sensitive", storm_plan._plain("time_sensitive"))
+        self.assertEqual("CT scan", storm_plan._plain("ct_scan"))
+        self.assertEqual("MRI", storm_plan._inline("mri"))
+        self.assertEqual("trauma care", storm_plan._inline("trauma_care"))
+        self.assertEqual("highest", storm_plan._inline("highest"))
+
+    def test_an_observation_time_is_written_out_in_utc_and_anything_else_is_left_alone(self):
+        self.assertEqual("22 November 2026, 17:40 UTC", storm_plan._when("2026-11-22T17:40:00Z"))
+        self.assertEqual("22 November 2026, 17:40 UTC", storm_plan._when("2026-11-22T23:10:00+05:30"))
+        self.assertEqual("2026-11-22T17:40:00", storm_plan._when("2026-11-22T17:40:00"))
+        self.assertEqual("soon", storm_plan._when("soon"))
+
+    def test_a_long_hash_can_wrap_on_a_narrow_screen(self):
+        self.assertIn(".sp-facts li { margin-bottom: 0.3rem; overflow-wrap: anywhere; }", storm_plan.STYLE)
+
+
 class ScreenTests(unittest.TestCase):
     def setUp(self):
         bare = ("find_care", "data_access", "ranking", "patient_ui", "patient_intake", "storm_page", "storm_plan")

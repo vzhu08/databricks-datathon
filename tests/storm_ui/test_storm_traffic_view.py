@@ -66,9 +66,16 @@ class TrafficViewContractTests(unittest.TestCase):
     def test_live_view_draws_shared_pickups_and_escapes_attribution(self):
         plan = storm_plan.checked(self.with_roads())
         page = storm_plan.markup(plan)
-        self.assertIn("24 eligible pairs · 24 unique pairs attempted · 20 usable · 4 unavailable · 25 actual attempts",
+        self.assertIn("Road times were asked for 24 of the 24 pickup-to-site routes (2 pickups × 12 sites). "
+                      "20 came back usable and 4 are unavailable. 25 requests were sent in all, counting retries.",
                       page)
-        self.assertIn("2026-11-22T16:00:00Z", page)
+        self.assertIn('<time datetime="2026-11-22T16:00:00Z">22 November 2026, 16:00 UTC</time>', page)
+        self.assertIn("West shared pickup: ", page)
+        self.assertIn("East shared pickup: ", page)
+        self.assertNotIn("PUNE-SIM-PICKUP", page)  # the planner's own ids are not reader-facing words
+        self.assertIn("shared simulated pickup (2)", page)
+        self.assertIn("MRI", page)
+        self.assertNotIn("Mri", page)
         self.assertIn("Test &lt;copyright&gt;", page)
         self.assertIn("Supplier notices &amp; restrictions", page)
         self.assertEqual(page.count('data-pickup="shared"'), 2)
@@ -82,6 +89,10 @@ class TrafficViewContractTests(unittest.TestCase):
         self.assertIn("The modeled baseline remains available", page)
         self.assertNotIn("0 on average", page)
         self.assertEqual(page.count("0 of 120 placed"), 2)
+        self.assertIn("Nothing is wrong with the planner or the modeled result", page)
+        self.assertIn("neither policy could place a simulated patient in this run", page)
+        self.assertNotIn("both policies placed the same number", page)
+        self.assertIn("No observation time, because no route was observed.", page)
         self.assertNotIn("No road estimates", storm_plan.markup(self.baseline))
 
     def test_usable_results_require_attribution_and_a_valid_shared_group(self):
