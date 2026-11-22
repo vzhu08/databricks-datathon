@@ -96,7 +96,7 @@ def trace(data):
     return {
         "headline": f"{t['exact_shared_osm_object_keys']:,} of {t['campus_located_lead_keys']:,}",
         "line": (f"Of {count(t['national_external_lead_keys'], 'external lead key')}, "
-                 f"{t['campus_located_lead_keys']:,} locate a campus. {t['exact_shared_osm_object_keys']:,} point "
+                 f"{t['campus_located_lead_keys']:,} were classified as campus-located in directory v4. {t['exact_shared_osm_object_keys']:,} point "
                  f"to the same mapped object as their reference ({joined(by_service) if by_service else 'none'})"
                  + "." + (f" The matching mentions: {joined(fields)}." if fields else "")),
         "grain": t["grain"],
@@ -131,8 +131,9 @@ def public(data):
     return {
         "title": c["name"],
         "buildings": c["buildings_named_in_pib"],
-        "link_line": (f"Not linked to {' or '.join(links)}. This case shows the method on real, attributable public "
-                      "facts." if links else "Linked to a Virtue Foundation record and the accreditation pilot."),
+        "link_line": (f"No documented link to {' or '.join(links)} in this case. It shows the method on real, "
+                      "attributable public facts." if links else
+                      "Documented links to a Virtue Foundation record and the accreditation pilot."),
         "facts": facts,
         "lineage": h["same_operator_lineage"],
         "reference": source(c["shared_address_source_reference"], "Facility address report"),

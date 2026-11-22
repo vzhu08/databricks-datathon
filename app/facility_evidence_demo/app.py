@@ -73,7 +73,8 @@ def answer(view):
 def why(view):
     show('<section class="fe-sec"><h2>Why: how far the evidence gets</h2>'
          '<p class="fe-intro">A facility becomes a destination only after its evidence clears all four steps. '
-         "Each new, independent piece of evidence moves a case one step down. Neither case clears the last "
+         "Each piece of evidence addresses a specific step, and a later step counts only with its own evidence. "
+         "Neither case clears the last "
          "step, which is why nothing is recommended.</p>"
          f"{ladder(view)}</section>")
 

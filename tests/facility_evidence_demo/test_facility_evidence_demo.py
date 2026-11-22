@@ -125,6 +125,7 @@ class WordingTests(unittest.TestCase):
             elif isinstance(value, str):
                 allowed.update(int(n) for n in re.findall(r"\d+", value))
         collect(self.data)
+        allowed.add(4)  # the edition's name, "directory v4", not a count
         view = dict(self.view, rungs=None)
         for number in re.findall(r"\d[\d,]*", json.dumps(view, ensure_ascii=False)):
             self.assertIn(int(number.replace(",", "")), allowed, number)
@@ -141,12 +142,14 @@ class WordingTests(unittest.TestCase):
         self.assertEqual("partial", trace["rungs"]["independent"])
         self.assertEqual("missing", trace["rungs"]["dated"])
         self.assertIn("(1 dialysis and 2 trauma care)", trace["line"])
+        self.assertIn("10 were classified as campus-located in directory v4", trace["line"])
+        self.assertNotIn("locate a campus", trace["line"])
         self.assertNotIn("MRI", trace["line"])  # zero counts are left out
         self.assertEqual("team record, needs repository access", trace["source"]["note"])
 
     def test_public_case_keeps_dates_scope_and_unknowns_apart(self):
         public = self.view["public"]
-        self.assertIn("Not linked to a Virtue Foundation record or the accreditation pilot", public["link_line"])
+        self.assertIn("No documented link to a Virtue Foundation record or the accreditation pilot in this case", public["link_line"])
         whens = [f["when"] for f in public["facts"]]
         self.assertEqual(["Reported 2000-01-03, period not stated", "1999-2000", "1999-01-01"], whens)
         self.assertEqual("Synthetic hospital A", public["facts"][-1]["scope"])

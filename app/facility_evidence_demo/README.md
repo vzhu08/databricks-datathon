@@ -44,8 +44,9 @@ To be filled before release, on #252:
 | --- | --- | --- |
 | Field schema matches the frozen `display.json` | Vincent | done: `display_schema.json` is his schema from #252 (comment 7076517433) |
 | Display scope and audience for each field | Vincent | cleared on #252 (comments 7076403964, 7076491893) |
-| Every displayed figure against its source | D | payload verified on #252 (comment 7076496750); rendered page pending |
-| Page renders the pinned edition, links open, dates read correctly | Andrew | pending real-file run |
+| Every displayed figure against its source | D | payload verified on #252 (comment 7076496750) |
+| Page renders the pinned edition, links open, dates read correctly | D | passed at `fb9d82a` with the production pin, plus the missing-file view ([real-browser receipt](https://github.com/vzhu08/databricks-datathon/issues/252#issuecomment-7076644560)); three wording corrections from it applied after that |
+| Deployed app identity reading the `/Volumes/...` path through the SDK | Oliver | untested; local copy only |
 | Publication and deployment | Oliver | not requested by this change |
 
 D noted that the GitHub evidence links need repository access, so the page labels them "team record, needs
