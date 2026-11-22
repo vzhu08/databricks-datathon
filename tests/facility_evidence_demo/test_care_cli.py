@@ -1,6 +1,7 @@
 """Operator entry-point regressions. Use production pins for fail-closed checks."""
 
 from contextlib import redirect_stdout
+import hashlib
 import io
 import os
 from pathlib import Path
@@ -45,6 +46,32 @@ class CareCommandTests(unittest.TestCase):
         for output in (first, second):
             self.assertIn("Facility evidence unavailable", output)
             self.assertIn("Area evidence unavailable", output)
+
+    def test_changing_injury_kind_and_concern(self):
+        common = ("--severity", "moderate", "--urgency", "soon", "--danger", "no")
+        dialysis = self.run_cli("--concern", "dialysis", "--injury-kind", "burn", *common)
+        self.assertIn("Injury kind: unsure", dialysis)
+        for kind in ("head", "burn"):
+            with self.subTest(kind=kind):
+                output = self.run_cli("--concern", "injury", "--injury-kind", kind, *common)
+                self.assertIn("Injury kind: " + kind, output)
+                self.assertIn("Outcome: no supported service", output)
+                self.assertNotIn("Service checked:", output)
+
+    def test_pinned_fixture_render_and_cross_service_scope(self):
+        directory = Path(__file__).parent
+        display = directory / "synthetic_display.json"
+        area = directory / "synthetic_area.json"
+        env = {cli.loader.PATH_SETTING: str(display), cli.area.PATH_SETTING: str(area)}
+        with patch.object(cli.loader, "PINNED_SHA256", hashlib.sha256(display.read_bytes()).hexdigest()), \
+             patch.object(cli.area, "AREA_PINNED_SHA256", hashlib.sha256(area.read_bytes()).hexdigest()):
+            common = ("--severity", "mild", "--urgency", "soon", "--danger", "no")
+            dialysis = self.run_cli("--concern", "dialysis", *common, env=env)
+            mri = self.run_cli("--concern", "mri", *common, env=env)
+        self.assertIn("Separate historical case:", dialysis)
+        self.assertNotIn("Separate historical case:", mri)
+        self.assertIn("National location coverage:", mri)
+        self.assertIn("Eligible destinations: 0", mri)
 
     def test_volume_configuration_cannot_trigger_sdk(self):
         env = {cli.loader.PATH_SETTING: "dbfs:/Volumes/example/display.json",

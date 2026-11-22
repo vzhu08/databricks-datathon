@@ -16,6 +16,8 @@ def arguments(argv):
     )
     parser.add_argument("--concern", choices=("injury", "dialysis", "mri", "other", "unsure"),
                         help="injury, existing dialysis need, existing MRI referral/order, or other")
+    parser.add_argument("--injury-kind", choices=("head", "burn", "limb_joint", "cut_wound", "other", "unsure"),
+                        help="kind of injury when concern is injury")
     parser.add_argument("--severity", choices=("mild", "moderate", "severe", "unsure"),
                         help="reported severity")
     parser.add_argument("--urgency", choices=("routine", "soon", "emergency", "unsure"),
@@ -33,21 +35,31 @@ def load_local(module):
     return module.load()
 
 
-def show_fields(fields, indent="  "):
-    for key, value in fields.items():
-        label = key.replace("_", " ").capitalize()
-        if isinstance(value, dict):
-            print(f"{indent}{label}")
-            show_fields(value, indent + "  ")
-        elif isinstance(value, list):
-            print(f"{indent}{label}")
-            for item in value:
-                if isinstance(item, dict):
-                    show_fields(item, indent + "  ")
-                else:
-                    print(f"{indent}  {item}")
-        elif value is not None:
-            print(f"{indent}{label}: {value}")
+def show_source(source):
+    print("Source:", " ".join(part for part in (source["label"], source["url"], source["note"]) if part))
+
+
+def show_evidence(evidence):
+    trace = evidence["trace"]
+    print(evidence["summary"])
+    print("Scope:", trace["grain"])
+    print("Map editions:", ", ".join(trace["snapshots"]))
+    print("Source family:", trace["source_family"])
+    print("Location precision:", trace["precision"])
+    print("Baseline:", evidence["baseline"]["dataset"], evidence["baseline"]["as_of"])
+    show_source(trace["source"])
+    pilot = evidence["issuer_pilot"]
+    if pilot:
+        print(pilot["line"])
+        show_source(pilot["source"])
+    case = evidence["historical_case"]
+    if case:
+        print("Separate historical case:", case["title"])
+        print(case["link_line"])
+        for fact in case["facts"]:
+            print(f"{fact['when']} — {fact['what']} ({fact['scope']})")
+            show_source(fact["source"])
+        print("Unknown:", ", ".join(case["unknown"]))
 
 
 def main(argv=None):
@@ -60,9 +72,11 @@ def main(argv=None):
         area_result = load_local(area)
         result = evaluate(request, display_result, area_result)
 
-    print(result["next_check"])
+    if result["action"] == "interrupt":
+        print(result["next_check"])
     print("Judge selections")
-    show_fields(result["request"])
+    for key, value in result["request"].items():
+        print(f"  {key.replace('_', ' ').capitalize()}: {value.replace('_', ' ')}")
     for title, key in (("Workflow urgency", "workflow_urgency"), ("Action", "action"),
                        ("Outcome", "status"), ("Service checked", "service")):
         if result[key] is not None:
@@ -71,15 +85,20 @@ def main(argv=None):
     if result["action"] == "interrupt":
         return
 
-    for title, loaded, section in (("Facility evidence", display_result, result["evidence"]),
-                                   ("Area evidence", area_result, result["area"])):
-        if loaded["status"] == "unavailable":
-            print(f"{title} unavailable. {loaded['reason']}")
-        elif section:
-            print(title)
-            show_fields(section)
+    if display_result["status"] == "unavailable":
+        print("Facility evidence unavailable.", display_result["reason"])
+    elif result["evidence"]:
+        show_evidence(result["evidence"])
+    if area_result["status"] == "unavailable":
+        print("Area evidence unavailable.", area_result["reason"])
+    elif result["area"]:
+        context = result["area"]
+        print("National location coverage:", context["line"])
+        print(context["ids"])
+        show_source(context["source"])
     if result["eligible_destinations"] is not None:
         print(f"Eligible destinations: {result['eligible_destinations']}")
+    print("Next check:", result["next_check"])
 
 
 if __name__ == "__main__":
