@@ -34,6 +34,7 @@ class Reply:
     # Even an unvalidated success may contain sensitive information.
     data: Optional[dict] = field(default=None, repr=False)
     rate: RateMetadata = field(default_factory=RateMetadata)
+    http_status: Optional[int] = None
 
 
 class Budget:
@@ -110,6 +111,8 @@ def _rate_metadata(headers):
 
 
 def _decode(status, media, raw, rate):
+    if status == 404:
+        return Reply("not_found", rate=rate, http_status=status)
     if status in (401, 403):
         return Reply("access_denied", rate=rate)
     if status == 429:
@@ -125,7 +128,7 @@ def _decode(status, media, raw, rate):
                            parse_constant=_finite_number, parse_float=_finite_number)
     except (ValueError, RecursionError):
         return Reply("invalid_response", rate=rate)
-    return Reply("received", value, rate) if isinstance(value, dict) else Reply("invalid_response", rate=rate)
+    return Reply("received", value, rate, status) if isinstance(value, dict) else Reply("invalid_response", rate=rate)
 
 
 class Transport:
@@ -141,11 +144,11 @@ class Transport:
         self._gate = Lock()
         self._resume_at = 0
 
-    def request(self, method, path, *, payload=None, encounter, timeout=5):
+    def request(self, method, path, *, payload=None, encounter, timeout=5, headers=None):
         # The adapter constructs paths from its own endpoints and validated opaque IDs.
-        if (method not in ("POST", "GET") or not isinstance(path, str)
+        if (method not in ("POST", "GET", "DELETE", "PUT") or not isinstance(path, str)
                 or not path.startswith("/") or path.startswith("//")
-                or "?" in path or "#" in path or (method == "GET" and payload is not None)
+                or "?" in path or "#" in path or (method in ("GET", "DELETE") and payload is not None)
                 or type(timeout) not in (int, float) or not 0 < timeout <= 10):
             return Reply("invalid_request")
         try:
@@ -154,6 +157,9 @@ class Transport:
             return Reply("invalid_request")
         if body is not None and len(body) > MAX_REQUEST:
             return Reply("invalid_request")
+        if headers is not None and type(headers) is not dict:
+            return Reply("invalid_request")
+        request_headers = {**self._headers, **(headers or {})}
         if not self._slots.acquire(blocking=False):
             return Reply("busy")
         with self._gate:
@@ -170,7 +176,7 @@ class Transport:
         def run():
             try:
                 status, media, raw, headers = self._exchange(
-                    self._host, method, path, self._headers, body, timeout)
+                    self._host, method, path, request_headers, body, timeout)
                 rate = _rate_metadata(headers)
                 if status == 429 or rate.remaining == 0:
                     delay = max(COOLDOWN_FALLBACK, rate.retry_after_seconds or 0, rate.reset_seconds or 0)

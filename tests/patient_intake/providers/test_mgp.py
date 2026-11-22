@@ -125,3 +125,94 @@ class CandidateTests(unittest.TestCase):
         ]
         self.assertEqual(self.run_interview()["reason"], "invalid_response")
         self.assertEqual(self.exchange.call_count, 3)
+
+    def test_early_emergency_preempts_even_unrecognized_question_and_cannot_resume(self):
+        for kind in ("choice", "future_kind"):
+            for alert_type in ("hard_stop", "soft_stop"):
+                with self.subTest(kind=kind, alert_type=alert_type):
+                    self.setUp()
+                    alert = {"type": alert_type, "reasons": ["emergency"]}
+                    self.exchange.side_effect = [json_response(QUESTION), json_response(dict(
+                        QUESTION, answer_type=kind, meta=dict(QUESTION["meta"], alerts=[alert])))]
+                    pending = self.adapter.assess({"bound": True})
+                    answer = {"bound": True, "answer": ["unknown"]}
+                    result = self.adapter.assess(answer, continuation=pending["continuation"])
+                    self.assertEqual((result["state"], result["urgency"]), ("urgent", "emergency"))
+                    self.assertIsNone(result["next_step"])
+                    self.assertEqual(result["possible_causes"], [])
+                    self.assertNotIn("continuation", result)
+                    self.assertEqual(self.adapter.assess(answer, continuation=pending["continuation"])["state"],
+                                     "unsupported")
+                    self.assertEqual(self.exchange.call_count, 2)
+
+    def test_all_other_alert_shapes_stop_without_a_question(self):
+        for alerts in (None, {}, [{"type": "future", "reasons": ["emergency"]}],
+                       [{"type": "soft_stop", "reasons": ["new"]}],
+                       [{"type": "hard_stop", "reasons": ["suicidal_intent"]}]):
+            with self.subTest(alerts=alerts):
+                self.setUp()
+                self.exchange.return_value = json_response(dict(QUESTION, meta=dict(QUESTION["meta"], alerts=alerts)))
+                result = self.adapter.assess({"bound": True})
+                self.assertIn(result["state"], ("unsupported", "provider_unavailable"))
+                self.assertNotIn("continuation", result)
+                self.assertEqual(self.exchange.call_count, 1)
+
+    def test_private_answer_encodings(self):
+        from app.patient_intake.providers.mgp import SKIP
+        choices = [{"id": "unknown", "label": "Unsure"}]
+        for kind, meta, selection, expected in [
+            ("text", {"max_length": 8}, "invented", "invented"),
+            ("choice", dict(QUESTION["meta"], required=False), SKIP, None),
+            ("symptoms", {"component": "single", "answers": [{"id": "s_1", "choices": choices}]},
+             ["unknown"], [{"id": "s_1", "choice_id": "unknown"}]),
+            ("symptoms", {"component": "group_single", "answers": [{"id": "s_1", "name": "Invented"}]},
+             SKIP, [{"id": "s_1", "choice_id": "unknown"}]),
+        ]:
+            with self.subTest(kind=kind):
+                self.setUp()
+                self.exchange.side_effect = [json_response(dict(QUESTION, answer_type=kind, meta=meta)),
+                                             json_response(QUESTION)]
+                pending = self.adapter.assess({"bound": True})
+                result = self.adapter.assess({"bound": True, "answer": selection},
+                                             continuation=pending["continuation"])
+                self.assertEqual(result["state"], "awaiting_clarification")
+                self.assertEqual(json.loads(self.exchange.call_args.args[4]), {"answer": expected})
+
+    def test_indexed_correction_invalidates_later_questions(self):
+        self.exchange.side_effect = [json_response(dict(QUESTION, index=i)) for i in (0, 1, 2, 1)]
+        pending = self.adapter.assess({"bound": True})
+        for _ in range(2):
+            pending = self.adapter.assess({"bound": True, "answer": ["unknown"]},
+                                          continuation=pending["continuation"])
+        old = pending["continuation"]
+        fresh = self.adapter.correct({"bound": True}, continuation=old, index=0, choices=["unknown"])
+        self.assertEqual(self.exchange.call_args.args[1:3], ("PUT", PREFIX + "/questions/0"))
+        self.assertNotEqual(fresh["continuation"], old)
+        self.assertEqual(self.adapter.correct({"bound": True}, continuation=fresh["continuation"],
+                                              index=1, choices=["unknown"])["state"], "unsupported")
+        self.assertEqual(self.adapter.assess({"bound": True}, continuation=old)["state"], "unsupported")
+        self.assertEqual(self.exchange.call_count, 4)
+
+    def test_list_uses_complete_local_catalog_never_a_provider_link(self):
+        catalog = Mock(return_value=[{"id": "s_1", "name": "Fictional symptom"}])
+        for source, allowed in [("/v1/knowledge/symptoms?age=30&language=en", True),
+                                ("//example.invalid/v1/knowledge/symptoms", False),
+                                ("/v1/knowledge/symptoms?query=fictional", False)]:
+            with self.subTest(source=source):
+                self.setUp()
+                adapter = MgpSurveyCandidate(survey_for=self.survey_for, catalog_for=catalog,
+                                             choices_for=lambda *_: ["s_1"], transport=self.transport,
+                                             budget=Budget(8), enabled=True)
+                self.exchange.side_effect = [json_response(dict(QUESTION, answer_type="list",
+                                                                meta={"source_list_url": source})),
+                                             json_response(QUESTION)]
+                pending = adapter.assess({"bound": True})
+                if allowed:
+                    self.assertEqual(pending["question"]["kind"], "multiple")
+                    catalog.assert_called_once_with(SURVEY, "symptoms", {"age": "30", "language": "en"})
+                    adapter.assess({"bound": True}, continuation=pending["continuation"])
+                    self.assertEqual(json.loads(self.exchange.call_args.args[4]), {"answer": [{"id": "s_1"}]})
+                else:
+                    self.assertEqual(pending["state"], "unsupported")
+                self.assertTrue(all(call.args[2] == PREFIX + "/questions/current"
+                                    for call in self.exchange.call_args_list))
