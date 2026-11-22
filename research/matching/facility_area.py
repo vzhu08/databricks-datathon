@@ -33,6 +33,13 @@ def postal(value):
     return pin if pin and PIN.fullmatch(pin) else None
 
 
+def expanded_acronyms(name):
+    for match in re.finditer(r"\(([A-Za-z]{2,8})\)", name or ""):
+        initials = "".join(w[0] for w in words(name[:match.start()]) if w not in {"of", "and", "the"})
+        if initials.endswith(match[1].lower()):
+            yield match
+
+
 def title(name, city=None, state=None):
     # NABH sometimes appends the name of the legal owner to the hospital name.
     name = re.split(r"\s*[(,]\s*(?:a |an )?unit of\b", name or "", flags=re.I)[0]
@@ -43,10 +50,8 @@ def title(name, city=None, state=None):
     if len(parts) == 2 and city and re.fullmatch(
             r"(?:best|top) (?:[a-z]+ )*hospital in " + re.escape(city), fold(parts[1]) or ""):
         name = parts[0]
-    for match in reversed(list(re.finditer(r"\(([A-Za-z]{2,8})\)", name))):
-        initials = "".join(w[0] for w in words(name[:match.start()]) if w not in {"of", "and", "the"})
-        if initials.endswith(match[1].lower()):
-            name = name[:match.start()] + name[match.end():]
+    for match in reversed(list(expanded_acronyms(name))):
+        name = name[:match.start()] + name[match.end():]
     pieces = name.split(",")
     while len(pieces) > 1:
         suffix = fold(pieces[-1])
@@ -62,11 +67,13 @@ def identity(name, city=None, state=None):
     return tuple(core(tokens(title(name, city, state))))
 
 
-def named(left, right, geography, adjacent=False):
+def named(left, right, geography, adjacent=False, aliases=()):
     if not left or not right:
         return False
     a, b = set(left), set(right)
     shared = a & b
+    if any(alias in b and b - {alias} <= geography for alias in aliases):
+        return True
     if a == b or "".join(left) == "".join(right):
         return True
     if shared and (a ^ b) <= geography and shared - geography:
@@ -181,6 +188,7 @@ def facility_area(row, original, candidates, signals, providers, registry):
     state = state_key(original.get("state_for_matching"))
     base_title = title(name, city, state)
     sig = tuple(core(tokens(base_title)))
+    aliases = tuple(m[1].lower() for m in expanded_acronyms(name))
     branch = original["branch_evidence"]
     result = {"registry_or_operator": [], "map_area": [], "nearby_points": None}
     if not sig or branch.get("mixed_campus"):
@@ -190,9 +198,9 @@ def facility_area(row, original, candidates, signals, providers, registry):
         pin = None
     labels = local_labels(row, branch, city, state)
     geography = set(words(city)) | set(words(state)) | {w for _, label in labels for w in words(label)}
-    for ref in registry.candidates(sig, pin):
+    for ref in registry.candidates(sig + aliases, pin):
         area = matched_area(ref, pin, labels, city, state)
-        if area and named(sig, ref.signature, geography) and not branch_collision(
+        if area and named(sig, ref.signature, geography, aliases=aliases) and not branch_collision(
                 base_title, title(ref.name, city, state)):
             result["registry_or_operator"].append({"family": ref.family, "reference": ref.key,
                                                    "area_kind": area[0], "area": area[1]})
@@ -215,7 +223,7 @@ def facility_area(row, original, candidates, signals, providers, registry):
             continue
         close = bool(xy and haversine_m(*xy, *ref.coordinates) < LIMIT_M)
         ref_record = listing(ref.family, ref.id, ref.name, ref.address, ref.pin, ref.state, ref.city)
-        if not named(sig, tuple(core(tokens(ref_title))), geography, close):
+        if not named(sig, tuple(core(tokens(ref_title))), geography, close, aliases):
             continue
         area = matched_area(ref_record, pin, labels, city, state)
         if not (area or close) and city and ref.city and city != ref.city:

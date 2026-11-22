@@ -76,6 +76,12 @@ class FacilityAreaTests(unittest.TestCase):
         self.row["name"] = "Heron Institute of Medical Sciences (HIMS), Pune, Maharshtra"
         ref = self.authority(name="Heron Institute of Medical Sciences", pin="411001")
         self.assertTrue(self.result([ref])["registry_or_operator"])
+        full = self.map("full")
+        far = self.map("alias", (18.54, 73.85))
+        far = replace(far, reference=replace(far.reference, name="HIMS Pune"))
+        result = self.result(maps=[full, far])
+        self.assertEqual(len(result["map_area"]), 2)
+        self.assertIsNone(result["nearby_points"])
 
     def test_missing_vf_point_needs_different_external_families(self):
         self.original["original_point"] = {}
