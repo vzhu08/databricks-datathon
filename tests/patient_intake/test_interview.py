@@ -7,6 +7,10 @@ from app.patient_intake.interview import (
     PatientInterview,
     QuestionBinding,
     UnsupportedInterview,
+    _skip_requested,
+    _validate_item_answers,
+    _validate_quantity_answer,
+    _validate_quantity_value,
     validate_answer,
 )
 
@@ -64,6 +68,63 @@ class AnswerValidationTests(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             self.validate(clarification, kind="text", max_text_chars=8)
+
+
+class StructuredInputValidationTests(unittest.TestCase):
+    def test_only_explicit_permitted_skip_can_omit_an_answer(self):
+        self.assertTrue(_skip_requested({"skip": True}, optional=True))
+        for omitted in (None, [], {}):
+            self.assertFalse(_skip_requested(omitted, optional=True))
+        for malformed in ({"skip": False}, {"skip": 1}, {"skip": True, "value": 1}):
+            with self.subTest(answer=malformed), self.assertRaises(ValueError):
+                _skip_requested(malformed, optional=True)
+        with self.assertRaises(ValueError):
+            _skip_requested({"skip": True}, optional=False)
+
+    def test_item_answers_preserve_explicit_unknown_and_absent_in_issued_order(self):
+        answer = [{"id": "b", "presence": "absent"}, {"id": "a", "presence": "unknown"}]
+        result = _validate_item_answers(answer, issued_ids=("a", "b", "optional"), required_ids=("a", "b"))
+        self.assertEqual(result, [answer[1], answer[0]])
+        self.assertEqual(len(answer), 2)
+
+    def test_item_answers_reject_omission_duplicates_and_unissued_invented_ids(self):
+        good = {"id": "a", "presence": "unknown"}
+        for bad in (
+            None, [], [good], [good, good], [good, {"id": "foreign", "presence": "absent"}],
+            [good, {"id": "b", "presence": False}], [good, {"id": "b"}],
+            [good, {"id": "b", "presence": "unknown", "authority": "fake"}],
+        ):
+            with self.subTest(answer=bad), self.assertRaises(ValueError):
+                _validate_item_answers(bad, issued_ids=("a", "b"), required_ids=("a", "b"))
+
+    def test_quantity_uses_inclusive_provider_bounds_and_preserves_exact_value(self):
+        self.assertEqual(_validate_quantity_value(0, minimum=0, maximum=24, integer_only=True), 0)
+        self.assertEqual(_validate_quantity_value(24, minimum=0, maximum=24, integer_only=True), 24)
+        self.assertEqual(_validate_quantity_value(0.125, minimum=0.1, maximum=5, integer_only=False), 0.125)
+        self.assertEqual(_validate_quantity_value(1.0, minimum=0, maximum=1, integer_only=False), 1.0)
+        for bad in (None, False, "1", 1.0, -1, 25, float("nan"), float("inf"), 2**64):
+            with self.subTest(value=bad), self.assertRaises(ValueError):
+                _validate_quantity_value(bad, minimum=0, maximum=24, integer_only=True)
+
+    def test_quantity_rejects_missing_or_inconsistent_metadata(self):
+        for minimum, maximum, integer_only in (
+            (None, 1, False), (1, 0, False), (0, float("inf"), False),
+            (False, 3, False), (0.1, 0.9, True), (0, 1, "true"),
+        ):
+            with self.subTest(bounds=(minimum, maximum, integer_only)), self.assertRaises(ValueError):
+                _validate_quantity_value(0, minimum=minimum, maximum=maximum, integer_only=integer_only)
+
+    def test_quantity_uses_selected_issued_unit_without_inference_or_conversion(self):
+        units = {
+            "months": {"minimum": 1, "maximum": 24, "integer_only": True},
+            "years": {"minimum": 1, "maximum": 2, "integer_only": True},
+        }
+        answer = {"value": 24, "unit_id": "months"}
+        self.assertEqual(_validate_quantity_answer(answer, issued_units=units), answer)
+        for bad in ({"value": 24, "unit_id": "years"}, {"value": 2, "unit_id": "decades"},
+                    {"value": 1}, {"value": 2, "unit_id": ["years"]}):
+            with self.subTest(answer=bad), self.assertRaises(ValueError):
+                _validate_quantity_answer(bad, issued_units=units)
 
 
 class InterviewTests(unittest.TestCase):

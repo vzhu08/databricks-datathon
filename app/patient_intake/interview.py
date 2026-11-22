@@ -1,11 +1,12 @@
 """Validate answers against the question most recently issued by the server."""
 
+import math
 import re
 from copy import deepcopy
 from dataclasses import dataclass, field
 from uuid import uuid4
 
-from .evidence import review_candidate, unresolved_evidence, validate_candidate, validate_verbatim_text
+from .evidence import PRESENCE, review_candidate, unresolved_evidence, validate_candidate, validate_verbatim_text
 
 
 _LANGUAGE = re.compile(r"[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8}){0,3}\Z")
@@ -88,6 +89,70 @@ def _option_ids(values):
             or len(set(values)) != len(values)):
         raise ValueError("This question's choices are unavailable")
     return tuple(values)
+
+
+def _validate_item_answers(answers, *, issued_ids, required_ids):
+    """Return explicit observations in issuance order, omitting unanswered optional items."""
+    issued = _option_ids(issued_ids)
+    required = set(_option_ids(required_ids))
+    if not issued or not required.issubset(issued):
+        raise ValueError("This question's items are unavailable")
+    if type(answers) is not list or not 1 <= len(answers) <= len(issued):
+        raise ValueError("Answer each required item")
+    observed = {}
+    for row in answers:
+        if type(row) is not dict or row.keys() != {"id", "presence"}:
+            raise ValueError("Choose a status for each answered item")
+        item, presence = row["id"], row["presence"]
+        if (type(item) is not str or item not in issued or item in observed
+                or type(presence) is not str or presence not in PRESENCE):
+            raise ValueError("Choose one valid status for each answered item")
+        observed[item] = presence
+    if not required.issubset(observed):
+        raise ValueError("Answer each required item")
+    return [{"id": item, "presence": observed[item]} for item in issued if item in observed]
+
+
+def _validate_quantity_value(value, *, minimum, maximum, integer_only):
+    """Validate a number against the exact bounds for the selected issued unit."""
+    if (type(integer_only) is not bool or not _finite_quantity(minimum)
+            or not _finite_quantity(maximum) or minimum > maximum):
+        raise ValueError("This question's measurement range is unavailable")
+    if integer_only and math.ceil(minimum) > math.floor(maximum):
+        raise ValueError("This question's measurement range is unavailable")
+    if (not _finite_quantity(value) or (integer_only and type(value) is not int)
+            or not minimum <= value <= maximum):
+        raise ValueError("Enter a value within the range shown for this unit")
+    return value
+
+
+def _validate_quantity_answer(answer, *, issued_units):
+    if type(answer) is not dict or answer.keys() != {"value", "unit_id"}:
+        raise ValueError("Enter a value and select a shown unit")
+    unit_id = answer["unit_id"]
+    if type(unit_id) is not str or unit_id not in issued_units:
+        raise ValueError("Select a unit shown for this question")
+    value = _validate_quantity_value(answer["value"], **issued_units[unit_id])
+    return {"value": value, "unit_id": unit_id}
+
+
+def _skip_requested(answer, *, optional):
+    """Recognize the explicit skip action without interpreting omitted values."""
+    if type(optional) is not bool:
+        raise ValueError("This question's skip permission is unavailable")
+    if type(answer) is not dict or "skip" not in answer:
+        return False
+    if answer.keys() != {"skip"} or answer["skip"] is not True:
+        raise ValueError("This skip response is invalid")
+    if not optional:
+        raise ValueError("Answer this required question")
+    return True
+
+
+def _finite_quantity(value):
+    # Match the shared bounded JSON record without coercing booleans or big integers.
+    return ((type(value) is int and value.bit_length() <= 64)
+            or (type(value) is float and math.isfinite(value)))
 
 
 class PatientInterview:
