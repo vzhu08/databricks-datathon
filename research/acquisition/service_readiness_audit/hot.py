@@ -23,9 +23,9 @@ REGIONS = {
 REGION = {s: region for region, states in REGIONS.items() for s in states.split("|")}
 
 
-def verified(directory):
+def verified(directory, expected_pin=PIN):
     raw = (directory / "manifest.json").read_bytes()
-    require(hashlib.sha256(raw).hexdigest() == PIN, "unexpected HOT release")
+    require(hashlib.sha256(raw).hexdigest() == expected_pin, "unexpected ledger release")
     manifest = json.loads(raw)
     data = {}
     for name, spec in manifest["files"].items():

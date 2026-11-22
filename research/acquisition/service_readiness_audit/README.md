@@ -53,3 +53,9 @@ python -m unittest discover -s tests/research/acquisition/service_readiness_audi
 ```
 
 Store shareable editions in the private Databricks intake volume under #160, including provenance, source/adapter hashes, plan and reviewer access separation. Verify remote byte hashes before calling a handoff durable. Restricted PDFs, protected labels and raw source rows are excluded until their own permissions allow transfer. Never commit real frames, source snapshots or reviewer labels. Fixture, live Databricks, independent review and submission status must be reported separately.
+
+## Compare D’s November collector edition with the frozen sample
+
+Run `python -m research.acquisition.service_readiness_audit.collectors PRIVATE/collectors-ledger PRIVATE/frozen-hot-audit PRIVATE/new-comparison`. The comparison verifies both manifests, all ledger members, and the original partial frame and sample plan. It checks the occurrence and decision file hashes against their HOT predecessors and preserves the 30 selected keys. Each private candidate record includes its ledger ID for lookup in D’s original edition.
+
+The three target services use D’s modality plus three exact NHP term labels (dialysis, MRI and trauma). Each eligible term contributes a lexical candidate only at an existing occurrence link. Withheld fields contribute no leads. Candidate links and shared publisher families support manual review of source wording and campus identity. Confirmed onsite evidence requires a dated service claim and an approved physical-campus link. Report shared-family counts by observation and occurrence; the exact fraction of derivative claims requires claim-level provenance. Equipment and qualification editions referenced by D retain their original grain and access conditions.
