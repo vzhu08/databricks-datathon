@@ -1,8 +1,13 @@
 """Connect opt-in live travel to the normal finder without changing its evidence rules."""
 
-from app.ranking.location import coordinates, finite_number, haversine_km
-from app.ranking.search import MAX_RESULTS
-from app.ranking.urgency import rank_campuses
+if "." in __package__:  # Repository package app.travel
+    from ..ranking.location import coordinates, finite_number, haversine_km
+    from ..ranking.search import MAX_RESULTS
+    from ..ranking.urgency import rank_campuses
+else:  # Databricks ships app/ as the import root
+    from ranking.location import coordinates, finite_number, haversine_km
+    from ranking.search import MAX_RESULTS
+    from ranking.urgency import rank_campuses
 from .tomtom import MODE, PREFERENCE, PROVIDER, from_environment
 
 
