@@ -1,0 +1,9 @@
+# Databricks Apps entry point. Deploy with `app/` as the app's source folder.
+# The screen runs on invented demonstration facilities until both variables below are set.
+command: ["streamlit", "run", "app.py"]
+env:
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql-warehouse
+  # The operator sets the prepared table (catalog.schema.table). See data_access/README.md.
+  # - name: DATABRICKS_PREPARED_TABLE
+  #   value: catalog.schema.table
