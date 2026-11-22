@@ -126,6 +126,60 @@ class CapacityRecommendationTests(unittest.TestCase):
         self.assertEqual(result["chosen"]["facility_id"], "A")
         self.assertEqual(result["eligible_campus_ids"], ["A", "B"])
 
+    def test_missing_specialist_eta_uses_fastest_without_claiming_a_last_slot(self):
+        request, snapshot = demo_capacity_inputs()
+        for travel in (
+            None,
+            {"status": "stale", "minutes": 25},
+            {"status": "unavailable", "outcome": "no_route", "reason": "point_not_routable",
+             "minutes": None, "source": "test transport"},
+            {"status": "unavailable", "outcome": "no_route", "reason": "no_route_found", "minutes": None},
+        ):
+            with self.subTest(travel=travel):
+                snapshot["travel"]["F"] = travel
+                result = recommend_capacity(request, snapshot)
+                self.assertEqual(result["chosen"]["facility_id"], "A")
+                self.assertEqual(result["reason"], "scarcity_indeterminate")
+                self.assertEqual(result["uncertain_profiles"], ["dialysis/monitored"])
+                self.assertEqual(result["preserved_profiles"], [])
+                self.assertEqual(result["extra_travel_minutes"], 0)
+
+        snapshot["travel"]["F"] = {
+            "status": "unavailable", "outcome": "no_route", "reason": "no_route_found",
+            "minutes": None, "source": "test transport",
+        }
+        result = recommend_capacity(request, snapshot)
+        self.assertEqual(result["chosen"]["facility_id"], "B")
+        self.assertEqual(result["preserved_profiles"], ["dialysis/monitored"])
+        self.assertEqual(result["uncertain_profiles"], [])
+        self.assertEqual(result["exclusions"]["travel_no_route"], 1)
+
+    def test_incomplete_specialist_stock_is_not_proof_of_absence(self):
+        request, snapshot = demo_capacity_inputs()
+        monitored = snapshot["capacity"]["F"][0]
+        snapshot["travel"]["F"]["minutes"] = 20
+        for state in ("unknown", "stale", "unavailable"):
+            with self.subTest(state=state):
+                monitored.update(status=state, free_slots=None)
+                result = recommend_capacity(request, snapshot)
+                self.assertEqual(result["chosen"]["facility_id"], "A")
+                self.assertEqual(result["reason"], "scarcity_indeterminate")
+        del snapshot["capacity"]["F"]
+        self.assertEqual(recommend_capacity(request, snapshot)["reason"], "scarcity_indeterminate")
+        monitored.update(status="known", free_slots=0)
+        snapshot["capacity"]["F"] = [monitored]
+        result = recommend_capacity(request, snapshot)
+        self.assertEqual(result["chosen"]["facility_id"], "B")
+        self.assertEqual(result["preserved_profiles"], ["dialysis/monitored"])
+
+    def test_demo_snapshot_and_request_bind_the_selected_origin(self):
+        request, snapshot = demo_capacity_inputs(origin_id="east")
+        self.assertEqual(request["origin_id"], "east")
+        self.assertEqual(snapshot["origin_id"], "east")
+        self.assertEqual(snapshot["travel"]["B"]["minutes"], 7)
+        swapped = {**request, "origin_id": "west"}
+        self.assertEqual(recommend_capacity(swapped, snapshot)["reason"], "snapshot_origin_mismatch")
+
     def test_emergency_and_missing_snapshot_are_explicit(self):
         request, snapshot = demo_capacity_inputs()
         with patch("app.capacity_recommendation._eligible_snapshot", side_effect=AssertionError("evidence lookup")):

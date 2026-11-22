@@ -1,4 +1,5 @@
 """Hosted recommendation handoff: deterministic fake TomTom and actual app-only imports."""
+from importlib.util import find_spec
 import json
 import os
 from pathlib import Path
@@ -54,6 +55,61 @@ class HostedTests(unittest.TestCase):
         self.assertEqual(travel["D"]["reason"], "service_ineligible")
         self.assertTrue(all("simulated" in r["source"] for r in travel.values()))
 
+    def test_protection_only_observations_stay_in_one_batch(self):
+        req, snap = inputs()
+        req.update(required_tools=["isolation"], urgency="routine")
+        snap["capacity"] = {
+            "F": [{"service": "dialysis", "tools": ["monitored"], "status": "known", "free_slots": 1}]
+        }
+        for row in snap["candidates"]:
+            if row["facility_id"] in {"A", "B", "F"}:
+                tools = {"monitored": "yes"} if row["facility_id"] == "F" else {"isolation": "yes"}
+                row["services"]["dialysis"]["capabilities"] = tools
+        for urgency, count in (("routine", 3), ("highest", 2)):
+            with self.subTest(urgency=urgency):
+                service = client()
+                self.addCleanup(service.close)
+                travel = hosted.demo_car_travel(dict(req, urgency=urgency), snap, origin_id="central",
+                                                provider=service)
+                self.assertEqual(service.budget.used, count)
+                self.assertEqual(travel["F"]["status"], "known" if urgency == "routine" else "unavailable")
+        req["required_tools"] = ["unreviewed_tool"]
+        service = client()
+        self.addCleanup(service.close)
+        hosted.demo_car_travel(req, snap, origin_id="central", provider=service)
+        self.assertEqual(service.budget.used, 0)
+
+    @unittest.skipUnless(find_spec("app.capacity_recommendation"), "requires the #303 allocator")
+    def test_combined_protected_spare_across_routing_and_allocation(self):
+        from app.capacity_recommendation import demo_capacity_inputs, recommend_capacity
+
+        request, snapshot = demo_capacity_inputs(required_tools=["isolation"], origin_id="central")
+        for campus in snapshot["candidates"]:
+            fid = campus["facility_id"]
+            if fid in ("A", "B"):
+                campus["services"]["dialysis"]["capabilities"]["isolation"] = "yes"
+                pool = next(p for p in snapshot["capacity"][fid] if p["service"] == "dialysis")
+                pool["tools"].append("isolation")
+        points = {campus.id: (campus.latitude, campus.longitude) for campus in make_scenario().campuses}
+        for alternate, outcome, choice in ((route(1200), "ok", "A"),
+                                           ({}, "unavailable", "A"),
+                                           (no_route("MAP_MATCHING_FAILURE"), "no_route", "A"),
+                                           (no_route(), "no_route", "B")):
+            with self.subTest(alternate=alternate):
+                answers = {points["A"]: route(480), points["B"]: route(720), points["F"]: alternate}
+                service = client(lambda origin, point, config: answers[point])
+                self.addCleanup(service.close)
+                travel = hosted.demo_car_travel(request, snapshot, origin_id="central", provider=service)
+                self.assertEqual(service.budget.used, 3)
+                self.assertEqual(travel["F"]["outcome"], outcome)
+                result = recommend_capacity(request, {**snapshot, "travel": travel})
+                self.assertEqual(result["chosen"]["facility_id"], choice)
+                self.assertEqual(set(result["eligible_campus_ids"]), {"A", "B"})
+                self.assertEqual(bool(result["preserved_profiles"]), choice == "B")
+                if travel["F"]["reason"] in ("invalid_provider_response", "point_not_routable"):
+                    self.assertEqual(result["reason"], "scarcity_indeterminate")
+                    self.assertTrue(result["uncertain_profiles"])
+
     def test_only_canonical_points_reach_http(self):
         req, snap = inputs()
         snap["candidates"] = snap["candidates"][:1]
@@ -100,6 +156,27 @@ class HostedTests(unittest.TestCase):
             self.addCleanup(service.close)
             self.assertEqual(service.disabled_reason(), "unsupported_budget_deployment")
             self.assertIsNone(service.budget)
+
+    def test_missing_delta_binding_never_falls_back_to_sqlite(self):
+        env = {"DATABRICKS_APP_NAME": "test", "TOMTOM_ENABLED": "true", "TOMTOM_DEPLOYMENT_MODE": "databricks_delta",
+               "TOMTOM_BUDGET_DB": "/tmp/unused.sqlite", "TOMTOM_ACCOUNT_SCOPE": "fixture",
+               "TOMTOM_PRODUCT": "tomtom_maps_v1", "TOMTOM_API_KEY": "FAKE", "TOMTOM_DAILY_CALLS": "10",
+               "TOMTOM_MONTHLY_CALLS": "10", "TOMTOM_VERIFIED_MONTHLY_ALLOWANCE": "20000"}
+        for binding in ({"TOMTOM_BUDGET_TABLE": "a.b.c"}, {"TOMTOM_BUDGET_WAREHOUSE_ID": "a" * 16}):
+            client = from_environment(dict(env, **binding))
+            self.addCleanup(client.close)
+            self.assertIsNone(client.budget)
+            self.assertEqual(client.disabled_reason(), "missing_budget_store")
+
+    @unittest.skipUnless(find_spec("app.travel.delta_budget"), "requires #314")
+    def test_packaged_delta_dispatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "deployment"
+            shutil.copytree(Path(__file__).resolve().parents[2] / "app", root,
+                            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+            control = Path(__file__).with_name("packaged_delta_control.py").read_text()
+            subprocess.run([sys.executable, "-B", "-c", control + "\ncheck()"], cwd=root,
+                           env={"PATH": os.defpath}, check=True)
 
     def test_actual_flat_packaging_in_isolated_process(self):
         with tempfile.TemporaryDirectory() as tmp:
