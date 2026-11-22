@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from .urgency import rank_campuses
+from app.travel.finder import find_campuses
 
 
 def _reject_constant(value):
@@ -35,7 +35,7 @@ def main(argv=None):
             request["urgency"] = args.urgency
         if args.service is not None:
             request["service"] = args.service
-        result = rank_campuses(**request)
+        result = find_campuses(request)
     except (OSError, ValueError, TypeError, OverflowError) as exc:
         print(json.dumps({"status": "invalid_input", "message": str(exc)}), file=sys.stderr)
         return 2
