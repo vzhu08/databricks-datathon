@@ -3,102 +3,105 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Storm routing replay</title>
+<title>Find care</title>
 <link rel="stylesheet" href="storm.css">
+<link rel="stylesheet" href="ask.css">
 </head>
-<body>
+<body class="ask">
 <header class="masthead">
-  <h1>Storm routing replay</h1>
-  <p class="synthetic-note" id="synthetic-note">Jaipur area. Every campus, origin, request, slot count and travel time on this page is fictional.</p>
-  <nav class="pages" aria-label="Demo pages">
-    <span aria-current="page">Storm replay</span>
-    <a href="finder.html">Campus finder</a>
+  <h1>Find care</h1>
+  <nav class="steps" aria-label="Steps">
+    <ol>
+      <li><a href="#ask" id="step-ask" aria-current="step">Ask</a></li>
+      <li><a href="#answer" id="step-answer">Recommendation</a></li>
+      <li><a href="replay.html">Stress test</a></li>
+    </ol>
   </nav>
+  <p class="synthetic-note">Demonstration near Jaipur. Every campus, record and travel time here is invented.</p>
 </header>
 
-<section class="setup" aria-label="Replay setup">
-  <label class="field">Scenario
-    <select id="scenario"></select>
-  </label>
-  <fieldset class="field caps" id="caps">
-    <legend>Longest detour allowed</legend>
-  </fieldset>
-  <fieldset class="field view">
-    <legend>Show as</legend>
-    <label><input type="radio" name="view" value="map" checked> Map</label>
-    <label><input type="radio" name="view" value="text"> Text only</label>
-  </fieldset>
-  <div class="field file">
-    <button type="button" id="open-file">Open replay file</button>
-    <input type="file" id="file" accept="application/json,.json" hidden>
-  </div>
-  <p class="scenario-note" id="scenario-note"></p>
-  <p class="error" id="file-error" role="alert" hidden></p>
-</section>
-
-<section class="clock" aria-label="Replay clock">
-  <div class="transport">
-    <button type="button" id="restart">Restart</button>
-    <button type="button" id="back">Back</button>
-    <button type="button" id="play" class="primary">Play</button>
-    <button type="button" id="next">Next</button>
-  </div>
-  <p class="minute" id="minute-readout" aria-live="off"></p>
-  <div class="ruler">
-    <input type="range" id="scrub" min="-1" max="20" step="1" value="-1" aria-label="Clock minute">
-    <div class="ticks" id="ticks" aria-hidden="true"></div>
-  </div>
-</section>
-
-<p class="visually-hidden" id="announcer" aria-live="polite"></p>
-
-<main>
-  <div class="panels" id="panels"></div>
-
-  <section class="requests" aria-labelledby="requests-heading">
-    <div class="log">
-      <h2 id="requests-heading">Requests so far</h2>
-      <p class="hint" id="requests-hint">Nothing has arrived yet. Press Play or Next to start the shift.</p>
-      <table id="request-table" hidden>
-        <thead>
-          <tr>
-            <th scope="col">Request</th>
-            <th scope="col">Arrived</th>
-            <th scope="col">From</th>
-            <th scope="col">Needs</th>
-            <th scope="col">Urgency</th>
-            <th scope="col">Travel limit</th>
-            <th scope="col" id="outcome-left"></th>
-            <th scope="col" id="outcome-right"></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+<main class="desk">
+  <form id="ask" class="ask-form" aria-labelledby="ask-heading">
+    <h2 id="ask-heading">Where should this patient go?</h2>
+    <fieldset class="choice" id="service">
+      <legend>Care needed</legend>
+    </fieldset>
+    <label class="field" for="place">Starting from
+      <select id="place"></select>
+    </label>
+    <fieldset class="choice" id="urgency">
+      <legend>How urgent</legend>
+    </fieldset>
+    <button type="submit" class="primary" id="find">Find a campus</button>
+    <div class="examples">
+      <h3 id="examples-heading">Or try an example</h3>
+      <ul id="examples" aria-labelledby="examples-heading"></ul>
     </div>
-    <aside class="why" aria-live="polite" aria-labelledby="why-heading">
-      <h2 id="why-heading">Why this campus</h2>
-      <div id="why-body"><p class="hint">Select a request to see how each policy handled it.</p></div>
-    </aside>
-  </section>
+  </form>
 
-  <section class="summary" id="summary" aria-labelledby="summary-heading" hidden>
-    <h2 id="summary-heading">End of shift</h2>
-    <p id="summary-sentence"></p>
-    <table id="summary-table"></table>
-    <p class="hint" id="summary-check"></p>
-  </section>
+  <section id="answer" class="answer" aria-labelledby="answer-heading" tabindex="-1">
+    <h2 id="answer-heading" class="visually-hidden">Recommendation</h2>
+    <p class="visually-hidden" id="announcer" role="status"></p>
+    <div id="empty" class="empty">
+      <p class="empty-lead">The recommendation appears here.</p>
+      <p>You get one campus to send the patient to, the record that backs it, and what nobody has confirmed yet.</p>
+    </div>
+    <p class="error" id="load-error" role="alert" hidden></p>
 
-  <section class="legend" aria-labelledby="legend-heading">
-    <h2 id="legend-heading">How to read the map</h2>
-    <ul id="legend-list"></ul>
-    <p class="hint">Positions, slot counts and travel minutes are invented for this demonstration. A slot is one staffed
-      appointment in this shift. Being served means the model found a feasible appointment. It says nothing about
-      treatment or outcome.</p>
+    <div id="result" hidden>
+      <p class="stale" id="stale" hidden>You changed the request. This answer is for the earlier one. Press Find a campus to update it.</p>
+      <article class="slip" id="slip">
+        <p class="slip-for" id="request-line"></p>
+        <h3 class="slip-answer" id="headline"></h3>
+        <p class="slip-trip" id="trip"></p>
+        <div id="why"></div>
+        <figure class="record" id="record">
+          <blockquote id="record-text"></blockquote>
+          <figcaption id="record-meta"></figcaption>
+        </figure>
+        <ul class="leads" id="leads" hidden></ul>
+        <p class="caveat" id="caveat" role="note">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 22 20.5H2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.1" fill="currentColor"/></svg>
+          <span id="caveat-text"></span>
+        </p>
+        <div class="actions">
+          <button type="button" class="primary" id="copy">Copy referral note</button>
+          <button type="button" id="print">Print</button>
+          <span class="copy-status" id="copy-status" role="status"></span>
+        </div>
+      </article>
+
+      <section class="backups" id="backups" aria-labelledby="backups-heading">
+        <h3 id="backups-heading"></h3>
+        <ol id="backup-list" start="2"></ol>
+      </section>
+
+      <section class="how" id="how" aria-labelledby="how-heading">
+        <h3 id="how-heading">How this was decided</h3>
+        <p id="weights-line"></p>
+        <div class="scroll"><table id="how-table"></table></div>
+        <p class="hint">Points are this demonstration's rule of thumb. They rank campuses for a referral and predict nothing about treatment.</p>
+      </section>
+
+      <section class="leftout" id="leftout" aria-labelledby="leftout-heading">
+        <h3 id="leftout-heading">Left out, and why</h3>
+        <ul id="leftout-list"></ul>
+      </section>
+
+      <p class="next"><a href="replay.html">See how the routing rule copes when a storm fills the campuses</a></p>
+
+      <details class="technical">
+        <summary>Technical details</summary>
+        <p>The exact request sent to the ranker (<code>python -m app.ranking</code>) and its unedited response.</p>
+        <pre id="raw" tabindex="0"></pre>
+        <p><a href="finder.html">Driving-time response check</a> shows how road-time lookups and their limits are reported.</p>
+      </details>
+    </div>
   </section>
 </main>
 
-<script src="data/scenarios.js"></script>
-<script src="replay_state.js"></script>
-<script src="storm.js"></script>
+<script src="data/answers.js"></script>
+<script src="ask_state.js"></script>
+<script src="ask.js"></script>
 </body>
 </html>

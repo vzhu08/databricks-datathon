@@ -224,3 +224,11 @@ tbody th { font-weight: 600; }
 .pages [aria-current="page"] { color: var(--slate); }
 @media (max-width: 900px) { .pages { margin-left: 0; flex-basis: 100%; } }
 [hidden] { display: none !important; }
+
+/* Stress test page: what is being compared, and the running result in one sentence. */
+.lead-in { max-width: 82ch; margin-top: calc(var(--step) * 3); font-size: 1.0625rem; }
+.scoreline { margin-top: calc(var(--step) * 2); font-size: 1.25rem; font-weight: 700; line-height: 1.3; max-width: 70ch; }
+.panels + .legend { margin-top: calc(var(--step) * 3); padding-top: calc(var(--step) * 2); border-top: 1.5px solid var(--rule); }
+.panels + .legend h2 { font-size: 1rem; }
+.transport { flex-wrap: wrap; }
+#request-table button { white-space: nowrap; }

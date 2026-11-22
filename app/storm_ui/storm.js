@@ -13,16 +13,16 @@
   var TICK_MS = 800;
 
   var SCENARIOS = {
-    storm: ["Storm", "A routine dialysis request arrives first, then one that needs the highest urgency and a monitored dialysis slot, then a mixed wave of six."],
-    no_surge: ["No surge", "Only the first routine request arrives. Use it to see what a detour costs when nothing follows."],
-    overload: ["Overload", "The storm, followed by ten more highest-urgency requests for monitored dialysis. There are not enough staffed slots."],
-    reversal: ["Arrivals reversed", "The highest-urgency request arrives before the routine one."],
+    storm: ["Storm", "A routine dialysis patient arrives first, then a highest-urgency patient who needs a monitored dialysis slot, then a mixed wave of six."],
+    no_surge: ["No surge", "Only the first routine patient arrives. Use it to see what a detour costs when nothing follows."],
+    overload: ["Overload", "The storm, followed by ten more highest-urgency patients who need monitored dialysis. There are not enough staffed slots."],
+    reversal: ["Arrivals reversed", "The highest-urgency patient arrives before the routine one."],
     missing_capacity: ["Slot count unknown at A", "Campus A does not report its dialysis slots, so that pool cannot be allocated."],
     resource_loss: ["Slot goes offline", "Campus A loses an unbooked dialysis slot five minutes into the shift."],
   };
   var POLICIES = {
     nearest_first: "Nearest first",
-    scarcity_aware: "Scarcity-aware",
+    scarcity_aware: "Urgency-aware",
     arrival_fifo: "Nearest first, strict arrival order",
   };
   var SERVICES = { dialysis: "Dialysis", mri: "MRI", trauma_care: "Trauma care" };
@@ -78,6 +78,8 @@
     return label(SERVICES, pool.service) + (pool.tools.length ? ", " + pool.tools.map(words).join(", ") : "");
   }
   function placeName(id) { return sentence(words(id)); }
+  /* People read "Patient 8" faster than "r08". Ids that do not follow the pattern are shown as they are. */
+  function patient(id) { var m = /^r0*(\d+)$/.exec(id); return m ? "Patient " + m[1] : "Request " + id; }
   function poolTitle(resourceId) {
     var pool = S.resources(view.replay)[resourceId];
     return pool ? "campus " + pool.campus_id + " " + poolName(pool).toLowerCase().replace("mri", "MRI") : "pool " + resourceId;
@@ -126,7 +128,7 @@
     try {
       $("scrub").max = S.lastMinute(replay);
       $("synthetic-note").textContent = (typeof replay.area === "string" ? replay.area.replace(", India", "") + ". " : "") +
-        "Every campus, origin, request, slot count and travel time on this page is fictional.";
+        "Every campus, starting point, patient, slot count and travel time on this page is fictional.";
       buildPanels();
       render();
     } catch (error) {
@@ -205,7 +207,7 @@
         " free at campus " + event.nearest_campus_id + "." }));
       var finished = view.minute >= S.lastMinute(replay);
       out.push(el("p", { text: detail.protected_use
-        ? "That slot was then used by request " + detail.protected_use.request_id + " at minute " + detail.protected_use.minute + "."
+        ? "That slot was then used by " + patient(detail.protected_use.request_id).toLowerCase() + " at minute " + detail.protected_use.minute + "."
         : finished ? "That slot was never used in this replay, so the detour cost " + minutesText(event.extra_travel_minutes) + " and freed nothing that was needed."
           : "That slot has not been used yet." }));
     } else {
@@ -228,11 +230,11 @@
   function ruleText(policyName) {
     var cap = view.replay.detour_minutes;
     if (policyName === "scarcity_aware") {
-      return "A routine or time-sensitive request may travel up to " + minutesText(cap) +
-        " farther when that keeps the last reachable specialist slot free. Highest-urgency requests always take the fastest campus.";
+      return "A routine or time-sensitive patient may travel up to " + minutesText(cap) +
+        " farther when that keeps the last reachable specialist slot free. Highest-urgency patients always go to the fastest campus.";
     }
-    if (policyName === "arrival_fifo") return "Each request goes to the fastest campus with a free staffed slot, strictly in arrival order.";
-    if (policyName === "nearest_first") return "Each request goes to the fastest campus with a free staffed slot.";
+    if (policyName === "arrival_fifo") return "Each patient goes to the fastest campus with a free staffed slot, strictly in arrival order.";
+    if (policyName === "nearest_first") return "Each patient goes to the fastest campus with a free staffed slot.";
     return "";
   }
 
@@ -360,9 +362,9 @@
         var gx = origin.x - 26 - ((n - 1) % 6) * 15, gy = origin.y - 1 + Math.floor((n - 1) / 6) * 15;
         var mark = glyph(event.urgency, gx, gy, chosen ? 6 : 5, "unserved");
         mark.addEventListener("click", select);
-        mark.append(svg("title", { text: "Request " + event.request_id + ": not served" }));
+        mark.append(svg("title", { text: patient(event.request_id) + ": not served" }));
         marks.append(mark, svg("line", { class: "cross", x1: gx - 3, y1: gy - 3, x2: gx + 3, y2: gy + 3 }));
-        if (now || chosen) tags.append(tag(gx, gy, event.request_id + " not served"));
+        if (now || chosen) tags.append(tag(gx, gy, patient(event.request_id) + " not served"));
         return;
       }
       var campus = campuses[event.campus_id];
@@ -374,7 +376,7 @@
       var path = svg("path", {
         class: "link urgency-" + event.urgency + (now ? " now" : "") + (chosen ? " selected" : "") + (now && view.fresh ? " fresh" : ""),
         d: "M" + origin.x + " " + origin.y + " Q" + mx + " " + my + " " + campus.x + " " + campus.y, pathLength: 1,
-      }, [svg("title", { text: "Request " + event.request_id + ": " + outcomeShort(event) })]);
+      }, [svg("title", { text: patient(event.request_id) + ": " + outcomeShort(event) })]);
       path.addEventListener("click", select);
       links.append(path);
       var cx = (origin.x + 2 * mx + campus.x) / 4, cy = (origin.y + 2 * my + campus.y) / 4;
@@ -382,7 +384,7 @@
       dot.addEventListener("click", select);
       marks.append(dot);
       if (now || chosen) {
-        tags.append(tag(cx, cy, event.request_id + ", " + event.travel_minutes + " min"));
+        tags.append(tag(cx, cy, patient(event.request_id) + ", " + event.travel_minutes + " min"));
         if (event.extra_travel_minutes > 0) {
           var fast = campuses[event.nearest_campus_id];
           links.append(svg("path", { class: "fastest", d: "M" + origin.x + " " + origin.y + " L" + fast.x + " " + fast.y }));
@@ -416,7 +418,7 @@
         head,
         el("p", { class: "rule-text", text: ruleText(policyName) }),
         el("div", { id: "map-" + side }),
-        el("p", { class: "map-note", text: "Fictional map. A line joins a request to its campus and is not a road." }),
+        el("p", { class: "map-note", text: "Fictional map. A line joins a patient to their campus and is not a road." }),
         el("div", { class: "tally", id: "tally-" + side }),
         el("div", { class: "event-log", id: "log-" + side }),
         el("div", { class: "slots", id: "slots-" + side }),
@@ -426,7 +428,7 @@
     $("outcome-right").textContent = label(POLICIES, view.policies[1]);
   }
   function tally(metrics, finished) {
-    var caption = metrics.requested === 0 ? "No requests yet." : finished ? "Final totals" : "Totals so far";
+    var caption = metrics.requested === 0 ? "No patients yet." : finished ? "Final totals" : "Totals so far";
     if (metrics.requested === 0) return [el("p", { text: caption })];
     function item(name, value) { return el("div", {}, [el("dt", { text: name }), el("dd", { text: value })]); }
     return [el("p", { text: caption }), el("dl", {}, [
@@ -468,7 +470,7 @@
         what: change.lost_free_slots > 0 ? plural(change.lost_free_slots, "unbooked slot", "unbooked slots") + " went offline."
           : "A slot was due to go offline, but none was unbooked, so nothing changed." };
     }).concat(state.events.map(function (event) {
-      return { minute: event.minute, order: 1, who: "Request " + event.request_id,
+      return { minute: event.minute, order: 1, who: patient(event.request_id),
         what: event.status === "assigned" ? outcomeShort(event) + "." : "Not served: " + label(UNSERVED, event.reason) + "." };
     }));
     rows.sort(function (a, b) { return a.minute - b.minute || a.order - b.order; });
@@ -500,8 +502,8 @@
     });
     table.tBodies[0].replaceChildren.apply(table.tBodies[0], announced.map(function (request) {
       var pick = function () { view.selected = request.id; render(); };
-      var button = el("button", { type: "button", text: request.id, "data-request": request.id,
-        "aria-label": "Explain request " + request.id, onclick: function (e) { e.stopPropagation(); pick(); } });
+      var button = el("button", { type: "button", text: patient(request.id), "data-request": request.id,
+        "aria-label": "Explain " + patient(request.id).toLowerCase(), onclick: function (e) { e.stopPropagation(); pick(); } });
       return el("tr", { "aria-selected": request.id === view.selected ? "true" : "false", onclick: pick }, [
         el("th", { scope: "row" }, [button]),
         el("td", { text: "Minute " + request.arrival_minute }),
@@ -522,12 +524,12 @@
     var body = $("why-body");
     var request = view.selected && view.replay.requests.filter(function (r) { return r.id === view.selected; })[0];
     if (!request) {
-      body.replaceChildren(el("p", { class: "hint", text: "Select a request in the table or on a map to see how each policy handled it." }));
+      body.replaceChildren(el("p", { class: "hint", text: "Select a patient in the table or on a map to see how each policy handled them." }));
       return;
     }
-    var nodes = [el("p", { text: "Request " + request.id + ": " + label(URGENCY, request.urgency).toLowerCase() + " urgency, " +
+    var nodes = [el("p", { text: patient(request.id) + ": " + label(URGENCY, request.urgency).toLowerCase() + " urgency, " +
       needs(request).toLowerCase().replace("mri", "MRI") + ", from " + placeName(request.origin_id) + " at minute " + request.arrival_minute +
-      ". It can travel up to " + minutesText(request.max_travel_minutes) + "." })];
+      ". They can travel up to " + minutesText(request.max_travel_minutes) + "." })];
     view.policies.forEach(function (policyName) {
       nodes.push(el("h3", { text: label(POLICIES, policyName) }));
       explainParagraphs(policyName).forEach(function (node) { nodes.push(node); });
@@ -541,7 +543,7 @@
     if (!finished) return;
     var a = states[0].metrics, b = states[1].metrics;
     var nameA = label(POLICIES, view.policies[0]), nameB = label(POLICIES, view.policies[1]);
-    $("summary-sentence").textContent = S.summary(view.replay, view.policies[0], view.policies[1], nameA, nameB);
+    $("summary-sentence").textContent = S.summary(view.replay, view.policies[0], view.policies[1], nameA, nameB, patient);
     function reasons(metrics) {
       var keys = Object.keys(metrics.unassigned_reasons);
       return keys.length ? keys.map(function (key) { return metrics.unassigned_reasons[key] + ": " + label(UNSERVED, key); }).join("; ") : "None";
@@ -551,7 +553,7 @@
       ["Highest urgency served within travel limit", a.urgent_on_time + " of " + a.urgent_requested, b.urgent_on_time + " of " + b.urgent_requested],
       ["Not served", String(a.unassigned), String(b.unassigned)],
       ["Why not served", reasons(a), reasons(b)],
-      ["Requests sent farther than their fastest campus", String(a.detours), String(b.detours)],
+      ["Patients sent farther than their fastest campus", String(a.detours), String(b.detours)],
       ["Extra travel", minutesText(a.extra_travel_minutes), minutesText(b.extra_travel_minutes)],
     ];
     $("summary-table").replaceChildren(
@@ -586,16 +588,30 @@
     if (view.minute === S.BEFORE_START) { $("announcer").textContent = "Before the shift. Nothing has arrived."; return; }
     var parts = view.policies.map(function (policyName) {
       var state = S.stateAt(view.replay, policyName, view.minute);
-      var lines = state.new_events.map(function (event) { return "request " + event.request_id + ", " + outcomeShort(event).toLowerCase(); });
+      var lines = state.new_events.map(function (event) { return patient(event.request_id).toLowerCase() + ", " + outcomeShort(event).toLowerCase(); });
       return label(POLICIES, policyName) + ": " + (lines.length ? lines.join("; ") : "nothing new") + ".";
     });
     $("announcer").textContent = "Minute " + view.minute + ". " + parts.join(" ");
+  }
+
+  /* The running result, in one sentence, so nobody has to read two maps to know who is ahead. */
+  function scoreline(states, finished) {
+    if (view.minute === S.BEFORE_START) return "No patient has arrived yet. Press Play to watch the shift, or skip to the result.";
+    var parts = states.map(function (state, i) {
+      var count = state.metrics.assigned + " of " + state.metrics.requested;
+      return i === 0 ? label(POLICIES, view.policies[i]).toLowerCase() + " has placed " + count +
+        (state.metrics.requested === 1 ? " patient" : " patients") : label(POLICIES, view.policies[i]).toLowerCase() + " " + count;
+    });
+    return (finished ? "End of the shift: " : "After minute " + view.minute + ": ") + parts.join(", ") + "." +
+      (finished ? " The full comparison is below." : "");
   }
 
   function render() {
     if (!view.replay) return;
     var finished = view.minute >= S.lastMinute(view.replay);
     var states = view.policies.map(function (policyName) { return S.stateAt(view.replay, policyName, view.minute); });
+    $("scoreline").textContent = scoreline(states, finished);
+    $("skip").disabled = finished;
     var scenario = view.custom ? null : SCENARIOS[view.replay.scenario];
     $("scenario-note").textContent = view.custom
       ? "Showing " + view.custom + ": scenario " + words(view.replay.scenario) + ", seed " + view.replay.seed + ", detour up to " + minutesText(view.replay.detour_minutes) + "."
@@ -620,12 +636,12 @@
     }
     var items = [
       [sample([svg("g", { class: "campus" }, [svg("rect", { x: 14, y: 2, width: 20, height: 20, rx: 2 }), svg("text", { class: "letter", x: 24, y: 17, style: "font-size:13px", text: "A" })])]), "Campus"],
-      [sample([svg("g", { class: "origin" }, [svg("circle", { cx: 24, cy: 12, r: 6.5 })])]), "Where requests come from"],
-      [sample(line("highest")), "Highest-urgency request"],
-      [sample(line("time_sensitive")), "Time-sensitive request"],
-      [sample(line("routine")), "Routine request"],
+      [sample([svg("g", { class: "origin" }, [svg("circle", { cx: 24, cy: 12, r: 6.5 })])]), "Where patients start from"],
+      [sample(line("highest")), "Highest-urgency patient"],
+      [sample(line("time_sensitive")), "Time-sensitive patient"],
+      [sample(line("routine")), "Routine patient"],
       [sample([svg("path", { class: "fastest", d: "M3 12 L45 12" })]), "Fastest campus, when it was not chosen"],
-      [sample([glyph("highest", 24, 12, 5, "unserved"), svg("line", { class: "cross", x1: 21, y1: 9, x2: 27, y2: 15 })]), "Request that was not served"],
+      [sample([glyph("highest", 24, 12, 5, "unserved"), svg("line", { class: "cross", x1: 21, y1: 9, x2: 27, y2: 15 })]), "Patient who was not served"],
       [sample([svg("rect", { class: "slot used", x: 12, y: 7, width: 9.5, height: 9.5 }), svg("rect", { class: "slot free", x: 26, y: 7, width: 9.5, height: 9.5 })]), "Staffed slot: used, free"],
       [sample([svg("rect", { class: "slot offline", x: 19, y: 7, width: 9.5, height: 9.5 }), svg("line", { class: "strike", x1: 18, y1: 18, x2: 29.5, y2: 6 })]), "Slot that went offline"],
       [sample([svg("rect", { class: "slot unknown", x: 19, y: 7, width: 9.5, height: 9.5 }), svg("text", { class: "slot-mark", x: 23.75, y: 15.5, text: "?" })]), "Slot count unknown or out of date"],
@@ -655,6 +671,10 @@
     $("back").addEventListener("click", function () { stop(); go(S.previousMinute(view.replay, view.minute)); });
     $("next").addEventListener("click", function () { stop(); go(S.nextMinute(view.replay, view.minute), true); });
     $("play").addEventListener("click", play);
+    $("skip").addEventListener("click", function () {
+      stop(); go(S.lastMinute(view.replay));
+      $("summary").scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    });
     $("scrub").addEventListener("input", function () { stop(); go(Number($("scrub").value)); });
     document.querySelectorAll("input[name=view]").forEach(function (input) {
       input.addEventListener("change", function () { document.body.dataset.view = input.value; });
@@ -670,7 +690,7 @@
 
     if (!bundle) {
       $("scenario").disabled = true;
-      ["restart", "back", "play", "next", "scrub"].forEach(function (id) { $(id).disabled = true; });
+      ["restart", "back", "play", "next", "skip", "scrub"].forEach(function (id) { $(id).disabled = true; });
       $("requests-hint").textContent = "No replay is open.";
       showError("The built-in replays did not load. From the repository root run python -m app.storm_ui.build, then reload this page. You can also open a replay file.");
       return;

@@ -121,7 +121,7 @@ same([stormCompare.differing, stormCompare.served_only_second, stormCompare.serv
 same(S.compare(storm, "nearest_first", "scarcity_aware", 0).differing, ["r01"], "nothing later than the clock is compared");
 ok(S.compare(replays["storm|0"], "nearest_first", "scarcity_aware", 20).identical, "detour 0: every request has the same outcome");
 ok(S.summary(replays["storm|0"], "nearest_first", "scarcity_aware", "Nearest first", "Scarcity-aware")
-  .includes("Every request had the same outcome under both"), "identical outcomes are stated only after checking each request");
+  .includes("Every patient had the same outcome under both"), "identical outcomes are stated only after checking each request");
 
 const swapped = copy();
 {
@@ -146,14 +146,16 @@ const swap = S.compare(swapped, "nearest_first", "scarcity_aware", 20);
 same([swap.identical, swap.differing, swap.served_only_first, swap.served_only_second], [false, ["r01", "r02"], ["r01"], ["r02"]],
   "equal totals, different people served");
 const swapText = S.summary(swapped, "nearest_first", "scarcity_aware", "Nearest first", "Scarcity-aware");
-ok(swapText.includes("2 requests had a different outcome under the two policies: r01, r02."), "the sentence names the requests that differ");
+ok(swapText.includes("2 patients had a different outcome under the two policies: r01, r02."), "the sentence names the requests that differ");
+ok(S.summary(swapped, "nearest_first", "scarcity_aware", "Nearest first", "Urgency-aware", (id) => "Patient " + Number(id.slice(1)))
+  .includes("Served only under Nearest first: Patient 1."), "the page can supply plain names for the people it lists");
 ok(swapText.includes("Served only under Nearest first: r01.") && swapText.includes("Served only under Scarcity-aware: r02."),
   "the sentence says who was served under which policy");
 ok(!/same outcome|no difference|anyone extra/.test(swapText), "equal totals are not described as the same result");
 for (const [key, replay] of Object.entries(replays)) {
   const text = S.summary(replay, "nearest_first", "scarcity_aware", "Nearest first", "Scarcity-aware");
   const each = S.compare(replay, "nearest_first", "scarcity_aware", S.lastMinute(replay));
-  same(text.includes("Every request had the same outcome"), each.identical, `${key}: the sentence follows the request-by-request comparison`);
+  same(text.includes("Every patient had the same outcome"), each.identical, `${key}: the sentence follows the request-by-request comparison`);
 }
 
 console.log(`ok ${checks} checks`);

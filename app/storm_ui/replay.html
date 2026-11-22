@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Storm stress test</title>
+<link rel="stylesheet" href="storm.css">
+<link rel="stylesheet" href="ask.css">
+</head>
+<body>
+<header class="masthead">
+  <h1>Storm stress test</h1>
+  <nav class="steps" aria-label="Steps">
+    <ol>
+      <li><a href="index.html#ask">Ask</a></li>
+      <li><a href="index.html#answer">Recommendation</a></li>
+      <li><a href="replay.html" aria-current="step">Stress test</a></li>
+    </ol>
+  </nav>
+  <p class="synthetic-note" id="synthetic-note">Jaipur area. Every campus, starting point, patient, slot count and travel time on this page is fictional.</p>
+</header>
+
+<p class="lead-in">A storm sends patients to six campuses faster than their staffed slots free up. Both maps get the
+  same patients at the same minutes. The left one always picks the nearest campus. The right one will send a routine
+  patient a little farther to keep the last specialist slot free for someone urgent.</p>
+
+<section class="setup" aria-label="Replay setup">
+  <label class="field">Scenario
+    <select id="scenario"></select>
+  </label>
+  <fieldset class="field caps" id="caps">
+    <legend>Longest detour allowed</legend>
+  </fieldset>
+  <fieldset class="field view">
+    <legend>Show as</legend>
+    <label><input type="radio" name="view" value="map" checked> Map</label>
+    <label><input type="radio" name="view" value="text"> Text only</label>
+  </fieldset>
+  <div class="field file">
+    <button type="button" id="open-file">Open replay file</button>
+    <input type="file" id="file" accept="application/json,.json" hidden>
+  </div>
+  <p class="scenario-note" id="scenario-note"></p>
+  <p class="error" id="file-error" role="alert" hidden></p>
+</section>
+
+<section class="clock" aria-label="Replay clock">
+  <div class="transport">
+    <button type="button" id="restart">Restart</button>
+    <button type="button" id="back">Back</button>
+    <button type="button" id="play" class="primary">Play</button>
+    <button type="button" id="next">Next</button>
+    <button type="button" id="skip">Skip to the result</button>
+  </div>
+  <p class="minute" id="minute-readout" aria-live="off"></p>
+  <div class="ruler">
+    <input type="range" id="scrub" min="-1" max="20" step="1" value="-1" aria-label="Clock minute">
+    <div class="ticks" id="ticks" aria-hidden="true"></div>
+  </div>
+</section>
+
+<p class="scoreline" id="scoreline"></p>
+<p class="visually-hidden" id="announcer" aria-live="polite"></p>
+
+<main>
+  <div class="panels" id="panels"></div>
+
+  <section class="legend" aria-labelledby="legend-heading">
+    <h2 id="legend-heading">How to read the map</h2>
+    <ul id="legend-list"></ul>
+    <p class="hint">Positions, slot counts and travel minutes are invented for this demonstration. A slot is one staffed
+      appointment in this shift. Being served means the model found a feasible appointment. It says nothing about
+      treatment or outcome.</p>
+  </section>
+
+  <section class="requests" aria-labelledby="requests-heading">
+    <div class="log">
+      <h2 id="requests-heading">Patients so far</h2>
+      <p class="hint" id="requests-hint">Nobody has arrived yet. Press Play or Next to start the shift.</p>
+      <table id="request-table" hidden>
+        <thead>
+          <tr>
+            <th scope="col">Patient</th>
+            <th scope="col">Arrived</th>
+            <th scope="col">From</th>
+            <th scope="col">Needs</th>
+            <th scope="col">Urgency</th>
+            <th scope="col">Travel limit</th>
+            <th scope="col" id="outcome-left"></th>
+            <th scope="col" id="outcome-right"></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <aside class="why" aria-live="polite" aria-labelledby="why-heading">
+      <h2 id="why-heading">Why this campus</h2>
+      <div id="why-body"><p class="hint">Select a patient to see how each policy handled them.</p></div>
+    </aside>
+  </section>
+
+  <section class="summary" id="summary" aria-labelledby="summary-heading" hidden>
+    <h2 id="summary-heading">End of shift</h2>
+    <p id="summary-sentence"></p>
+    <table id="summary-table"></table>
+    <p class="hint" id="summary-check"></p>
+  </section>
+</main>
+
+<script src="data/scenarios.js"></script>
+<script src="replay_state.js"></script>
+<script src="storm.js"></script>
+</body>
+</html>
