@@ -58,6 +58,21 @@ def _text(value, limit=2048):
     return type(value) is str and 0 < len(value) <= limit and bool(value.strip())
 
 
+def _valid_disposition(assessment):
+    state = assessment.get("state")
+    level = assessment.get("urgency")
+    step = assessment.get("next_step")
+    if level in ("emergency_ambulance", "emergency", "consultation_24"):
+        return state == "urgent" and step is None
+    if state != "completed":
+        return False
+    if level == "self_care":
+        return step is None
+    return (level == "consultation" and type(step) is dict and set(step) == {"kind", "specialty_code"}
+            and step["kind"] == "consultation"
+            and (step["specialty_code"] is None or _text(step["specialty_code"], 96)))
+
+
 def _provider_reply(raw, identity):
     reply = _snapshot(raw)
     base = {"state", "provider_id", "provider_version"}
@@ -79,10 +94,7 @@ def _provider_reply(raw, identity):
         causes = reply["possible_causes"]
         if type(causes) is not list or len(causes) > 32 or not all(_text(x, 256) for x in causes):
             raise InvalidRecord("invalid_response")
-        step = reply["next_step"]
-        if step is not None and (type(step) is not dict or set(step) != {"kind", "specialty_code"}
-                or step["kind"] != "consultation" or state == "urgent"
-                or (step["specialty_code"] is not None and not _text(step["specialty_code"], 96))):
+        if not _valid_disposition(reply):
             raise InvalidRecord("invalid_response")
     else:
         raise InvalidRecord("invalid_response")

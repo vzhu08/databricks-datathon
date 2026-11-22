@@ -5,7 +5,7 @@ import hmac
 import json
 import secrets
 
-from .contracts import POLICY_VERSION, _provider_reply, _snapshot, _text
+from .contracts import POLICY_VERSION, _provider_reply, _snapshot, _text, _valid_disposition
 
 
 class _Confirmation:
@@ -76,6 +76,8 @@ class PatientIntakeService:
         a = data["assessment"]
         if a["policy_version"] != POLICY_VERSION or (a["consent"] and not self._consented(data)):
             return dict(_empty(revision, "provider_unavailable"), reason="configuration_changed")
+        if a["state"] in ("completed", "urgent") and not _valid_disposition(a):
+            return dict(_empty(revision, "provider_unavailable"), reason="invalid_response")
         return a
 
     def _consented(self, data):
@@ -188,7 +190,8 @@ class PatientIntakeService:
 
     def _tag(self, rev, data):
         a = data["assessment"]
-        if (a["state"] != "completed" or not self._consented(data)
+        if (a["state"] != "completed" or not _valid_disposition(a) or not self._consented(data)
+                or a["policy_version"] != POLICY_VERSION
                 or a["revision"] != rev or (a["provider_id"], a["provider_version"]) != self._identity):
             raise ValueError("confirmation_unavailable")
         return _confirmation_tag(data["result_secret"], rev, POLICY_VERSION, *self._identity)

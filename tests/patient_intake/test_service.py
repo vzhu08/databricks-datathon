@@ -84,7 +84,7 @@ class RuntimeFlowTests(unittest.TestCase):
         self.service = PatientIntakeService(interview=Interview(), provider=self.adapter,
                                            provider_identity=("stub", "edition-1"), handoff=self.navigator,
                                            max_turns=3)
-        self.result = dict(**self.identity, state="completed", urgency="fixture urgency", guidance="fixture step",
+        self.result = dict(**self.identity, state="completed", urgency="self_care", guidance="fixture step",
                            uncertainty="fixture uncertainty", possible_causes=[], next_step=None)
         self.adapter.assess.return_value = self.result
         self.edit()
@@ -150,12 +150,42 @@ class RuntimeFlowTests(unittest.TestCase):
         self.service.answer(self.handle, self.handle.rev, question_id=q["issuance_id"], answers="unresolved")
         self.adapter.assess.return_value = self.result
         self.assertEqual(self.assess()["state"], "unsupported")
-        self.adapter.assess.return_value = dict(self.result, state="urgent")
+        self.adapter.assess.return_value = dict(self.result, state="urgent", urgency="emergency")
         urgent = self.assess()
         self.assertEqual(urgent["guidance"], self.result["guidance"])
         with self.assertRaises(ValueError):
             self.service.confirm(self.handle, self.handle.rev)
         self.navigator.assert_not_called()
+
+    def test_disposition_must_match_state_and_next_step_before_confirmation(self):
+        consult = {"kind": "consultation", "specialty_code": None}
+        for state, level, step in (("completed", "emergency", None), ("completed", "unknown", None),
+                                   ("completed", "consultation_24", consult), ("urgent", "self_care", None),
+                                   ("urgent", "emergency", consult), ("completed", "self_care", consult),
+                                   ("completed", "consultation", None)):
+            with self.subTest(state=state, level=level, step=step):
+                self.handle = Handle()
+                self.edit()
+                self.service.consent(self.handle, self.handle.rev, granted=True)
+                self.adapter.assess.return_value = self.result
+                self.assess()
+                prior = self.service.confirm(self.handle, self.handle.rev)
+                self.adapter.assess.return_value = dict(self.result, state=state, urgency=level, next_step=step)
+                result = self.assess()
+                self.assertEqual((result["state"], result["reason"]), ("provider_unavailable", "invalid_response"))
+                with self.assertRaises(ValueError):
+                    self.service.confirm(self.handle, result["revision"])
+                with self.assertRaises(ValueError):
+                    self.service.navigate(self.handle, result["revision"], confirmation=prior)
+        self.navigator.assert_not_called()
+
+    def test_all_five_supported_dispositions(self):
+        from app.patient_intake.contracts import _provider_reply
+        for level in ("consultation_24", "emergency", "emergency_ambulance", "self_care", "consultation"):
+            urgent = level in ("consultation_24", "emergency", "emergency_ambulance")
+            step = {"kind": "consultation", "specialty_code": None} if level == "consultation" else None
+            reply = dict(self.result, state="urgent" if urgent else "completed", urgency=level, next_step=step)
+            self.assertEqual(_provider_reply(reply, ("stub", "edition-1")), reply)
 
     def test_wrong_provenance_malformed_results_and_absent_configuration(self):
         from app.patient_intake import PatientIntakeService
