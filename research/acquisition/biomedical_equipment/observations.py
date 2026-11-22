@@ -102,6 +102,8 @@ def classify_rows(rows):
         if not isinstance(name, str) or not name.strip():
             name = None
         flags = ["historical_equipment_only", "condition_observation_date_unreviewed", "campus_unreviewed"]
+        if row.get("reserved_html_columns"):
+            flags.append("vertical_span_values_not_inherited")
         if name is None:
             flags.append("facility_in_sheet_or_context_requires_review")
         elif re.search(r"&|\band\b|associated|group", name, re.I):

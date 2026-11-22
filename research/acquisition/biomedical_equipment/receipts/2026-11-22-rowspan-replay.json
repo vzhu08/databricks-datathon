@@ -1,0 +1,116 @@
+{
+  "parser_version": "1.0.1",
+  "baseline_commit": "ea24875674ce94c8d87cafb91aefcd4ec4cb205f",
+  "fixtures_passed": 20,
+  "tests_require_xlrd": false,
+  "permitted_raw_editions": 82,
+  "held_raw_editions_excluded": 5,
+  "reachable_editions": 278,
+  "text_artifacts_compared": 268,
+  "byte_identical_text_artifacts": 268,
+  "html_editions": [
+    {
+      "raw_sha256": "34874d6e71a6d04401b16dfc52d52882421af0d55d0e66ebb3af501ea13c3db5",
+      "old_records": 231,
+      "new_records": 231,
+      "rowspan_attributes": 0,
+      "colspan_attributes": 0,
+      "extracted_sha256": "5e9ecddf72a5b6044342c95959cc7ea17e0d5a3aaab2497031922fa70bb6b708",
+      "byte_identical": true
+    },
+    {
+      "raw_sha256": "3b72687bac8c6efe134ba9e15f231205e00408f5ad56e04d095a51f32d195943",
+      "old_records": 987,
+      "new_records": 987,
+      "rowspan_attributes": 0,
+      "colspan_attributes": 0,
+      "extracted_sha256": "94cd28e922796baa37df7806b96c0b2fd66c1748c7a3435752556d0dacac2f6a",
+      "byte_identical": true
+    },
+    {
+      "raw_sha256": "47ffe7b0b5e2a07ccda365f83ba318027ecc720e0d431b4cfa366c3a6d8384d7",
+      "old_records": 798,
+      "new_records": 798,
+      "rowspan_attributes": 0,
+      "colspan_attributes": 0,
+      "extracted_sha256": "f38c3f24533961d5ac9750eb42edefbbe977cb12f8bda4a1fab9b1a6dc9c634f",
+      "byte_identical": true
+    },
+    {
+      "raw_sha256": "964371aeda16aed20ac3848fefd8ee07d0b3cd922c3f5a68db57ca03b3e24758",
+      "old_records": 1225,
+      "new_records": 1225,
+      "rowspan_attributes": 0,
+      "colspan_attributes": 0,
+      "extracted_sha256": "c2f14b43433591e5086d9377034bc62e71bbdbad9bddfc8f725e6fe644e8dffa",
+      "byte_identical": true
+    },
+    {
+      "raw_sha256": "ae20adf2bfa7900bed09208bc97de2d968bd51218883488c8d5a68accebe666c",
+      "old_records": 336,
+      "new_records": 336,
+      "rowspan_attributes": 0,
+      "colspan_attributes": 0,
+      "extracted_sha256": "38152bd695b49a5ec0e722c35083add667c72664b0c4ac87804d346e144c825b",
+      "byte_identical": true
+    }
+  ],
+  "aggregate_html_records": 3577,
+  "html_record_count_delta": 0,
+  "outputs": {
+    "equipment-observations.jsonl.gz": {
+      "before": "8dbe0bb2e73f425dc9ba5789b9fa42a077748c45189a081155a01c61d89689b0",
+      "after": "8dbe0bb2e73f425dc9ba5789b9fa42a077748c45189a081155a01c61d89689b0",
+      "identical": true
+    },
+    "mentions.jsonl": {
+      "before": "273620f6d8361a3c0138d611c8b5c9b1bd19278976c832e7b9b8d09ad9ad382c",
+      "after": "273620f6d8361a3c0138d611c8b5c9b1bd19278976c832e7b9b8d09ad9ad382c",
+      "identical": true
+    },
+    "duplicate-serial-groups.json": {
+      "before": "a07a5577e096ef6660d721d5599f90c83da7a6845298d594f2e92c3b600a0445",
+      "after": "a07a5577e096ef6660d721d5599f90c83da7a6845298d594f2e92c3b600a0445",
+      "identical": true
+    },
+    "sheet-dispositions.json": {
+      "before": "463f80acc2c320b246cc145533b61c2667f295f90ee544b663aa3d0c3eea7c6d",
+      "after": "463f80acc2c320b246cc145533b61c2667f295f90ee544b663aa3d0c3eea7c6d",
+      "identical": true
+    },
+    "observation-summary.json": {
+      "before": "adbf63226cd4b8fd1e6eb36932c05e1bbcc00cfe348d50a84a29e1810cc50069",
+      "after": "adbf63226cd4b8fd1e6eb36932c05e1bbcc00cfe348d50a84a29e1810cc50069",
+      "identical": true
+    },
+    "file-occurrences.json": {
+      "before": "5340adfd26f5d84dcc29d86673bc5ebde80315a98428605ce93c539321dde696",
+      "after": "5340adfd26f5d84dcc29d86673bc5ebde80315a98428605ce93c539321dde696",
+      "identical": true
+    },
+    "catalogue.json": {
+      "before": "cf76173301239bb6bd75fa043d1fcc0ea56b2bdc2439231bf4c5ff6b4603da90",
+      "after": "cf76173301239bb6bd75fa043d1fcc0ea56b2bdc2439231bf4c5ff6b4603da90",
+      "identical": true
+    },
+    "downloads.json": {
+      "before": "107e55b6c29cb87738b6abe35aa3a370f564a009ca0c58fe68e4f370d957ca56",
+      "after": "107e55b6c29cb87738b6abe35aa3a370f564a009ca0c58fe68e4f370d957ca56",
+      "identical": true
+    },
+    "source-receipt.json": {
+      "before": "3c39a754b54259d140b113c30e142015f12cb8ee711afab0287a858cc79a96e3",
+      "after": "3c39a754b54259d140b113c30e142015f12cb8ee711afab0287a858cc79a96e3",
+      "identical": true
+    }
+  },
+  "equipment_rows": 332653,
+  "equipment_row_count_delta": 0,
+  "interpretation": "The pinned five HTML editions contain no span attributes. The corrected parser preserves their bytes and all complete derived outputs. Metadata parser-version fields change; no source-data recapture or dataset duplication is needed.",
+  "test_source_sha256": {
+    "research/acquisition/biomedical_equipment/extract.py": "e75b38da40e8af29add129825ad3b048bd93f7dbffbb846f8331588657771e02",
+    "research/acquisition/biomedical_equipment/observations.py": "3706e0941b038cb7a51df43c27c02e59c8f51c8a44b2cf9d910180871fbaa4b5",
+    "tests/research/acquisition/biomedical_equipment/test_pipeline.py": "1b2cbf0a83e6496fb02b0ef34dc8bc38637b3fb3c1f24a6eb9958404448e1f69"
+  },
+  "live_data_reference": "Existing verified raw and derived editions remain byte-valid; this receipt is a local corrected-parser replay, not another live download."
+}

@@ -85,6 +85,66 @@ class ExtractionTests(unittest.TestCase):
         self.assertEqual(result[1]['cells']['3'], 'Qty')
         self.assertEqual(result[2]['cells']['3'], '0')
 
+    def test_vertical_hospital_span_does_not_shift_equipment_or_zero(self):
+        page = '''<html><body><table>
+        <tr><th>Institution Name</th><th>Equipment Name</th><th>Qty</th><th>Status</th></tr>
+        <tr><td rowspan="2">Synthetic Hospital</td><td>MRI</td><td>1</td><td>Functional</td></tr>
+        <tr><td>Dialysis Unit</td><td>0</td><td>Not installed</td></tr>
+        <tr><td>Another Hospital</td><td>Ventilator</td><td>2</td><td>Working</td></tr>
+        </table></body></html>'''
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)/'fixture.xls'; path.write_text(page)
+            with patch.dict('sys.modules', {'xlrd': None}):
+                result = list(workbook_rows(path, '.xls', []))
+        self.assertNotIn('1', result[2]['cells'])
+        self.assertEqual(result[2]['cells']['2'], 'Dialysis Unit')
+        self.assertEqual(result[2]['cells']['3'], '0')
+        self.assertEqual(result[2]['cells']['4'], 'Not installed')
+        self.assertEqual(result[2]['reserved_html_columns']['1']['origin_row'], 2)
+        self.assertEqual(result[3]['cells']['1'], 'Another Hospital')
+        self.assertNotIn('reserved_html_columns', result[3])
+        for row in result:
+            row.update(record_id=f"synthetic:{row['row']}", edition_sha256='a'*64)
+        parsed = list(classify_rows(result))
+        self.assertEqual(len(parsed), 3)
+        self.assertIsNone(parsed[1]['facility_printed'])
+        self.assertEqual(parsed[1]['quantity_fields'][0]['value'], '0')
+        self.assertEqual(parsed[1]['condition_fields'][0]['interpretation'], 'not_installed')
+        self.assertIn('vertical_span_values_not_inherited', parsed[1]['flags'])
+
+    def test_mixed_vertical_and_horizontal_span_reserves_every_column(self):
+        page = '''<html><body><table>
+        <tr><th>District</th><th>Institution Name</th><th>Equipment Name</th><th>Qty</th><th>Status</th></tr>
+        <tr><td rowspan="2" colspan="2">Synthetic combined scope</td><td>MRI</td><td>1</td><td>Functional</td></tr>
+        <tr><td>Dialysis Unit</td><td>0</td><td>Non Functional</td></tr>
+        </table></body></html>'''
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)/'fixture.xls'; path.write_text(page)
+            result = list(workbook_rows(path, '.xls', []))
+        self.assertEqual(result[2]['cells'], {'3':'Dialysis Unit','4':'0','5':'Non Functional'})
+        self.assertEqual(set(result[2]['reserved_html_columns']), {'1','2'})
+
+    def test_rowspan_zero_ends_at_its_row_group(self):
+        page = '''<html><body><table><tbody>
+        <tr><td rowspan="0">Scope</td><td>MRI</td></tr><tr><td>Dialysis</td></tr>
+        </tbody><tbody><tr><td>New scope</td><td>X-ray</td></tr></tbody></table></body></html>'''
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'fixture.xls';path.write_text(page)
+            result=list(workbook_rows(path,'.xls',[]))
+        self.assertEqual(result[1]['cells'], {'2':'Dialysis'})
+        self.assertEqual(result[2]['cells']['1'], 'New scope')
+        self.assertNotIn('reserved_html_columns', result[2])
+
+    def test_overlapping_html_spans_are_not_guessed(self):
+        page = '''<html><body><table>
+        <tr><td>First</td><td rowspan="2">Reserved</td></tr>
+        <tr><td colspan="2">Would overlap</td></tr>
+        </table></body></html>'''
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'fixture.xls';path.write_text(page)
+            with self.assertRaisesRegex(ValueError, 'overlapping HTML spans'):
+                list(workbook_rows(path,'.xls',[]))
+
     def test_archive_traversal_rejected_before_extraction(self):
         stream = io.BytesIO()
         with zipfile.ZipFile(stream, 'w') as z: z.writestr('../escape.xlsx', b'no')

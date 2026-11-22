@@ -84,7 +84,6 @@ def workbook_rows(path, suffix, sheets):
     if suffix == ".xlsx":
         yield from xlsx_rows(path, sheets)
     else:
-        import xlrd
         if b"<html" in path.read_bytes()[:4096].lower() or b"<!doctype html" in path.read_bytes()[:4096].lower():
             from lxml import html
             doc = html.fromstring(path.read_bytes())
@@ -95,18 +94,12 @@ def workbook_rows(path, suffix, sheets):
                 name = f"HTML table {number}"
                 meta = {"sheet": name, "nonempty_rows": 0, "format": "HTML served as XLS", "hidden": None}
                 sheets.append(meta)
-                for rownum, row in enumerate(table.xpath("./tr|./thead/tr|./tbody/tr|./tfoot/tr"), 1):
-                    cells, col, spans = {}, 1, {}
-                    for cell in row.xpath("./th|./td"):
-                        cells[str(col)] = cell.text_content()
-                        spans[str(col)] = {"rowspan": cell.get("rowspan", "1"), "colspan": cell.get("colspan", "1")}
-                        col += int(cell.get("colspan", "1"))
-                    if any(v.strip() for v in cells.values()):
+                for row in html_table_rows(table, name):
+                    if any(v.strip() for v in row["cells"].values()):
                         meta["nonempty_rows"] += 1
-                        yield {"kind": "sheet_row", "sheet": name, "row": rownum, "cells": cells,
-                               "formulas": None, "html_spans": spans,
-                               "layout_note": "HTML cell spans retained; rowspans are not filled down."}
+                        yield row
             return
+        import xlrd
         book = xlrd.open_workbook(str(path), on_demand=True)
         try:
             for sheet in book.sheets():
@@ -135,6 +128,49 @@ def workbook_rows(path, suffix, sheets):
                                "cells": cells, "formulas": None}
         finally:
             book.release_resources()
+
+
+def html_table_rows(table, name):
+    """Reserve cells covered by rowspans without copying their values down.
+
+    A reserved slot is absent from `cells`, rather than populated with an
+    invented repeated hospital/equipment/quantity. Malformed overlapping spans
+    fail the file extraction rather than assigning cells to ambiguous headers.
+    HTML rowspan=0 extends to the end of its own row group, not the next group.
+    """
+    rows = table.xpath("./tr|./thead/tr|./tbody/tr|./tfoot/tr")
+    group_ends = {row.getparent(): n for n, row in enumerate(rows, 1)}
+    occupied = {}
+    for rownum, row in enumerate(rows, 1):
+        occupied = {col: span for col, span in occupied.items() if span["end_row"] >= rownum}
+        inherited = {str(col): dict(span) for col, span in sorted(occupied.items())}
+        cells, col, spans = {}, 1, {}
+        for cell in row.xpath("./th|./td"):
+            while col in occupied:
+                col += 1
+            raw_rowspan, raw_colspan = cell.get("rowspan", "1"), cell.get("colspan", "1")
+            rowspan, colspan = int(raw_rowspan), int(raw_colspan)
+            if rowspan == 0:
+                rowspan = group_ends[row.getparent()] - rownum + 1
+            if not (1 <= rowspan <= 100000 and 1 <= colspan <= 3000):
+                raise ValueError("invalid HTML span; manual layout review required")
+            if rownum + rowspan - 1 > group_ends[row.getparent()]:
+                raise ValueError("HTML rowspan crosses row group; manual layout review required")
+            if any(c in occupied for c in range(col, col + colspan)):
+                raise ValueError("overlapping HTML spans; manual layout review required")
+            cells[str(col)] = cell.text_content()
+            spans[str(col)] = {"rowspan": raw_rowspan, "colspan": raw_colspan}
+            if rowspan > 1:
+                for c in range(col, col + colspan):
+                    occupied[c] = {"origin_row": rownum, "origin_column": col,
+                                   "end_row": rownum + rowspan - 1}
+            col += colspan
+        result = {"kind": "sheet_row", "sheet": name, "row": rownum, "cells": cells,
+                  "formulas": None, "html_spans": spans,
+                  "layout_note": "HTML cell spans retained; rowspans are not filled down."}
+        if inherited:
+            result["reserved_html_columns"] = inherited
+        yield result
 
 
 def xlsx_rows(path, sheets):
