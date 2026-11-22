@@ -15,6 +15,8 @@ from tempfile import TemporaryDirectory
 
 from research.geography.distance import haversine_m
 from research.matching.normalize import fold, name_evidence, pin_key, state_key, tokens
+from research.matching.national import STATES
+from research.matching.premises import MISSING
 
 
 SITE_RADIUS_M = 150
@@ -23,6 +25,8 @@ SITE_CELL_DEGREES = 0.002
 HOUSE = re.compile(r"^(?:(?:no|number|door|house|plot)\.?\s+)?(\d{1,5}[a-z]?(?:\s*[/\-]\s*\d{1,5}[a-z]?)?)[,\s]+(.+)", re.I)
 NAME_LEVELS = {"strong", "moderate"}
 CATEGORIES = ("high", "moderate", "single_source", "contested", "weak", "unmatched")
+LOCATION_STATUSES = ("campus_located", "area_located", "unresolved")
+MAP_SOURCES = {"hot_osm_health", "overture_places"}
 ORIGINAL_CONFLICTS = {"state_disagrees_with_pin", "base_geography_disagreement", "district_disagrees_with_pin"}
 
 
@@ -123,9 +127,18 @@ class Candidate:
     votes: bool = True
     rank: int | None = None
     contradicts_base: bool = False
+    location_basis: str | None = None
+    plausible_branch: bool = False
+    branch_conflict: bool = False
 
 
-def same_site(left, right):
+@dataclass(frozen=True)
+class RegistryBranches:
+    supporting_references: set[str]
+    competing_references: set[str]
+
+
+def same_site(left, right, address_agreement=None):
     """Two nearby records need compatible names; matching postal codes alone are insufficient."""
     if name_evidence(left.name_tokens, right.name_tokens)[0] not in NAME_LEVELS:
         return False
@@ -135,10 +148,14 @@ def same_site(left, right):
     if left.coordinates and right.coordinates:
         if haversine_m(*left.coordinates, *right.coordinates) > SITE_RADIUS_M:
             return False
+        if address_agreement is False:
+            return False
         if left.civic_address and right.civic_address and left.civic_address[0] != right.civic_address[0]:
             return False
         return True
-    return bool(left.civic_address and left.civic_address == right.civic_address and
+    address_match = (left.civic_address and left.civic_address == right.civic_address
+                     if address_agreement is None else address_agreement)
+    return bool(address_match and
                 (left.pin and left.pin == right.pin or left.city and left.city == right.city))
 
 
@@ -146,13 +163,27 @@ def rank_candidate(candidate):
     return (-candidate.strength, candidate.rank or 10**9, candidate.reference.id)
 
 
-def cluster_sites(candidates):
+def directory_address(address):
+    number, street = address
+    return number, re.sub(r"\brd\b", "road", re.sub(r"\bst\b", "street", street))
+
+
+def same_directory_site(left, right):
+    address_agreement = (directory_address(left.civic_address) == directory_address(right.civic_address)
+                         if left.civic_address and right.civic_address else None)
+    return same_site(left, right, address_agreement)
+
+
+def cluster_sites(candidates, site_match=same_site, address_key_fn=None):
     sites = []
     by_cell = defaultdict(list)
     by_address = defaultdict(list)
-    for candidate in sorted((candidate for candidate in candidates if candidate.strength), key=rank_candidate):
+    for candidate in sorted(candidates, key=rank_candidate):
         reference = candidate.reference
-        nearby = set(by_address.get(reference.civic_address, ()))
+        address = reference.civic_address
+        if address and address_key_fn:
+            address = address_key_fn(address)
+        nearby = set(by_address.get(address, ()))
         if reference.coordinates:
             lat, lon = (floor(value / SITE_CELL_DEGREES) for value in reference.coordinates)
             for dx in (-1, 0, 1):
@@ -160,21 +191,108 @@ def cluster_sites(candidates):
                     nearby.update(by_cell.get((lat + dx, lon + dy), ()))
         for index in sorted(nearby):
             site = sites[index]
-            if all(same_site(reference, member.reference) for member in site):
+            if all(site_match(reference, member.reference) for member in site):
                 site.append(candidate)
                 break
         else:
             if reference.coordinates:
                 by_cell[lat, lon].append(len(sites))
-            if reference.civic_address:
-                by_address[reference.civic_address].append(len(sites))
+            if address:
+                by_address[address].append(len(sites))
             sites.append([candidate])
     return sites
 
 
-def classify(candidates, original_conflict=False):
+def area_name(value):
+    return bool(value and value not in MISSING and value not in {"india", "in"}
+                and (state_key(value) not in STATES or value in {"delhi", "chandigarh", "puducherry"}))
+
+
+def original_area(original):
+    evidence = original["branch_evidence"]
+    if (evidence["postal_state_disagreement"] or
+            (ORIGINAL_CONFLICTS | {"address_pin_disagrees"}).intersection(original["input_problems"])):
+        return None
+    if len(evidence["pins"]) == 1 and evidence["pins"] == evidence["postal_pins"]:
+        return {"kind": "pin", "value": evidence["pins"][0]}
+    for kind, field in (("locality", "localities"), ("city", "cities"), ("district", "districts")):
+        labels = evidence[field]
+        if len(labels) == 1 and area_name(labels[0]):
+            return {"kind": kind, "value": labels[0]}
+    return None
+
+
+def matched_site_address(candidates):
+    """Find a civic address shared by two source families in the same site."""
+    families = defaultdict(set)
+    for candidate in candidates:
+        ref = candidate.reference
+        if ref.civic_address and candidate.votes and ref.family:
+            for kind, value in (("pin", ref.pin), ("city", ref.city)):
+                if value:
+                    families[(directory_address(ref.civic_address), kind, value)].add(ref.family)
+    return any(len(sources) >= 2 for sources in families.values())
+
+
+def directory_location(candidates, original, original_conflict, supplement):
+    """Assign directory precision while keeping reviewed identity separate."""
+    plausible = cluster_sites((item for item in candidates if item.plausible_branch), same_directory_site,
+                              directory_address)
+    source_sites = defaultdict(set)
+    for index, site in enumerate(plausible):
+        for item in site:
+            ref = item.reference
+            source_sites[ref.family or ref.snapshot].add(index)
+
+    if not original_conflict:
+        for index, site in enumerate(plausible):
+            clean = [item for item in site if not (item.contradicts_base or item.branch_conflict)]
+            anchors = [item for item in clean if item.location_basis]
+            address_corroboration = bool(supplement and any(
+                item.reference.id in supplement.supporting_references for item in clean))
+            if not (anchors or address_corroboration or matched_site_address(clean)):
+                continue
+            rivals = {family for family, indexes in source_sites.items() if indexes - {index}}
+            if supplement and any(item.reference.id in supplement.competing_references for item in site):
+                rivals.add("nhp")
+            support = {item.reference.family for item in clean if item.votes and item.reference.family}
+            if address_corroboration:
+                support.add("nhp")
+            support -= rivals
+            if rivals and (len(rivals) > 1 or len(support) <= len(rivals)):
+                continue
+            preferred = min(anchors or clean,
+                            key=lambda item: (item.location_basis != "matching_branch_address",
+                                              *rank_candidate(item)))
+            ref = preferred.reference
+            return {
+                "status": "campus_located",
+                "basis": preferred.location_basis or "matching_branch_address",
+                "reference": ref.id,
+                "address": ref.address,
+                "coordinates": ref.coordinates,
+                "supporting_families": sorted(support),
+                "competing_families": sorted(rivals),
+            }
+
+    area = original_area(original) if original is not None else None
+    if area is None and not original_conflict:
+        items = [item for site in plausible for item in site]
+        refs = [item.reference for item in items] if any(
+            not (item.contradicts_base or item.branch_conflict) for item in items) else []
+        for kind in ("pin", "city"):
+            values = {getattr(ref, kind) for ref in refs}
+            if len(values) == 1 and (value := next(iter(values))) and (kind == "pin" or area_name(value)):
+                area = {"kind": kind, "value": value}
+                break
+    if area:
+        return {"status": "area_located", "basis": area["kind"], "area": area["value"]}
+    return {"status": "unresolved", "basis": "insufficient_or_conflicting_geography"}
+
+
+def classify(candidates, original_conflict=False, original=None, supplement=None):
     """Infer a campus and count each source family at most once across sites."""
-    sites = cluster_sites(candidates)
+    sites = cluster_sites(item for item in candidates if item.strength)
 
     preferences = defaultdict(dict)
     for index, site in enumerate(sites):
@@ -217,6 +335,10 @@ def classify(candidates, original_conflict=False):
         category = "weak"
     return {
         "category": category,
+        "directory_location": directory_location(
+            candidates, original, original_conflict or bool(original and
+                                                             "address_pin_disagrees" in original["input_problems"]),
+            supplement),
         "leading_reference": leader.id if leader else None,
         "leading_name": leader.name if leader else None,
         "leading_coordinates": leader.coordinates if leader else None,
@@ -280,17 +402,33 @@ def map_candidate(pair, reference):
     signals = pair["signals"]
     flags = tuple(pair["flags"])
     conflict = any(signals[key] == "conflict" for key in ("pin", "place", "state")) or "pin_conflict" in flags
+    premises = signals.get("premises", {})
+    branch_conflict = any(premises.get(key) for key in (
+        "premises_conflict", "street_conflict", "branch_qualifier_conflict",
+        "mixed_campus_description", "own_postal_state_conflict", "multiple_observed_pins"))
+    branch_address = premises.get("campus_rank", 0) >= 2
+    same_area = any(signals[key] == "agree" for key in ("pin", "place", "address"))
+    close = signals["distance_band"] in ("same_site", "near")
     strength = 0
-    if signals["name_level"] in NAME_LEVELS and not signals["non_hospital_type"] and (
-            reference.coordinates or reference.civic_address):
+    basis = None
+    name_qualifies = signals["name_level"] in NAME_LEVELS and not signals["non_hospital_type"]
+    if name_qualifies and (reference.coordinates or reference.civic_address):
         strength = 1
         if not conflict:
-            if signals.get("premises", {}).get("campus_rank", 0) >= 2 or signals["distance_band"] == "same_site":
+            if branch_address or signals["distance_band"] == "same_site":
                 strength = 3
-            elif signals["distance_band"] == "near" or any(
-                    signals[key] == "agree" for key in ("pin", "place", "address")):
+            elif close or same_area:
                 strength = 2
-    return Candidate(reference, strength, flags, rank=pair["pre_cut_rank"], contradicts_base=conflict)
+    if name_qualifies and not conflict:
+        if branch_address and reference.address:
+            basis = "matching_branch_address"
+        elif (signals["external_source_key"] in MAP_SOURCES and reference.coordinates
+                and not premises.get("competing_coordinates")
+                and (same_area or signals["distance_band"] == "same_site")):
+            basis = "named_map_listing"
+    return Candidate(reference, strength, flags, rank=pair["pre_cut_rank"], contradicts_base=conflict,
+                     location_basis=basis, plausible_branch=bool(basis or strength and (same_area or close)),
+                     branch_conflict=branch_conflict)
 
 
 def insurer_candidate(link, reference):
@@ -300,11 +438,39 @@ def insurer_candidate(link, reference):
     conflict = link["geography_or_mixed_conflict"] or link["branch_conflict"]
     if usable:
         strength = 1 if conflict else min(3, max(1, link["evidence_tier"]))
-    return Candidate(reference, strength, tuple(link["flags"]), not shared, link["insurer_only_pre_cut_rank"], conflict)
+    matched_address = link["premises_and_street"] or link["premises_and_locality"]
+    basis = "matching_branch_address" if link["serious"] and matched_address and reference.address and not conflict else None
+    plausible = bool(basis or usable and (matched_address or link["printed_pin_relation"] == "agree" or strength >= 2))
+    return Candidate(reference, strength, tuple(link["flags"]), not shared, link["insurer_only_pre_cut_rank"], conflict,
+                     location_basis=basis, plausible_branch=plausible)
+
+
+def registry_branches(path, occurrences):
+    """Reuse the pinned official NHP and blood-host comparison as one lineage."""
+    supplements = {}
+    for row, comparison in zip(occurrences, json_lines(path), strict=True):
+        representative = row["retrieval_representative"]
+        if (row["facility_id"], representative, row["state"]) != (
+                comparison["occurrence_key"], comparison["representative"], comparison["state"]):
+            raise ValueError("Registry comparison and original occurrences do not reconcile")
+        support, rivals = set(), set()
+        for detail in comparison.get("details", []):
+            if detail["source"] not in {"nhp_official_only", "blood"}:
+                raise ValueError("Unexpected registry comparison source")
+            matched = detail["compatible_incumbent_keys"] if not detail["original_conflict"] else []
+            if detail["source"] == "nhp_official_only":
+                support.update(matched)
+            if matched or detail["alternative"] or (detail["leader_conflict"] and
+                    comparison["outcome"] == "ambiguous_host_or_branch"):
+                rivals.update(detail["incompatible_serious_incumbent_keys"])
+        branches = RegistryBranches(support, rivals)
+        if supplements.setdefault(representative, branches) != branches:
+            raise ValueError("Identical occurrences disagree in the registry comparison")
+    return supplements
 
 
 def run(replay, occurrences_path, batches, projection, output, insurer_links=None, control=None,
-        base=None, joint_occurrences=None):
+        base=None, joint_occurrences=None, registry_comparison=None):
     occurrences = list(json_lines(occurrences_path))
     if base:
         originals = read(base)
@@ -319,8 +485,9 @@ def run(replay, occurrences_path, batches, projection, output, insurer_links=Non
     if len({row["facility_id"] for row in occurrences}) != len(occurrences):
         raise ValueError("Occurrence keys must be unique")
     paths = [replay, occurrences_path, projection, *batches]
-    paths.extend(path for path in (insurer_links, control, base, joint_occurrences) if path)
+    paths.extend(path for path in (insurer_links, control, base, joint_occurrences, registry_comparison) if path)
     inputs = {path.as_posix(): digest(path) for path in paths}
+    supplements = registry_branches(registry_comparison, occurrences) if registry_comparison else {}
     old_outcomes = {}
     if joint_occurrences:
         for row, frozen in zip(occurrences, json_lines(joint_occurrences), strict=True):
@@ -359,11 +526,14 @@ def run(replay, occurrences_path, batches, projection, output, insurer_links=Non
         original_conflict = bool(ORIGINAL_CONFLICTS.intersection(original["input_problems"]) or
                                  original["branch_evidence"]["mixed_campus"] or
                                  original["branch_evidence"]["postal_state_disagreement"])
-        classified[representative] = classify(candidates, original_conflict)
+        classified[representative] = classify(candidates, original_conflict, original,
+                                              supplements.get(representative))
     if classified.keys() != representatives.keys() or insurer:
         raise ValueError("Candidate and occurrence representatives do not reconcile")
 
     totals, by_state, transitions = Counter(), defaultdict(Counter), defaultdict(Counter)
+    locations, location_bases, locations_by_state = Counter(), defaultdict(Counter), defaultdict(Counter)
+    campus_competition = Counter()
     if output.exists():
         raise FileExistsError(output)
     with TemporaryDirectory(dir=output.parent) as temp:
@@ -376,6 +546,13 @@ def run(replay, occurrences_path, batches, projection, output, insurer_links=Non
                 category = result["category"]
                 totals[category] += 1
                 by_state[row["state"]][category] += 1
+                location = result["directory_location"]
+                status = location["status"]
+                locations[status] += 1
+                location_bases[status][location["basis"]] += 1
+                locations_by_state[row["state"]][status] += 1
+                if status == "campus_located":
+                    campus_competition["outvoted_one" if location["competing_families"] else "no_rival"] += 1
                 old_outcome = old_outcomes.get(row["facility_id"])
                 if old_outcome:
                     transitions[old_outcome][category] += 1
@@ -387,6 +564,12 @@ def run(replay, occurrences_path, batches, projection, output, insurer_links=Non
         report = {"occurrences": len(occurrences), "representatives": len(representatives),
                   "candidate_pairs": pair_counts, "categories": {key: totals[key] for key in CATEGORIES},
                   "by_state": by_state, "joint_retrieval_to_consensus": transitions,
+                  "location_statuses": {key: locations[key] for key in LOCATION_STATUSES},
+                  "location_bases": location_bases,
+                  "campus_competition": {key: campus_competition[key] for key in ("no_rival", "outvoted_one")},
+                  "location_by_state": {
+                      state: {status: counts[status] for status in LOCATION_STATUSES}
+                      for state, counts in locations_by_state.items()},
                   "site_radius_m": SITE_RADIUS_M, "input_sha256": inputs,
                   "occurrence_output_sha256": digest(interim / "occurrences.jsonl.gz")}
         (interim / "aggregate.json").write_text(encoded(report), encoding="utf-8", newline="\n")
@@ -401,12 +584,13 @@ def main():
     for name in ("replay", "occurrences", "projection", "output"):
         parser.add_argument(f"--{name}", type=Path, required=True)
     parser.add_argument("--reference", type=Path, action="append", required=True)
-    for name in ("insurer-links", "control", "base", "joint-occurrences"):
+    for name in ("insurer-links", "control", "base", "joint-occurrences", "registry-comparison"):
         parser.add_argument(f"--{name}", type=Path)
     args = parser.parse_args()
     report = run(args.replay, args.occurrences, args.reference, args.projection, args.output,
-                 args.insurer_links, args.control, args.base, args.joint_occurrences)
-    print(encoded({key: report[key] for key in ("occurrences", "candidate_pairs", "categories")}), end="")
+                 args.insurer_links, args.control, args.base, args.joint_occurrences, args.registry_comparison)
+    print(encoded({key: report[key] for key in ("occurrences", "candidate_pairs", "categories", "location_statuses")}),
+          end="")
 
 
 if __name__ == "__main__":
