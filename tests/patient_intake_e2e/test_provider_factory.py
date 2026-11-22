@@ -21,3 +21,6 @@ class ProviderFactoryScreenTests(unittest.TestCase):
 
     def test_existing_factory_modes_from_app_only(self):
         self.run_screen_cases("ExistingFactoryScreenCases")
+
+    def test_assessment_backend_factory_from_app_only(self):
+        self.run_screen_cases("AssessmentFactoryRuntimeCases", "assessment_factory_cases.py")
