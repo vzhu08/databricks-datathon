@@ -61,7 +61,7 @@ We replayed 2,968 top-5 searches: 742 district centres × 4 services, ranked by 
 - **Misplaced top answers.** About **1 in 6 top answers in the raw data (15.8%, 470 of 2,968) point to a facility that is not where the map puts it.** Its pin is more than 100 km from its own PIN, and the repair moves it 25 km or more or cannot place it.
 - **Pin repair changes the answer.** Applying the proposed pin repairs, which are unreviewed leads and not applied in the app, changes the top answer in **21% of searches**.
 - **Other fixes barely move the top answer.** Dropping broken rows changes it in 0.2% of searches, and collapsing duplicates and chains in 0%.
-- **Why evidence is a badge, not a filter.** Keeping only records with independent identity evidence would leave **47% of searches (822 of 1,739) with nothing within 50 km**.
+- **Why evidence is a badge, not a filter.** Applying the identity filter on its own would leave **45% of searches that have a result within 50 km (783 of 1,732), or 48.5% (840 of 1,732) under the stricter identity rule**, with nothing within 50 km. The earlier 47% (822 of 1,739) combined five changes at once.
 - **Road distance.** Straight-line distance understates the trip ([#40 receipt](https://github.com/vzhu08/databricks-datathon/issues/40#issuecomment-7076509677)). The median ratio of road to straight-line distance is 1.33 in urban districts, 1.44 in rural ones, 2.14 in hill districts and 2.35 in the northeast. In 31% of cases the nearest facility by road is not the nearest in a straight line, and island districts have no road route.
 - **Caveat.** Origins are district centres, not population-weighted, and the pin repairs are themselves leads.
 
@@ -86,8 +86,9 @@ A hand-read of 10 web verdicts found 8 right; the rules were then fixed for the 
 **Agreement with full counts.** The point rate agrees with a full-population check, which finds 10.4% of named rows more than 100 km from every post office of their own PIN. The point check partly reuses the integrity signal the strata are built on, so the census figure is shown beside it.
 
 **Service claims.** For dialysis and MRI we drew a simple random sample of 30 claimants each (seed 20261123):
-- 30% of dialysis claims (9 of 30, CI 17–48%) were backed by outside or own-site evidence.
-- 27% of MRI claims (8 of 30, CI 14–44%) were backed the same way.
+- 30% of dialysis claims (9 of 30, CI 17–48%) were also stated by an outside source or the facility's own site.
+- 27% of MRI claims (8 of 30, CI 14–44%) were matched the same way.
+- **These are consistency checks with VF's input, not independent support.**
 - **None was contradicted.**
 - **Caveat on independence:** Most of that backing is the facility's own website, and 12 of the 15 own-site matches are sites VF itself cites as a source, so it checks consistency with VF's input rather than giving independent support.
 
@@ -113,7 +114,7 @@ The rest are self-reported only. A claim with no evidence counts as unbacked, no
   - **Matching:** a lead is either an exact unique phone, website or email with agreeing geography, or strong name evidence within 250 m (or the same PIN) that is unique both ways.
   - **Excluded:** Meta-sourced places, NABH leads on rows that cite NABH, and Microsoft points within 10 m of VF's point are never counted.
   - **Sample:** a fixed-seed random sample of 147 leads, stratified by family (19 to 32 each) and by key versus name-and-place. One desk read compared name, PIN, distance and key: 137 were the same facility, 9 debatable and 1 probably wrong. No website was opened and no call made.
-- **Dated service leads:** dialysis 74 rows, trauma 17, MRI 1, CT 0 (same receipt).
+- **Dated service leads:** dialysis 74 rows, trauma 17, MRI 1, CT 0 (same receipt). Every one is a department, unit or certificate at the institution. **No source in our inputs shows a service running at a specific branch today.** 41 of the 74 dialysis leads are on records that do not claim dialysis.
   - **Rule:** a dated outside source names the service at that facility: a nephrology or trauma department in a 2023 or later paper (OpenAlex), an NABH emergency-department certificate, or an NABH MRI empanelment.
   - **Sample:** a sample of 20 OpenAlex department matches read 20 of 20 correct after filtering.
 - **Counts do not nest.** 197 rows have any dated outside evidence, and 84 rows (92 row-services) have a dated source naming the service itself. 32 of those 84 have no identity lead.

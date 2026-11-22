@@ -12,7 +12,8 @@
   - PIN wrong 6% (2–15%)
   - type disagrees 13% (3–43%)
   - name contradicted 0% (upper bound 13%)
-  - about 3 in 10 dialysis (30%) and MRI (27%) claims backed by outside or own-site evidence, none contradicted (mostly own sites that VF also cites, so not independent)
+  - about 3 in 10 dialysis (30%) and MRI (27%) claims also stated elsewhere, none contradicted. These are consistency checks with VF's input (mostly sites VF cites), not independent support
+  - no source shows a service running at a branch today
 - Speaker line: "The hand-read samples check our methods. They are not approvals, and no record has been approved for referral."
 
 ## Slide 2. "Eight problems, sized"
@@ -35,7 +36,7 @@
   - Drops negated, planned and referral-only claims
   - Says "no facility in this dataset", never "no care"
   - Proposed public layer, labelled "Other listed public facility (OpenStreetMap), not reviewed; services inferred from facility type": the median distance to a public dialysis option falls from 230 km (VF only) to 33 km
-  - Evidence as a badge, not a filter: a filter would empty 47% of searches
+  - Evidence as a badge, not a filter: the identity filter alone would empty 45% of searches (48.5% under the stricter rule)
 - Right column, to close the gap:
   - Registries, each with its own access path: HFR (NHA permission), NIN geo directory (data.gov.in download), PM-JAY (district lists work, Haryana used)
   - Two-reviewer sign-off per campus and service
