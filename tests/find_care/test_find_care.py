@@ -484,6 +484,12 @@ class ScreenTests(unittest.TestCase):
         self.assertNotIn("Send the patient", self._text(app))  # the earlier answer is gone, not left standing
         self.assertEqual((0, 0), (len(app.code), len(app.get("download_button"))))
 
+    def test_the_data_note_says_how_many_real_records_are_only_placed_in_an_area(self):
+        shown = self._text(self._app())
+        self.assertIn("This screen is running on six invented facilities", shown)
+        self.assertIn("7,418 can only be placed in an area", shown)
+        self.assertIn("10,088 Virtue Foundation records", shown)
+
     def test_a_real_town_the_demonstration_does_not_know_is_explained(self):
         app = self._app()
         app.text_input(key="where").set_value("Mumbai")
