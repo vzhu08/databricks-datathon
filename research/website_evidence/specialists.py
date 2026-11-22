@@ -24,7 +24,11 @@ service "yes" (a nephrologist can work without a dialysis unit) and not a staffi
 from __future__ import annotations
 
 import re
-from urllib.parse import urlsplit
+import argparse
+import collections
+import json
+from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from research.website_evidence.extract import ARTICLE_PATH, THIN_TEXT, visible_text
 
@@ -72,8 +76,30 @@ def pick_doctor_pages(captures: list[dict], limit: int = 6) -> list[dict]:
     return out
 
 
+# Wider than DOCTOR, for masking only: initials without spaces and up to four name words.
+_MASK = re.compile(r"\b(Dr|Prof|Mr|Mrs|Ms)\.?\s*(?:[A-Z]\.\s*)*[A-Z][a-zA-Z]*\.?(?:\s+(?:[A-Z]\.|[A-Z][a-zA-Z]+)){0,4}")
+_PROFILE_PARENT = re.compile(r"^(doctors?|team|team-member|our-doctors?|our-team|specialists?|consultants?|faculty"
+                             r"|find-a-doctor|cmsms_doctor|doctors_detail|doctor-profile|team_member|profile)$", re.I)
+_LIST_WORDS = re.compile(r"^(page|index|list|all|\d+|[a-z]+\.(php|html?|aspx?))$", re.I)
+
+
 def mask(text: str) -> str:
-    return DOCTOR.sub("Dr. ▇", text)
+    return _MASK.sub(lambda m: m.group(1) + ". ▇", text)
+
+
+def redact_url(url: str) -> str:
+    """Remove a doctor's name from a profile URL ("/doctor/dr-a-b/" -> "/doctor/[name removed]/")."""
+    parts = urlsplit(url)
+    segs = parts.path.split("/")
+    for i, seg in enumerate(segs):
+        if not seg:
+            continue
+        named = re.match(r"(dr|prof)[-_.]|doctor[-_](?!list|search|and|appointment|profile|details|opd)", seg, re.I) or re.search(r"[-_]dr[-_]", seg, re.I)
+        after_profile = i > 0 and _PROFILE_PARENT.match(segs[i - 1] or "") and not _LIST_WORDS.match(seg)
+        if named or after_profile:
+            segs[i] = "[name removed]"
+    query = re.sub(r"(slug|name|doctor|id)=[^&]*", r"\1=[removed]", parts.query, flags=re.I)
+    return urlunsplit((parts.scheme, parts.netloc, "/".join(segs), query, ""))
 
 
 def _keys(text: str):
@@ -134,6 +160,84 @@ def count_domain(pages: list[tuple[dict, str]]) -> dict:
     return {
         "doctor_pages_read": read,
         "doctors": len(everyone),
-        "specialties": {k: {"count": len(v), "url": best[k][1], "captured": best[k][2]}
+        "specialties": {k: {"count": len(v), "url": redact_url(best[k][1]), "captured": best[k][2]}
                         for k, v in sorted(by_spec.items())},
     }
+
+
+def records(rows: list[dict], domains: dict, crawl: str) -> tuple[list[dict], dict]:
+    """Row-level records (one per row x specialty) and a coverage report.
+
+    domains: {domain: count_domain() output, plus "html_capture": bool}. Domains missing from it
+    had no readable capture.
+    """
+    use = collections.Counter(d for r in rows for d in r["domains"])
+    out, state, by_spec = [], collections.Counter(), collections.Counter()
+    for r in rows:
+        ds = [domains[d] | {"domain": d} for d in r["domains"] if d in domains]
+        if not ds:
+            state["no_html_capture"] += 1
+            continue
+        if not any(d["doctor_pages_read"] for d in ds):
+            state["no_doctor_page"] += 1
+            continue
+        if not any(d["doctors"] for d in ds):
+            state["doctor_page_without_named_doctor"] += 1
+            continue
+        state["named_doctors_listed"] += 1
+        found = {}
+        for d in ds:
+            for k, v in d["specialties"].items():
+                if k not in found or v["count"] > found[k][1]["count"]:
+                    found[k] = (d["domain"], v)
+        if found:
+            state["at_least_one_target_specialist"] += 1
+        for k, (domain, v) in sorted(found.items()):
+            by_spec[k] += 1
+            ts = v["captured"]
+            out.append({
+                "facility_id": r["facility_id"], "specialty": k, "supports_service": SUPPORTS[k],
+                "kind": "dated_specialist_count", "status_effect": "none_until_reviewed",
+                "doctors_listed": v["count"], "domain": domain, "domain_shared_by_rows": use[domain],
+                "campus_attribution": "needs_review" if use[domain] > 1 else "single_row_domain",
+                "source": {"archive": "Common Crawl", "crawl": crawl, "url": redact_url(v["url"]),
+                           "captured_at": f"{ts[:4]}-{ts[4:6]}-{ts[6:8]}T{ts[8:10]}:{ts[10:12]}:{ts[12:14]}Z"},
+            })
+    report = {"crawl": crawl, "rows_in_sample": len(rows), "rows_by_state": dict(state),
+              "rows_by_specialty": dict(by_spec)}
+    return out, report
+
+
+def load_run(path: Path) -> dict:
+    """Read the browser run: domain|doctor_pages|read|thin|doctors|spec:count:timestamp:url;..."""
+    out = {}
+    for line in path.read_text().splitlines():
+        if not line.strip():
+            continue
+        d, pages, read, thin, doctors, spec = line.split("|", 5)
+        sp = {}
+        for e in filter(None, spec.split(";")):
+            k, c, ts, u = e.split(":", 3)
+            sp[k] = {"count": int(c), "captured": ts, "url": redact_url(u)}
+        out[d] = {"doctor_pages_read": int(read), "doctors": int(doctors), "specialties": sp}
+    return out
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description="Row-level specialist counts from a browser run (no names).")
+    p.add_argument("--rows", required=True, type=Path)
+    p.add_argument("--run", required=True, type=Path)
+    p.add_argument("--crawl", required=True)
+    p.add_argument("--out", required=True, type=Path)
+    a = p.parse_args(argv)
+    recs, report = records(json.loads(a.rows.read_text()), load_run(a.run), a.crawl)
+    a.out.mkdir(parents=True, exist_ok=True)
+    with (a.out / "specialists.jsonl").open("w") as f:
+        for r in recs:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    (a.out / "specialists_report.json").write_text(json.dumps(report, indent=2) + "\n")
+    print(json.dumps(report, indent=2))
+
+
+if __name__ == "__main__":
+    main()

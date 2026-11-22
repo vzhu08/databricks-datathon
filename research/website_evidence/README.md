@@ -82,6 +82,51 @@ access for dialysis, ocular or dental trauma, orthopaedic trauma surgery counted
 department drop-down menus. The labels travel with each record (`review`), so a team reviewer can
 start from them.
 
+## Specialists listed on doctor pages (same sample, same crawl)
+
+`specialists.py` reads up to six archived doctor, team or department pages per domain and counts
+the doctors listed for five specialties: nephrology (supports dialysis), radiology (MRI), and
+orthopaedics, neurosurgery and emergency/trauma medicine (trauma care). A "Dr. ..." entry counts for
+a specialty when its line or the next three lines (stopping at the next "Dr." line) name it.
+
+**Privacy.** Names exist only in memory, to count each doctor once per domain. The outputs keep a
+count per row and specialty, the page URL and the capture date. Profile URLs that carry a name are
+stored as `/doctor/[name removed]/`. Context read for the hand check had names masked.
+
+| Sample rows (n = 2,000) | Rows | Share |
+|---|---:|---:|
+| No readable HTML capture | 1,183 | 59% |
+| Readable site, but no doctor or department page archived | 324 | 16% |
+| Doctor page archived, no named doctor on it | 120 | 6% |
+| **Site lists named doctors** | **373** | **18.7%** |
+| of which at least one of the five specialties | 142 | 7.1% |
+| Orthopaedics / neurosurgery / emergency-trauma | 90 / 54 / 26 | |
+| Radiology / nephrology | 48 / 39 | |
+
+**Agreement with the service quotes** (373 rows that list named doctors; quotes are the A or B
+quotes from the run above):
+
+| Service | Rows with the specialist | Of those, also a service quote | Rows with a quote | Of those, also the specialist |
+|---|---:|---:|---:|---:|
+| Dialysis (nephrologist) | 39 | 24 (62%) | 87 | 24 (28%) |
+| MRI (radiologist) | 48 | 11 (23%) | 45 | 11 (24%) |
+| Trauma care (ortho, neuro or emergency) | 114 | 32 (28%) | 66 | 32 (48%) |
+
+A nephrologist is a fair pointer to dialysis. A radiologist or an orthopaedic surgeon says much less
+about MRI or trauma care, because most hospitals have them. The 15 dialysis rows with a
+nephrologist and no quote are the most useful leads for a reviewer.
+
+**Hand check.** 45 random (domain, specialty) pairs read once by an AI reviewer with names masked:
+37 correct (82%). The misses were menu or form text after a name (3), dental or ENT doctors next to
+a department word (3), a blog byline (1) and a founder paragraph (1). Blog-style pages
+("best-orthopaedic-hospital-in-...") can also count a doctor once. Counts are a lower bound on
+staff lists and say nothing about whether a doctor is resident or visiting.
+
+```sh
+python -m research.website_evidence.specialists --rows PRIVATE/sample_rows.json \
+  --run PRIVATE/specialists_run.psv --crawl CC-MAIN-2026-39 --out PRIVATE/out
+```
+
 ## Limits and next steps
 
 - **One crawl only.** Most misses are domains Common Crawl did not visit in that crawl. Adding two

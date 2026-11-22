@@ -50,6 +50,34 @@ class SpecialistTests(unittest.TestCase):
         self.assertEqual([c["url"] for c in specialists.pick_doctor_pages(caps)],
                          ["https://x.in/our-doctors", "https://x.in/departments/nephrology"])
 
+    def test_mask_covers_long_names_and_initials(self):
+        self.assertEqual(specialists.mask("Dr. Rajesh Kumar Singh Bhalla, MS"), "Dr. ▇, MS")
+        self.assertEqual(specialists.mask("Dr.S.S. Abilash (Ortho)"), "Dr. ▇ (Ortho)")
+
+    def test_profile_urls_lose_the_name(self):
+        r = specialists.redact_url
+        self.assertEqual(r("https://x.in/team/dr-arun-p-s/"), "https://x.in/team/[name removed]/")
+        self.assertEqual(r("https://x.in/doctor/sarojini-devi"), "https://x.in/doctor/[name removed]")
+        self.assertEqual(r("https://x.in/doctor.php?slug=dr-a-b"), "https://x.in/doctor.php?slug=[removed]")
+        self.assertEqual(r("https://x.in/doctor-vikas-k.html"), "https://x.in/[name removed]")
+        self.assertEqual(r("https://x.in/doctors/page/2/"), "https://x.in/doctors/page/2/")
+        self.assertEqual(r("https://x.in/departments/neuro-surgery"), "https://x.in/departments/neuro-surgery")
+
+    def test_row_records_and_report(self):
+        rows = [{"facility_id": "r1", "domains": ["a.in"]}, {"facility_id": "r2", "domains": ["b.in"]},
+                {"facility_id": "r3", "domains": ["c.in"]}]
+        run = {"a.in": {"doctor_pages_read": 2, "doctors": 5, "specialties": {
+                   "nephrology": {"count": 2, "url": "https://a.in/team/dr-x-y", "captured": "20260910101010"}}},
+               "b.in": {"doctor_pages_read": 0, "doctors": 0, "specialties": {}}}
+        recs, rep = specialists.records(rows, run, "CC-TEST")
+        self.assertEqual(len(recs), 1)
+        self.assertEqual(recs[0]["supports_service"], "dialysis")
+        self.assertEqual(recs[0]["source"]["url"], "https://a.in/team/[name removed]")
+        self.assertEqual(recs[0]["source"]["captured_at"], "2026-09-10T10:10:10Z")
+        self.assertEqual(recs[0]["status_effect"], "none_until_reviewed")
+        self.assertEqual(rep["rows_by_state"], {"named_doctors_listed": 1, "at_least_one_target_specialist": 1,
+                                                "no_doctor_page": 1, "no_html_capture": 1})
+
 
 if __name__ == "__main__":
     unittest.main()
