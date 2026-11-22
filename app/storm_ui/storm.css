@@ -217,3 +217,10 @@ tbody th { font-weight: 600; }
 @media (max-width: 900px) { #request-table { min-width: 40rem; } }
 .minute { white-space: nowrap; min-width: 10.5rem; }
 .leader { stroke: var(--slate); stroke-width: 0.75; }
+
+/* Links between the demo pages. */
+.pages { margin-left: auto; display: flex; gap: calc(var(--step) * 3); font-weight: 600; }
+.pages a { color: var(--ink); }
+.pages [aria-current="page"] { color: var(--slate); }
+@media (max-width: 900px) { .pages { margin-left: 0; flex-basis: 100%; } }
+[hidden] { display: none !important; }

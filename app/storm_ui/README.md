@@ -47,6 +47,46 @@ the problem and keeps the replay that was open, at the same minute.
 6. **Text-only view.** Replaces each map with an ordered log of what happened and a table of
    staffed slots by campus. It carries the same information as the map.
 
+## Campus finder page
+
+`finder.html` shows one response from the finder when the request opts in to driving times
+(`python -m app.ranking request.json` with a `routing` section, see `app/travel/README.md`). It
+draws what the response says and nothing more: the ranked order, every figure and every reason come
+from the response. It shows no map, because provider results are not plotted on another basemap.
+
+- **Example response** switches between nine invented responses, one per state the page must
+  handle: every campus timed, some timed and some unresolved, straight-line fallback, the app's own
+  request limit reached part way and reached already, a reserved request budget that is used up,
+  no route by car, provider unreachable with no fallback, and no reviewed coordinates. They are produced by the real finder code with an
+  in-process stand-in for the provider (`build_finder.py`), so no network call or credential is
+  involved and the page says the figures are not provider results.
+- **Open response file** shows a saved finder response. Every part the page reads is checked first:
+  the state, the counts, each result row and each ranked entry. A response that fails the check
+  leaves the open one on screen with the reason. The page cannot tell where a file came from, so
+  the header and the source section say its provenance is unknown.
+- The header and the source section follow the source of what is on screen: an invented example, an
+  opened file of unknown provenance, or the answer to a search made from the page. In every case
+  the page says that public display of provider results is not cleared unless the response says so.
+- The page states the search result in a sentence, then the ranked campuses (driving minutes, or
+  straight-line kilometres in a fallback, never both), then every other campus in one of five
+  groups: over the travel limit, within the limit but below those shown, no time available, no route
+  by car, and not sent for routing. Counts, the request time, the approximate-origin flag, the
+  provider named in the response and its credit and display status follow.
+- The app's own request limits and its reserved or protected budget (`reserved_budget_exhausted`,
+  `reservation_month_mismatch`, `protected_allowance_exhausted` and the like) are each reported
+  separately from a provider outage and never switch the ranking to distance.
+
+**Live searches.** The page itself never contacts a routing provider and holds no key. A backend
+that hosts the page may define `window.FINDER_TRANSPORT`, a function that takes the search
+parameters (`service`, `urgency`, `as_of`, `travel_metric`, `travel_budget`, `routing`; the server
+supplies the candidates) and returns a promise of the finder response. Only then does a
+**Search driving times** button appear. One press makes one call, the button is disabled until that
+call settles however it ends, and nothing else on the page (loading, switching examples, opening a
+file) calls it. Each answer is tied to the request that was submitted. If another example or file
+is chosen while a search is running, the late answer or failure is dropped and the newer view
+stays. An opened response file carries no request, so Search is disabled for it. The page uses no
+timers and stores nothing.
+
 ## Files
 
 | File | Purpose |
@@ -55,6 +95,10 @@ the problem and keeps the replay that was open, at the same minute.
 | `replay_state.js` | Pure functions that turn a replay and a clock minute into what a panel shows. Runs in the browser and in Node. |
 | `build.py` | Writes `data/scenarios.js` from `app.simulation`: six scenarios at four detour caps, seed 17. |
 | `data/scenarios.js` | Generated. Do not edit. `python -m app.storm_ui.build` rewrites it and `--check` verifies it. |
+| `finder.html`, `finder.css`, `finder.js` | The campus finder page. It shares `storm.css` and the fonts. |
+| `finder_state.js` | Pure functions that sort one finder response into what the page shows. Runs in the browser and in Node. |
+| `build_finder.py` | Writes `data/finder_examples.js` from `app.travel.finder` with a stand-in provider. Needs `app.travel`. |
+| `data/finder_examples.js` | Generated. Do not edit. `python -m app.storm_ui.build_finder` rewrites it and `--check` verifies it. |
 | `fonts/` | Overpass 400, 600 and 700, under the SIL Open Font License (`fonts/OFL.txt`). |
 
 ## Checks
@@ -69,6 +113,18 @@ Node.js installed) that no state shows information from a later minute, that slo
 with the events, that derived totals equal the replay's own totals in all 24 bundled replays, that
 malformed nested data is refused with a reason, and that a replay with equal totals but different
 people served is reported as different.
+
+For the finder page the tests confirm that the examples are invented and hold no candidate records
+or key, that the page files contain no network call, timer or storage, that the transport is called
+only from the Search button, and (with Node.js) that every campus in a response appears exactly once,
+that the ranked order and figures are the backend's own, that minutes and kilometres are never
+mixed, that malformed nested entries are refused, that reserve reasons are kept apart from provider
+errors, and that the search session drops a late success or failure after a view change, leaves a
+response-only file unsearchable, and recovers from an invalid row with a successful retry. When
+Playwright is installed, `tests/storm_ui/finder_browser_check.js` also drives the page in headless
+Chromium through both entry points, a response file and a search with a stand-in transport: a null
+response, a non-object, a malformed row and a failed call are each reported, leave the open view in
+place and are followed by a valid result. The check that the committed examples are current runs when `app.travel` is importable.
 
 ## Design notes
 
