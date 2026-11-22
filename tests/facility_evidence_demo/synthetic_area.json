@@ -1,0 +1,13 @@
+{
+  "schema": "synthetic-area-view-test",
+  "audience": "Synthetic test file: every value is invented",
+  "edition": "Synthetic directory edition",
+  "as_of": "2000-01-01",
+  "source": "https://github.com/example/synthetic/issues/2",
+  "originals": 1000,
+  "distinct_upstream_ids": 998,
+  "precision": {"campus_classified": 250, "locality": 10, "city": 30, "postal_area": 690, "district": 0,
+                "unresolved": 20},
+  "campus_basis": {"named_map_listing": 240, "matching_address": 10},
+  "unresolved_reasons": {"missing_state": 6, "unrecognized_label": 3, "other": 11}
+}

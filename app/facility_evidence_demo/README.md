@@ -52,3 +52,25 @@ To be filled before release, on #252:
 D noted that the GitHub evidence links need repository access, so the page labels them "team record, needs
 repository access" and carries the method, dates and denominators inline. An audience-accessible provenance
 summary is Oliver's call.
+
+## Area view (#270)
+
+A second section, "Where the records place facilities", shows every original record once at the most specific
+level its evidence supports: directory campus category, locality, city only, postal area, district only or
+unknown. It reads its own audience-cleared aggregate:
+
+```bash
+FACILITY_AREA_DISPLAY=<path to the cleared area aggregate> FACILITY_EVIDENCE_DISPLAY=... streamlit run app/facility_evidence_demo/app.py
+```
+
+- The file must match `area.AREA_PINNED_SHA256` and `area_schema.json`. That schema is B3's cleared shape and holds counts and labels only. It has no field for an area name, boundary, point, travel time, rank,
+  capacity or service.
+- The counts must reconcile: the levels sum to the originals, the campus categories to the campus count and
+  the reasons to the unknown count.
+- Pinned to B3's cleared aggregate, SHA-256 `0ac26497…2032f` (#252 comment 7077110474, #270 comment 7077111112).
+  Any other bytes, an unset path or a missing file give "Area data unavailable", and the rest of the page is
+  unaffected.
+- City-only records read "City only", with no neighbourhood or point inferred, as F's acceptance check on
+  #270 requires. The campus category says it is not an independently verified building or entrance.
+- A richer view needs area names or boundaries cleared for this audience, and reviewed building evidence.
+  Exact membership of the area-only records stays with the data owners.

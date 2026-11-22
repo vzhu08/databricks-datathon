@@ -15,6 +15,7 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.append(str(HERE))
 
+import area  # noqa: E402
 import loader  # noqa: E402
 import walkthrough  # noqa: E402
 
@@ -117,6 +118,42 @@ def public(view):
          f'<h3>Still unknown</h3><ul>{items(p["unknown"])}</ul></section>')
 
 
+def area_view(loaded_area):
+    """Where the records place facilities: counts by precision, loaded and checked on its own."""
+    head = ('<section class="fe-sec fe-case fe-area" aria-labelledby="fe-area-h"><p class="fe-kicker">Area view</p>'
+            '<h2 id="fe-area-h">Where the records place facilities</h2>')
+    if loaded_area["status"] != "ok":
+        show(f'{head}<div class="fe-down fe-down-small" role="status"><h3>Area data unavailable</h3>'
+             f"<p>{esc(loaded_area['reason'])}</p><p>Nothing is shown in its place.</p></div></section>")
+        return
+    a = area.build(loaded_area["data"])
+    label = "Synthetic test file. Every figure in this section is invented. " if loaded_area["synthetic"] else ""
+    rows = []
+    for row in a["rows"]:
+        width = max(row["share"] * 100, 0.4 if row["count"] else 0)
+        note = f'<span class="fe-note">{esc(row["note"])}</span>' if row["note"] else ""
+        rows.append(
+            f'<li class="fe-bar fe-bar-{row["key"]}" title="{esc(row["label"])}: {row["count"]:,} of {a["total"]:,}">'
+            f'<span class="fe-bar-label">{esc(row["label"])}<span class="fe-meaning">{esc(row["meaning"])}</span>{note}</span>'
+            f'<span class="fe-bar-track" aria-hidden="true"><span class="fe-bar-fill" style="width:{width:.2f}%"></span></span>'
+            f'<span class="fe-bar-value">{row["count"]:,}</span></li>')
+    show(f'{head}{f"<p class=fe-synthetic role=note>{esc(label)}</p>" if label else ""}'
+         f'<p class="fe-num">{esc(a["headline"])}</p>'
+         f'<p>{esc(a["line"])}</p>'
+         f'<ul class="fe-bars" aria-label="Original records by how precisely they are located">{"".join(rows)}</ul>'
+         f'<p class="fe-quiet">Out of {esc(a["ids"])} Each record is counted once, at the most specific level '
+         "its evidence supports. This view shows no facility pin, travel time, distance order, receiving capacity "
+         "or service claim, because an area is not a destination.</p>"
+         "<h3>What the private search can do</h3>"
+         "<p>Inside the team's private records, the search returns each record's supported area and its type. "
+         "That per-record view is not cleared for this page, so only the totals appear here.</p>"
+         '<h3>What a richer view needs</h3><ul>'
+         "<li>Area names or boundaries cleared for this audience, so each area can be shown by name or on a map.</li>"
+         "<li>Reviewed building evidence for a record before it moves from an area to a building.</li>"
+         "<li>Exact membership of the area-only records, which stays with the data owners.</li></ul>"
+         f'<p class="fe-src">Source: {cite(a["source"])}</p></section>')
+
+
 def policies(view):
     d = view["decision"]
     body = "".join(f'<tr><th scope="row">{esc(name)}</th><td>{"<br>".join(esc(line) for line in lines)}</td></tr>'
@@ -150,5 +187,6 @@ national(view)
 trace(view)
 public(view)
 policies(view)
+area_view(area.load())
 show(f'<footer class="fe-foot">Cleared audience: {esc(view["audience"])}. No scores, ranks, travel times, free slots or percentages appear here, because '
      "none can be computed from this evidence. Release of this page is the team lead's decision.</footer>")
