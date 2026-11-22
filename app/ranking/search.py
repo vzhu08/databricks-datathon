@@ -71,8 +71,13 @@ def _card(row, point, distance, evidence):
 
 
 def search_from_source(service, location, *, load_place, load_candidates, radius_km=DEFAULT_RADIUS_KM,
-                       limit=MAX_RESULTS):
-    """Search with row loaders for (place kind, normalized value) and (origin, radius)."""
+                       limit=MAX_RESULTS, prefer_majority_state=False, place_fallback=None):
+    """Search with row loaders for (place kind, normalized value) and (origin, radius).
+
+    Both options are off by default. prefer_majority_state resolves a city typed without a state in the state that
+    holds most of its records. place_fallback(kind, key, state) returns a (latitude, longitude) for a city or PIN
+    the records do not contain, for example from a public postal gazetteer; the origin stays approximate.
+    """
     if not isinstance(service, str) or service not in MATCHERS:
         return _response("invalid_input", message="Choose dialysis, MRI, or trauma care.")
     radius = finite_number(radius_km)
@@ -88,9 +93,12 @@ def search_from_source(service, location, *, load_place, load_candidates, radius
     approximate = kind != "coordinates"
     if approximate:
         key, state = value if kind == "city" else (value, "")
-        origin, choices = resolve_place(list(load_place(kind, key)), kind, state)
+        origin, choices = resolve_place(list(load_place(kind, key)), kind, state,
+                                        prefer_majority_state=prefer_majority_state)
         if choices:
             return _response("ambiguous_location", choices=choices, message="Choose a state for this city.")
+        if origin is None and place_fallback is not None:
+            origin = place_fallback(kind, key, state)
         if origin is None:
             place = "PIN" if kind == "pin" else "city/state"
             return _response("unresolved_location", message="No dataset coordinates found for that {}.".format(place))
@@ -121,7 +129,8 @@ def search_from_source(service, location, *, load_place, load_candidates, radius
     return _response(status, cards=cards, approximate=approximate, message=message)
 
 
-def search_facilities(service, location, *, facilities, radius_km=DEFAULT_RADIUS_KM, limit=MAX_RESULTS):
+def search_facilities(service, location, *, facilities, radius_km=DEFAULT_RADIUS_KM, limit=MAX_RESULTS,
+                      prefer_majority_state=False, place_fallback=None):
     """Search prepared rows in memory with no Streamlit or Databricks dependencies."""
     rows = list(facilities)
 
@@ -130,5 +139,5 @@ def search_facilities(service, location, *, facilities, radius_km=DEFAULT_RADIUS
 
     return search_from_source(
         service, location, load_place=load_place, load_candidates=lambda _origin, _radius: rows,
-        radius_km=radius_km, limit=limit,
+        radius_km=radius_km, limit=limit, prefer_majority_state=prefer_majority_state, place_fallback=place_fallback,
     )
