@@ -283,17 +283,24 @@ class TomTomRoutes:
                 self._flights.pop(key, None)
 
     def _routes(self, origin, destinations):
-        result = RouteResults(results={fid: unknown("not_evaluated", None) for fid, _ in destinations})
-        if not destinations:
+        return self._route_pairs({fid: (origin, point) for fid, point in destinations})
+
+    def _route_pairs(self, pairs):
+        """Run validated directed pairs under one admission, retry and stop budget."""
+        if len(pairs) > self.config.shortlist_limit:
+            raise ValueError("Route pairs exceed the backend shortlist bound")
+        result = RouteResults(results={key: unknown("not_evaluated", None) for key in pairs})
+        if not pairs:
             return result
         disabled = self.disabled_reason()
         if disabled:
-            result.results = {fid: unknown(disabled, None) for fid, _ in destinations}
+            result.results = {key: unknown(disabled, None) for key in pairs}
             result.errors = [disabled]
             return result
         c, lock, stop = self.config, Lock(), [None]
 
-        def one_route(fid, destination):
+        def one_route(fid, endpoints):
+            origin, destination = endpoints
             last_sent_at, waited = None, 0.0
             for attempt in range(c.max_retries + 1):
                 while True:
@@ -355,7 +362,7 @@ class TomTomRoutes:
                 self.sleep(max(.25 * (2 ** attempt), retry_after))
             raise AssertionError("Unreachable retry state")
 
-        pending = {self._pool.submit(one_route, fid, point): fid for fid, point in destinations}
+        pending = {self._pool.submit(one_route, key, endpoints): key for key, endpoints in pairs.items()}
         for future in as_completed(pending):
             result.results[pending[future]] = future.result()
         try:
