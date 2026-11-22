@@ -1,5 +1,6 @@
 """The planning simulation on the Storm page. Every plan here is invented, including its geography."""
 import copy
+import hashlib
 import importlib.util
 import json
 import os
@@ -412,6 +413,118 @@ class PlanTests(unittest.TestCase):
 
 
 @unittest.skipUnless(HAS_STREAMLIT, "Streamlit is needed to run the screen")
+
+def road_layer(**changes):
+    """An invented road layer in the shape the view reads. No real road, name or credit."""
+    layer = {
+        "type": "FeatureCollection",
+        "attribution": [{"text": "© Invented <map> contributors", "url": "https://example.invalid/copyright"},
+                        {"text": "Invented distributor", "url": "https://example.invalid/distributor"}],
+        "features": [
+            {"type": "Feature", "properties": {"highway": "primary", "name": "Invented <Main> Road"},
+             "geometry": {"type": "LineString", "coordinates": [[19.9, 10.16], [20.15, 10.16], [20.4, 10.17]]}},
+            {"type": "Feature", "properties": {"highway": "residential", "name": "Invented Lane"},
+             "geometry": {"type": "MultiLineString", "coordinates": [[[20.05, 10.05], [20.2, 10.06]],
+                                                                     [[20.1, 10.0], [20.1, 10.2]]]}},
+            {"type": "Feature", "properties": {"highway": "trunk", "name": "Far Away Highway"},
+             "geometry": {"type": "LineString", "coordinates": [[40.0, 30.0], [40.5, 30.5]]}},
+            {"type": "Feature", "properties": {}, "geometry": {"type": "Point", "coordinates": [20.1, 10.1]}},
+        ],
+    }
+    layer.update(changes)
+    return layer
+
+
+class RoadTests(unittest.TestCase):
+    """Roads under the map of real locations: one reviewed file, pinned by its bytes, or no road at all."""
+
+    def setUp(self):
+        self.folder = tempfile.TemporaryDirectory()
+        self.addCleanup(self.folder.cleanup)
+        self.path = Path(self.folder.name) / "roads.geojson"
+        self.raw = json.dumps(road_layer()).encode("utf-8")
+
+    def approved(self, raw=None):
+        return mock.patch.object(storm_plan, "APPROVED_ROADS", {hashlib.sha256(raw or self.raw).hexdigest()})
+
+    def loaded(self, layer=None):
+        raw = json.dumps(layer).encode("utf-8") if layer is not None else self.raw
+        self.path.write_bytes(raw)
+        with self.approved(raw):
+            return storm_plan.load_roads(self.path)
+
+    def test_the_road_file_is_not_in_the_repository_and_without_it_the_map_is_plain(self):
+        self.assertFalse(storm_plan.ROADS_FILE.exists(), "the road layer is packaged at deployment, not committed")
+        self.assertEqual(storm_plan.FILE.parent, storm_plan.ROADS_FILE.parent)
+        self.assertIsNone(storm_plan.load_roads(self.path))
+        page = storm_plan.markup(plan())
+        self.assertNotIn("data-roads", page)
+        self.assertNotIn("data-scale", page)
+        self.assertIn("No roads or background map are drawn.", page)
+
+    def test_only_the_reviewed_bytes_are_read(self):
+        self.path.write_bytes(self.raw)
+        self.assertIsNone(storm_plan.load_roads(self.path), "an unpinned file draws nothing")
+        with self.approved():
+            roads = storm_plan.load_roads(self.path)
+            self.assertEqual(4, len(roads["lines"]))  # the point feature is ignored
+            self.path.write_bytes(self.raw + b" ")
+            self.assertIsNone(storm_plan.load_roads(self.path), "one changed byte draws nothing")
+        self.assertEqual(64, len(next(iter(storm_plan.APPROVED_ROADS))))
+
+    def test_a_layer_without_a_usable_credit_or_line_is_refused(self):
+        for layer in (road_layer(attribution=[]), road_layer(features=[]),
+                      road_layer(attribution=[{"text": "Credit", "url": "http://example.invalid/"}]),
+                      road_layer(attribution=[{"text": " ", "url": "https://example.invalid/"}]),
+                      {key: value for key, value in road_layer().items() if key != "attribution"},
+                      road_layer(features=[{"type": "Feature", "properties": {}, "geometry": {
+                          "type": "LineString", "coordinates": [[20.0, 10.0], [20.1, float("nan")]]}}]),
+                      [1, 2]):
+            with self.subTest(layer=str(layer)[:70]):
+                self.assertIsNone(self.loaded(layer))
+        self.path.write_bytes(b"x" * (storm_plan.ROADS_MAX_BYTES + 1))
+        self.assertIsNone(storm_plan.load_roads(self.path))
+
+    def test_roads_are_drawn_under_the_sites_with_a_scale_a_credit_and_a_plain_note(self):
+        roads = self.loaded()
+        drawing = storm_plan.chart(plan(), roads)
+        self.assertIn('data-roads="shown"', drawing)
+        self.assertEqual(2, drawing.count('stroke-linecap="round"'))  # one path for each road class in view
+        self.assertLess(drawing.index('stroke-linecap="round"'), drawing.index("<circle"))
+        self.assertLess(drawing.rindex('stroke-linecap="round"'), drawing.index("Invented clinic one"))
+        self.assertRegex(drawing, r'data-scale="(0\.5|1|2|5|10|20|50) km"')
+        self.assertIn("© Invented &lt;map&gt; contributors</text>", drawing)
+        self.assertIn("Roads are drawn underneath for orientation.", drawing)
+        # A main road is named once, escaped. A side street and a road outside the frame are not named.
+        self.assertEqual(1, drawing.count("Invented &lt;Main&gt; Road</text>"))
+        self.assertNotIn("<Main>", drawing)
+        self.assertNotIn("Invented Lane", drawing)
+        self.assertNotIn("Far Away Highway", drawing)
+
+        page = storm_plan.markup(plan(), roads)
+        self.assertIn(storm_plan.ROADS_NOTE, page)
+        self.assertNotIn("No roads or background map are drawn.", page)
+        self.assertIn('<a href="https://example.invalid/copyright" target="_blank" rel="noopener noreferrer">'
+                      "© Invented &lt;map&gt; contributors</a>.", page)
+        self.assertIn("Invented distributor</a>.", page)
+        self.assertIn("</svg> road", page)
+
+    def test_roads_can_be_left_out_and_are_never_drawn_under_simulated_sites(self):
+        roads = self.loaded()
+        self.assertNotIn("data-roads", storm_plan.markup(plan(), False))
+        invented = changed(lambda found: found["geography"].update(location_basis="synthetic"))
+        self.assertNotIn("data-roads", storm_plan.chart(invented, roads))
+        self.assertNotIn("data-roads", storm_plan.markup(invented, roads))
+
+    def test_a_layer_far_from_the_sites_draws_nothing_and_a_dense_one_drops_its_smallest_roads(self):
+        far = self.loaded(road_layer(features=road_layer()["features"][2:3]))
+        self.assertNotIn("data-roads", storm_plan.chart(plan(), far))
+        roads = self.loaded()
+        with mock.patch.object(storm_plan, "ROAD_BUDGET", 60):
+            drawing = storm_plan.chart(plan(), roads)
+        self.assertEqual(1, drawing.count('stroke-linecap="round"'))
+        self.assertIn(f'stroke="{storm_plan.ROAD_TIERS[3][1]}"', drawing)  # the primary road stays
+
 
 class WordingTests(unittest.TestCase):
     def test_codes_become_words_and_medical_initials_stay_in_capitals(self):
