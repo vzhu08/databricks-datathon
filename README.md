@@ -26,7 +26,7 @@ General **dialysis** returns KEM and Jehangir Hospital in collection order. Main
 
 ### Signed-in presenter and offline notebook
 
-The public demo runs this repository's `app/` folder on Streamlit Community Cloud from a fork, with no settings, so it starts in demonstration mode. The Pune lookup above works there as written. Its national count card reads "not available" because the counts file is kept outside Git, and the assessment provider and road times are off.
+The public demo runs the `app/` folder on Streamlit Community Cloud from Andrew's fork. It opens on **Find care** under a short notice that says what is real, and the Pune lookup above works there as written. The fork adds the reviewed national counts file, so the national count card shows the same totals as the signed-in release. Its Storm planning view uses the planner's synthetic sites; the real Pune roster stays outside Git. The assessment provider and road times are off.
 
 The app opens on **Check symptoms**. The assessment provider is off on this release. A symptom description stays in the visit and receives no assessment. **Public facility evidence** is a separate manual city-and-service search. It uses the fields you enter there and makes no provider call. The signed-in release on **November 22, 2026** used Databricks Free Edition. Its national count card uses published aggregates from the real VF run. [Edition and VF SQL verification](https://github.com/vzhu08/databricks-datathon/issues/336#issuecomment-7082010831) · [Hosted KEM acceptance](https://github.com/vzhu08/databricks-datathon/issues/319#issuecomment-7082597709)
 
