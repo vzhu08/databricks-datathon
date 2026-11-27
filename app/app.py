@@ -38,6 +38,7 @@ import find_decision as decisions  # noqa: E402
 import finding_provenance as provenance  # noqa: E402
 import national_directory  # noqa: E402
 import patient_ui  # noqa: E402
+import public_demo  # noqa: E402
 from public_facility_search import search_public_facilities  # noqa: E402
 import storm_page  # noqa: E402
 from data_access import search_warehouse  # noqa: E402
@@ -515,8 +516,11 @@ st.set_page_config(page_title="Check symptoms and find care", layout="wide")
 # opacity is 5.5:1 and passes the 4.5:1 minimum for small text. Applied here so all three screens get it.
 st.markdown('<style>[data-testid="stCaptionContainer"] { color: #4b6274; opacity: 1; }</style>',
             unsafe_allow_html=True)
-# The patient screen is the product and opens first. Find care below is the separate facility search.
-VIEW = patient_ui.entry(st, "Find care", storm_page.STORM)
+# A public copy (FIND_CARE_PUBLIC_SOURCE is set) says what it is above every screen and opens on
+# Find care, because its symptom assessment is off. Everywhere else the patient screen is the product
+# and opens first. Find care below is the separate facility search.
+PUBLIC = public_demo.render(st)
+VIEW = patient_ui.entry(st, "Find care", storm_page.STORM, start=1 if PUBLIC else 0)
 if VIEW == patient_ui.PATIENT:
     patient_ui.render()
     st.stop()
