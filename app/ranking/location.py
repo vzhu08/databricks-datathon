@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import re
+from collections import Counter
 from collections.abc import Mapping
 from statistics import median
 
@@ -59,8 +60,37 @@ def validate_location(location):
     raise ValueError("Enter one location using a city and optional state, a PIN, or both coordinates.")
 
 
-def resolve_place(rows, kind, state):
-    """Resolve matching city or PIN rows to a point, or return sorted city choices."""
+# Indian states and union territories, with the spellings the facility records also use. Used only by the
+# opt-in majority-state rule: a record whose state field holds a city or locality ("Pune", "Thane") is set aside.
+STATES_AND_UNION_TERRITORIES = frozenset({
+    "andaman and nicobar islands", "andaman & nicobar islands", "andhra pradesh", "arunachal pradesh", "assam", "bihar",
+    "chandigarh", "chhattisgarh", "chattisgarh", "dadra and nagar haveli and daman and diu", "dadra and nagar haveli",
+    "daman and diu", "delhi", "nct of delhi", "goa", "gujarat", "haryana", "himachal pradesh", "jammu and kashmir",
+    "jammu & kashmir", "jharkhand", "karnataka", "kerala", "ladakh", "lakshadweep", "madhya pradesh", "maharashtra",
+    "manipur", "meghalaya", "mizoram", "nagaland", "odisha", "orissa", "puducherry", "pondicherry", "punjab", "rajasthan",
+    "sikkim", "tamil nadu", "tamilnadu", "telangana", "tripura", "uttar pradesh", "uttarakhand", "uttaranchal", "west bengal",
+})
+MAJORITY_SHARE = 0.8
+
+
+def majority_state(rows):
+    """The state holding at least MAJORITY_SHARE of the rows whose state field is a real state, else ""."""
+    states = Counter(key for key in (place_key(row.get("state")) for row in rows) if key in STATES_AND_UNION_TERRITORIES)
+    if not states:
+        return ""
+    state, count = states.most_common(1)[0]
+    return state if count >= MAJORITY_SHARE * sum(states.values()) else ""
+
+
+def resolve_place(rows, kind, state, *, prefer_majority_state=False):
+    """Resolve matching city or PIN rows to a point, or return sorted city choices.
+
+    With prefer_majority_state, a city typed without a state resolves in the state that holds most of its
+    records instead of asking, when that state holds at least MAJORITY_SHARE of them.
+    """
+    if kind == "city" and prefer_majority_state and not state:
+        rows = list(rows)
+        state = majority_state(rows)
     if kind == "city":
         states = {}
         for row in rows:

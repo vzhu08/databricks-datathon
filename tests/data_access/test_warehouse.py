@@ -135,3 +135,27 @@ class WarehouseTests(unittest.TestCase):
             host="https://workspace.example.invalid", auth_type="oauth-m2m",
             client_id="synthetic-app-id", client_secret="synthetic-app-secret",
         )
+
+
+class PlaceOptionTests(unittest.TestCase):
+    def test_place_options_are_off_unless_set(self):
+        from app.data_access.warehouse import _place_options
+        self.assertEqual({"prefer_majority_state": False}, _place_options({}))
+        self.assertEqual({"prefer_majority_state": True}, _place_options({"FIND_CARE_MAJORITY_STATE": "1"}))
+
+    def test_a_configured_gazetteer_answers_a_pin_the_table_lacks(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False, encoding="utf-8") as handle:
+            handle.write("kind,key,state,latitude,longitude\npin,222222,Sample State,0.0,0.0\n")
+        fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        connect, (lookup, scan) = fake_warehouse([], fixture["facilities"])
+        result = search_warehouse("dialysis", {"pin": "222222"}, environ=dict(ENV, FIND_CARE_PLACE_GAZETTEER=handle.name),
+                                  connect=connect)
+        self.assertNotEqual("unresolved_location", result["status"])
+        self.assertTrue(result["approximate_location"])
+
+    def test_an_unreadable_gazetteer_is_skipped(self):
+        connect, _ = fake_warehouse([])
+        result = search_warehouse("dialysis", {"pin": "222222"}, connect=connect,
+                                  environ=dict(ENV, FIND_CARE_PLACE_GAZETTEER="/nonexistent/gazetteer.csv"))
+        self.assertEqual("unresolved_location", result["status"])

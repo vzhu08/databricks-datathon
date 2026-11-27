@@ -6,9 +6,11 @@ from contextlib import ExitStack
 from urllib.parse import urlsplit
 
 if __package__ == "data_access":  # The Databricks deployment root is app/.
+    from ranking.gazetteer import gazetteer_fallback, load_gazetteer
     from ranking.location import EARTH_RADIUS_KM
     from ranking.search import DEFAULT_RADIUS_KM, MAX_RESULTS, _response, search_from_source
 else:
+    from ..ranking.gazetteer import gazetteer_fallback, load_gazetteer
     from ..ranking.location import EARTH_RADIUS_KM
     from ..ranking.search import DEFAULT_RADIUS_KM, MAX_RESULTS, _response, search_from_source
 
@@ -117,6 +119,27 @@ class _WarehouseRows:
         )
 
 
+# Opt-in place rules (both off unless set): see docs in ranking/search.py and ranking/gazetteer.py.
+MAJORITY_STATE_SETTING = "FIND_CARE_MAJORITY_STATE"
+GAZETTEER_SETTING = "FIND_CARE_PLACE_GAZETTEER"
+_GAZETTEERS = {}
+
+
+def _place_options(environ):
+    options = {"prefer_majority_state": (environ.get(MAJORITY_STATE_SETTING) or "").strip() == "1"}
+    path = (environ.get(GAZETTEER_SETTING) or "").strip()
+    if path:
+        if path not in _GAZETTEERS:
+            try:
+                with open(path, newline="", encoding="utf-8") as lines:
+                    _GAZETTEERS[path] = gazetteer_fallback(load_gazetteer(lines))
+            except OSError as error:
+                LOGGER.warning("Place gazetteer unreadable (%s); searching without it", type(error).__name__)
+                _GAZETTEERS[path] = None
+        options["place_fallback"] = _GAZETTEERS[path]
+    return options
+
+
 def search_warehouse(service, location, *, radius_km=DEFAULT_RADIUS_KM, limit=MAX_RESULTS,
                      environ=None, connect=None):
     """Search the configured prepared table. An optional connection factory supports offline tests."""
@@ -130,7 +153,7 @@ def search_warehouse(service, location, *, radius_km=DEFAULT_RADIUS_KM, limit=MA
             rows = _WarehouseRows(stack, environ, connect)
             return search_from_source(
                 service, location, load_place=rows.load_place, load_candidates=rows.load_candidates,
-                radius_km=radius_km, limit=limit,
+                radius_km=radius_km, limit=limit, **_place_options(environ),
             )
     except WarehouseError as error:
         LOGGER.warning("Prepared facility warehouse query failed (%s)", error)
