@@ -182,6 +182,15 @@ reviewed edition (the same pin as `research/matching/facility_area_display.py`, 
 checks that the counts add up. A missing, changed or older file shows "Coverage counts are not available
 in this copy of the app" and no number. Nothing is fetched, and no setting is needed.
 
+## Public copy
+
+A copy that anyone can open without signing in sets `FIND_CARE_PUBLIC_SOURCE` to the https address of the
+project's source and write-up. `public_demo.py` then shows one short notice above every screen: what the app
+is, where to start, which parts are real and a link to that address. The copy also opens on **Find care**,
+because its symptom assessment is off. With the setting unset, or set to anything that is not a plain https
+address, nothing changes: no notice, and **Check symptoms** opens first. The notice reads no patient or
+search state. Tests: `python -m unittest tests.find_care.test_public_demo`.
+
 ## Data mode
 
 Find care opens in **Public facility evidence**. The user starts the search manually using the city

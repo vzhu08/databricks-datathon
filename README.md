@@ -2,9 +2,11 @@
 
 A community health worker in Pune needs to find maintenance haemodialysis. Find care returns KEM Hospital, Pune, from the hospital’s own published service information. Use the published main line to confirm the service, an available staffed appointment and where the patient should arrive.
 
-[Open the live Databricks app](https://vf-find-care-7474658456464525.aws.databricksapps.com/) (sign-in and app access required) · [Root submission notebook](submission.ipynb) · [Download the verified offline notebook](https://github.com/vzhu08/databricks-datathon/raw/5f6169c8e07aec3b53bc2856714ac9ba3e0c23e1/submission.ipynb)
+[Open the public demo](https://find-care-demo.streamlit.app/) (no sign-in) · [Databricks release](https://vf-find-care-7474658456464525.aws.databricksapps.com/) (sign-in and app access required; Free Edition stops it 24 hours after each start) · [Root submission notebook](submission.ipynb) · [Download the verified offline notebook](https://github.com/vzhu08/databricks-datathon/raw/5f6169c8e07aec3b53bc2856714ac9ba3e0c23e1/submission.ipynb)
 
 **National result.** Outside evidence places a named facility in a supported area for **7,895 of 10,088 original Virtue Foundation (VF) records (78.3%)**. [Exploration](#exploration) · [Modeling](#modeling) · [Impact](#impact)
+
+**Team.** Oliver Chen ([oliverchennn](https://github.com/oliverchennn)) led integration, review, deployment and release. Vincent Zhu ([vzhu08](https://github.com/vzhu08)) led data acquisition and evidence. Andrew Gu ([andrewhgu](https://github.com/andrewhgu)) built the Find care, Check symptoms and Storm demo screens and the record-matching research. Ayush ([ayushrgupta906](https://github.com/ayushrgupta906)) ran independent source and account checks. [Contribution record](docs/CONTRIBUTORS.md) · [Release board](docs/implementation/OWNERSHIP.md)
 
 ## Try the real Pune lookup
 
@@ -23,6 +25,8 @@ python -m app.public_facility_search --place Pune --service 'maintenance haemodi
 General **dialysis** returns KEM and Jehangir Hospital in collection order. Maintenance haemodialysis returns only KEM because its bundled claim explicitly names that service. This search reads two operator-published claims. A miss means the collection has no relevant claim. The results carry no distance, acceptance or availability rank, and no reviewed linkage to named Virtue Foundation rows. [Jehangir nephrology page](https://www.jehangirhospital.com/nephrology-sp/) · [Search scope and reproduction](app/public_facility_search/README.md)
 
 ### Signed-in presenter and offline notebook
+
+The public demo runs the `app/` folder on Streamlit Community Cloud from Andrew's fork. It opens on **Find care** under a short notice that says what is real, and the Pune lookup above works there as written. The fork adds the reviewed national counts file, so the national count card shows the same totals as the signed-in release. Its Storm planning view uses the planner's synthetic sites; the real Pune roster stays outside Git. The assessment provider and road times are off.
 
 The app opens on **Check symptoms**. The assessment provider is off on this release. A symptom description stays in the visit and receives no assessment. **Public facility evidence** is a separate manual city-and-service search. It uses the fields you enter there and makes no provider call. The signed-in release on **November 22, 2026** used Databricks Free Edition. Its national count card uses published aggregates from the real VF run. [Edition and VF SQL verification](https://github.com/vzhu08/databricks-datathon/issues/336#issuecomment-7082010831) · [Hosted KEM acceptance](https://github.com/vzhu08/databricks-datathon/issues/319#issuecomment-7082597709)
 
